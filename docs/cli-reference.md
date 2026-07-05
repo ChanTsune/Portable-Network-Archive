@@ -50,6 +50,7 @@ This document contains the help content for the `pna` command-line program.
 * [`pna experimental chunk help help`↴](#pna-experimental-chunk-help-help)
 * [`pna experimental sort`↴](#pna-experimental-sort)
 * [`pna experimental diff`↴](#pna-experimental-diff)
+* [`pna experimental verify`↴](#pna-experimental-verify)
 * [`pna experimental help`↴](#pna-experimental-help)
 * [`pna experimental help stdio`↴](#pna-experimental-help-stdio)
 * [`pna experimental help delete`↴](#pna-experimental-help-delete)
@@ -64,6 +65,7 @@ This document contains the help content for the `pna` command-line program.
 * [`pna experimental help chunk list`↴](#pna-experimental-help-chunk-list)
 * [`pna experimental help sort`↴](#pna-experimental-help-sort)
 * [`pna experimental help diff`↴](#pna-experimental-help-diff)
+* [`pna experimental help verify`↴](#pna-experimental-help-verify)
 * [`pna experimental help help`↴](#pna-experimental-help-help)
 * [`pna help`↴](#pna-help)
 * [`pna help create`↴](#pna-help-create)
@@ -97,6 +99,7 @@ This document contains the help content for the `pna` command-line program.
 * [`pna help experimental chunk list`↴](#pna-help-experimental-chunk-list)
 * [`pna help experimental sort`↴](#pna-help-experimental-sort)
 * [`pna help experimental diff`↴](#pna-help-experimental-diff)
+* [`pna help experimental verify`↴](#pna-help-experimental-verify)
 * [`pna help help`↴](#pna-help-help)
 
 ## `pna`
@@ -1566,6 +1569,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 * `chunk` — Chunk level operation
 * `sort` — Sort entries in archive (stabilized, use `pna sort` command instead. this command will be removed in the future)
 * `diff` — Compare archive entries with filesystem
+* `verify` — Verify archive integrity
 * `help` — Print this message or the help of the given subcommand(s)
 
 ###### **Options:**
@@ -2559,6 +2563,47 @@ Compare archive entries with filesystem
 
 
 
+## `pna experimental verify`
+
+Verify archive integrity
+
+**Usage:** `pna experimental verify [OPTIONS] --file <ARCHIVE>`
+
+Note: for encrypted entries, a wrong password is indistinguishable from corruption.
+
+###### **Options:**
+
+* `-f`, `--file <ARCHIVE>` — Archive file path
+* `--fast` — Verify chunk structure and CRC32 only, without decoding entry data. Solid blocks are still decoded because enumerating their entries requires decompression and decryption, so stream corruption inside a solid block is detected even with --fast. Encrypted normal entries are counted as ok because nothing is decoded, so the skipped category does not apply.
+
+  Default value: `false`
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
+* `--password-file <FILE>` — Read password from specified file
+* `--quiet` — Make some output more quiet (alias for --log-level off)
+
+  Default value: `false`
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
+
+  Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
+* `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
+
+  Default value: `false`
+* `-h`, `--help` — Print help (see a summary with '-h')
+
+
+
 ## `pna experimental help`
 
 Print this message or the help of the given subcommand(s)
@@ -2577,6 +2622,7 @@ Print this message or the help of the given subcommand(s)
 * `chunk` — Chunk level operation
 * `sort` — Sort entries in archive (stabilized, use `pna sort` command instead. this command will be removed in the future)
 * `diff` — Compare archive entries with filesystem
+* `verify` — Verify archive integrity
 * `help` — Print this message or the help of the given subcommand(s)
 
 
@@ -2691,6 +2737,14 @@ Sort entries in archive (stabilized, use `pna sort` command instead. this comman
 Compare archive entries with filesystem
 
 **Usage:** `pna experimental help diff`
+
+
+
+## `pna experimental help verify`
+
+Verify archive integrity
+
+**Usage:** `pna experimental help verify`
 
 
 
@@ -2892,6 +2946,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 * `chunk` — Chunk level operation
 * `sort` — Sort entries in archive (stabilized, use `pna sort` command instead. this command will be removed in the future)
 * `diff` — Compare archive entries with filesystem
+* `verify` — Verify archive integrity
 
 
 
@@ -3005,6 +3060,14 @@ Sort entries in archive (stabilized, use `pna sort` command instead. this comman
 Compare archive entries with filesystem
 
 **Usage:** `pna help experimental diff`
+
+
+
+## `pna help experimental verify`
+
+Verify archive integrity
+
+**Usage:** `pna help experimental verify`
 
 
 
