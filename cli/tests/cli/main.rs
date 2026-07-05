@@ -35,6 +35,8 @@ mod stdio;
 mod strip;
 mod update;
 pub mod utils;
+#[cfg(not(target_family = "wasm"))]
+mod verify;
 mod xattr;
 
 use clap::CommandFactory;

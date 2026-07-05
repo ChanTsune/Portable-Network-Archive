@@ -20,6 +20,7 @@ pub mod sort;
 pub mod split;
 pub(crate) mod strip;
 pub mod update;
+pub(crate) mod verify;
 pub mod xattr;
 
 use crate::cli::{CipherAlgorithmArgs, Cli, Commands, GlobalContext, PasswordArgs};
