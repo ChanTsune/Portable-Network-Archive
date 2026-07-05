@@ -31,7 +31,6 @@ fn delete_with_unsolid() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "delete",
         "--unsolid",
         "-f",

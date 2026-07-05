@@ -47,7 +47,6 @@ fn delete_from_multipart_archive() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "delete",
         "-f",
         "delete_multipart/split/archive.part1.pna",

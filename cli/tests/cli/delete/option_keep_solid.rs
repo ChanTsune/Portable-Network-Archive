@@ -31,7 +31,6 @@ fn delete_with_keep_solid() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "delete",
         "-f",
         "delete_with_keep_solid/delete_with_keep_solid.pna",

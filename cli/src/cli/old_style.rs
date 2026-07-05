@@ -573,7 +573,7 @@ mod tests {
 
     #[test]
     fn non_stdio_experimental_subcommand_passthrough() {
-        let args = s(&["pna", "experimental", "delete", "cvf"]);
+        let args = s(&["pna", "experimental", "chown", "cvf"]);
         assert_eq!(expand_bsdtar_old_style_args(args.clone()), args);
     }
 
@@ -962,7 +962,7 @@ mod tests {
 
     #[test]
     fn w_option_non_stdio_experimental_subcommand_passthrough() {
-        let args = s(&["pna", "experimental", "delete", "-W", "help"]);
+        let args = s(&["pna", "experimental", "chown", "-W", "help"]);
         assert_eq!(expand_bsdtar_w_option(args.clone()), args);
     }
 

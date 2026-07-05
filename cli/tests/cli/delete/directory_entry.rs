@@ -56,7 +56,6 @@ fn delete_directory_entry() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "delete",
         "-f",
         &format!("{base}/archive.pna"),
@@ -129,7 +128,6 @@ fn delete_directory_and_contents() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "delete",
         "-f",
         &format!("{base}/archive.pna"),

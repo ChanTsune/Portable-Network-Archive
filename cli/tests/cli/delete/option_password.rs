@@ -16,7 +16,6 @@ fn delete_with_password() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "delete",
         "-f",
         "delete_password/zstd_aes_ctr.pna",

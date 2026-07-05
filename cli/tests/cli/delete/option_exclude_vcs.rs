@@ -49,7 +49,6 @@ fn delete_with_exclude_vcs() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "delete",
         "-f",
         "delete_with_exclude_vcs/delete_with_exclude_vcs.pna",
@@ -135,7 +134,6 @@ fn delete_without_exclude_vcs() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "delete",
         "-f",
         "delete_without_exclude_vcs/delete_without_exclude_vcs.pna",

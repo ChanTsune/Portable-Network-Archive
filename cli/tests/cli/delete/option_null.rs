@@ -37,7 +37,6 @@ fn delete_with_files_from_null() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "delete",
         "-f",
         "delete_files_from_null/delete_files_from_null.pna",
@@ -125,7 +124,6 @@ fn delete_with_files_from_null_rejects_newline_separator() {
     let result = cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "delete",
         "-f",
         "delete_null_newline/delete_null_newline.pna",

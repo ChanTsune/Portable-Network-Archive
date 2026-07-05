@@ -27,7 +27,6 @@ fn delete_with_exclude() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "delete",
         "-f",
         "delete_output_exclude/delete_output_exclude.pna",

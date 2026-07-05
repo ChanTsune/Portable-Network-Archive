@@ -54,7 +54,6 @@ fn delete_symlink_entry() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "delete",
         "-f",
         "delete_symlink_entry/archive.pna",
@@ -117,7 +116,6 @@ fn delete_symlink_target_keeps_symlink() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "delete",
         "-f",
         "delete_symlink_target/archive.pna",
@@ -187,7 +185,6 @@ fn delete_directory_symlink_entry() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "delete",
         "-f",
         "delete_dir_symlink/archive.pna",
