@@ -48,6 +48,11 @@ mod range {
             }
         }
 
+        /// Returns `true` when neither side constrains the range.
+        pub(crate) fn is_unbounded(&self) -> bool {
+            matches!((self.start, self.end), (Bound::Unbounded, Bound::Unbounded))
+        }
+
         pub(crate) fn contains(&self, time: SystemTime) -> bool {
             let start_ok = match self.start {
                 Bound::Unbounded => true,
@@ -160,6 +165,13 @@ mod range {
         }
 
         #[test]
+        fn is_unbounded_only_when_both_sides_unbounded() {
+            assert!(TimeRange::new_strict(None, None).is_unbounded());
+            assert!(!TimeRange::new_strict(Some(t2()), None).is_unbounded());
+            assert!(!TimeRange::new_strict(None, Some(t2())).is_unbounded());
+        }
+
+        #[test]
         fn contains_inverted_range_rejects_all() {
             // start > end: empty-range semantics
             let r = TimeRange::from_bounds(Bound::Excluded(t3()), Bound::Excluded(t1()));
@@ -209,6 +221,11 @@ impl TimeFilter {
 
     /// Determines whether a given timestamp passes this filter's constraints.
     fn matches(&self, time: Option<SystemTime>) -> bool {
+        // The missing-time policy only applies when there is an actual bound
+        // to compare against; an unbounded range accepts every entry.
+        if self.range.is_unbounded() {
+            return true;
+        }
         let time = match time {
             Some(t) => t,
             None => match &self.missing_policy {
@@ -678,6 +695,21 @@ mod tests {
                 ),
             };
             assert!(filters.matches(None, Some(now())));
+        }
+
+        #[test]
+        fn exclude_policy_ignored_when_range_unbounded() {
+            let filters = TimeFilters {
+                ctime: TimeFilter::new(
+                    TimeRange::new_strict(None, None),
+                    MissingTimePolicy::Exclude,
+                ),
+                mtime: TimeFilter::new(
+                    TimeRange::new_strict(None, None),
+                    MissingTimePolicy::Exclude,
+                ),
+            };
+            assert!(filters.matches(None, None));
         }
 
         #[test]
