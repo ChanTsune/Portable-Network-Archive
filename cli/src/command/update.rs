@@ -23,7 +23,10 @@ use crate::{
 use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
 use pna::{Archive, EntryName, Metadata, prelude::*};
-use std::{env, fs, io, path::PathBuf};
+use std::{
+    env, fs, io,
+    path::{Path, PathBuf},
+};
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -594,7 +597,7 @@ where
                         } else {
                             Ok(Some(entry))
                         }
-                    } else if sync {
+                    } else if sync && !exists_on_disk(entry.header().path().as_path()) {
                         log::debug!("Removing (sync): {}", entry.header().path());
                         Ok(None)
                     } else {
@@ -629,6 +632,23 @@ where
     }
 
     Ok(())
+}
+
+// `--sync` realigns the archive to the disk state: an entry is pruned only
+// when its name (resolved against the current directory, the same base as
+// collection) no longer exists on disk. Entries merely filtered out of the
+// collected set (e.g. by --exclude or time filters) are kept. Ambiguous
+// errors such as PermissionDenied count as existing so pruning never risks
+// data loss. Known limitation: names produced by -s/--transform/
+// --strip-components do not correspond to filesystem paths and are pruned.
+fn exists_on_disk(path: &Path) -> bool {
+    match fs::symlink_metadata(path) {
+        Ok(_) => true,
+        Err(e) => !matches!(
+            e.kind(),
+            io::ErrorKind::NotFound | io::ErrorKind::NotADirectory | io::ErrorKind::InvalidFilename
+        ),
+    }
 }
 
 // The missing-time policy applies to whichever side lacks an mtime: the
