@@ -63,6 +63,7 @@ impl Command for ExperimentalCommand {
                 cmd.execute(ctx)
             }
             ExperimentalCommands::Diff(cmd) => cmd.execute(ctx),
+            ExperimentalCommands::Verify(cmd) => cmd.execute(ctx),
         }
     }
 }
@@ -97,4 +98,6 @@ pub(crate) enum ExperimentalCommands {
     Sort(command::sort::SortCommand),
     #[command(about = "Compare archive entries with filesystem")]
     Diff(command::diff::DiffCommand),
+    #[command(about = "Verify archive integrity")]
+    Verify(command::verify::VerifyCommand),
 }

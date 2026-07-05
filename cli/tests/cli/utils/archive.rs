@@ -250,3 +250,39 @@ pub fn get_archive_entry_names(path: impl AsRef<Path>) -> Vec<String> {
     .unwrap();
     names
 }
+
+/// Flips one byte in the data field of the first chunk of `target` type.
+/// With `recompute_crc: false` the stored CRC no longer matches (CRC-level
+/// corruption); with `true` the CRC is updated so the corruption is only
+/// detectable by decoding the data stream.
+/// Returns whether a matching non-empty chunk was found and corrupted.
+pub fn corrupt_first_chunk(
+    path: impl AsRef<Path>,
+    target: [u8; 4],
+    recompute_crc: bool,
+) -> io::Result<bool> {
+    let mut bytes = std::fs::read(&path)?;
+    let mut pos = 8; // skip PNA signature
+    while pos + 12 <= bytes.len() {
+        let len = u32::from_be_bytes(bytes[pos..pos + 4].try_into().unwrap()) as usize;
+        let ty: [u8; 4] = bytes[pos + 4..pos + 8].try_into().unwrap();
+        if ty == target && len > 0 {
+            let data_start = pos + 8;
+            bytes[data_start] ^= 0xFF;
+            if recompute_crc {
+                // SAFETY: `ty` was read from a valid archive, so it is a valid chunk type.
+                let chunk_type = unsafe { pna::ChunkType::from_unchecked(ty) };
+                let chunk = pna::RawChunk::from_data(
+                    chunk_type,
+                    bytes[data_start..data_start + len].to_vec(),
+                );
+                let crc_pos = data_start + len;
+                bytes[crc_pos..crc_pos + 4].copy_from_slice(&chunk.crc().to_be_bytes());
+            }
+            std::fs::write(&path, bytes)?;
+            return Ok(true);
+        }
+        pos += 12 + len; // always advances at least 12 bytes per iteration
+    }
+    Ok(false)
+}
