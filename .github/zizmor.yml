@@ -27,6 +27,10 @@ rules:
   template-injection:
     ignore:
       - release.yml
+  # container image is picked dynamically by `dist` from its own pinned config
+  unpinned-images:
+    ignore:
+      - release.yml
   # daily interval is intentional for this project
   dependabot-cooldown:
     disable: true

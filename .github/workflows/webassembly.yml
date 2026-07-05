@@ -43,15 +43,15 @@ jobs:
           - wasm32-wasip2
         include:
           - target: wasm32-unknown-emscripten
-            container: emscripten/emsdk:latest
+            container: emscripten/emsdk:6.0.2@sha256:644883f58ca15c38c8be59b3a727ba0eff347729bc31d50a3348a6c9ed92bc07
             runner: ubuntu-latest
           - target: wasm32-unknown-unknown
             runner: ubuntu-24.04-arm
           - target: wasm32-wasip1
-            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-27
+            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-27@sha256:c683f8ea612f05ca7e5113696f0bb20b6ad28188074532dfdc3c64977ed5fbaf
             runner: ubuntu-24.04-arm
           - target: wasm32-wasip2
-            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-27
+            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-27@sha256:c683f8ea612f05ca7e5113696f0bb20b6ad28188074532dfdc3c64977ed5fbaf
             runner: ubuntu-24.04-arm
 
     runs-on: ${{ matrix.runner }}
