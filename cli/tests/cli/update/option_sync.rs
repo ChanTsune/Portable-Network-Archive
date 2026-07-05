@@ -193,3 +193,131 @@ fn update_with_sync() {
         "text.txt should exist in extracted output"
     );
 }
+
+/// Precondition: An archive contains multiple files, all of which exist on disk.
+/// Action: Run `pna experimental update --sync` with `--exclude` matching one file.
+/// Expectation: The excluded entry is kept; --sync prunes only entries whose
+/// files no longer exist on disk, not entries filtered out of collection.
+#[test]
+fn update_with_sync_keeps_excluded_but_existing_file() {
+    setup();
+    TestResources::extract_in("raw/", "update_sync_exclude_existing/in/").unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "update_sync_exclude_existing/archive.pna",
+        "--overwrite",
+        "update_sync_exclude_existing/in/",
+        "--keep-timestamp",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let mut initial_entries = HashSet::new();
+    archive::for_each_entry("update_sync_exclude_existing/archive.pna", |entry| {
+        initial_entries.insert(entry.header().path().to_string());
+    })
+    .unwrap();
+    let initial_count = initial_entries.len();
+
+    // empty.txt stays on disk but is excluded from collection.
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "experimental",
+        "update",
+        "--sync",
+        "-f",
+        "update_sync_exclude_existing/archive.pna",
+        "update_sync_exclude_existing/in/",
+        "--keep-timestamp",
+        "--exclude",
+        "update_sync_exclude_existing/in/raw/empty.txt",
+        "--unstable",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let mut seen = HashSet::new();
+    archive::for_each_entry("update_sync_exclude_existing/archive.pna", |entry| {
+        seen.insert(entry.header().path().to_string());
+    })
+    .unwrap();
+
+    assert!(
+        seen.iter().any(|p| p.ends_with("raw/empty.txt")),
+        "excluded but existing empty.txt should be kept under --sync"
+    );
+    assert_eq!(
+        seen.len(),
+        initial_count,
+        "no entry should be pruned when all files exist on disk"
+    );
+}
+
+/// Precondition: An archive contains multiple files, all of which exist on disk.
+/// Action: Run `pna experimental update --sync` with a future `--newer-mtime`
+/// filter so that no file is collected.
+/// Expectation: All entries are kept; time-filtered files still exist on disk.
+#[test]
+fn update_with_sync_keeps_time_filtered_files() {
+    setup();
+    TestResources::extract_in("raw/", "update_sync_time_filtered/in/").unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "update_sync_time_filtered/archive.pna",
+        "--overwrite",
+        "update_sync_time_filtered/in/",
+        "--keep-timestamp",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let mut initial_entries = HashSet::new();
+    archive::for_each_entry("update_sync_time_filtered/archive.pna", |entry| {
+        initial_entries.insert(entry.header().path().to_string());
+    })
+    .unwrap();
+    let initial_count = initial_entries.len();
+
+    // The far-future threshold filters every file out of collection.
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "experimental",
+        "update",
+        "--sync",
+        "-f",
+        "update_sync_time_filtered/archive.pna",
+        "update_sync_time_filtered/in/",
+        "--keep-timestamp",
+        "--newer-mtime",
+        "@4102444800",
+        "--unstable",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let mut seen = HashSet::new();
+    archive::for_each_entry("update_sync_time_filtered/archive.pna", |entry| {
+        seen.insert(entry.header().path().to_string());
+    })
+    .unwrap();
+
+    assert_eq!(
+        seen.len(),
+        initial_count,
+        "time-filtered but existing files should be kept under --sync"
+    );
+}
