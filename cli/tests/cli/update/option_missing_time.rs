@@ -158,3 +158,145 @@ fn update_missing_time_exclude_keeps_entry() {
         "exclude policy should keep mtime-missing entries"
     );
 }
+
+/// Precondition: Archive contains an entry without mtime.
+/// Action: Run `pna experimental update --missing-time=epoch`.
+/// Expectation: The entry is treated as infinitely old and re-archived; the
+/// latest copy holds the modified content.
+#[test]
+fn update_missing_time_epoch_updates_entry() {
+    setup();
+    let _ = fs::remove_dir_all("update_missing_time_epoch");
+    fs::create_dir_all("update_missing_time_epoch").unwrap();
+    let source = "update_missing_time_epoch/file.txt";
+    let archive_path = "update_missing_time_epoch/archive.pna";
+
+    fs::write(source, "old content").unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        archive_path,
+        "--overwrite",
+        source,
+        "--no-keep-timestamp",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    fs::write(source, "new content").unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "experimental",
+        "update",
+        "--unstable",
+        "--missing-time=epoch",
+        "-f",
+        archive_path,
+        source,
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let mut contents: Vec<Vec<u8>> = Vec::new();
+    archive::for_each_entry(archive_path, |entry| {
+        if entry.header().path().as_str() == source {
+            let mut buf = Vec::new();
+            entry
+                .reader(ReadOptions::with_password::<&[u8]>(None))
+                .unwrap()
+                .read_to_end(&mut buf)
+                .unwrap();
+            contents.push(buf);
+        }
+    })
+    .unwrap();
+    assert_eq!(
+        contents.last().unwrap().as_slice(),
+        b"new content",
+        "epoch policy should treat mtime-missing entries as stale"
+    );
+}
+
+/// Precondition: Archive contains an entry without mtime.
+/// Action: Run `pna experimental update --missing-time=<far future datetime>`.
+/// Expectation: The entry is treated as newer than the filesystem copy and kept.
+#[test]
+fn update_missing_time_future_datetime_keeps_entry() {
+    setup();
+    let _ = fs::remove_dir_all("update_missing_time_future");
+    fs::create_dir_all("update_missing_time_future").unwrap();
+    let source = "update_missing_time_future/file.txt";
+    let archive_path = "update_missing_time_future/archive.pna";
+
+    fs::write(source, "old content").unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        archive_path,
+        "--overwrite",
+        source,
+        "--no-keep-timestamp",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    fs::write(source, "new content").unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "experimental",
+        "update",
+        "--unstable",
+        "--missing-time=@4102444800",
+        "-f",
+        archive_path,
+        source,
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let entry = archive::extract_single_entry(archive_path, source)
+        .unwrap()
+        .expect("entry should exist");
+    let mut buf = Vec::new();
+    entry
+        .reader(ReadOptions::with_password::<&[u8]>(None))
+        .unwrap()
+        .read_to_end(&mut buf)
+        .unwrap();
+    assert_eq!(
+        buf.as_slice(),
+        b"old content",
+        "future assumed time should keep mtime-missing entries"
+    );
+}
+
+/// Precondition: None.
+/// Action: Parse `pna experimental update --missing-time=exclude` without `--unstable`.
+/// Expectation: Argument parsing fails.
+#[test]
+fn update_missing_time_requires_unstable() {
+    assert!(
+        cli::Cli::try_parse_from([
+            "pna",
+            "experimental",
+            "update",
+            "--missing-time=exclude",
+            "-f",
+            "archive.pna",
+            "file.txt",
+        ])
+        .is_err()
+    );
+}
