@@ -49,8 +49,7 @@ use tabled::{
     group(ArgGroup::new("ctime-newer-than-source").args(["newer_ctime", "newer_ctime_than"])),
     group(ArgGroup::new("mtime-older-than-source").args(["older_mtime", "older_mtime_than"])),
     group(ArgGroup::new("mtime-newer-than-source").args(["newer_mtime", "newer_mtime_than"])),
-    group(ArgGroup::new("ctime-filter").args(["older_ctime", "older_ctime_than", "newer_ctime", "newer_ctime_than"]).multiple(true)),
-    group(ArgGroup::new("mtime-filter").args(["older_mtime", "older_mtime_than", "newer_mtime", "newer_mtime_than"]).multiple(true)),
+    group(ArgGroup::new("time-filter").args(["older_ctime", "older_ctime_than", "newer_ctime", "newer_ctime_than", "older_mtime", "older_mtime_than", "newer_mtime", "newer_mtime_than"]).multiple(true)),
 )]
 pub(crate) struct ListCommand {
     #[arg(short, long, help = "Display extended file metadata as a table")]
@@ -162,22 +161,11 @@ pub(crate) struct ListCommand {
     older_mtime_than: Option<PathBuf>,
     #[arg(
         long,
-        visible_alias = "arc-missing-ctime",
-        alias = "missing-ctime",
-        requires_all = ["unstable", "ctime-filter"],
+        requires_all = ["unstable", "time-filter"],
         help_heading = "Unstable Options",
-        help = "Behavior for archive entries without ctime when time filtering (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]"
+        help = "Behavior for entries missing a timestamp needed by the time filters (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]"
     )]
-    archive_missing_ctime: Option<MissingTimePolicy>,
-    #[arg(
-        long,
-        visible_alias = "arc-missing-mtime",
-        alias = "missing-mtime",
-        requires_all = ["unstable", "mtime-filter"],
-        help_heading = "Unstable Options",
-        help = "Behavior for archive entries without mtime when time filtering (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]"
-    )]
-    archive_missing_mtime: Option<MissingTimePolicy>,
+    missing_time: Option<MissingTimePolicy>,
     #[arg(
         short = 'q',
         help = "Force printing of non-graphic characters in file names as the character '?'"
@@ -505,12 +493,8 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: args
-            .archive_missing_ctime
-            .unwrap_or(MissingTimePolicy::Include),
-        missing_mtime: args
-            .archive_missing_mtime
-            .unwrap_or(MissingTimePolicy::Include),
+        missing_ctime: args.missing_time.unwrap_or(MissingTimePolicy::Include),
+        missing_mtime: args.missing_time.unwrap_or(MissingTimePolicy::Include),
     }
     .resolve()?;
 

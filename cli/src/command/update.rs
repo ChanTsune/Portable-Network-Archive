@@ -272,20 +272,11 @@ pub(crate) struct UpdateCommand {
     older_mtime_than: Option<PathBuf>,
     #[arg(
         long,
-        visible_alias = "arc-missing-ctime",
         requires = "unstable",
         help_heading = "Unstable Options",
-        help = "Behavior for archive entries without ctime during update staleness judgment (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]"
+        help = "Behavior when a timestamp needed for time filtering or update staleness judgment is missing (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]"
     )]
-    archive_missing_ctime: Option<MissingTimePolicy>,
-    #[arg(
-        long,
-        visible_alias = "arc-missing-mtime",
-        requires = "unstable",
-        help_heading = "Unstable Options",
-        help = "Behavior for archive entries without mtime during update staleness judgment (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]"
-    )]
-    archive_missing_mtime: Option<MissingTimePolicy>,
+    missing_time: Option<MissingTimePolicy>,
     #[arg(
         long,
         value_name = "FILE",
@@ -444,6 +435,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
         fflags_strategy: FflagsStrategy::Never,
         mac_metadata_strategy: MacMetadataStrategy::Never,
     };
+    let missing_time = args.missing_time.unwrap_or(MissingTimePolicy::Include);
     let time_filters = TimeFilterResolver {
         newer_ctime_than: args.newer_ctime_than.as_deref(),
         older_ctime_than: args.older_ctime_than.as_deref(),
@@ -453,13 +445,10 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: MissingTimePolicy::Include,
-        missing_mtime: MissingTimePolicy::Include,
+        missing_ctime: missing_time,
+        missing_mtime: missing_time,
     }
     .resolve()?;
-    let archive_missing_mtime = args
-        .archive_missing_mtime
-        .unwrap_or(MissingTimePolicy::Include);
     let create_options = CreateOptions {
         option,
         keep_options,
@@ -521,7 +510,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
             &create_options,
             target_items,
             sync,
-            archive_missing_mtime,
+            missing_time,
             &mut out_archive,
             TransformStrategyUnSolid,
             false,
@@ -533,7 +522,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
             &create_options,
             target_items,
             sync,
-            archive_missing_mtime,
+            missing_time,
             &mut out_archive,
             TransformStrategyKeepSolid,
             false,
@@ -555,7 +544,7 @@ pub(crate) fn run_update_archive<Strategy, W>(
     create_options: &CreateOptions,
     target_items: Vec<CollectedEntry>,
     sync: bool,
-    archive_missing_mtime: MissingTimePolicy,
+    missing_time: MissingTimePolicy,
     out_archive: &mut Archive<W>,
     _strategy: Strategy,
     verbose: bool,
@@ -581,12 +570,9 @@ where
                     if let Some((idx, item)) =
                         target_files_mapping.shift_remove(entry.header().path())
                     {
-                        let need_update = is_newer_than_archive(
-                            archive_missing_mtime,
-                            &item.metadata,
-                            entry.metadata(),
-                        )
-                        .unwrap_or(true);
+                        let need_update =
+                            is_newer_than_archive(missing_time, &item.metadata, entry.metadata())
+                                .unwrap_or(true);
                         if need_update {
                             let tx = tx.clone();
                             let create_options = create_options.clone();
@@ -648,12 +634,12 @@ where
 
 #[inline]
 fn is_newer_than_archive(
-    archive_missing_mtime: MissingTimePolicy,
+    missing_time: MissingTimePolicy,
     fs_meta: &fs::Metadata,
     metadata: &Metadata,
 ) -> Option<bool> {
     let fs_mtime = fs_meta.modified().ok()?;
-    let archive_mtime = match (metadata.saturating_modified_time(), archive_missing_mtime) {
+    let archive_mtime = match (metadata.saturating_modified_time(), missing_time) {
         (Some(t), _) => t,
         (None, MissingTimePolicy::Include) => return Some(true),
         (None, MissingTimePolicy::Exclude) => return Some(false),

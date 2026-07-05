@@ -2,13 +2,13 @@ mod encryption;
 mod entry_order;
 mod error;
 mod no_timestamp_archive;
-mod option_archive_missing_mtime;
 mod option_atime;
 mod option_ctime;
 mod option_exclude;
 mod option_exclude_vcs;
 #[cfg(not(target_family = "wasm"))]
 mod option_files_from_stdin;
+mod option_missing_time;
 mod option_mtime;
 mod option_newer_ctime;
 mod option_newer_ctime_than;
