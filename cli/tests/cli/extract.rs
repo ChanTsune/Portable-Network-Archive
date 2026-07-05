@@ -7,6 +7,7 @@ mod option_keep_newer_files;
 mod option_keep_old_files;
 mod option_keep_permission;
 mod option_keep_timestamp;
+mod option_missing_time;
 mod option_mtime;
 mod option_password_from_file;
 mod option_safe_writes;

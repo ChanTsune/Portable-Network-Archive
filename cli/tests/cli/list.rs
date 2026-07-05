@@ -16,6 +16,8 @@ mod option_format_tree;
 #[cfg(not(target_family = "wasm"))]
 mod option_format_tsv;
 #[cfg(not(target_family = "wasm"))]
+mod option_missing_time;
+#[cfg(not(target_family = "wasm"))]
 mod option_no_recursive;
 #[cfg(not(target_family = "wasm"))]
 mod option_show_fflags;
