@@ -31,7 +31,6 @@ This document contains the help content for the `pna` command-line program.
 * [`pna compat help help`↴](#pna-compat-help-help)
 * [`pna experimental`↴](#pna-experimental)
 * [`pna experimental stdio`↴](#pna-experimental-stdio)
-* [`pna experimental delete`↴](#pna-experimental-delete)
 * [`pna experimental update`↴](#pna-experimental-update)
 * [`pna experimental chown`↴](#pna-experimental-chown)
 * [`pna experimental chmod`↴](#pna-experimental-chmod)
@@ -53,7 +52,6 @@ This document contains the help content for the `pna` command-line program.
 * [`pna experimental verify`↴](#pna-experimental-verify)
 * [`pna experimental help`↴](#pna-experimental-help)
 * [`pna experimental help stdio`↴](#pna-experimental-help-stdio)
-* [`pna experimental help delete`↴](#pna-experimental-help-delete)
 * [`pna experimental help update`↴](#pna-experimental-help-update)
 * [`pna experimental help chown`↴](#pna-experimental-help-chown)
 * [`pna experimental help chmod`↴](#pna-experimental-help-chmod)
@@ -87,7 +85,6 @@ This document contains the help content for the `pna` command-line program.
 * [`pna help compat bsdtar`↴](#pna-help-compat-bsdtar)
 * [`pna help experimental`↴](#pna-help-experimental)
 * [`pna help experimental stdio`↴](#pna-help-experimental-stdio)
-* [`pna help experimental delete`↴](#pna-help-experimental-delete)
 * [`pna help experimental update`↴](#pna-help-experimental-update)
 * [`pna help experimental chown`↴](#pna-help-experimental-chown)
 * [`pna help experimental chmod`↴](#pna-help-experimental-chmod)
@@ -1560,7 +1557,6 @@ Unstable experimental commands; behavior and interface may change or be removed
 ###### **Subcommands:**
 
 * `stdio` — bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` instead)
-* `delete` — Delete entry from archive (stabilized, use `pna delete` command instead. this command will be removed in the future)
 * `update` — Update entries in archive
 * `chown` — Change owner
 * `chmod` — Change mode
@@ -1827,66 +1823,6 @@ bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` 
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
-
-
-
-## `pna experimental delete`
-
-Delete entry from archive (stabilized, use `pna delete` command instead. this command will be removed in the future)
-
-**Usage:** `pna experimental delete [OPTIONS] --file <ARCHIVE> [FILES]...`
-
-###### **Arguments:**
-
-* `<FILES>` — Files or directories to process
-
-###### **Options:**
-
-* `--output <OUTPUT>` — Output file path
-* `--files-from <FILE>` — Read deleting files from given path
-* `--files-from-stdin` — Read deleting files from stdin
-
-  Default value: `false`
-* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
-* `--exclude <PATTERN>` — Exclude path glob
-* `--exclude-from <FILE>` — Read exclude files from given path
-* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)
-
-  Default value: `false`
-* `--null` — Filenames or patterns are separated by null characters, not by newlines
-
-  Default value: `false`
-* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from specified file
-* `--unsolid` — Convert solid entries to regular entries
-
-  Default value: `false`
-* `--keep-solid` — Preserve solid entries without conversion
-
-  Default value: `false`
-* `-f`, `--file <ARCHIVE>` — Archive file path
-* `--quiet` — Make some output more quiet (alias for --log-level off)
-
-  Default value: `false`
-* `--verbose` — Make some output more verbose (alias for --log-level debug)
-
-  Default value: `false`
-* `--log-level <LEVEL>` — Set the log level
-
-  Default value: `warn`
-
-  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
-
-* `--color <WHEN>` — Control color output
-
-  Default value: `auto`
-
-  Possible values: `auto`, `always`, `never`
-
-* `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
-
-  Default value: `false`
-* `-h`, `--help` — Print help
 
 
 
@@ -2613,7 +2549,6 @@ Print this message or the help of the given subcommand(s)
 ###### **Subcommands:**
 
 * `stdio` — bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` instead)
-* `delete` — Delete entry from archive (stabilized, use `pna delete` command instead. this command will be removed in the future)
 * `update` — Update entries in archive
 * `chown` — Change owner
 * `chmod` — Change mode
@@ -2632,14 +2567,6 @@ Print this message or the help of the given subcommand(s)
 bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` instead)
 
 **Usage:** `pna experimental help stdio`
-
-
-
-## `pna experimental help delete`
-
-Delete entry from archive (stabilized, use `pna delete` command instead. this command will be removed in the future)
-
-**Usage:** `pna experimental help delete`
 
 
 
@@ -2937,7 +2864,6 @@ Unstable experimental commands; behavior and interface may change or be removed
 ###### **Subcommands:**
 
 * `stdio` — bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` instead)
-* `delete` — Delete entry from archive (stabilized, use `pna delete` command instead. this command will be removed in the future)
 * `update` — Update entries in archive
 * `chown` — Change owner
 * `chmod` — Change mode
@@ -2955,14 +2881,6 @@ Unstable experimental commands; behavior and interface may change or be removed
 bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` instead)
 
 **Usage:** `pna help experimental stdio`
-
-
-
-## `pna help experimental delete`
-
-Delete entry from archive (stabilized, use `pna delete` command instead. this command will be removed in the future)
-
-**Usage:** `pna help experimental delete`
 
 
 
