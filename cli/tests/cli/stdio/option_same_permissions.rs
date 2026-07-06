@@ -338,16 +338,67 @@ fn stdio_extract_with_same_permissions_and_same_owner() {
         .success();
 }
 
-/// Test: -p with --no-acls is accepted (individual flag overrides -p)
-/// Expectation: Command succeeds
+/// Precondition: Archive contains file with executable permission (0o752).
+/// Action: Extract with `-p --no-acls`.
+/// Expectation: Disabling ACL restoration does not disable mode preservation.
 #[test]
+#[cfg(unix)]
+fn stdio_extract_same_permissions_with_no_acls() {
+    setup();
+    let base = "stdio_extract_p_no_acls";
+    fs::create_dir_all(base).unwrap();
+
+    let file = format!("{base}/test.txt");
+    fs::write(&file, "test content").unwrap();
+    set_permissions_or_skip!(&file, 0o752);
+
+    let mut create_cmd = cargo_bin_cmd!("pna");
+    let create_output = create_cmd
+        .arg("experimental")
+        .arg("stdio")
+        .arg("-c")
+        .arg("-C")
+        .arg(base)
+        .arg("test.txt")
+        .assert()
+        .success();
+
+    let out_dir = format!("{base}/out");
+    fs::create_dir_all(&out_dir).unwrap();
+
+    let mut extract_cmd = cargo_bin_cmd!("pna");
+    extract_cmd
+        .write_stdin(create_output.get_output().stdout.as_slice())
+        .arg("experimental")
+        .arg("stdio")
+        .arg("-x")
+        .arg("--unstable")
+        .arg("-p")
+        .arg("--no-acls")
+        .arg("--out-dir")
+        .arg(&out_dir)
+        .assert()
+        .success();
+
+    let extracted = format!("{out_dir}/test.txt");
+    let meta = fs::symlink_metadata(&extracted).unwrap();
+    assert_eq!(
+        meta.permissions().mode() & 0o777,
+        0o752,
+        "-p --no-acls should preserve archived mode"
+    );
+}
+
+/// Test: -p with --no-acls is accepted on platforms without Unix modes.
+/// Expectation: Command succeeds.
+#[test]
+#[cfg(not(unix))]
 fn stdio_extract_same_permissions_with_no_acls() {
     setup();
     let file = "stdio_extract_p_no_acls.txt";
     fs::write(file, "test content").unwrap();
     fs::create_dir_all("stdio_extract_p_no_acls_out").unwrap();
 
-    // Create archive
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
         .arg("experimental")
@@ -357,7 +408,6 @@ fn stdio_extract_same_permissions_with_no_acls() {
         .assert()
         .success();
 
-    // Extract with -p --no-acls
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
