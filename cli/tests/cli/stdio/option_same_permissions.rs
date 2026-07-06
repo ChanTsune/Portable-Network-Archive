@@ -395,16 +395,71 @@ fn stdio_extract_with_preserve_permissions_alias() {
 // Flag Combination Tests (全肯定+個別否定, 全否定+個別肯定)
 // =============================================================================
 
-/// Test: -p --no-same-permissions (全肯定 + 全否定 → 全否定が勝つ)
-/// Expectation: Command succeeds, --no-same-permissions overrides -p
+/// Precondition: Archive contains file with 0o755.
+/// Action: Extract with `-p --no-same-permissions` under a controlled umask.
+/// Expectation: `--no-same-permissions` overrides `-p`, so permissions are masked.
 #[test]
+#[cfg(unix)]
+#[serial(umask)]
+fn stdio_extract_same_permissions_overridden_by_no_same_permissions() {
+    setup();
+    let base = "stdio_p_no_same_permissions";
+    fs::create_dir_all(base).unwrap();
+
+    let file = format!("{base}/test.txt");
+    fs::write(&file, "test content").unwrap();
+    set_permissions_or_skip!(&file, 0o755);
+
+    let mut create_cmd = cargo_bin_cmd!("pna");
+    let create_output = create_cmd
+        .arg("experimental")
+        .arg("stdio")
+        .arg("-c")
+        .arg("-C")
+        .arg(base)
+        .arg("test.txt")
+        .assert()
+        .success();
+
+    let out_dir = format!("{base}/out");
+    fs::create_dir_all(&out_dir).unwrap();
+
+    let _umask = UmaskGuard::set(0o027);
+    let mut extract_cmd = cargo_bin_cmd!("pna");
+    extract_cmd
+        .write_stdin(create_output.get_output().stdout.as_slice())
+        .arg("experimental")
+        .arg("stdio")
+        .arg("-x")
+        .arg("--unstable")
+        .arg("-p")
+        .arg("--no-same-permissions")
+        .arg("--out-dir")
+        .arg(&out_dir)
+        .assert()
+        .success();
+
+    let extracted = format!("{out_dir}/test.txt");
+    let meta = fs::symlink_metadata(&extracted).unwrap();
+    let extracted_mode = meta.permissions().mode() & 0o777;
+    let expected_mode = 0o755 & !0o027;
+    assert_eq!(
+        extracted_mode, expected_mode,
+        "--no-same-permissions should override -p (expected 0o{:o}, got 0o{:o})",
+        expected_mode, extracted_mode
+    );
+}
+
+/// Test: -p --no-same-permissions is accepted on platforms without Unix modes.
+/// Expectation: Command succeeds.
+#[test]
+#[cfg(not(unix))]
 fn stdio_extract_same_permissions_overridden_by_no_same_permissions() {
     setup();
     let file = "stdio_p_no_same_permissions.txt";
     fs::write(file, "test content").unwrap();
     fs::create_dir_all("stdio_p_no_same_permissions_out").unwrap();
 
-    // Create archive
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
         .arg("experimental")
@@ -414,7 +469,6 @@ fn stdio_extract_same_permissions_overridden_by_no_same_permissions() {
         .assert()
         .success();
 
-    // Extract with -p --no-same-permissions (--no-same-permissions wins)
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
