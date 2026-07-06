@@ -430,16 +430,77 @@ fn stdio_extract_same_permissions_overridden_by_no_same_permissions() {
         .success();
 }
 
-/// Test: --no-same-permissions --keep-xattr (全否定 + 個別肯定 → 個別肯定が有効)
-/// Expectation: Command succeeds, --keep-xattr still enables xattr despite --no-same-permissions
+/// Precondition: Archive contains a file with an extended attribute.
+/// Action: Extract with --no-same-permissions --keep-xattr.
+/// Expectation: --keep-xattr restores the xattr despite --no-same-permissions.
 #[test]
+#[cfg(unix)]
+fn stdio_extract_no_same_permissions_with_keep_xattr() {
+    setup();
+    let base = "stdio_no_same_p_keep_xattr";
+    fs::create_dir_all(base).unwrap();
+
+    if !xattr_supported(base) {
+        eprintln!("Skipping test: xattr not supported on this filesystem");
+        return;
+    }
+
+    let file = format!("{base}/test.txt");
+    fs::write(&file, "test content").unwrap();
+    xattr::set(&file, "user.testattr", b"testvalue").unwrap();
+
+    let mut create_cmd = cargo_bin_cmd!("pna");
+    let create_output = create_cmd
+        .arg("experimental")
+        .arg("stdio")
+        .arg("-c")
+        .arg("--keep-xattr")
+        .arg("-C")
+        .arg(base)
+        .arg("test.txt")
+        .assert()
+        .success();
+
+    let out_dir = format!("{base}/out");
+    fs::create_dir_all(&out_dir).unwrap();
+
+    let mut extract_cmd = cargo_bin_cmd!("pna");
+    extract_cmd
+        .write_stdin(create_output.get_output().stdout.as_slice())
+        .arg("experimental")
+        .arg("stdio")
+        .arg("-x")
+        .arg("--no-same-permissions")
+        .arg("--keep-xattr")
+        .arg("--out-dir")
+        .arg(&out_dir)
+        .assert()
+        .success();
+
+    let extracted = format!("{out_dir}/test.txt");
+    assert_eq!(
+        fs::read_to_string(&extracted).unwrap(),
+        "test content",
+        "extracted file content should match the archived file"
+    );
+    let xattr_value = xattr::get(&extracted, "user.testattr").unwrap();
+    assert_eq!(
+        xattr_value,
+        Some(b"testvalue".to_vec()),
+        "--keep-xattr should restore xattr despite --no-same-permissions"
+    );
+}
+
+/// Test: --no-same-permissions --keep-xattr is accepted on platforms without Unix xattrs.
+/// Expectation: Command succeeds.
+#[test]
+#[cfg(not(unix))]
 fn stdio_extract_no_same_permissions_with_keep_xattr() {
     setup();
     let file = "stdio_no_same_p_keep_xattr.txt";
     fs::write(file, "test content").unwrap();
     fs::create_dir_all("stdio_no_same_p_keep_xattr_out").unwrap();
 
-    // Create archive with xattr
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
         .arg("experimental")
@@ -450,7 +511,6 @@ fn stdio_extract_no_same_permissions_with_keep_xattr() {
         .assert()
         .success();
 
-    // Extract with --no-same-permissions --keep-xattr (xattr should be enabled)
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
