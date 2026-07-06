@@ -674,3 +674,56 @@ fn is_newer_than_archive(
     };
     archive_mtime < fs_mtime
 }
+
+#[cfg(test)]
+#[cfg(not(target_family = "wasm"))]
+mod tests {
+    use super::*;
+
+    fn test_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir()
+            .join("pna_update_exists_on_disk")
+            .join(name);
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn exists_on_disk_regular_file() {
+        let dir = test_dir("regular_file");
+        let file = dir.join("file.txt");
+        fs::write(&file, "content").unwrap();
+        assert!(exists_on_disk(&file));
+    }
+
+    #[test]
+    fn exists_on_disk_directory() {
+        let dir = test_dir("directory");
+        assert!(exists_on_disk(&dir));
+    }
+
+    #[test]
+    fn exists_on_disk_missing_path() {
+        let dir = test_dir("missing");
+        assert!(!exists_on_disk(&dir.join("no_such_file")));
+    }
+
+    #[test]
+    fn exists_on_disk_regular_file_as_parent() {
+        let dir = test_dir("regular_file_as_parent");
+        let file = dir.join("file.txt");
+        fs::write(&file, "content").unwrap();
+        assert!(!exists_on_disk(&file.join("child")));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn exists_on_disk_broken_symlink() {
+        let dir = test_dir("broken_symlink");
+        let link = dir.join("link");
+        std::os::unix::fs::symlink(dir.join("no_such_target"), &link).unwrap();
+        assert!(!link.exists());
+        assert!(exists_on_disk(&link));
+    }
+}
