@@ -222,7 +222,6 @@ fn update_with_sync_keeps_excluded_but_existing_file() {
         initial_entries.insert(entry.header().path().to_string());
     })
     .unwrap();
-    let initial_count = initial_entries.len();
 
     // empty.txt stays on disk but is excluded from collection.
     cli::Cli::try_parse_from([
@@ -254,8 +253,7 @@ fn update_with_sync_keeps_excluded_but_existing_file() {
         "excluded but existing empty.txt should be kept under --sync"
     );
     assert_eq!(
-        seen.len(),
-        initial_count,
+        seen, initial_entries,
         "no entry should be pruned when all files exist on disk"
     );
 }
@@ -288,7 +286,6 @@ fn update_with_sync_keeps_time_filtered_files() {
         initial_entries.insert(entry.header().path().to_string());
     })
     .unwrap();
-    let initial_count = initial_entries.len();
 
     // The far-future threshold filters every file out of collection.
     cli::Cli::try_parse_from([
@@ -316,8 +313,7 @@ fn update_with_sync_keeps_time_filtered_files() {
     .unwrap();
 
     assert_eq!(
-        seen.len(),
-        initial_count,
+        seen, initial_entries,
         "time-filtered but existing files should be kept under --sync"
     );
 }
