@@ -253,16 +253,67 @@ fn stdio_extract_with_same_permissions_flag() {
         .success();
 }
 
-/// Test: -p with --same-owner is accepted
-/// Expectation: Command succeeds
+/// Precondition: Archive contains file with executable permission (0o751).
+/// Action: Extract with `-p --same-owner`.
+/// Expectation: The `--same-owner` option does not prevent `-p` from preserving mode bits.
 #[test]
+#[cfg(unix)]
+fn stdio_extract_with_same_permissions_and_same_owner() {
+    setup();
+    let base = "stdio_extract_p_same_owner";
+    fs::create_dir_all(base).unwrap();
+
+    let file = format!("{base}/test.txt");
+    fs::write(&file, "test content").unwrap();
+    set_permissions_or_skip!(&file, 0o751);
+
+    let mut create_cmd = cargo_bin_cmd!("pna");
+    let create_output = create_cmd
+        .arg("experimental")
+        .arg("stdio")
+        .arg("-c")
+        .arg("-C")
+        .arg(base)
+        .arg("test.txt")
+        .assert()
+        .success();
+
+    let out_dir = format!("{base}/out");
+    fs::create_dir_all(&out_dir).unwrap();
+
+    let mut extract_cmd = cargo_bin_cmd!("pna");
+    extract_cmd
+        .write_stdin(create_output.get_output().stdout.as_slice())
+        .arg("experimental")
+        .arg("stdio")
+        .arg("-x")
+        .arg("--unstable")
+        .arg("-p")
+        .arg("--same-owner")
+        .arg("--out-dir")
+        .arg(&out_dir)
+        .assert()
+        .success();
+
+    let extracted = format!("{out_dir}/test.txt");
+    let meta = fs::symlink_metadata(&extracted).unwrap();
+    assert_eq!(
+        meta.permissions().mode() & 0o777,
+        0o751,
+        "-p --same-owner should preserve archived mode"
+    );
+}
+
+/// Test: -p with --same-owner is accepted on platforms without Unix modes.
+/// Expectation: Command succeeds.
+#[test]
+#[cfg(not(unix))]
 fn stdio_extract_with_same_permissions_and_same_owner() {
     setup();
     let file = "stdio_extract_p_same_owner.txt";
     fs::write(file, "test content").unwrap();
     fs::create_dir_all("stdio_extract_p_same_owner_out").unwrap();
 
-    // Create archive
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
         .arg("experimental")
@@ -272,7 +323,6 @@ fn stdio_extract_with_same_permissions_and_same_owner() {
         .assert()
         .success();
 
-    // Extract with -p --same-owner
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
