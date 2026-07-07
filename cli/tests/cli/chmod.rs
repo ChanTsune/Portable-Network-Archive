@@ -2,6 +2,7 @@ mod edge_cases;
 mod glob_pattern;
 mod keep_solid;
 mod missing_file;
+mod multipart;
 mod multiple_clauses;
 mod numeric;
 mod password;

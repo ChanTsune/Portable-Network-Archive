@@ -43,8 +43,9 @@ fn fail_with_missing_file() {
     .execute();
 
     assert!(result.is_err());
-    assert!(
-        fs::read("chmod_missing/archive.pna").unwrap() == before,
+    assert_eq!(
+        fs::read("chmod_missing/archive.pna").unwrap(),
+        before,
         "the archive must be left unchanged"
     );
 }
