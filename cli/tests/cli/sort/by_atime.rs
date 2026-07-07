@@ -5,7 +5,7 @@ use portable_network_archive::cli;
 use std::fs;
 
 /// Precondition: An archive contains entries with different access times.
-/// Action: Run `pna experimental sort` with `--by atime`.
+/// Action: Run `pna sort` with `--by atime`.
 /// Expectation: Entries are reordered by access time in ascending order.
 #[test]
 fn sort_by_atime() {
@@ -36,7 +36,6 @@ fn sort_by_atime() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "sort",
         "-f",
         "sort_by_atime/unsorted.pna",

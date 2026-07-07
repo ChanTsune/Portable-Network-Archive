@@ -5,7 +5,7 @@ use portable_network_archive::cli;
 use std::fs;
 
 /// Precondition: An archive contains entries with different creation times.
-/// Action: Run `pna experimental sort` with `--by ctime`.
+/// Action: Run `pna sort` with `--by ctime`.
 /// Expectation: Entries are reordered by creation time in ascending order.
 #[test]
 fn sort_by_ctime() {
@@ -36,7 +36,6 @@ fn sort_by_ctime() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "sort",
         "-f",
         "sort_by_ctime/unsorted.pna",

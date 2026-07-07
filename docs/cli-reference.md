@@ -47,7 +47,6 @@ This document contains the help content for the `pna` command-line program.
 * [`pna experimental chunk help`↴](#pna-experimental-chunk-help)
 * [`pna experimental chunk help list`↴](#pna-experimental-chunk-help-list)
 * [`pna experimental chunk help help`↴](#pna-experimental-chunk-help-help)
-* [`pna experimental sort`↴](#pna-experimental-sort)
 * [`pna experimental diff`↴](#pna-experimental-diff)
 * [`pna experimental verify`↴](#pna-experimental-verify)
 * [`pna experimental help`↴](#pna-experimental-help)
@@ -61,7 +60,6 @@ This document contains the help content for the `pna` command-line program.
 * [`pna experimental help migrate`↴](#pna-experimental-help-migrate)
 * [`pna experimental help chunk`↴](#pna-experimental-help-chunk)
 * [`pna experimental help chunk list`↴](#pna-experimental-help-chunk-list)
-* [`pna experimental help sort`↴](#pna-experimental-help-sort)
 * [`pna experimental help diff`↴](#pna-experimental-help-diff)
 * [`pna experimental help verify`↴](#pna-experimental-help-verify)
 * [`pna experimental help help`↴](#pna-experimental-help-help)
@@ -94,7 +92,6 @@ This document contains the help content for the `pna` command-line program.
 * [`pna help experimental migrate`↴](#pna-help-experimental-migrate)
 * [`pna help experimental chunk`↴](#pna-help-experimental-chunk)
 * [`pna help experimental chunk list`↴](#pna-help-experimental-chunk-list)
-* [`pna help experimental sort`↴](#pna-help-experimental-sort)
 * [`pna help experimental diff`↴](#pna-help-experimental-diff)
 * [`pna help experimental verify`↴](#pna-help-experimental-verify)
 * [`pna help help`↴](#pna-help-help)
@@ -1561,7 +1558,6 @@ Unstable experimental commands; behavior and interface may change or be removed
 * `acl` — Manipulate ACLs of entries
 * `migrate` — Upgrade archives created by older PNA versions (stabilized, use `pna migrate` command instead. this command will be removed in the future)
 * `chunk` — Chunk level operation
-* `sort` — Sort entries in archive (stabilized, use `pna sort` command instead. this command will be removed in the future)
 * `diff` — Compare archive entries with filesystem
 * `verify` — Verify archive integrity
 * `help` — Print this message or the help of the given subcommand(s)
@@ -2413,46 +2409,6 @@ Print this message or the help of the given subcommand(s)
 
 
 
-## `pna experimental sort`
-
-Sort entries in archive (stabilized, use `pna sort` command instead. this command will be removed in the future)
-
-**Usage:** `pna experimental sort [OPTIONS] --file <ARCHIVE>`
-
-###### **Options:**
-
-* `-f`, `--file <ARCHIVE>` — Archive file path
-* `--output <OUTPUT>` — Output archive file path
-* `--by <KEY>` — Sort key in format KEY[:ORDER] (e.g., name, mtime:desc) [keys: name, ctime, mtime, atime] [orders: asc, desc]
-
-  Default value: `name`
-* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from specified file
-* `--quiet` — Make some output more quiet (alias for --log-level off)
-
-  Default value: `false`
-* `--verbose` — Make some output more verbose (alias for --log-level debug)
-
-  Default value: `false`
-* `--log-level <LEVEL>` — Set the log level
-
-  Default value: `warn`
-
-  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
-
-* `--color <WHEN>` — Control color output
-
-  Default value: `auto`
-
-  Possible values: `auto`, `always`, `never`
-
-* `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
-
-  Default value: `false`
-* `-h`, `--help` — Print help
-
-
-
 ## `pna experimental diff`
 
 Compare archive entries with filesystem
@@ -2552,7 +2508,6 @@ Print this message or the help of the given subcommand(s)
 * `acl` — Manipulate ACLs of entries
 * `migrate` — Upgrade archives created by older PNA versions (stabilized, use `pna migrate` command instead. this command will be removed in the future)
 * `chunk` — Chunk level operation
-* `sort` — Sort entries in archive (stabilized, use `pna sort` command instead. this command will be removed in the future)
 * `diff` — Compare archive entries with filesystem
 * `verify` — Verify archive integrity
 * `help` — Print this message or the help of the given subcommand(s)
@@ -2645,14 +2600,6 @@ Chunk level operation
 List chunks
 
 **Usage:** `pna experimental help chunk list`
-
-
-
-## `pna experimental help sort`
-
-Sort entries in archive (stabilized, use `pna sort` command instead. this command will be removed in the future)
-
-**Usage:** `pna experimental help sort`
 
 
 
@@ -2867,7 +2814,6 @@ Unstable experimental commands; behavior and interface may change or be removed
 * `acl` — Manipulate ACLs of entries
 * `migrate` — Upgrade archives created by older PNA versions (stabilized, use `pna migrate` command instead. this command will be removed in the future)
 * `chunk` — Chunk level operation
-* `sort` — Sort entries in archive (stabilized, use `pna sort` command instead. this command will be removed in the future)
 * `diff` — Compare archive entries with filesystem
 * `verify` — Verify archive integrity
 
@@ -2959,14 +2905,6 @@ Chunk level operation
 List chunks
 
 **Usage:** `pna help experimental chunk list`
-
-
-
-## `pna help experimental sort`
-
-Sort entries in archive (stabilized, use `pna sort` command instead. this command will be removed in the future)
-
-**Usage:** `pna help experimental sort`
 
 
 
