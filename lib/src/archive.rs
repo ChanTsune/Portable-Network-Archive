@@ -350,6 +350,62 @@ mod tests {
         .unwrap()
     }
 
+    /// Precondition: encryption-enabled WriteOptions built once.
+    /// Action: write two entries with the same options and read them back.
+    /// Expectation: entries share the PHSF (derived key), have distinct
+    /// ciphertext for identical plaintext (unique IVs), and both decrypt.
+    #[test]
+    fn entries_share_derived_key_with_unique_iv() {
+        let options = WriteOptions::builder()
+            .encryption(Encryption::Aes)
+            .password(Some("password"))
+            .build();
+        let mut writer = Archive::write_header(Vec::new()).unwrap();
+        for name in ["test/first", "test/second"] {
+            writer
+                .add_entry({
+                    let mut builder = EntryBuilder::new_file(name.into(), &options).unwrap();
+                    builder.write_all(b"same plaintext").unwrap();
+                    builder.build().unwrap()
+                })
+                .unwrap();
+        }
+        let archived = writer.finalize().unwrap();
+
+        let mut reader = Archive::read_header(archived.as_slice()).unwrap();
+        let entries = reader
+            .entries()
+            .skip_solid()
+            .collect::<io::Result<Vec<_>>>()
+            .unwrap();
+        assert_eq!(entries.len(), 2);
+        assert!(entries[0].phsf.is_some());
+        assert_eq!(entries[0].phsf, entries[1].phsf);
+        assert_ne!(entries[0].data, entries[1].data);
+        for entry in &entries {
+            let mut data_reader = entry
+                .reader(ReadOptions::with_password(Some("password")))
+                .unwrap();
+            let mut dist = Vec::new();
+            io::copy(&mut data_reader, &mut dist).unwrap();
+            assert_eq!(dist.as_slice(), b"same plaintext");
+        }
+    }
+
+    /// Precondition: encryption-enabled WriteOptions built once.
+    /// Action: create multiple archives reusing the same options.
+    /// Expectation: every archive round-trips with the original password.
+    #[test]
+    fn write_options_reusable_across_archives() {
+        let options = WriteOptions::builder()
+            .encryption(Encryption::Aes)
+            .password(Some("password"))
+            .build();
+        for _ in 0..2 {
+            archive(b"some text", options.clone()).unwrap();
+        }
+    }
+
     fn create_archive(src: &[u8], options: WriteOptions) -> io::Result<Vec<u8>> {
         let mut writer = Archive::write_header(Vec::with_capacity(src.len()))?;
         writer.add_entry({

@@ -1,8 +1,9 @@
 //! Read and write options for archive entries.
 
-use crate::{compress, error::UnknownValueError};
+use crate::{compress, entry::write::derive_key_material, error::UnknownValueError};
+use password_hash::Output;
 pub(crate) use private::*;
-use std::str::FromStr;
+use std::{io, str::FromStr};
 
 mod private {
     use super::*;
@@ -17,9 +18,10 @@ mod private {
     }
 
     /// Cipher options.
-    #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+    #[derive(Clone, Debug)]
     pub struct Cipher {
         pub(crate) password: Password,
+        pub(crate) derived: DerivedKeyMaterial,
         pub(crate) hash_algorithm: HashAlgorithm,
         pub(crate) cipher_algorithm: CipherAlgorithm,
         pub(crate) mode: CipherMode,
@@ -30,17 +32,30 @@ mod private {
         #[inline]
         pub(crate) const fn new(
             password: Password,
+            derived: DerivedKeyMaterial,
             hash_algorithm: HashAlgorithm,
             cipher_algorithm: CipherAlgorithm,
             mode: CipherMode,
         ) -> Self {
             Self {
                 password,
+                derived,
                 hash_algorithm,
                 cipher_algorithm,
                 mode,
             }
         }
+    }
+
+    /// Key material derived from a password when [`WriteOptions`] is built.
+    ///
+    /// `phsf` is the PHC string (salt and KDF parameters included) recorded in the
+    /// PHSF chunk of every entry written with the owning [`WriteOptions`]; `key` is
+    /// the KDF output used as the cipher key.
+    #[derive(Clone, Debug)]
+    pub struct DerivedKeyMaterial {
+        pub(crate) phsf: String,
+        pub(crate) key: Output,
     }
 
     /// Accessors for write options.
@@ -640,6 +655,11 @@ impl TryFrom<u8> for DataKind {
 ///   as it allows parallel processing and has simpler security requirements.
 /// - **IV Generation**: Initialization vectors (IVs) are automatically generated using
 ///   cryptographically secure random number generation. You do not need to provide IVs.
+/// - **Key Derivation**: The encryption key is derived from the password once when the
+///   options are built ([`WriteOptionsBuilder::build()`] / [`WriteOptionsBuilder::try_build()`]),
+///   and shared by every entry written with the same [`WriteOptions`]. Each entry still
+///   receives a unique, randomly generated IV. Build a fresh [`WriteOptions`] per archive
+///   so that each archive uses an independent salt and key.
 /// - **Password Strength**: Use strong passwords (12+ characters, mixed case, numbers, symbols)
 ///   as the encryption key is derived from the password.
 ///
@@ -853,6 +873,83 @@ impl WriteOptionsBuilder {
         self
     }
 
+    /// Creates a new [`WriteOptions`] from this builder, deriving the encryption
+    /// key when encryption is enabled.
+    ///
+    /// The key derivation function (KDF) runs once here with a freshly generated
+    /// random salt. Every entry written with the resulting [`WriteOptions`] shares
+    /// the derived key and salt; a unique random IV is still generated per entry.
+    ///
+    /// # Errors
+    ///
+    /// - Encryption is enabled but no password was provided.
+    /// - The configured KDF parameters are invalid.
+    /// - An unsupported encryption or compression method was specified.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use libpna::{Encryption, WriteOptions};
+    ///
+    /// # fn main() -> std::io::Result<()> {
+    /// let opts = WriteOptions::builder()
+    ///     .encryption(Encryption::Aes)
+    ///     .password(Some("password"))
+    ///     .try_build()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    #[must_use = "building options without using them is wasteful"]
+    pub fn try_build(&self) -> io::Result<WriteOptions> {
+        let cipher = if self.encryption != Encryption::No {
+            let cipher_algorithm = match self.encryption {
+                Encryption::Aes => CipherAlgorithm::Aes,
+                Encryption::Camellia => CipherAlgorithm::Camellia,
+                other => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::Unsupported,
+                        format!(
+                            "unsupported encryption method for writing: byte={}",
+                            other.to_byte()
+                        ),
+                    ));
+                }
+            };
+            let password = self.password.as_deref().ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidInput, "Password was not provided.")
+            })?;
+            let derived = derive_key_material(cipher_algorithm, self.hash_algorithm, password)?;
+            Some(Cipher::new(
+                password.into(),
+                derived,
+                self.hash_algorithm,
+                cipher_algorithm,
+                self.cipher_mode,
+            ))
+        } else {
+            None
+        };
+        Ok(WriteOptions {
+            compress: match self.compression {
+                Compression::No => Compress::No,
+                Compression::Deflate => Compress::Deflate(self.compression_level.into()),
+                Compression::ZStandard => Compress::ZStandard(self.compression_level.into()),
+                Compression::XZ => Compress::XZ(self.compression_level.into()),
+                other => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::Unsupported,
+                        format!(
+                            "unsupported compression method for writing: byte={}",
+                            other.to_byte()
+                        ),
+                    ));
+                }
+            },
+            cipher,
+        })
+    }
+
     /// Creates a new [`WriteOptions`] from this builder.
     ///
     /// This finalizes the builder configuration and creates an immutable [`WriteOptions`]
@@ -862,7 +959,8 @@ impl WriteOptionsBuilder {
     ///
     /// Panics if [`encryption()`](Self::encryption) was set to [`Encryption::Aes`] or
     /// [`Encryption::Camellia`] but [`password()`](Self::password) was not called with
-    /// a password.
+    /// a password, or if key derivation fails (see [`try_build()`](Self::try_build) for
+    /// the fallible variant).
     ///
     /// **Always provide a password when enabling encryption.** The following code will panic:
     /// ```no_run
@@ -885,38 +983,9 @@ impl WriteOptionsBuilder {
     #[inline]
     #[must_use = "building options without using them is wasteful"]
     pub fn build(&self) -> WriteOptions {
-        let cipher = if self.encryption != Encryption::No {
-            Some(Cipher::new(
-                self.password
-                    .as_deref()
-                    .expect("Password was not provided.")
-                    .into(),
-                self.hash_algorithm,
-                match self.encryption {
-                    Encryption::Aes => CipherAlgorithm::Aes,
-                    Encryption::Camellia => CipherAlgorithm::Camellia,
-                    other => panic!(
-                        "unsupported encryption method for writing: byte={}",
-                        other.to_byte()
-                    ),
-                },
-                self.cipher_mode,
-            ))
-        } else {
-            None
-        };
-        WriteOptions {
-            compress: match self.compression {
-                Compression::No => Compress::No,
-                Compression::Deflate => Compress::Deflate(self.compression_level.into()),
-                Compression::ZStandard => Compress::ZStandard(self.compression_level.into()),
-                Compression::XZ => Compress::XZ(self.compression_level.into()),
-                other => panic!(
-                    "unsupported compression method for writing: byte={}",
-                    other.to_byte()
-                ),
-            },
-            cipher,
+        match self.try_build() {
+            Ok(options) => options,
+            Err(e) => panic!("{e}"),
         }
     }
 }
@@ -1006,5 +1075,63 @@ impl ReadOptionsBuilder {
         ReadOptions {
             password: self.password.clone(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
+
+    #[test]
+    fn try_build_derives_key_at_build() {
+        let options = WriteOptions::builder()
+            .encryption(Encryption::Aes)
+            .password(Some("password"))
+            .try_build()
+            .unwrap();
+        let cipher = options.cipher.unwrap();
+        assert!(!cipher.derived.phsf.is_empty());
+        assert_eq!(cipher.derived.key.len(), 32);
+    }
+
+    #[test]
+    fn each_build_generates_fresh_salt() {
+        let mut builder = WriteOptions::builder();
+        builder
+            .encryption(Encryption::Aes)
+            .password(Some("password"));
+        let first = builder.try_build().unwrap();
+        let second = builder.try_build().unwrap();
+        assert_ne!(
+            first.cipher.unwrap().derived.phsf,
+            second.cipher.unwrap().derived.phsf,
+        );
+    }
+
+    #[test]
+    fn try_build_without_password_returns_error() {
+        let err = WriteOptions::builder()
+            .encryption(Encryption::Aes)
+            .try_build()
+            .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+    }
+
+    #[test]
+    fn try_build_with_invalid_kdf_params_returns_error() {
+        let result = WriteOptions::builder()
+            .encryption(Encryption::Aes)
+            .hash_algorithm(HashAlgorithm::argon2id_with(Some(0), None, None))
+            .password(Some("password"))
+            .try_build();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    #[should_panic(expected = "Password was not provided.")]
+    fn build_without_password_panics() {
+        let _ = WriteOptions::builder().encryption(Encryption::Aes).build();
     }
 }
