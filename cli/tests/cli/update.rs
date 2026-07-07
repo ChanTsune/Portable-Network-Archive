@@ -1,3 +1,4 @@
+mod directory_entry;
 mod encryption;
 mod entry_order;
 mod error;
@@ -9,6 +10,7 @@ mod option_exclude;
 mod option_exclude_vcs;
 #[cfg(not(target_family = "wasm"))]
 mod option_files_from_stdin;
+mod option_include;
 mod option_keep_solid;
 mod option_missing_time;
 mod option_mtime;
@@ -23,3 +25,4 @@ mod option_older_mtime_than;
 mod option_recursive;
 mod option_sync;
 mod option_unsolid;
+mod symlink_entry;
