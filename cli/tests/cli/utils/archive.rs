@@ -76,6 +76,41 @@ pub fn create_solid_archive_with_permissions(
     Ok(())
 }
 
+/// Creates an encrypted solid archive with file entries having specific permissions.
+pub fn create_encrypted_solid_archive_with_permissions(
+    archive_path: impl AsRef<Path>,
+    entries: &[FileEntryDef],
+    password: &str,
+) -> io::Result<()> {
+    let file = File::create(archive_path)?;
+    let mut archive = pna::Archive::write_header(file)?;
+
+    let write_options = pna::WriteOptions::builder()
+        .password(Some(password))
+        .encryption(pna::Encryption::Aes)
+        .cipher_mode(pna::CipherMode::CTR)
+        .build();
+
+    let mut solid_builder = pna::SolidEntryBuilder::new(write_options)?;
+    for entry_def in entries {
+        let mut builder =
+            pna::EntryBuilder::new_file(entry_def.path.into(), pna::WriteOptions::store())?;
+        builder.owner_uid(pna::OwnerUid::from(1000));
+        builder.owner_gid(pna::OwnerGid::from(1000));
+        builder.owner_user_name(pna::OwnerUserName::new("user").unwrap());
+        builder.owner_group_name(pna::OwnerGroupName::new("group").unwrap());
+        builder.permission_mode(pna::PermissionMode::from(entry_def.permission));
+        builder.write_all(entry_def.content)?;
+        let entry = builder.build()?;
+        solid_builder.add_entry(entry)?;
+    }
+    let solid_entry = solid_builder.build()?;
+    archive.add_entry(solid_entry)?;
+
+    archive.finalize()?;
+    Ok(())
+}
+
 /// Creates an encrypted archive with file entries having specific permissions.
 pub fn create_encrypted_archive_with_permissions(
     archive_path: impl AsRef<Path>,
@@ -145,6 +180,49 @@ where
         f(entry?);
     }
     Ok(())
+}
+
+pub fn entry_mode(path: impl AsRef<Path>, name: &str) -> u16 {
+    entry_mode_with_password(path, name, None)
+}
+
+pub fn entry_mode_with_password(path: impl AsRef<Path>, name: &str, password: Option<&str>) -> u16 {
+    let mut mode = None;
+    for_each_entry_with_password(path, password, |entry| {
+        if entry.name() == name {
+            mode = Some(
+                entry
+                    .metadata()
+                    .permission_mode()
+                    .expect("entry should have permission mode metadata")
+                    .get()
+                    & 0o777,
+            );
+        }
+    })
+    .unwrap();
+    mode.expect("target entry should exist")
+}
+
+pub fn entry_contents_with_password(
+    path: impl AsRef<Path>,
+    name: &str,
+    password: Option<&str>,
+) -> Vec<u8> {
+    let password_bytes = password.map(str::as_bytes);
+    let mut contents = None;
+    for_each_entry_with_password(path, password, |entry| {
+        if entry.name() == name {
+            let mut reader = entry
+                .reader(pna::ReadOptions::with_password(password_bytes))
+                .unwrap();
+            let mut data = Vec::new();
+            reader.read_to_end(&mut data).unwrap();
+            contents = Some(data);
+        }
+    })
+    .unwrap();
+    contents.expect("target entry should exist")
 }
 
 pub fn read_symlink_target(entry: &pna::NormalEntry) -> String {
