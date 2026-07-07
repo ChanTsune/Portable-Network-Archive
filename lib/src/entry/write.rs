@@ -4,7 +4,7 @@ use crate::{
     Cipher, CipherAlgorithm, HashAlgorithm,
     cipher::{CipherWriter, Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
     compress::CompressionWriter,
-    entry::{CipherMode, Compress, HashAlgorithmParams, WriteOption},
+    entry::{CipherMode, Compress, DerivedKeyMaterial, HashAlgorithmParams, WriteOption},
     hash, random,
 };
 use aes::Aes256;
@@ -33,15 +33,18 @@ pub(crate) struct EntryWriterContext {
     pub(crate) cipher: Option<WriteCipher>,
 }
 
+pub(crate) fn derive_key_material(
+    cipher_algorithm: CipherAlgorithm,
+    hash_algorithm: HashAlgorithm,
+    password: &[u8],
+) -> io::Result<DerivedKeyMaterial> {
+    let salt = random::salt_string();
+    let (key, phsf) = hash(cipher_algorithm, hash_algorithm, password, &salt)?;
+    Ok(DerivedKeyMaterial { phsf, key })
+}
+
 #[inline]
 fn to_hashed(cipher: &Cipher) -> io::Result<WriteCipher> {
-    let salt = random::salt_string();
-    let (key, phsf) = hash(
-        cipher.cipher_algorithm,
-        cipher.hash_algorithm,
-        cipher.password.as_bytes(),
-        &salt,
-    )?;
     let iv = match cipher.cipher_algorithm {
         CipherAlgorithm::Aes => random::random_vec(Aes256::block_size()),
         CipherAlgorithm::Camellia => random::random_vec(Camellia256::block_size()),
@@ -49,9 +52,9 @@ fn to_hashed(cipher: &Cipher) -> io::Result<WriteCipher> {
     Ok(WriteCipher {
         algorithm: cipher.cipher_algorithm,
         context: CipherContext {
-            phsf,
+            phsf: cipher.derived.phsf.clone(),
             iv,
-            key,
+            key: cipher.derived.key,
             mode: cipher.mode,
         },
     })
