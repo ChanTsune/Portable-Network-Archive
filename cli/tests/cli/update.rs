@@ -1,6 +1,7 @@
 mod encryption;
 mod entry_order;
 mod error;
+mod multipart;
 mod no_timestamp_archive;
 mod option_atime;
 mod option_ctime;
