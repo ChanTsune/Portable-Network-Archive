@@ -692,7 +692,7 @@ impl TryFrom<u8> for DataKind {
 /// When reading an archive, use [`ReadOptions`] to provide the password for decryption.
 /// The compression algorithm and cipher mode are stored in the archive metadata, so you
 /// only need to provide the password.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Clone, Debug)]
 pub struct WriteOptions {
     compress: Compress,
     cipher: Option<Cipher>,
