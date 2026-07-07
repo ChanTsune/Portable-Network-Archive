@@ -2,20 +2,38 @@
 
 use crate::utils::setup;
 use assert_cmd::cargo::cargo_bin_cmd;
+use pna::{Archive, ReadOptions};
 use predicates::prelude::predicate;
 use std::fs;
+use std::io::{Cursor, Read};
+
+fn read_archive_entries(bytes: &[u8]) -> Vec<(String, String)> {
+    let mut archive = Archive::read_header(Cursor::new(bytes)).unwrap();
+    archive
+        .entries()
+        .extract_solid_entries(None)
+        .map(|entry| {
+            let entry = entry.unwrap();
+            let mut reader = entry.reader(ReadOptions::builder().build()).unwrap();
+            let mut content = String::new();
+            reader.read_to_string(&mut content).unwrap();
+            (entry.name().to_string(), content)
+        })
+        .collect()
+}
 
 /// Precondition: A file exists in the filesystem.
 /// Action: Create archive using stdio with --mac-metadata --unstable flags.
-/// Expectation: Command succeeds (option is recognized and accepted).
+/// Expectation: Command writes an archive containing the requested file data.
 #[test]
-fn stdio_mac_metadata_option_accepted() {
+fn stdio_create_with_mac_metadata_writes_archive_entry() {
     setup();
     let file = "stdio_mac_metadata_option_accepted.txt";
     fs::write(file, "test content").unwrap();
 
     let mut cmd = cargo_bin_cmd!("pna");
-    cmd.arg("experimental")
+    let output = cmd
+        .arg("experimental")
         .arg("stdio")
         .arg("-c")
         .arg("--unstable")
@@ -23,6 +41,12 @@ fn stdio_mac_metadata_option_accepted() {
         .arg(file)
         .assert()
         .success();
+
+    assert_eq!(
+        read_archive_entries(output.get_output().stdout.as_slice()),
+        vec![(file.to_string(), "test content".to_string())],
+        "--mac-metadata create should emit an archive with the requested entry"
+    );
 }
 
 /// Precondition: A file exists in the filesystem.
