@@ -5,7 +5,7 @@ use portable_network_archive::cli;
 use std::fs;
 
 /// Precondition: An archive contains entries in non-alphabetical order.
-/// Action: Run `pna experimental sort` with the default sort key (name).
+/// Action: Run `pna sort` with the default sort key (name).
 /// Expectation: Entries are reordered alphabetically by path in ascending order.
 #[test]
 fn sort_by_name() {
@@ -19,17 +19,10 @@ fn sort_by_name() {
     archive.add_entry(entry_a.build().unwrap()).unwrap();
     archive.finalize().unwrap();
 
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "experimental",
-        "sort",
-        "-f",
-        "sort_by_name/unsorted.pna",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
+    cli::Cli::try_parse_from(["pna", "--quiet", "sort", "-f", "sort_by_name/unsorted.pna"])
+        .unwrap()
+        .execute()
+        .unwrap();
 
     let mut names = Vec::new();
     for_each_entry("sort_by_name/unsorted.pna", |e| {

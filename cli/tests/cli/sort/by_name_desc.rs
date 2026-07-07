@@ -5,7 +5,7 @@ use portable_network_archive::cli;
 use std::fs;
 
 /// Precondition: An archive contains entries in alphabetical order.
-/// Action: Run `pna experimental sort` with `--by name:desc`.
+/// Action: Run `pna sort` with `--by name:desc`.
 /// Expectation: Entries are reordered alphabetically by path in descending order.
 #[test]
 fn sort_by_name_desc() {
@@ -22,7 +22,6 @@ fn sort_by_name_desc() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "sort",
         "-f",
         "sort_by_name_desc/unsorted.pna",

@@ -5,7 +5,7 @@ use portable_network_archive::cli;
 use std::fs;
 
 /// Precondition: An archive contains entries where the primary key has ties.
-/// Action: Run `pna experimental sort` with `--by ctime --by mtime`.
+/// Action: Run `pna sort` with `--by ctime --by mtime`.
 /// Expectation: Entries are ordered by ctime first, then by mtime as a tiebreaker.
 #[test]
 fn sort_by_multiple_keys() {
@@ -43,7 +43,6 @@ fn sort_by_multiple_keys() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "sort",
         "-f",
         "sort_by_multi/unsorted.pna",

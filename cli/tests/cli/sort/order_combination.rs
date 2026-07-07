@@ -5,7 +5,7 @@ use portable_network_archive::cli;
 use std::fs;
 
 /// Precondition: An archive contains entries with distinct atime, mtime, ctime, and name values.
-/// Action: Run `pna experimental sort` with all four keys in different orderings.
+/// Action: Run `pna sort` with all four keys in different orderings.
 /// Expectation: Entries are ordered according to the specified key priority.
 #[test]
 fn sort_by_all_keys() {
@@ -46,7 +46,6 @@ fn sort_by_all_keys() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "sort",
         "-f",
         "sort_by_all/unsorted.pna",
@@ -74,7 +73,6 @@ fn sort_by_all_keys() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "sort",
         "-f",
         "sort_by_all/unsorted.pna",

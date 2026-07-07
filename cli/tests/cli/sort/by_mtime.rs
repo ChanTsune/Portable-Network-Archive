@@ -5,7 +5,7 @@ use portable_network_archive::cli;
 use std::fs;
 
 /// Precondition: An archive contains entries with different modification times.
-/// Action: Run `pna experimental sort` with `--by mtime`.
+/// Action: Run `pna sort` with `--by mtime`.
 /// Expectation: Entries are reordered by modification time in ascending order.
 #[test]
 fn sort_by_mtime() {
@@ -36,7 +36,6 @@ fn sort_by_mtime() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "sort",
         "-f",
         "sort_by_mtime/unsorted.pna",
