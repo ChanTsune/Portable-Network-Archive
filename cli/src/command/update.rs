@@ -564,23 +564,31 @@ where
     // idempotent and not worth a warning. Only warn when two *different*
     // source paths collapse onto the same archive entry name, since one of
     // them silently loses.
-    let mut target_files_mapping: IndexMap<EntryName, (usize, CollectedEntry)> =
+    // The value is `Option`-wrapped so a match can be taken out in O(1) via
+    // `Option::take` (below) instead of `shift_remove`, which is O(n) per
+    // call and made archive-side matching quadratic in the number of entries.
+    let mut target_files_mapping: IndexMap<EntryName, Option<(usize, CollectedEntry)>> =
         IndexMap::with_capacity(target_items.len());
     for (idx, item) in target_items.into_iter().enumerate() {
         match target_files_mapping.entry(EntryName::from_lossy(&item.path)) {
             indexmap::map::Entry::Occupied(mut occupied) => {
-                if occupied.get().1.path != item.path {
+                // Matching against archive entries happens after this loop,
+                // so `occupied.get()` is always `Some` here; guard
+                // defensively rather than assume it.
+                if let Some((_, old)) = occupied.get()
+                    && old.path != item.path
+                {
                     log::warn!(
                         "Multiple update sources map to the same archive entry \"{}\": \"{}\" is used, \"{}\" is discarded",
                         occupied.key(),
                         item.path.display(),
-                        occupied.get().1.path.display(),
+                        old.path.display(),
                     );
                 }
-                occupied.insert((idx, item));
+                occupied.insert(Some((idx, item)));
             }
             indexmap::map::Entry::Vacant(vacant) => {
-                vacant.insert((idx, item));
+                vacant.insert(Some((idx, item)));
             }
         }
     }
@@ -590,8 +598,9 @@ where
             |entry| {
                 Strategy::transform(out_archive, password, entry, |entry| {
                     let entry = entry?;
-                    if let Some((idx, item)) =
-                        target_files_mapping.shift_remove(entry.header().path())
+                    if let Some((idx, item)) = target_files_mapping
+                        .get_mut(entry.header().path())
+                        .and_then(Option::take)
                     {
                         let need_update =
                             is_newer_than_archive(missing_time, &item.metadata, entry.metadata());
@@ -628,8 +637,8 @@ where
             allow_concatenated_archives,
         )?;
 
-        // NOTE: Add new entries
-        for (_, (idx, item)) in target_files_mapping {
+        // Add entries that were never matched against an archive entry above.
+        for (idx, item) in target_files_mapping.into_values().flatten() {
             let tx = tx.clone();
             let create_options = create_options.clone();
             s.spawn_fifo(move |_| {
