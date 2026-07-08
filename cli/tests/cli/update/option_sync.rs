@@ -317,3 +317,85 @@ fn update_with_sync_keeps_time_filtered_files() {
         "time-filtered but existing files should be kept under --sync"
     );
 }
+
+/// Precondition: None.
+/// Action: Parse `pna experimental update --sync` together with a `-s`
+/// substitution rule.
+/// Expectation: Argument parsing fails, since `--sync` prunes entries by
+/// checking whether the stored name exists on disk, and a substitution rule
+/// makes the stored name diverge from the original filesystem path.
+#[test]
+fn update_sync_conflicts_with_substitution() {
+    setup();
+
+    let result = cli::Cli::try_parse_from([
+        "pna",
+        "experimental",
+        "update",
+        "-f",
+        "dummy.pna",
+        "--sync",
+        "--unstable",
+        "-s",
+        "#a#b#",
+    ]);
+
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("cannot be used with"),
+        "expected a mutual exclusion error, got: {err}"
+    );
+}
+
+/// Precondition: None.
+/// Action: Parse `pna experimental update --sync` together with `--transform`.
+/// Expectation: Argument parsing fails for the same reason as `-s`.
+#[test]
+fn update_sync_conflicts_with_transform() {
+    setup();
+
+    let result = cli::Cli::try_parse_from([
+        "pna",
+        "experimental",
+        "update",
+        "-f",
+        "dummy.pna",
+        "--sync",
+        "--unstable",
+        "--transform",
+        "s#a#b#",
+    ]);
+
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("cannot be used with"),
+        "expected a mutual exclusion error, got: {err}"
+    );
+}
+
+/// Precondition: None.
+/// Action: Parse `pna experimental update --sync` together with
+/// `--strip-components`.
+/// Expectation: Argument parsing fails for the same reason as `-s`.
+#[test]
+fn update_sync_conflicts_with_strip_components() {
+    setup();
+
+    let result = cli::Cli::try_parse_from([
+        "pna",
+        "experimental",
+        "update",
+        "-f",
+        "dummy.pna",
+        "--sync",
+        "--unstable",
+        "--strip-components",
+        "1",
+    ]);
+
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("cannot be used with"),
+        "expected a mutual exclusion error, got: {err}"
+    );
+}

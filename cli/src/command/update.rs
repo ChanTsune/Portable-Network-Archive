@@ -380,8 +380,11 @@ pub(crate) struct UpdateCommand {
         help = "Follow symbolic links named on the command line"
     )]
     follow_command_links: bool,
+    // Transformed names cannot be mapped back to a filesystem path, so --sync's
+    // existence check would treat files that still exist as missing and prune them.
     #[arg(
         long,
+        conflicts_with_all = ["substitutions", "transforms", "strip_components"],
         help = "Synchronize archive with source: remove entries for files that no longer exist in the source"
     )]
     sync: bool,
@@ -639,8 +642,9 @@ where
 // collection) no longer exists on disk. Entries merely filtered out of the
 // collected set (e.g. by --exclude or time filters) are kept. Ambiguous
 // errors such as PermissionDenied count as existing so pruning never risks
-// data loss. Known limitation: names produced by -s/--transform/
-// --strip-components do not correspond to filesystem paths and are pruned.
+// data loss. `--sync` is rejected together with -s/--transform/
+// --strip-components (see `sync`'s `conflicts_with_all` above), since those
+// options make the stored name diverge from a filesystem path.
 fn exists_on_disk(path: &Path) -> bool {
     match fs::symlink_metadata(path) {
         Ok(_) => true,
