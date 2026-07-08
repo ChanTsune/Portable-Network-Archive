@@ -14,6 +14,7 @@ use crate::{
         OwnerUserSid, PermissionMode, SolidEntry, SolidHeader, WriteCipher, WriteOption,
         WriteOptions, get_writer, get_writer_context, private::SealedEntryExt,
     },
+    hash::PHCStringWithVerifier,
     io::{FlattenWriter, TryIntoInner},
 };
 
@@ -144,7 +145,7 @@ use std::{
 /// ```
 pub struct EntryBuilder {
     header: EntryHeader,
-    phsf: Option<String>,
+    phsf: Option<PHCStringWithVerifier>,
     iv: Option<Vec<u8>>,
     data: Option<CompressionWriter<CipherWriter<FlattenWriter>>>,
     created: Option<Duration>,
@@ -570,7 +571,7 @@ impl Write for SolidEntryDataWriter<'_> {
 /// ```
 pub struct SolidEntryBuilder {
     header: SolidHeader,
-    phsf: Option<String>,
+    phsf: Option<PHCStringWithVerifier>,
     iv: Option<Vec<u8>>,
     data: CompressionWriter<CipherWriter<FlattenWriter>>,
     extra: Vec<RawChunk>,

@@ -378,7 +378,7 @@ impl<W: Write> Archive<W> {
 
         (ChunkType::SHED, header.to_bytes()).write_chunk_in(&mut self.inner)?;
         if let Some(WriteCipher { context: c, .. }) = &context.cipher {
-            (ChunkType::PHSF, c.phsf.as_bytes()).write_chunk_in(&mut self.inner)?;
+            (ChunkType::PHSF, c.phsf.to_string().as_bytes()).write_chunk_in(&mut self.inner)?;
             (ChunkType::SDAT, c.iv.as_slice()).write_chunk_in(&mut self.inner)?;
         }
         self.inner.flush()?;
@@ -592,7 +592,7 @@ where
     }
     let context = get_writer_context(option)?;
     if let Some(WriteCipher { context: c, .. }) = &context.cipher {
-        (ChunkType::PHSF, c.phsf.as_bytes()).write_chunk_in(inner)?;
+        (ChunkType::PHSF, c.phsf.to_string().as_bytes()).write_chunk_in(inner)?;
         (ChunkType::FDAT, &c.iv[..]).write_chunk_in(inner)?;
     }
     let inner = {

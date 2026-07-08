@@ -25,6 +25,7 @@ use crate::{
     chunk::{
         Chunk, ChunkExt, ChunkReader, ChunkType, MIN_CHUNK_BYTES_SIZE, RawChunk, chunk_data_split,
     },
+    hash::PHCStringWithVerifier,
     io::ChainReader,
     util::slice::skip_while,
 };
@@ -32,6 +33,7 @@ use std::{
     borrow::Cow,
     collections::VecDeque,
     io::{self, Read, Write},
+    str::FromStr,
 };
 
 mod private {
@@ -340,7 +342,7 @@ impl Iterator for SolidIntoEntries {
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct SolidEntry<T = Vec<u8>> {
     header: SolidHeader,
-    phsf: Option<String>,
+    phsf: Option<PHCStringWithVerifier>,
     data: Vec<T>,
     extra: Vec<RawChunk<T>>,
 }
@@ -358,7 +360,7 @@ where
             total += extra_chunk.write_chunk_in(writer)?;
         }
         if let Some(phsf) = &self.phsf {
-            total += (ChunkType::PHSF, phsf.as_bytes()).write_chunk_in(writer)?;
+            total += (ChunkType::PHSF, phsf.to_string().as_bytes()).write_chunk_in(writer)?;
         }
         for data in &self.data {
             total += (ChunkType::SDAT, data).write_chunk_in(writer)?;
@@ -379,7 +381,10 @@ where
         chunks.extend(self.extra.into_iter().map(Into::into));
 
         if let Some(phsf) = self.phsf {
-            chunks.push(RawChunk::from_data(ChunkType::PHSF, phsf.into_bytes()));
+            chunks.push(RawChunk::from_data(
+                ChunkType::PHSF,
+                phsf.to_string().into_bytes(),
+            ));
         }
         for data in self.data {
             chunks.push(RawChunk::from((ChunkType::SDAT, data)).into());
@@ -482,7 +487,7 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
             self.encoded_reader(),
             self.header.encryption,
             self.header.cipher_mode,
-            self.phsf.as_deref(),
+            self.phsf.as_ref(),
             password,
         )?;
         let reader = decompress_reader(reader, self.header.compression)?;
@@ -510,7 +515,7 @@ where
             chain,
             self.header.encryption,
             self.header.cipher_mode,
-            self.phsf.as_deref(),
+            self.phsf.as_ref(),
             password,
         )?;
         let reader = decompress_reader(reader, self.header.compression)?;
@@ -603,8 +608,11 @@ where
                 ChunkType::SDAT => data.push(chunk.data),
                 ChunkType::PHSF => {
                     phsf = Some(
-                        String::from_utf8(chunk.data().into())
-                            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+                        PHCStringWithVerifier::from_str(
+                            str::from_utf8(chunk.data())
+                                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+                        )
+                        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
                     )
                 }
                 _ => {
@@ -635,7 +643,7 @@ where
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct NormalEntry<T = Vec<u8>> {
     pub(crate) header: EntryHeader,
-    pub(crate) phsf: Option<String>,
+    pub(crate) phsf: Option<PHCStringWithVerifier>,
     pub(crate) extra: Vec<RawChunk<T>>,
     pub(crate) data: Vec<T>,
     pub(crate) metadata: Metadata,
@@ -705,8 +713,11 @@ where
                 ChunkType::FEND => break,
                 ChunkType::PHSF => {
                     phsf = Some(
-                        String::from_utf8(chunk.data().into())
-                            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+                        PHCStringWithVerifier::from_str(
+                            str::from_utf8(chunk.data())
+                                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+                        )
+                        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
                     );
                 }
                 ChunkType::FDAT => {
@@ -824,7 +835,7 @@ where
         }
 
         if let Some(p) = &self.phsf {
-            total += (ChunkType::PHSF, p.as_bytes()).write_chunk_in(writer)?;
+            total += (ChunkType::PHSF, p.to_string().as_bytes()).write_chunk_in(writer)?;
         }
         for data_chunk in &self.data {
             total += (ChunkType::FDAT, data_chunk).write_chunk_in(writer)?;
@@ -919,7 +930,10 @@ where
         }
 
         if let Some(p) = self.phsf {
-            vec.push(RawChunk::from_data(ChunkType::PHSF, p.into_bytes()));
+            vec.push(RawChunk::from_data(
+                ChunkType::PHSF,
+                p.to_string().into_bytes(),
+            ));
         }
         for data_chunk in self.data {
             vec.push(RawChunk::from((ChunkType::FDAT, data_chunk)).into());
@@ -1196,7 +1210,7 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
             self.encoded_reader(),
             self.header.encryption,
             self.header.cipher_mode,
-            self.phsf.as_deref(),
+            self.phsf.as_ref(),
             option.password(),
         )?;
         let reader = decompress_reader(decrypt_reader, self.header.compression)?;

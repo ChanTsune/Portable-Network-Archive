@@ -1,6 +1,9 @@
 //! Read and write options for archive entries.
 
-use crate::{compress, entry::write::derive_key_material, error::UnknownValueError};
+use crate::{
+    compress, entry::write::derive_key_material, error::UnknownValueError,
+    hash::PHCStringWithVerifier,
+};
 use password_hash::Output;
 pub(crate) use private::*;
 use std::{io, str::FromStr};
@@ -54,7 +57,7 @@ mod private {
     /// the KDF output used as the cipher key.
     #[derive(Clone, Debug)]
     pub struct DerivedKeyMaterial {
-        pub(crate) phsf: String,
+        pub(crate) phsf: PHCStringWithVerifier,
         pub(crate) key: Output,
     }
 
@@ -1092,7 +1095,7 @@ mod tests {
             .try_build()
             .unwrap();
         let cipher = options.cipher.unwrap();
-        assert!(!cipher.derived.phsf.is_empty());
+        assert!(!cipher.derived.phsf.to_string().is_empty());
         assert_eq!(cipher.derived.key.len(), 32);
     }
 

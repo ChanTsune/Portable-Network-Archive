@@ -5,7 +5,9 @@ use crate::{
     cipher::{CipherWriter, Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
     compress::CompressionWriter,
     entry::{CipherMode, Compress, DerivedKeyMaterial, HashAlgorithmParams, WriteOption},
-    hash, random,
+    hash,
+    hash::PHCStringWithVerifier,
+    random,
 };
 use aes::Aes256;
 use camellia::Camellia256;
@@ -17,7 +19,7 @@ use std::io::{self, Write};
 use zstd::stream::write::Encoder as ZstdEncoder;
 
 pub(crate) struct CipherContext {
-    pub(crate) phsf: String,
+    pub(crate) phsf: PHCStringWithVerifier,
     pub(crate) iv: Vec<u8>,
     pub(crate) key: Output,
     pub(crate) mode: CipherMode,
@@ -83,8 +85,8 @@ fn hash<'s, 'p: 's>(
     hash_algorithm: HashAlgorithm,
     password: &'p [u8],
     salt: &'s SaltString,
-) -> io::Result<(Output, String)> {
-    let mut password_hash = match hash_algorithm.0 {
+) -> io::Result<(Output, PHCStringWithVerifier)> {
+    let (password_hash, hash) = match hash_algorithm.0 {
         HashAlgorithmParams::Argon2Id {
             time_cost,
             memory_cost,
@@ -106,11 +108,7 @@ fn hash<'s, 'p: 's>(
             hash::pbkdf2_with_salt(password, pbkdf2::Algorithm::Pbkdf2Sha256, params, salt)
         }
     }?;
-    let hash = password_hash
-        .hash
-        .take()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::Unsupported, "failed to get hash"))?;
-    Ok((hash, password_hash.to_string()))
+    Ok((hash, password_hash))
 }
 
 #[inline]
