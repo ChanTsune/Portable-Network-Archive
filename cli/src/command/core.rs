@@ -989,7 +989,7 @@ pub(crate) fn entry_option(
     cipher: CipherAlgorithmArgs,
     hash: HashAlgorithmArgs,
     password: Option<&[u8]>,
-) -> WriteOptions {
+) -> io::Result<WriteOptions> {
     let (algorithm, level) = compression.algorithm();
     let mut option_builder = WriteOptions::builder();
     option_builder
@@ -1003,7 +1003,7 @@ pub(crate) fn entry_option(
         .cipher_mode(cipher.mode())
         .hash_algorithm(hash.algorithm())
         .password(password);
-    option_builder.build()
+    option_builder.try_build()
 }
 
 #[cfg_attr(target_os = "wasi", allow(unused_variables))]
@@ -1332,7 +1332,7 @@ impl TransformStrategy for TransformStrategyKeepSolid {
                         .encryption(header.encryption())
                         .cipher_mode(header.cipher_mode())
                         .password(password)
-                        .build(),
+                        .try_build()?,
                 )?;
                 for n in s.entries(password)? {
                     if let Some(entry) = transformer(n.map(Into::into))? {

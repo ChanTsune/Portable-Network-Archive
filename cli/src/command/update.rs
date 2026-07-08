@@ -406,7 +406,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
         anyhow::bail!("{} is not exists", archive_path.display());
     }
     let password = password.as_deref();
-    let option = entry_option(args.compression, args.cipher, args.hash, password);
+    let option = entry_option(args.compression, args.cipher, args.hash, password)?;
     let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
         keep_permission: args.keep_permission,
         no_keep_permission: args.no_keep_permission,

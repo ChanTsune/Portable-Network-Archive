@@ -517,7 +517,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         false,
     );
     let password = password.as_deref();
-    let write_option = entry_option(args.compression, args.cipher, args.hash, password);
+    let write_option = entry_option(args.compression, args.cipher, args.hash, password)?;
     let creation_context = CreationContext {
         write_option,
         keep_options,

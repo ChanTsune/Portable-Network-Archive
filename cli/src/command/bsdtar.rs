@@ -722,7 +722,7 @@ fn build_write_options(
     hash: &HashAlgorithmArgs,
     options: Option<&crate::cli::ArchiveOptions>,
     password: Option<&[u8]>,
-) -> pna::WriteOptions {
+) -> io::Result<pna::WriteOptions> {
     let (algorithm, level) = compression.algorithm(options);
     let mut option_builder = pna::WriteOptions::builder();
     option_builder
@@ -736,7 +736,7 @@ fn build_write_options(
         .cipher_mode(cipher.mode())
         .hash_algorithm(hash.algorithm())
         .password(password);
-    option_builder.build()
+    option_builder.try_build()
 }
 
 /// Resolves permission strategies for bsdtar creation operations (create/append/update).
@@ -949,7 +949,7 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
         &args.hash,
         args.options.as_ref(),
         password,
-    );
+    )?;
     let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
     let (gname, gid) = resolve_name_id(args.group, args.gname, args.gid);
     let (mode_strategy, owner_strategy) = CreationPermissionStrategyResolver {
@@ -1272,7 +1272,7 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
         &args.hash,
         args.options.as_ref(),
         password,
-    );
+    )?;
     let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
     let (gname, gid) = resolve_name_id(args.group, args.gname, args.gid);
     let (mode_strategy, owner_strategy) = CreationPermissionStrategyResolver {
@@ -1435,7 +1435,7 @@ fn run_update(args: BsdtarCommand) -> anyhow::Result<()> {
         &args.hash,
         args.options.as_ref(),
         password,
-    );
+    )?;
     let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
     let (gname, gid) = resolve_name_id(args.group, args.gname, args.gid);
     let (mode_strategy, owner_strategy) = CreationPermissionStrategyResolver {
