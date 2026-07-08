@@ -147,6 +147,13 @@ fn has_timezone_marker(s: &str) -> bool {
     s[t_pos + 1..].bytes().any(|b| b == b'+' || b == b'-')
 }
 
+#[inline]
+fn parse_zoned(s: &str) -> Result<jiff::Zoned, DateTimeError> {
+    parse_datetime::parse_datetime(s)?
+        .into_zoned()
+        .ok_or_else(|| DateTimeError::OutOfRange(s.to_owned()))
+}
+
 impl FromStr for DateTime {
     type Err = DateTimeError;
 
@@ -165,26 +172,18 @@ impl FromStr for DateTime {
             } else {
                 Cow::Borrowed(s)
             };
-            let ns = parse_datetime::parse_datetime(&*normalized)?
-                .timestamp()
-                .as_nanosecond();
-            // Euclidean division converts the algebraic nanoseconds-since-
-            // epoch into the timespec `(floor, non-negative offset)` pair
-            // expected by `epoch_components` / `epoch_to_system_time`.
-            let secs: i64 = ns
-                .div_euclid(1_000_000_000)
-                .try_into()
-                .map_err(|_| Self::Err::OutOfRange(s.to_owned()))?;
-            let nanos = ns.rem_euclid(1_000_000_000) as u32;
+            let parsed = parse_datetime::parse_datetime(&*normalized)?;
+            let secs = parsed.unix_epoch_second();
+            let nanos = parsed.subsec_nanosecond() as u32;
             Self::Epoch(secs, nanos)
         } else if has_timezone_marker(s) {
-            Self::Zoned(parse_datetime::parse_datetime(s)?)
+            Self::Zoned(parse_zoned(s)?)
         } else if s.contains('T') {
             // Time-of-day component present: route to civil::DateTime. Falling
             // back to parse_datetime keeps unusual but acceptable forms working.
             match JiffDateTime::from_str(s) {
                 Ok(naive) => Self::Naive(naive),
-                Err(_) => Self::Zoned(parse_datetime::parse_datetime(s)?),
+                Err(_) => Self::Zoned(parse_zoned(s)?),
             }
         } else if let Ok(date) = JiffDate::from_str(s) {
             // No `T` separator: treat as date-only. We branch on `T` first
@@ -192,7 +191,7 @@ impl FromStr for DateTime {
             // both lenient about trailing characters.
             Self::Date(date)
         } else {
-            Self::Zoned(parse_datetime::parse_datetime(s)?)
+            Self::Zoned(parse_zoned(s)?)
         };
         if dt.is_representable() {
             Ok(dt)
