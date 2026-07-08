@@ -1,4 +1,5 @@
 mod directory_entry;
+mod duplicate_targets;
 mod encryption;
 mod entry_order;
 mod error;

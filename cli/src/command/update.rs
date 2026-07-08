@@ -562,11 +562,31 @@ where
 {
     let (tx, rx) = std::sync::mpsc::channel();
 
-    let mut target_files_mapping = target_items
-        .into_iter()
-        .enumerate()
-        .map(|(idx, item)| (EntryName::from_lossy(&item.path), (idx, item)))
-        .collect::<IndexMap<_, _>>();
+    // Overlapping source arguments (e.g. a directory and a file within it)
+    // routinely collect the same path spelling twice; that case is
+    // idempotent and not worth a warning. Only warn when two *different*
+    // source paths collapse onto the same archive entry name, since one of
+    // them silently loses.
+    let mut target_files_mapping: IndexMap<EntryName, (usize, CollectedEntry)> =
+        IndexMap::with_capacity(target_items.len());
+    for (idx, item) in target_items.into_iter().enumerate() {
+        match target_files_mapping.entry(EntryName::from_lossy(&item.path)) {
+            indexmap::map::Entry::Occupied(mut occupied) => {
+                if occupied.get().1.path != item.path {
+                    log::warn!(
+                        "Multiple update sources map to the same archive entry \"{}\": \"{}\" is used, \"{}\" is discarded",
+                        occupied.key(),
+                        item.path.display(),
+                        occupied.get().1.path.display(),
+                    );
+                }
+                occupied.insert((idx, item));
+            }
+            indexmap::map::Entry::Vacant(vacant) => {
+                vacant.insert((idx, item));
+            }
+        }
+    }
 
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
         source.for_each_read_entry(
