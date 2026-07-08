@@ -385,7 +385,7 @@ pub(crate) struct UpdateCommand {
     #[arg(
         long,
         conflicts_with_all = ["substitutions", "transforms", "strip_components"],
-        help = "Synchronize archive with source: remove entries for files that no longer exist in the source"
+        help = "Synchronize archive with source: replace updated entries instead of appending, and remove entries for files that no longer exist on disk."
     )]
     sync: bool,
 }
