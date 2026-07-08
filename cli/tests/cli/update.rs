@@ -25,4 +25,5 @@ mod option_older_mtime_than;
 mod option_recursive;
 mod option_sync;
 mod option_unsolid;
+mod path_transform;
 mod symlink_entry;
