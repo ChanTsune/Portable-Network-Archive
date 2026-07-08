@@ -1952,7 +1952,7 @@ Update entries in archive
 * `-H`, `--follow-command-links` — Follow symbolic links named on the command line
 
   Default value: `false`
-* `--sync` — Synchronize archive with source: remove entries for files that no longer exist in the source
+* `--sync` — Synchronize archive with source: replace updated entries instead of appending, and remove entries for files that no longer exist on disk.
 
   Default value: `false`
 * `--quiet` — Make some output more quiet (alias for --log-level off)
