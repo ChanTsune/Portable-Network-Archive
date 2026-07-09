@@ -5,6 +5,7 @@
 //! command-line string inputs into strongly-typed values.
 
 mod argon2id_params;
+mod chunk_type;
 mod color_choice;
 mod compression_level;
 mod datetime;
@@ -16,6 +17,7 @@ mod pbkdf2_sha256_params;
 mod private_chunk_type;
 
 pub(crate) use argon2id_params::Argon2idParams;
+pub(crate) use chunk_type::ChunkType;
 pub(crate) use color_choice::ColorChoice;
 pub(crate) use compression_level::{DeflateLevel, XzLevel, ZstdLevel};
 pub use datetime::DateTime;

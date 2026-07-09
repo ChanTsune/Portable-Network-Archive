@@ -6,4 +6,6 @@ mod option_header;
 #[cfg(not(target_family = "wasm"))]
 mod option_long;
 #[cfg(not(target_family = "wasm"))]
+mod option_type;
+#[cfg(not(target_family = "wasm"))]
 mod solid_archive;
