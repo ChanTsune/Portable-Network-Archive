@@ -55,6 +55,7 @@ fn diff_archive(args: DiffCommand) -> anyhow::Result<()> {
     let mut globs = BsdGlobMatcher::new(args.file.files.iter().map(|s| s.as_str()));
     let filter_enabled = !globs.is_empty();
 
+    let read_options = ReadOptions::with_password(password.as_deref());
     let mut source = SplitArchiveReader::new(archives)?;
     source.for_each_entry(
         password.as_deref(),
@@ -67,7 +68,7 @@ fn diff_archive(args: DiffCommand) -> anyhow::Result<()> {
                 return Ok(());
             }
 
-            compare_entry(entry, password.as_deref(), &options)
+            compare_entry(entry, &read_options, &options)
         },
     )?;
 
@@ -269,7 +270,7 @@ fn compare_directory_metadata<T: AsRef<[u8]>>(
 
 fn compare_entry<T: AsRef<[u8]>>(
     entry: NormalEntry<T>,
-    password: Option<&[u8]>,
+    read_options: &ReadOptions,
     options: &CompareOptions,
 ) -> io::Result<()> {
     let data_kind = entry.header().data_kind();
@@ -298,7 +299,7 @@ fn compare_entry<T: AsRef<[u8]>>(
                 println!("{}", DiffKind::SizeDiffers.display(path_str));
             } else {
                 let fs_file = fs::File::open(path)?;
-                let archive_reader = entry.reader(ReadOptions::with_password(password))?;
+                let archive_reader = entry.reader(read_options)?;
                 if !streams_equal(fs_file, archive_reader)? {
                     println!("{}", DiffKind::ContentsDiffer.display(path_str));
                 }
@@ -312,7 +313,7 @@ fn compare_entry<T: AsRef<[u8]>>(
         }
         DataKind::SymbolicLink if meta.is_symlink() => {
             let link = fs::read_link(path)?;
-            let mut reader = entry.reader(ReadOptions::with_password(password))?;
+            let mut reader = entry.reader(read_options)?;
             let mut link_str = String::new();
             reader.read_to_string(&mut link_str)?;
             if link.as_path() != Path::new(&link_str) {
@@ -323,7 +324,7 @@ fn compare_entry<T: AsRef<[u8]>>(
             println!("{}", DiffKind::TypeMismatch.display(path_str));
         }
         DataKind::HardLink if meta.is_file() => {
-            let mut reader = entry.reader(ReadOptions::with_password(password))?;
+            let mut reader = entry.reader(read_options)?;
             let mut target = String::new();
             reader.read_to_string(&mut target)?;
 
