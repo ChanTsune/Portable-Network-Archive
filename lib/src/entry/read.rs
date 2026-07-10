@@ -71,10 +71,16 @@ pub(crate) fn decrypt_reader<R: Read>(
                     reader.read_exact(&mut iv)?;
                     DecryptReader::CbcCamellia(DecryptCbcCamellia256Reader::new(reader, key, &iv)?)
                 }
-                _ => {
+                (Encryption::Camellia, CipherMode::CTR) => {
                     let mut iv = vec![0u8; Camellia256::block_size()];
                     reader.read_exact(&mut iv)?;
                     DecryptReader::CtrCamellia(Ctr128BEReader::new(reader, key, &iv)?)
+                }
+                _ => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::Unsupported,
+                        format!("unsupported cipher mode: {cipher_mode:?}"),
+                    ));
                 }
             }
         }
@@ -117,5 +123,29 @@ impl<R: Read> Read for EntryReader<R> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
+
+    #[test]
+    fn decrypt_reader_rejects_unknown_cipher_mode() {
+        let phsf = "$argon2id$v=19$m=8,t=1,p=1$c29tZXNhbHQ";
+        let result = decrypt_reader(
+            io::Cursor::new(Vec::<u8>::new()),
+            Encryption::Camellia,
+            CipherMode::Reserved(3),
+            Some(phsf),
+            Some(b"password"),
+            None,
+        );
+        assert!(matches!(
+            result,
+            Err(e) if e.kind() == io::ErrorKind::Unsupported
+        ));
     }
 }
