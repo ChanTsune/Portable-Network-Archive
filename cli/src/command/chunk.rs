@@ -36,13 +36,13 @@ pub(crate) struct ListCommand {
     #[arg(
         long = "type",
         value_name = "TYPE",
-        help = "Only list chunks of the specified type (repeatable)"
+        help = "Only list chunks of the specified type"
     )]
     ty: Vec<ChunkType>,
     #[arg(
         long = "exclude-type",
         value_name = "TYPE",
-        help = "Do not list chunks of the specified type (repeatable)"
+        help = "Do not list chunks of the specified type"
     )]
     exclude_ty: Vec<ChunkType>,
     #[arg(short = 'f', long = "file", value_hint = ValueHint::FilePath)]
