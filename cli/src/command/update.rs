@@ -55,6 +55,8 @@ use std::{
     group(ArgGroup::new("mtime-newer-than-source").args(["newer_mtime", "newer_mtime_than"])),
 )]
 pub(crate) struct UpdateCommand {
+    #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
+    output: Option<PathBuf>,
     #[arg(
         long,
         requires = "unstable",
@@ -504,8 +506,9 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
     let mut resolver = HardlinkResolver::new(collect_options.follow_links);
     let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
 
+    let output_path = args.output.unwrap_or_else(|| archive_path.remove_part());
     let mut temp_file =
-        NamedTempFile::new(|| archive_path.parent().unwrap_or_else(|| ".".as_ref()))?;
+        NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
     let mut out_archive = Archive::write_header(temp_file.as_file_mut())?;
 
     let mut source = SplitArchiveReader::new(archives)?;
@@ -538,7 +541,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
     out_archive.finalize()?;
     drop(source);
 
-    temp_file.persist(archive_path.remove_part())?;
+    temp_file.persist(output_path)?;
 
     Ok(())
 }
