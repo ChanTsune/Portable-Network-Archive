@@ -374,7 +374,7 @@ impl TableRow {
     #[inline]
     fn from_entry<T>(
         entry: &NormalEntry<T>,
-        password: Option<&[u8]>,
+        read_options: &ReadOptions,
         solid: Option<&SolidHeader>,
         collect: CollectOptions,
     ) -> io::Result<Self>
@@ -421,7 +421,7 @@ impl TableRow {
                     // Only read link target if needed (requires decompression)
                     if collect.link_target {
                         entry
-                            .reader(ReadOptions::with_password(password))
+                            .reader(read_options)
                             .and_then(io::read_to_string)
                             .unwrap_or_else(|_| "-".into())
                     } else {
@@ -433,7 +433,7 @@ impl TableRow {
                     // Only read link target if needed (requires decompression)
                     if collect.link_target {
                         entry
-                            .reader(ReadOptions::with_password(password))
+                            .reader(read_options)
                             .and_then(io::read_to_string)
                             .unwrap_or_else(|_| "-".into())
                     } else {
@@ -543,6 +543,7 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
 
     let mut source = SplitArchiveReader::new(collect_split_archives(&archive)?)?;
     let password = password.as_deref();
+    let read_options = ReadOptions::with_password(password);
     let mut entries = Vec::new();
     let collect_opts = CollectOptions::from_list_options(&options);
     source.for_each_read_entry(
@@ -553,7 +554,7 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
                 for entry in solid.entries(password)? {
                     entries.push(TableRow::from_entry(
                         &entry?,
-                        password,
+                        &read_options,
                         Some(solid.header()),
                         collect_opts,
                     )?)
@@ -565,7 +566,7 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
                 );
             }
             ReadEntry::Normal(item) => {
-                entries.push(TableRow::from_entry(&item, password, None, collect_opts)?)
+                entries.push(TableRow::from_entry(&item, &read_options, None, collect_opts)?)
             }
         }
             Ok(())
@@ -649,6 +650,7 @@ pub(crate) fn run_list_archive<'a>(
     allow_concatenated_archives: bool,
 ) -> anyhow::Result<()> {
     let collect_opts = CollectOptions::from_list_options(&args);
+    let read_options = ReadOptions::with_password(password);
 
     if !fast_read || files_globs.is_empty() {
         let mut entries = Vec::new();
@@ -660,7 +662,7 @@ pub(crate) fn run_list_archive<'a>(
                         for entry in solid.entries(password)? {
                             entries.push(TableRow::from_entry(
                                 &entry?,
-                                password,
+                                &read_options,
                                 Some(solid.header()),
                                 collect_opts,
                             )?)
@@ -671,9 +673,12 @@ pub(crate) fn run_list_archive<'a>(
                             "This archive contain solid mode entry. if you need to show it use --solid option."
                         );
                     }
-                    ReadEntry::Normal(item) => {
-                        entries.push(TableRow::from_entry(&item, password, None, collect_opts)?)
-                    }
+                    ReadEntry::Normal(item) => entries.push(TableRow::from_entry(
+                        &item,
+                        &read_options,
+                        None,
+                        collect_opts,
+                    )?),
                 }
                 Ok(())
             },
@@ -698,7 +703,7 @@ pub(crate) fn run_list_archive<'a>(
                         }
                         let row = TableRow::from_entry(
                             &entry,
-                            password,
+                            &read_options,
                             Some(solid.header()),
                             collect_opts,
                         )?;
@@ -722,7 +727,7 @@ pub(crate) fn run_list_archive<'a>(
                     if !globs.matches_any_pattern(&entry_path) {
                         return Ok(ProcessAction::Continue);
                     }
-                    let row = TableRow::from_entry(&item, password, None, collect_opts)?;
+                    let row = TableRow::from_entry(&item, &read_options, None, collect_opts)?;
                     let time_ok = args.time_filters.matches(row.created, row.modified);
                     if time_ok && !filter_ref.excluded(row.entry_type.name()) {
                         globs.mark_satisfied(&entry_path);

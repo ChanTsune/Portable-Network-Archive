@@ -51,6 +51,7 @@ fn verify_archive(args: VerifyCommand) -> anyhow::Result<()> {
     let fast = args.fast;
     let password = ask_password(args.password)?;
     let password = password.as_deref();
+    let read_options = ReadOptions::with_password(password);
     let archives = collect_split_archives(&args.archive)?;
     let mut report = VerifyReport::default();
     let mut solid_blocks = 0usize;
@@ -85,14 +86,16 @@ fn verify_archive(args: VerifyCommand) -> anyhow::Result<()> {
                                 report.skipped += 1;
                                 return Ok(());
                             }
-                            if let Err(err) = verify_solid(&solid, password, fast, &mut report) {
+                            if let Err(err) =
+                                verify_solid(&solid, password, &read_options, fast, &mut report)
+                            {
                                 println!("<solid block #{solid_blocks}>: FAILED ({err})");
                                 report.failed += 1;
                                 report.encrypted_failure |= solid.encryption() != Encryption::No;
                             }
                         }
                         ReadEntry::Normal(entry) => {
-                            verify_entry(&entry, password, fast, &mut report)
+                            verify_entry(&entry, password, &read_options, fast, &mut report)
                         }
                     }
                     Ok(())
@@ -120,11 +123,12 @@ fn verify_archive(args: VerifyCommand) -> anyhow::Result<()> {
 fn verify_solid(
     solid: &SolidEntry,
     password: Option<&[u8]>,
+    read_options: &ReadOptions,
     fast: bool,
     report: &mut VerifyReport,
 ) -> io::Result<()> {
     for entry in solid.entries(password)? {
-        verify_entry(&entry?, password, fast, report);
+        verify_entry(&entry?, password, read_options, fast, report);
     }
     Ok(())
 }
@@ -132,6 +136,7 @@ fn verify_solid(
 fn verify_entry(
     entry: &NormalEntry,
     password: Option<&[u8]>,
+    read_options: &ReadOptions,
     fast: bool,
     report: &mut VerifyReport,
 ) {
@@ -146,7 +151,7 @@ fn verify_entry(
         report.skipped += 1;
         return;
     }
-    match read_through(entry, password) {
+    match read_through(entry, read_options) {
         Ok(size) => {
             if let Some(hint) = entry.metadata().raw_file_size()
                 && hint != u128::from(size)
@@ -167,8 +172,8 @@ fn verify_entry(
     }
 }
 
-fn read_through(entry: &NormalEntry, password: Option<&[u8]>) -> io::Result<u64> {
-    let mut reader = entry.reader(ReadOptions::with_password(password))?;
+fn read_through(entry: &NormalEntry, read_options: &ReadOptions) -> io::Result<u64> {
+    let mut reader = entry.reader(read_options)?;
     io::copy(&mut reader, &mut io::sink())
 }
 
