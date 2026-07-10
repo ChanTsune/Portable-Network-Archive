@@ -203,3 +203,80 @@ pub(crate) fn read_chunk_from_slice(bytes: &[u8]) -> io::Result<(RawChunk<&[u8]>
         r,
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::chunk::ChunkExt;
+    #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
+
+    fn valid_chunk_bytes() -> Vec<u8> {
+        RawChunk::from_data(ChunkType::FDAT, vec![0xAA, 0xBB, 0xCC, 0xDD]).to_bytes()
+    }
+
+    #[test]
+    fn read_from_slice_roundtrips_valid_chunk() {
+        let bytes = valid_chunk_bytes();
+        let (chunk, rest) = read_chunk_from_slice(&bytes).unwrap();
+        assert_eq!(chunk.ty, ChunkType::FDAT);
+        assert_eq!(chunk.data, &[0xAA, 0xBB, 0xCC, 0xDD]);
+        assert!(rest.is_empty());
+    }
+
+    #[test]
+    fn read_from_slice_rejects_crc_mismatch() {
+        let mut bytes = valid_chunk_bytes();
+        *bytes.last_mut().unwrap() ^= 0xFF;
+        let err = read_chunk_from_slice(&bytes).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn read_from_slice_rejects_data_corruption_with_intact_crc() {
+        let mut bytes = valid_chunk_bytes();
+        bytes[8] ^= 0xFF;
+        let err = read_chunk_from_slice(&bytes).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn read_from_slice_rejects_truncated_crc() {
+        let bytes = valid_chunk_bytes();
+        let truncated = &bytes[..bytes.len() - 2];
+        let err = read_chunk_from_slice(truncated).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
+    }
+
+    #[test]
+    fn read_from_slice_rejects_length_exceeding_input() {
+        let mut bytes = valid_chunk_bytes();
+        bytes[3] = 0xFF;
+        let err = read_chunk_from_slice(&bytes).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
+    }
+
+    #[test]
+    fn read_from_reader_roundtrips_valid_chunk() {
+        let bytes = valid_chunk_bytes();
+        let chunk = read_chunk(io::Cursor::new(bytes), None).unwrap();
+        assert_eq!(chunk.ty, ChunkType::FDAT);
+        assert_eq!(chunk.data, vec![0xAA, 0xBB, 0xCC, 0xDD]);
+    }
+
+    #[test]
+    fn read_from_reader_rejects_crc_mismatch() {
+        let mut bytes = valid_chunk_bytes();
+        *bytes.last_mut().unwrap() ^= 0xFF;
+        let err = read_chunk(io::Cursor::new(bytes), None).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn read_from_reader_rejects_length_exceeding_input() {
+        let mut bytes = valid_chunk_bytes();
+        bytes[3] = 0xFF;
+        let err = read_chunk(io::Cursor::new(bytes), None).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
+    }
+}
