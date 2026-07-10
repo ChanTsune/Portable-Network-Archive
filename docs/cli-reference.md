@@ -2354,8 +2354,8 @@ List chunks
 * `-h`, `--header` — Add a header row to each column
 
   Default value: `false`
-* `--type <TYPE>` — Only list chunks of the specified type (repeatable)
-* `--exclude-type <TYPE>` — Do not list chunks of the specified type (repeatable)
+* `--type <TYPE>` — Only list chunks of the specified type
+* `--exclude-type <TYPE>` — Do not list chunks of the specified type
 * `-f`, `--file <ARCHIVE>`
 * `--help` — Print help
 * `--quiet` — Make some output more quiet (alias for --log-level off)
