@@ -991,7 +991,7 @@ impl WriteOptionsBuilder {
 }
 
 /// Options for reading an entry.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Clone, Debug)]
 pub struct ReadOptions {
     password: Option<Vec<u8>>,
 }
