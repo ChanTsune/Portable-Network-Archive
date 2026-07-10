@@ -484,6 +484,7 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
             self.header.cipher_mode,
             self.phsf.as_deref(),
             password,
+            None,
         )?;
         let reader = decompress_reader(reader, self.header.compression)?;
 
@@ -512,6 +513,7 @@ where
             self.header.cipher_mode,
             self.phsf.as_deref(),
             password,
+            None,
         )?;
         let reader = decompress_reader(reader, self.header.compression)?;
         Ok(SolidIntoEntries(EntryReader(reader)))
@@ -1198,6 +1200,7 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
             self.header.cipher_mode,
             self.phsf.as_deref(),
             option.password(),
+            option.key_cache(),
         )?;
         let reader = decompress_reader(decrypt_reader, self.header.compression)?;
         Ok(EntryDataReader(EntryReader(reader)))

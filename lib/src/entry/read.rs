@@ -4,12 +4,36 @@ use crate::{
     CipherMode, Compression, Encryption,
     cipher::{Ctr128BEReader, DecryptCbcAes256Reader, DecryptCbcCamellia256Reader, DecryptReader},
     compress::DecompressReader,
+    entry::KeyCache,
     hash::derive_password_hash,
 };
 use aes::Aes256;
 use camellia::Camellia256;
 use crypto_common::BlockSizeUser;
+use password_hash::Output;
 use std::io::{self, Read};
+
+/// Resolves the cipher key for a PHC string, reusing a previously derived
+/// key when the cache holds one.
+///
+/// The KDF runs outside the cache lock: concurrent readers may derive the
+/// same key more than once on first contact, but the result is
+/// deterministic so the race is benign.
+fn resolve_key(phsf: &str, password: &[u8], key_cache: Option<&KeyCache>) -> io::Result<Output> {
+    if let Some(cache) = key_cache
+        && let Some(key) = cache.get(phsf)
+    {
+        return Ok(key);
+    }
+    let password_hash = derive_password_hash(phsf, password)?;
+    let key = password_hash
+        .hash
+        .ok_or_else(|| io::Error::new(io::ErrorKind::Unsupported, "failed to get hash"))?;
+    if let Some(cache) = key_cache {
+        cache.insert(phsf, key);
+    }
+    Ok(key)
+}
 
 /// Decrypt reader according to an encryption type.
 pub(crate) fn decrypt_reader<R: Read>(
@@ -18,6 +42,7 @@ pub(crate) fn decrypt_reader<R: Read>(
     cipher_mode: CipherMode,
     phsf: Option<&str>,
     password: Option<&[u8]>,
+    key_cache: Option<&KeyCache>,
 ) -> io::Result<DecryptReader<R>> {
     Ok(match encryption {
         Encryption::No => DecryptReader::No(reader),
@@ -25,15 +50,10 @@ pub(crate) fn decrypt_reader<R: Read>(
             let s = phsf.ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidData, "`PHSF` chunk not found")
             })?;
-            let phsf = derive_password_hash(
-                s,
-                password.ok_or_else(|| {
-                    io::Error::new(io::ErrorKind::InvalidInput, "password was not provided")
-                })?,
-            )?;
-            let hash = phsf
-                .hash
-                .ok_or_else(|| io::Error::new(io::ErrorKind::Unsupported, "failed to get hash"))?;
+            let password = password.ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidInput, "password was not provided")
+            })?;
+            let hash = resolve_key(s, password, key_cache)?;
             let key = hash.as_bytes();
             match (encryption, cipher_mode) {
                 (Encryption::Aes, CipherMode::CBC) => {

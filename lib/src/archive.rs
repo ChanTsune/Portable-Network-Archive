@@ -392,6 +392,89 @@ mod tests {
         }
     }
 
+    /// Precondition: encryption-enabled WriteOptions built once, reused for
+    /// multiple entries so every entry carries the same PHSF.
+    /// Action: read all entries back with a single, shared ReadOptions.
+    /// Expectation: every entry decrypts correctly and the key derivation
+    /// function ran only once, since the derived key was cached.
+    #[test]
+    fn read_options_derives_key_once_per_archive() {
+        let options = WriteOptions::builder()
+            .encryption(Encryption::Aes)
+            .password(Some("password"))
+            .try_build()
+            .unwrap();
+        let mut writer = Archive::write_header(Vec::new()).unwrap();
+        for name in ["test/first", "test/second", "test/third"] {
+            writer
+                .add_entry({
+                    let mut builder = EntryBuilder::new_file(name.into(), &options).unwrap();
+                    builder.write_all(b"some text").unwrap();
+                    builder.build().unwrap()
+                })
+                .unwrap();
+        }
+        let archived = writer.finalize().unwrap();
+
+        let read_options = ReadOptions::with_password(Some("password"));
+        let mut reader = Archive::read_header(archived.as_slice()).unwrap();
+        let entries = reader
+            .entries()
+            .skip_solid()
+            .collect::<io::Result<Vec<_>>>()
+            .unwrap();
+        assert_eq!(entries.len(), 3);
+        for entry in &entries {
+            let mut data_reader = entry.reader(&read_options).unwrap();
+            let mut dist = Vec::new();
+            io::copy(&mut data_reader, &mut dist).unwrap();
+            assert_eq!(dist.as_slice(), b"some text");
+        }
+        assert_eq!(read_options.cached_key_count(), 1);
+    }
+
+    /// Precondition: entries with distinct PHSF values (as in archives
+    /// written before key derivation moved to WriteOptions build time, where
+    /// each entry gets its own salt).
+    /// Action: read all entries back with a single, shared ReadOptions.
+    /// Expectation: every entry decrypts correctly and the cache holds one
+    /// entry per distinct PHSF.
+    #[test]
+    fn read_options_cache_handles_distinct_phsf_entries() {
+        let mut options_builder = WriteOptions::builder();
+        options_builder
+            .encryption(Encryption::Aes)
+            .password(Some("password"));
+        let mut writer = Archive::write_header(Vec::new()).unwrap();
+        for name in ["test/first", "test/second"] {
+            let options = options_builder.try_build().unwrap();
+            writer
+                .add_entry({
+                    let mut builder = EntryBuilder::new_file(name.into(), &options).unwrap();
+                    builder.write_all(b"some text").unwrap();
+                    builder.build().unwrap()
+                })
+                .unwrap();
+        }
+        let archived = writer.finalize().unwrap();
+
+        let read_options = ReadOptions::with_password(Some("password"));
+        let mut reader = Archive::read_header(archived.as_slice()).unwrap();
+        let entries = reader
+            .entries()
+            .skip_solid()
+            .collect::<io::Result<Vec<_>>>()
+            .unwrap();
+        assert_ne!(entries[0].phsf, entries[1].phsf);
+        for entry in &entries {
+            let mut data_reader = entry.reader(&read_options).unwrap();
+            let mut dist = Vec::new();
+            io::copy(&mut data_reader, &mut dist).unwrap();
+            assert_eq!(dist.as_slice(), b"some text");
+        }
+        assert_eq!(read_options.cached_key_count(), 2);
+    }
+
     /// Precondition: encryption-enabled WriteOptions built once.
     /// Action: create multiple archives reusing the same options.
     /// Expectation: every archive round-trips with the original password.
