@@ -139,7 +139,7 @@ fn camellia_cbc_archive() {
         "zstd_camellia_cbc/in/",
         "--password",
         "password",
-        "--aes",
+        "--camellia",
         "cbc",
     ])
     .unwrap()
