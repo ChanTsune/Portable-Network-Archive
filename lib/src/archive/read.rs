@@ -451,6 +451,7 @@ impl<R: Read + Seek> Archive<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chunk::ChunkExt;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
@@ -460,6 +461,64 @@ mod tests {
         let mut reader = Archive::read_header(&file_bytes[..]).unwrap();
         let mut entries = reader.entries();
         assert!(entries.next().is_none());
+    }
+
+    #[test]
+    fn read_header_rejects_bad_magic() {
+        let mut bytes = include_bytes!("../../../resources/test/empty.pna").to_vec();
+        bytes[0] ^= 0xFF;
+        let err = Archive::read_header(&bytes[..]).err().unwrap();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn read_header_rejects_truncated_header() {
+        let bytes = include_bytes!("../../../resources/test/empty.pna");
+        let err = Archive::read_header(&bytes[..4]).err().unwrap();
+        assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
+    }
+
+    #[test]
+    fn read_header_rejects_non_ahed_first_chunk() {
+        let mut bytes = PNA_HEADER.to_vec();
+        bytes.extend_from_slice(&RawChunk::from_data(ChunkType::FEND, Vec::new()).to_bytes());
+        let err = Archive::read_header(&bytes[..]).err().unwrap();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+    }
+
+    fn archive_bytes(header: ArchiveHeader) -> Vec<u8> {
+        let mut bytes = PNA_HEADER.to_vec();
+        bytes.extend_from_slice(
+            &RawChunk::from_data(ChunkType::AHED, header.to_bytes().to_vec()).to_bytes(),
+        );
+        bytes.extend_from_slice(&RawChunk::from_data(ChunkType::AEND, Vec::new()).to_bytes());
+        bytes
+    }
+
+    #[test]
+    fn read_next_archive_accepts_consecutive_number() {
+        let first_bytes = archive_bytes(ArchiveHeader::new(0, 0, 0));
+        let first = Archive::read_header(&first_bytes[..]).unwrap();
+        let next = archive_bytes(ArchiveHeader::new(0, 0, 1));
+        assert!(first.read_next_archive(&next[..]).is_ok());
+    }
+
+    #[test]
+    fn read_next_archive_rejects_non_consecutive_number() {
+        let first_bytes = archive_bytes(ArchiveHeader::new(0, 0, 0));
+        let first = Archive::read_header(&first_bytes[..]).unwrap();
+        let next = archive_bytes(ArchiveHeader::new(0, 0, 5));
+        let err = first.read_next_archive(&next[..]).err().unwrap();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn read_next_archive_rejects_number_overflow() {
+        let first_bytes = archive_bytes(ArchiveHeader::new(0, 0, u32::MAX));
+        let first = Archive::read_header(&first_bytes[..]).unwrap();
+        let next = archive_bytes(ArchiveHeader::new(0, 0, 0));
+        let err = first.read_next_archive(&next[..]).err().unwrap();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
     }
 
     #[cfg(feature = "unstable-async")]
