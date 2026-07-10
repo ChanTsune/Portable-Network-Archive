@@ -3,7 +3,12 @@
 use crate::{compress, entry::write::derive_key_material, error::UnknownValueError};
 use password_hash::Output;
 pub(crate) use private::*;
-use std::{io, str::FromStr};
+use std::{
+    collections::HashMap,
+    fmt, io,
+    str::FromStr,
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
+};
 
 mod private {
     use super::*;
@@ -44,6 +49,64 @@ mod private {
                 cipher_algorithm,
                 mode,
             }
+        }
+    }
+
+    /// Maximum number of derived keys retained per cache.
+    ///
+    /// Archives written after key derivation moved to WriteOptions build time
+    /// share a single PHSF across entries, so realistic archives hold only a
+    /// few distinct PHSF values. The bound prevents unbounded growth when
+    /// reading legacy archives that carry a distinct salt per entry.
+    const KEY_CACHE_CAP: usize = 16;
+
+    /// Cache of keys derived from PHC strings.
+    ///
+    /// Clones share the same underlying storage, so a [`ReadOptions`] and its
+    /// clones derive a key at most once per distinct PHC string. Correctness
+    /// relies on all sharers holding the same password: [`ReadOptions`] has no
+    /// password setter and rebuilding via a builder always starts a new cache.
+    #[derive(Clone)]
+    pub struct KeyCache {
+        inner: Arc<Mutex<HashMap<String, Output>>>,
+    }
+
+    impl KeyCache {
+        pub(crate) fn new() -> Self {
+            Self {
+                inner: Arc::new(Mutex::new(HashMap::new())),
+            }
+        }
+
+        pub(crate) fn get(&self, phsf: &str) -> Option<Output> {
+            self.lock().get(phsf).copied()
+        }
+
+        pub(crate) fn insert(&self, phsf: &str, key: Output) {
+            let mut map = self.lock();
+            if map.len() >= KEY_CACHE_CAP {
+                map.clear();
+            }
+            map.insert(phsf.into(), key);
+        }
+
+        fn lock(&self) -> MutexGuard<'_, HashMap<String, Output>> {
+            // Critical sections only get/insert; state stays consistent after a
+            // poisoning panic, so recover instead of propagating.
+            self.inner.lock().unwrap_or_else(PoisonError::into_inner)
+        }
+
+        #[cfg(test)]
+        pub(crate) fn len(&self) -> usize {
+            self.lock().len()
+        }
+    }
+
+    impl fmt::Debug for KeyCache {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.debug_struct("KeyCache")
+                .field("entries", &self.lock().len())
+                .finish()
         }
     }
 
@@ -128,6 +191,7 @@ mod private {
     /// Entry read option getter trait.
     pub trait ReadOption {
         fn password(&self) -> Option<&[u8]>;
+        fn key_cache(&self) -> Option<&KeyCache>;
     }
 
     impl<T: ReadOption> ReadOption for &T {
@@ -135,12 +199,22 @@ mod private {
         fn password(&self) -> Option<&[u8]> {
             T::password(self)
         }
+
+        #[inline]
+        fn key_cache(&self) -> Option<&KeyCache> {
+            T::key_cache(self)
+        }
     }
 
     impl ReadOption for ReadOptions {
         #[inline]
         fn password(&self) -> Option<&[u8]> {
             self.password.as_deref()
+        }
+
+        #[inline]
+        fn key_cache(&self) -> Option<&KeyCache> {
+            Some(&self.key_cache)
         }
     }
 }
@@ -991,9 +1065,16 @@ impl WriteOptionsBuilder {
 }
 
 /// Options for reading an entry.
+///
+/// Derived encryption keys are cached inside the options and shared between
+/// clones: reading many entries that carry the same PHC string (the default
+/// for archives written by this crate) runs the key derivation function only
+/// once. Rebuilding via [`ReadOptions::into_builder`] always starts with an
+/// empty cache.
 #[derive(Clone, Debug)]
 pub struct ReadOptions {
     password: Option<Vec<u8>>,
+    key_cache: KeyCache,
 }
 
 impl ReadOptions {
@@ -1016,6 +1097,7 @@ impl ReadOptions {
     pub fn with_password<B: AsRef<[u8]>>(password: Option<B>) -> Self {
         Self {
             password: password.map(|p| p.as_ref().to_vec()),
+            key_cache: KeyCache::new(),
         }
     }
 
@@ -1044,6 +1126,11 @@ impl ReadOptions {
     #[inline]
     pub fn into_builder(self) -> ReadOptionsBuilder {
         self.into()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn cached_key_count(&self) -> usize {
+        self.key_cache.len()
     }
 }
 
@@ -1074,6 +1161,7 @@ impl ReadOptionsBuilder {
     pub fn build(&self) -> ReadOptions {
         ReadOptions {
             password: self.password.clone(),
+            key_cache: KeyCache::new(),
         }
     }
 }
@@ -1133,5 +1221,46 @@ mod tests {
     #[should_panic(expected = "Password was not provided.")]
     fn build_without_password_panics() {
         let _ = WriteOptions::builder().encryption(Encryption::Aes).build();
+    }
+
+    fn test_output(byte: u8) -> Output {
+        Output::new(&[byte; 32]).unwrap()
+    }
+
+    #[test]
+    fn key_cache_returns_inserted_key() {
+        let cache = KeyCache::new();
+        assert!(cache.get("phsf-a").is_none());
+        cache.insert("phsf-a", test_output(1));
+        assert_eq!(cache.get("phsf-a").unwrap(), test_output(1));
+    }
+
+    #[test]
+    fn key_cache_clears_when_full() {
+        let cache = KeyCache::new();
+        for i in 0..16 {
+            cache.insert(&format!("phsf-{i}"), test_output(i as u8));
+        }
+        assert_eq!(cache.len(), 16);
+        cache.insert("phsf-16", test_output(16));
+        assert_eq!(cache.len(), 1);
+        assert!(cache.get("phsf-0").is_none());
+        assert_eq!(cache.get("phsf-16").unwrap(), test_output(16));
+    }
+
+    #[test]
+    fn read_options_clone_shares_key_cache() {
+        let options = ReadOptions::with_password(Some("password"));
+        let cloned = options.clone();
+        cloned.key_cache.insert("phsf-a", test_output(1));
+        assert_eq!(options.cached_key_count(), 1);
+    }
+
+    #[test]
+    fn rebuilt_read_options_starts_with_empty_cache() {
+        let options = ReadOptions::with_password(Some("password"));
+        options.key_cache.insert("phsf-a", test_output(1));
+        let rebuilt = options.clone().into_builder().build();
+        assert_eq!(rebuilt.cached_key_count(), 0);
     }
 }
