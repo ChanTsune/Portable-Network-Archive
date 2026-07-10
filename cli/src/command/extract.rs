@@ -595,6 +595,10 @@ where
     Provider: FnMut() -> Option<&'p [u8]> + Send,
 {
     let password = password_provider();
+    let read_options = ReadOptions::with_password(password);
+    // Bind as a shared reference so `move` closures below (rayon::spawn_fifo)
+    // can capture a `Copy` reference instead of moving the `ReadOptions` value.
+    let read_options = &read_options;
     let patterns = files;
     let mut globs =
         BsdGlobMatcher::new(patterns.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
@@ -624,7 +628,7 @@ where
                             eprintln!("x {}", name);
                         }
                         if args.to_stdout {
-                            extract_entry_to_stdout(&item, password)?;
+                            extract_entry_to_stdout(&item, read_options)?;
                             if globs.all_matched() {
                                 return Ok(ProcessAction::Stop);
                             }
@@ -659,7 +663,7 @@ where
                         s.spawn_fifo(move |_| {
                             let _guard = ticket.wait_for_turn();
                             tx.send(
-                                extract_file_entry(item, &name, password, &args)
+                                extract_file_entry(item, &name, read_options, &args)
                                     .with_context(|| format!("extracting {}", item_path)),
                             )
                             .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
@@ -687,7 +691,7 @@ where
                             eprintln!("x {}", name);
                         }
                         if args.to_stdout {
-                            return extract_entry_to_stdout(&item, password);
+                            return extract_entry_to_stdout(&item, read_options);
                         }
                         if matches!(
                             item.header().data_kind(),
@@ -712,7 +716,7 @@ where
                         s.spawn_fifo(move |_| {
                             let _guard = ticket.wait_for_turn();
                             tx.send(
-                                extract_file_entry(item, &name, password, &args)
+                                extract_file_entry(item, &name, read_options, &args)
                                     .with_context(|| format!("extracting {}", item_path)),
                             )
                             .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
@@ -750,7 +754,7 @@ where
                         eprintln!("x {}", name);
                     }
                     if args.to_stdout {
-                        extract_entry_to_stdout(&item, password)?;
+                        extract_entry_to_stdout(&item, read_options)?;
                         if globs.all_matched() {
                             return Ok(ProcessAction::Stop);
                         }
@@ -777,7 +781,7 @@ where
                         }
                         return Ok(ProcessAction::Continue);
                     }
-                    extract_file_entry(item, &name, password, &args).map_err(|e| {
+                    extract_file_entry(item, &name, read_options, &args).map_err(|e| {
                         io::Error::new(e.kind(), format!("extracting {}: {e}", item_path))
                     })?;
                     if globs.all_matched() {
@@ -803,7 +807,7 @@ where
                         eprintln!("x {}", name);
                     }
                     if args.to_stdout {
-                        return extract_entry_to_stdout(&item, password);
+                        return extract_entry_to_stdout(&item, read_options);
                     }
                     if matches!(
                         item.header().data_kind(),
@@ -820,7 +824,7 @@ where
                         }
                         return Ok(());
                     }
-                    extract_file_entry(item, &name, password, &args).map_err(|e| {
+                    extract_file_entry(item, &name, read_options, &args).map_err(|e| {
                         io::Error::new(e.kind(), format!("extracting {}: {e}", name))
                     })?;
                     Ok(())
@@ -832,7 +836,7 @@ where
     }
 
     for (name, item) in link_entries {
-        extract_link_entry(item, &name, password, &args)
+        extract_link_entry(item, &name, read_options, &args)
             .with_context(|| format!("extracting deferred link {name}"))?;
     }
 
@@ -864,6 +868,10 @@ where
     Provider: FnMut() -> Option<&'p [u8]> + Send,
 {
     let password = password_provider();
+    let read_options = ReadOptions::with_password(password);
+    // Bind as a shared reference so `move` closures below (rayon::spawn_fifo)
+    // can capture a `Copy` reference instead of moving the `ReadOptions` value.
+    let read_options = &read_options;
     let mut globs =
         BsdGlobMatcher::new(files.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
 
@@ -887,7 +895,7 @@ where
                     eprintln!("x {}", name);
                 }
                 if args.to_stdout {
-                    extract_entry_to_stdout(&item, password)?;
+                    extract_entry_to_stdout(&item, read_options)?;
                     if globs.all_matched() {
                         return Ok(ProcessAction::Stop);
                     }
@@ -922,7 +930,7 @@ where
                 s.spawn_fifo(move |_| {
                     let _guard = ticket.wait_for_turn();
                     tx.send(
-                        extract_file_entry(item, &name, password, &args)
+                        extract_file_entry(item, &name, read_options, &args)
                             .with_context(|| format!("extracting {}", item_path)),
                     )
                     .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
@@ -945,7 +953,7 @@ where
                     eprintln!("x {}", name);
                 }
                 if args.to_stdout {
-                    return extract_entry_to_stdout(&item, password);
+                    return extract_entry_to_stdout(&item, read_options);
                 }
                 if matches!(
                     item.header().data_kind(),
@@ -970,7 +978,7 @@ where
                 s.spawn_fifo(move |_| {
                     let _guard = ticket.wait_for_turn();
                     tx.send(
-                        extract_file_entry(item, &name, password, &args)
+                        extract_file_entry(item, &name, read_options, &args)
                             .with_context(|| format!("extracting {}", item_path)),
                     )
                     .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
@@ -987,7 +995,7 @@ where
     }
 
     for (name, item) in link_entries {
-        extract_link_entry(item, &name, password, &args)
+        extract_link_entry(item, &name, read_options, &args)
             .with_context(|| format!("extracting deferred link {name}"))?;
     }
 
@@ -1287,7 +1295,7 @@ where
 pub(crate) fn extract_file_entry<'a, T>(
     item: NormalEntry<T>,
     item_path: &EntryName,
-    password: Option<&'a [u8]>,
+    read_options: &'a ReadOptions,
     OutputOption {
         overwrite_strategy,
         out_dir,
@@ -1324,7 +1332,7 @@ where
         let mut safe_writer = SafeWriter::new(&path)?;
         {
             let mut writer = io::BufWriter::with_capacity(64 * 1024, safe_writer.as_file_mut());
-            let mut reader = item.reader(ReadOptions::with_password(password))?;
+            let mut reader = item.reader(read_options)?;
             io::copy(&mut reader, &mut writer)?;
             writer.flush()?;
         }
@@ -1336,7 +1344,7 @@ where
         }
         let file = utils::fs::file_create(&path, remove_existing)?;
         let mut writer = io::BufWriter::with_capacity(64 * 1024, file);
-        let mut reader = item.reader(ReadOptions::with_password(password))?;
+        let mut reader = item.reader(read_options)?;
         io::copy(&mut reader, &mut writer)?;
         let mut file = writer.into_inner().map_err(|e| e.into_error())?;
         restore_timestamps(&mut file, item.metadata(), keep_options)?;
@@ -1355,7 +1363,7 @@ where
 pub(crate) fn extract_link_entry<'a, T>(
     item: NormalEntry<T>,
     item_path: &EntryName,
-    password: Option<&'a [u8]>,
+    read_options: &'a ReadOptions,
     OutputOption {
         overwrite_strategy,
         allow_unsafe_links,
@@ -1387,7 +1395,7 @@ where
 
     match item.header().data_kind() {
         DataKind::SymbolicLink => {
-            let reader = item.reader(ReadOptions::with_password(password))?;
+            let reader = item.reader(read_options)?;
             let original = io::read_to_string(reader)?;
             let original = pathname_editor.edit_symlink(original.as_ref());
             if !allow_unsafe_links && is_unsafe_link(&original) {
@@ -1403,7 +1411,7 @@ where
             symlink_with_type(&original, &path, link_target_type)?;
         }
         DataKind::HardLink => {
-            let reader = item.reader(ReadOptions::with_password(password))?;
+            let reader = item.reader(read_options)?;
             let original = io::read_to_string(reader)?;
             let Some((original, had_root)) = pathname_editor.edit_hardlink(original.as_ref())
             else {
@@ -1854,7 +1862,7 @@ where
     }
 }
 
-fn extract_entry_to_stdout<T>(item: &NormalEntry<T>, password: Option<&[u8]>) -> io::Result<()>
+fn extract_entry_to_stdout<T>(item: &NormalEntry<T>, read_options: &ReadOptions) -> io::Result<()>
 where
     T: AsRef<[u8]>,
     pna::RawChunk<T>: Chunk,
@@ -1863,7 +1871,7 @@ where
         return Ok(());
     }
 
-    let mut reader = item.reader(ReadOptions::with_password(password))?;
+    let mut reader = item.reader(read_options)?;
     let mut stdout = io::stdout().lock();
     io::copy(&mut reader, &mut stdout)?;
     stdout.flush()?;
