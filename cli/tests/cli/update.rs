@@ -23,6 +23,7 @@ mod option_older_ctime;
 mod option_older_ctime_than;
 mod option_older_mtime;
 mod option_older_mtime_than;
+mod option_output;
 mod option_recursive;
 mod option_sync;
 mod option_unsolid;
