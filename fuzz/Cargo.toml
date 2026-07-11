@@ -31,6 +31,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "aes_gcm"
+path = "fuzz_targets/aes_gcm.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "camellia_ctr"
 path = "fuzz_targets/camellia_ctr.rs"
 test = false
@@ -40,6 +47,13 @@ bench = false
 [[bin]]
 name = "camellia_cbc"
 path = "fuzz_targets/camellia_cbc.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "camellia_gcm"
+path = "fuzz_targets/camellia_gcm.rs"
 test = false
 doc = false
 bench = false
