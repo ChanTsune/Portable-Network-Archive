@@ -14,6 +14,7 @@ dist = false
 [dependencies]
 libfuzzer-sys = "0.4"
 libpna = { path = "../lib" }
+crc32fast = "1.5.0"
 
 
 [[bin]]
@@ -26,6 +27,13 @@ bench = false
 [[bin]]
 name = "aes_ctr"
 path = "fuzz_targets/aes_ctr.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "aes_gcm"
+path = "fuzz_targets/aes_gcm.rs"
 test = false
 doc = false
 bench = false
@@ -45,8 +53,22 @@ doc = false
 bench = false
 
 [[bin]]
+name = "camellia_gcm"
+path = "fuzz_targets/camellia_gcm.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "split_archive"
 path = "fuzz_targets/split_archive.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "gcm_datastream_mutation"
+path = "fuzz_targets/gcm_datastream_mutation.rs"
 test = false
 doc = false
 bench = false

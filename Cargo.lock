@@ -2018,6 +2018,7 @@ dependencies = [
 name = "portable-network-archive-fuzz"
 version = "0.0.0"
 dependencies = [
+ "crc32fast",
  "libfuzzer-sys",
  "libpna",
 ]
