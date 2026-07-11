@@ -21,7 +21,7 @@ use nom::{
     character::complete::char,
     combinator::{map, opt},
 };
-use pna::{Chunk, NormalEntry, RawChunk};
+use pna::{Chunk, NormalEntry, RawChunk, ReadOptions};
 use regex::Regex;
 use std::{
     collections::{HashMap, HashSet},
@@ -289,9 +289,10 @@ fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
     let numeric_owner = args.numeric;
 
     let mut source = SplitArchiveReader::new(collect_split_archives(args.file.archive)?)?;
+    let read_options = ReadOptions::with_password(password.as_deref());
 
     source.for_each_entry(
-        password.as_deref(),
+        &read_options,
         #[hooq::skip_all]
         |entry| {
             let entry = entry?;

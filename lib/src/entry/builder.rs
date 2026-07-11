@@ -823,7 +823,7 @@ mod tests {
             })
             .unwrap();
         let solid_entry = builder.build_as_entry().unwrap();
-        let mut entries = solid_entry.entries(None).unwrap();
+        let mut entries = solid_entry.entries(ReadOptions::builder().build()).unwrap();
         let entry = entries.next().unwrap().unwrap();
         let mut reader = entry.reader(ReadOptions::builder().build()).unwrap();
         let mut buf = Vec::new();
@@ -845,7 +845,7 @@ mod tests {
             .unwrap();
         let solid_entry = builder.build_as_entry().unwrap();
 
-        let mut entries = solid_entry.entries(None).unwrap();
+        let mut entries = solid_entry.entries(ReadOptions::builder().build()).unwrap();
         let entry = entries.next().unwrap().unwrap();
         let mut reader = entry.reader(ReadOptions::builder().build()).unwrap();
         let mut buf = Vec::new();

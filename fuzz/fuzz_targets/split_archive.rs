@@ -34,7 +34,10 @@ fuzz_target!(|data: (&[u8], usize)| {
     let archive_bytes = archive.finalize().unwrap();
     let mut archive = Archive::read_header_from_slice(&archive_bytes).unwrap();
 
-    for entry in archive.entries_slice().extract_solid_entries(None) {
+    for entry in archive
+        .entries_slice()
+        .extract_solid_entries(&ReadOptions::builder().build())
+    {
         let entry = entry.unwrap();
         let read_option = ReadOptions::builder().build();
         let mut reader = entry.reader(read_option).unwrap();

@@ -7,7 +7,7 @@ use crate::{
     utils::{PathPartExt, env::NamedTempFile},
 };
 use clap::{Parser, ValueHint};
-use pna::{Archive, NormalEntry};
+use pna::{Archive, NormalEntry, ReadOptions};
 use std::{
     fmt::{self, Display, Formatter},
     path::PathBuf,
@@ -148,9 +148,10 @@ fn sort_archive(args: SortCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let archives = collect_split_archives(&args.archive)?;
     let mut source = SplitArchiveReader::new(archives)?;
+    let read_options = ReadOptions::with_password(password.as_deref());
     let mut entries = Vec::<NormalEntry<_>>::new();
     source.for_each_entry(
-        password.as_deref(),
+        &read_options,
         #[hooq::skip_all]
         |entry| {
             entries.push(entry?);

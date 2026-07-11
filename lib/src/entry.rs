@@ -459,7 +459,8 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
     /// for entry in archive.entries() {
     ///     match entry? {
     ///         ReadEntry::Solid(solid_entry) => {
-    ///             for entry in solid_entry.entries(Some(b"password"))? {
+    ///             let options = ReadOptions::with_password(Some(b"password"));
+    ///             for entry in solid_entry.entries(&options)? {
     ///                 let entry = entry?;
     ///                 let mut reader = entry.reader(ReadOptions::builder().build());
     ///                 // process the entry
@@ -474,17 +475,17 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
     /// # }
     /// ```
     #[inline]
-    pub fn entries(
-        &self,
-        password: Option<&[u8]>,
-    ) -> io::Result<impl Iterator<Item = io::Result<NormalEntry>> + '_> {
+    pub fn entries<'a, O: ReadOption>(
+        &'a self,
+        options: O,
+    ) -> io::Result<impl Iterator<Item = io::Result<NormalEntry>> + use<'a, T, O>> {
         let reader = decrypt_reader(
             self.encoded_reader(),
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
-            password,
-            None,
+            options.password(),
+            options.key_cache(),
         )?;
         let reader = decompress_reader(reader, self.header.compression)?;
 
@@ -496,11 +497,13 @@ impl<T> SolidEntry<T>
 where
     T: Into<Vec<u8>>,
 {
-    /// Consumes this solid entry and returns a streaming iterator of normal entries.
-    ///
-    /// This variant owns the underlying buffers, enabling streaming without borrowing from `self`.
+    /// Consumes this solid entry and returns a streaming iterator of normal
+    /// entries, reusing derived keys cached in the supplied options.
     #[inline]
-    pub(crate) fn into_entries(self, password: Option<&[u8]>) -> io::Result<SolidIntoEntries> {
+    pub(crate) fn into_entries_with_options(
+        self,
+        options: &ReadOptions,
+    ) -> io::Result<SolidIntoEntries> {
         let bufs = self
             .data
             .into_iter()
@@ -512,8 +515,8 @@ where
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
-            password,
-            None,
+            options.password(),
+            options.key_cache(),
         )?;
         let reader = decompress_reader(reader, self.header.compression)?;
         Ok(SolidIntoEntries(EntryReader(reader)))
