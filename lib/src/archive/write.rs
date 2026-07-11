@@ -377,12 +377,12 @@ impl<W: Write> Archive<W> {
             option.encryption(),
             option.cipher_mode(),
         );
-        let context = get_writer_context(option)?;
+        let context = get_writer_context(option, ChunkType::SHED, &header.to_bytes())?;
 
         (ChunkType::SHED, header.to_bytes()).write_chunk_in(&mut self.inner)?;
         if let Some(WriteCipher { context: c, .. }) = &context.cipher {
             (ChunkType::PHSF, c.phsf.as_bytes()).write_chunk_in(&mut self.inner)?;
-            (ChunkType::SDAT, c.iv.as_slice()).write_chunk_in(&mut self.inner)?;
+            (ChunkType::SDAT, c.prefix_bytes().as_slice()).write_chunk_in(&mut self.inner)?;
         }
         self.inner.flush()?;
         let max_chunk_size = self.max_chunk_size;
@@ -595,10 +595,10 @@ where
     for xattr in metadata.xattrs {
         (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(inner)?;
     }
-    let context = get_writer_context(option)?;
+    let context = get_writer_context(option, ChunkType::FHED, &header.to_bytes())?;
     if let Some(WriteCipher { context: c, .. }) = &context.cipher {
         (ChunkType::PHSF, c.phsf.as_bytes()).write_chunk_in(inner)?;
-        (ChunkType::FDAT, &c.iv[..]).write_chunk_in(inner)?;
+        (ChunkType::FDAT, c.prefix_bytes().as_slice()).write_chunk_in(inner)?;
     }
     let inner = {
         let writer = ChunkStreamWriter::new(ChunkType::FDAT, inner, max_chunk_size);

@@ -12,7 +12,7 @@ pub use solid::SolidEntryBuilder;
 use crate::entry::Permission;
 use crate::{
     Duration,
-    chunk::RawChunk,
+    chunk::{ChunkType, RawChunk},
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{
@@ -37,21 +37,26 @@ use std::{
 };
 
 /// Constructs the compression/encryption writer stack for entry data.
+///
+/// `header_chunk_data` is the exact on-wire `FHED` Data field for this entry.
+/// The raw `FHED` Type field and this Data field feed AEAD (GCM) stream-key
+/// derivation; block/stream cipher modes ignore them.
 #[allow(clippy::type_complexity)]
 pub(crate) fn data_writer(
     option: impl WriteOption,
+    header_chunk_data: &[u8],
 ) -> io::Result<(
     CompressionWriter<CipherWriter<FlattenWriter>>,
     Option<Vec<u8>>,
     Option<String>,
 )> {
-    let context = get_writer_context(option)?;
+    let context = get_writer_context(option, ChunkType::FHED, header_chunk_data)?;
     let writer = get_writer(FlattenWriter::new(), &context)?;
-    let (iv, phsf) = match context.cipher {
+    let (prefix, phsf) = match context.cipher {
         None => (None, None),
-        Some(WriteCipher { context: c, .. }) => (Some(c.iv), Some(c.phsf)),
+        Some(WriteCipher { context: c, .. }) => (Some(c.prefix_bytes()), Some(c.phsf)),
     };
-    Ok((writer, iv, phsf))
+    Ok((writer, prefix, phsf))
 }
 
 /// Largest UTF-8 char-boundary prefix of `s` whose byte length is ≤ 255 —
@@ -73,7 +78,7 @@ fn owner_name_bounded(s: &str) -> &str {
 pub(crate) struct EntryBuilderCore {
     header: EntryHeader,
     phsf: Option<String>,
-    iv: Option<Vec<u8>>,
+    prefix: Option<Vec<u8>>,
     metadata: Metadata,
     extra_chunks: Vec<RawChunk>,
 }
@@ -83,14 +88,14 @@ impl EntryBuilderCore {
         Self {
             header,
             phsf: None,
-            iv: None,
+            prefix: None,
             metadata: Metadata::new(),
             extra_chunks: Vec::new(),
         }
     }
 
-    pub(crate) fn set_cipher(&mut self, iv: Option<Vec<u8>>, phsf: Option<String>) {
-        self.iv = iv;
+    pub(crate) fn set_cipher(&mut self, prefix: Option<Vec<u8>>, phsf: Option<String>) {
+        self.prefix = prefix;
         self.phsf = phsf;
     }
 
@@ -153,8 +158,8 @@ impl EntryBuilderCore {
         mut data: Vec<Vec<u8>>,
         raw_file_size: Option<u128>,
     ) -> NormalEntry {
-        if let Some(iv) = self.iv {
-            data.insert(0, iv);
+        if let Some(prefix) = self.prefix {
+            data.insert(0, prefix);
         }
         self.metadata.raw_file_size = raw_file_size;
         self.metadata.compressed_size = data.iter().map(|d| d.len()).sum();
@@ -283,9 +288,9 @@ impl OpaqueEntryBuilder {
             option.cipher_mode(),
             name,
         );
-        let (writer, iv, phsf) = data_writer(option)?;
+        let (writer, prefix, phsf) = data_writer(option, &header.to_bytes())?;
         let mut core = EntryBuilderCore::new(header);
-        core.set_cipher(iv, phsf);
+        core.set_cipher(prefix, phsf);
         Ok(Self {
             core,
             data: Some(writer),
@@ -320,10 +325,10 @@ impl OpaqueEntryBuilder {
     /// Internal helper for creating link entries (symlink or hard link).
     fn new_link(header: EntryHeader, source: EntryReference) -> io::Result<Self> {
         let option = WriteOptions::store();
-        let (mut writer, iv, phsf) = data_writer(option)?;
+        let (mut writer, prefix, phsf) = data_writer(option, &header.to_bytes())?;
         writer.write_all(source.as_bytes())?;
         let mut core = EntryBuilderCore::new(header);
-        core.set_cipher(iv, phsf);
+        core.set_cipher(prefix, phsf);
         Ok(Self {
             core,
             data: Some(writer),
@@ -1140,5 +1145,171 @@ mod tests {
         let new = new.build().unwrap();
 
         assert_eq!(old.into_chunks(), new.into_chunks());
+    }
+
+    mod gcm {
+        use super::*;
+        use crate::cipher::{GCM_TAG_LEN, derive_stream_key, segment_nonce};
+        use crate::{CipherMode, Encryption, HashAlgorithm};
+        use aes::Aes256;
+        use aes_gcm::AesGcm;
+        use aes_gcm::aead::array::Array;
+        use aes_gcm::aead::{Aead, AeadCore, KeyInit, consts::U12};
+        use camellia::Camellia256;
+        // `use super::*` re-imports `test` from the parent's own
+        // `#[cfg(...)] use wasm_bindgen_test::... as test;`, but a
+        // glob-imported name loses to (rather than shadows) the `#[test]`
+        // prelude attribute, so wasm builds see it as ambiguous. Re-declare
+        // it directly in this module to disambiguate.
+        #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+        use wasm_bindgen_test::wasm_bindgen_test as test;
+
+        fn gcm_write_options(encryption: Encryption, segment_size: u32) -> WriteOptions {
+            let mut builder = WriteOptions::builder();
+            builder
+                .encryption(encryption)
+                .cipher_mode(CipherMode::GCM)
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .password(Some("password"));
+            builder.segment_size(segment_size);
+            builder.build()
+        }
+
+        fn gcm_decrypt<C>(
+            k_stream: &[u8; 32],
+            nonce_prefix: &[u8; 7],
+            segment_size: u32,
+            ciphertext: &[u8],
+        ) -> Result<Vec<u8>, aes_gcm::aead::Error>
+        where
+            AesGcm<C, U12>: KeyInit + Aead + AeadCore<NonceSize = U12>,
+        {
+            let cipher = AesGcm::<C, U12>::new_from_slice(k_stream).unwrap();
+            let full = segment_size as usize + GCM_TAG_LEN;
+            let mut out = Vec::new();
+            let mut rest = ciphertext;
+            let mut counter = 0u32;
+            while rest.len() > full {
+                let (segment, tail) = rest.split_at(full);
+                let nonce = Array::<u8, U12>::from(segment_nonce(nonce_prefix, counter, false));
+                out.extend_from_slice(&cipher.decrypt(&nonce, segment)?);
+                rest = tail;
+                counter += 1;
+            }
+            let nonce = Array::<u8, U12>::from(segment_nonce(nonce_prefix, counter, true));
+            out.extend_from_slice(&cipher.decrypt(&nonce, rest)?);
+            Ok(out)
+        }
+
+        fn assert_gcm_file_roundtrip<C>(encryption: Encryption, segment_size: u32, plain: &[u8])
+        where
+            AesGcm<C, U12>: KeyInit + Aead + AeadCore<NonceSize = U12>,
+        {
+            let options = gcm_write_options(encryption, segment_size);
+            let mut builder =
+                FileEntryBuilder::new_with_options("dir/file".into(), &options).unwrap();
+            builder.write_all(plain).unwrap();
+            let entry = builder.build().unwrap();
+
+            let cipher = options.cipher().unwrap();
+            assert_eq!(entry.phsf.as_deref(), Some(cipher.derived.phsf.as_str()));
+
+            let header = &entry.data[0];
+            assert_eq!(header.len(), 43);
+            let stream_salt: [u8; 32] = header[..32].try_into().unwrap();
+            let nonce_prefix: [u8; 7] = header[32..39].try_into().unwrap();
+            assert_eq!(
+                u32::from_be_bytes(header[39..43].try_into().unwrap()),
+                segment_size
+            );
+
+            let k_stream = derive_stream_key(
+                cipher.derived.key.as_bytes(),
+                &stream_salt,
+                ChunkType::FHED,
+                &entry.header.to_bytes(),
+                cipher.derived.phsf.as_bytes(),
+            );
+            let ciphertext = entry.data[1..].concat();
+            let decrypted =
+                gcm_decrypt::<C>(&k_stream, &nonce_prefix, segment_size, &ciphertext).unwrap();
+            assert_eq!(decrypted, plain);
+        }
+
+        #[test]
+        fn new_file_gcm_aes_decrypts_to_plaintext() {
+            assert_gcm_file_roundtrip::<Aes256>(Encryption::AES, 4, b"hello gcm stream");
+        }
+
+        #[test]
+        fn new_file_gcm_camellia_decrypts_to_plaintext() {
+            assert_gcm_file_roundtrip::<Camellia256>(Encryption::CAMELLIA, 4, b"hello gcm stream");
+        }
+
+        #[test]
+        fn new_file_gcm_multiple_segments_decrypts_to_plaintext() {
+            assert_gcm_file_roundtrip::<Aes256>(Encryption::AES, 4, b"0123456789");
+        }
+
+        #[test]
+        fn new_file_gcm_empty_plaintext_is_tag_only_segment() {
+            let options = gcm_write_options(Encryption::AES, 4);
+            let mut builder =
+                FileEntryBuilder::new_with_options("dir/file".into(), &options).unwrap();
+            builder.write_all(b"").unwrap();
+            let entry = builder.build().unwrap();
+
+            let ciphertext = entry.data[1..].concat();
+            assert_eq!(ciphertext.len(), GCM_TAG_LEN);
+
+            let cipher = options.cipher().unwrap();
+            let header = &entry.data[0];
+            let stream_salt: [u8; 32] = header[..32].try_into().unwrap();
+            let nonce_prefix: [u8; 7] = header[32..39].try_into().unwrap();
+            let k_stream = derive_stream_key(
+                cipher.derived.key.as_bytes(),
+                &stream_salt,
+                ChunkType::FHED,
+                &entry.header.to_bytes(),
+                cipher.derived.phsf.as_bytes(),
+            );
+            assert!(
+                gcm_decrypt::<Aes256>(&k_stream, &nonce_prefix, 4, &ciphertext)
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+
+        #[test]
+        fn solid_gcm_decrypts_with_shed_header_type() {
+            let options = gcm_write_options(Encryption::AES, 4);
+            let mut builder = SolidEntryBuilder::new(&options).unwrap();
+            builder
+                .write_file("dir/file".into(), Metadata::new(), |w| {
+                    w.write_all(b"solid gcm payload")
+                })
+                .unwrap();
+            let entry = builder.build().unwrap();
+
+            let cipher = options.cipher().unwrap();
+            let header = &entry.data[0];
+            let stream_salt: [u8; 32] = header[..32].try_into().unwrap();
+            let nonce_prefix: [u8; 7] = header[32..39].try_into().unwrap();
+            let segment_size = u32::from_be_bytes(header[39..43].try_into().unwrap());
+            let ciphertext = entry.data[1..].concat();
+
+            let solid_key = derive_stream_key(
+                cipher.derived.key.as_bytes(),
+                &stream_salt,
+                ChunkType::SHED,
+                &entry.header.to_bytes(),
+                cipher.derived.phsf.as_bytes(),
+            );
+            assert!(
+                !gcm_decrypt::<Aes256>(&solid_key, &nonce_prefix, segment_size, &ciphertext)
+                    .unwrap()
+                    .is_empty()
+            );
+        }
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
     archive::{InternalArchiveDataWriter, InternalDataWriter, write_file_entry},
-    chunk::RawChunk,
+    chunk::{ChunkType, RawChunk},
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{
@@ -66,7 +66,7 @@ impl Write for SolidEntryDataWriter<'_> {
 pub struct SolidEntryBuilder {
     header: SolidHeader,
     phsf: Option<String>,
-    iv: Option<Vec<u8>>,
+    prefix: Option<Vec<u8>>,
     data: CompressionWriter<CipherWriter<FlattenWriter>>,
     extra: Vec<RawChunk>,
     max_file_chunk_size: Option<NonZeroU32>,
@@ -85,15 +85,15 @@ impl SolidEntryBuilder {
             option.encryption(),
             option.cipher_mode(),
         );
-        let context = get_writer_context(option)?;
+        let context = get_writer_context(option, ChunkType::SHED, &header.to_bytes())?;
         let writer = get_writer(FlattenWriter::new(), &context)?;
-        let (iv, phsf) = match context.cipher {
+        let (prefix, phsf) = match context.cipher {
             None => (None, None),
-            Some(WriteCipher { context: c, .. }) => (Some(c.iv), Some(c.phsf)),
+            Some(WriteCipher { context: c, .. }) => (Some(c.prefix_bytes()), Some(c.phsf)),
         };
         Ok(Self {
             header,
-            iv,
+            prefix,
             phsf,
             data: writer,
             extra: Vec::new(),
@@ -234,8 +234,8 @@ impl SolidEntryBuilder {
             phsf: self.phsf,
             data: {
                 let mut data = self.data.try_into_inner()?.try_into_inner()?.inner;
-                if let Some(iv) = self.iv {
-                    data.insert(0, iv);
+                if let Some(prefix) = self.prefix {
+                    data.insert(0, prefix);
                 }
                 data
             },

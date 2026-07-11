@@ -269,14 +269,24 @@ mod tests {
 
     /// Wire format allows encrypted link entries, but the public builder
     /// always writes links with store options; assemble one manually the
-    /// same way `SymlinkEntryBuilder::build` does.
+    /// same way `SymlinkEntryBuilder::build` does. The header is finalized
+    /// before encryption so AEAD (GCM) stream-key derivation binds the same
+    /// header bytes that decryption will read back.
     fn encrypted_symlink_entry(target: &str, password: &str) -> NormalEntry {
         let options = WriteOptions::builder()
             .encryption(Encryption::AES)
             .password(Some(password))
             .try_build()
             .unwrap();
-        let context = get_writer_context(&options).unwrap();
+        let mut entry =
+            SymlinkEntryBuilder::new("l".into(), EntryReference::from_utf8_preserve_root(target))
+                .unwrap()
+                .build()
+                .unwrap();
+        entry.header.encryption = options.encryption();
+        entry.header.cipher_mode = options.cipher_mode();
+        let header_bytes = entry.header.to_bytes();
+        let context = get_writer_context(&options, ChunkType::FHED, &header_bytes).unwrap();
         let mut writer = get_writer(crate::io::FlattenWriter::new(), &context).unwrap();
         writer.write_all(target.as_bytes()).unwrap();
         let mut data = writer
@@ -285,20 +295,13 @@ mod tests {
             .try_into_inner()
             .unwrap()
             .inner;
-        let (iv, phsf) = match context.cipher {
+        let (prefix, phsf) = match context.cipher {
             None => (None, None),
-            Some(WriteCipher { context: c, .. }) => (Some(c.iv), Some(c.phsf)),
+            Some(WriteCipher { context: c, .. }) => (Some(c.prefix_bytes()), Some(c.phsf)),
         };
-        if let Some(iv) = iv {
-            data.insert(0, iv);
+        if let Some(prefix) = prefix {
+            data.insert(0, prefix);
         }
-        let mut entry =
-            SymlinkEntryBuilder::new("l".into(), EntryReference::from_utf8_preserve_root(target))
-                .unwrap()
-                .build()
-                .unwrap();
-        entry.header.encryption = options.encryption();
-        entry.header.cipher_mode = options.cipher_mode();
         entry.phsf = phsf;
         entry.data = data;
         entry
