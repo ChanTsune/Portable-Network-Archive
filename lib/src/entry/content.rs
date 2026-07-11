@@ -285,8 +285,8 @@ mod tests {
                 .unwrap();
         entry.header.encryption = options.encryption();
         entry.header.cipher_mode = options.cipher_mode();
-        let header_bytes = entry.header.to_bytes();
-        let context = get_writer_context(&options, ChunkType::FHED, &header_bytes).unwrap();
+        entry.header_raw = entry.header.to_bytes();
+        let context = get_writer_context(&options, ChunkType::FHED, &entry.header_raw).unwrap();
         let mut writer = get_writer(crate::io::FlattenWriter::new(), &context).unwrap();
         writer.write_all(target.as_bytes()).unwrap();
         let mut data = writer

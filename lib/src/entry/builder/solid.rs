@@ -230,6 +230,7 @@ impl SolidEntryBuilder {
 
     fn build_as_entry(self) -> io::Result<SolidEntry> {
         Ok(SolidEntry {
+            header_raw: self.header.to_bytes().to_vec(),
             header: self.header,
             phsf: self.phsf,
             data: {

@@ -164,6 +164,7 @@ impl EntryBuilderCore {
         self.metadata.raw_file_size = raw_file_size;
         self.metadata.compressed_size = data.iter().map(|d| d.len()).sum();
         NormalEntry {
+            header_raw: self.header.to_bytes(),
             header: self.header,
             phsf: self.phsf,
             extra: self.extra_chunks,

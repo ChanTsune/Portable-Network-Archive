@@ -346,6 +346,12 @@ impl Iterator for SolidIntoEntries {
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct SolidEntry<T = Vec<u8>> {
     header: SolidHeader,
+    /// Raw `SHED` chunk data exactly as read from the archive. Retained because
+    /// AEAD key derivation binds to the on-wire header bytes, which need not
+    /// equal a re-serialized `header.to_bytes()` for archives written by other
+    /// tools. Never used when writing; serialization always goes through
+    /// `header`.
+    header_raw: T,
     phsf: Option<String>,
     data: Vec<T>,
     extra: Vec<RawChunk<T>>,
@@ -534,6 +540,7 @@ impl<'a> From<SolidEntry<Cow<'a, [u8]>>> for SolidEntry<Vec<u8>> {
     fn from(value: SolidEntry<Cow<'a, [u8]>>) -> Self {
         Self {
             header: value.header,
+            header_raw: value.header_raw.into(),
             phsf: value.phsf,
             data: value.data.into_iter().map(Into::into).collect(),
             extra: value.extra.into_iter().map(Into::into).collect(),
@@ -546,6 +553,7 @@ impl<'a> From<SolidEntry<&'a [u8]>> for SolidEntry<Vec<u8>> {
     fn from(value: SolidEntry<&'a [u8]>) -> Self {
         Self {
             header: value.header,
+            header_raw: value.header_raw.into(),
             phsf: value.phsf,
             data: value.data.into_iter().map(Into::into).collect(),
             extra: value.extra.into_iter().map(Into::into).collect(),
@@ -558,6 +566,7 @@ impl<'a> From<SolidEntry<&'a [u8]>> for SolidEntry<Cow<'a, [u8]>> {
     fn from(value: SolidEntry<&'a [u8]>) -> Self {
         Self {
             header: value.header,
+            header_raw: value.header_raw.into(),
             phsf: value.phsf,
             data: value.data.into_iter().map(Into::into).collect(),
             extra: value.extra.into_iter().map(Into::into).collect(),
@@ -570,6 +579,7 @@ impl From<SolidEntry<Vec<u8>>> for SolidEntry<Cow<'_, [u8]>> {
     fn from(value: SolidEntry<Vec<u8>>) -> Self {
         Self {
             header: value.header,
+            header_raw: value.header_raw.into(),
             phsf: value.phsf,
             data: value.data.into_iter().map(Into::into).collect(),
             extra: value.extra.into_iter().map(Into::into).collect(),
@@ -586,7 +596,7 @@ where
     #[inline]
     fn try_from(entry: RawEntry<T>) -> Result<Self, Self::Error> {
         let mut chunks = entry.0.into_iter();
-        let header = if let Some(first_chunk) = chunks.next() {
+        let (header, header_raw) = if let Some(first_chunk) = chunks.next() {
             if first_chunk.ty != ChunkType::SHED {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
@@ -597,7 +607,8 @@ where
                     ),
                 ));
             } else {
-                SolidHeader::try_from(first_chunk.data())?
+                let header = SolidHeader::try_from(first_chunk.data())?;
+                (header, first_chunk.data)
             }
         } else {
             return Err(io::Error::new(
@@ -640,6 +651,7 @@ where
         }
         Ok(Self {
             header,
+            header_raw,
             phsf,
             data,
             extra,
@@ -655,6 +667,14 @@ where
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct NormalEntry<T = Vec<u8>> {
     pub(crate) header: EntryHeader,
+    /// Raw `FHED` chunk data exactly as read from the archive. Retained because
+    /// AEAD stream-key derivation hashes the on-wire header bytes: the spec binds
+    /// the key to the exact bytes received, so correctness must not depend on
+    /// `try_from_bytes`/`to_bytes` being a lossless round trip (parsing preserves
+    /// the name verbatim via `from_utf8_preserve_root`, but a re-serialization
+    /// need not reproduce every byte an external tool wrote). Never used when
+    /// writing; serialization always goes through `header`.
+    pub(crate) header_raw: Vec<u8>,
     pub(crate) phsf: Option<String>,
     pub(crate) extra: Vec<RawChunk<T>>,
     pub(crate) data: Vec<T>,
@@ -671,7 +691,7 @@ where
     #[inline]
     fn try_from(entry: RawEntry<T>) -> Result<Self, Self::Error> {
         let mut chunks = entry.0.into_iter();
-        let header = if let Some(first_chunk) = chunks.next() {
+        let (header, header_raw) = if let Some(first_chunk) = chunks.next() {
             if first_chunk.ty != ChunkType::FHED {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
@@ -682,7 +702,18 @@ where
                     ),
                 ));
             }
-            EntryHeader::try_from(first_chunk.data())?
+            let header = EntryHeader::try_from(first_chunk.data())?;
+            let mut header_raw = Vec::new();
+            header_raw
+                .try_reserve_exact(first_chunk.data().len())
+                .map_err(|_| {
+                    io::Error::new(
+                        io::ErrorKind::OutOfMemory,
+                        "failed to allocate storage for FHED chunk data",
+                    )
+                })?;
+            header_raw.extend_from_slice(first_chunk.data());
+            (header, header_raw)
         } else {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -779,6 +810,7 @@ where
 
         Ok(Self {
             header,
+            header_raw,
             phsf,
             extra,
             metadata: Metadata {
@@ -1224,6 +1256,7 @@ impl<'a> From<NormalEntry<Cow<'a, [u8]>>> for NormalEntry<Vec<u8>> {
     fn from(value: NormalEntry<Cow<'a, [u8]>>) -> Self {
         Self {
             header: value.header,
+            header_raw: value.header_raw,
             phsf: value.phsf,
             extra: value.extra.into_iter().map(Into::into).collect(),
             data: value.data.into_iter().map(Into::into).collect(),
@@ -1237,6 +1270,7 @@ impl<'a> From<NormalEntry<&'a [u8]>> for NormalEntry<Vec<u8>> {
     fn from(value: NormalEntry<&'a [u8]>) -> Self {
         Self {
             header: value.header,
+            header_raw: value.header_raw,
             phsf: value.phsf,
             extra: value.extra.into_iter().map(Into::into).collect(),
             data: value.data.into_iter().map(Into::into).collect(),
@@ -1250,6 +1284,7 @@ impl From<NormalEntry<Vec<u8>>> for NormalEntry<Cow<'_, [u8]>> {
     fn from(value: NormalEntry<Vec<u8>>) -> Self {
         Self {
             header: value.header,
+            header_raw: value.header_raw,
             phsf: value.phsf,
             extra: value.extra.into_iter().map(Into::into).collect(),
             data: value.data.into_iter().map(Into::into).collect(),
@@ -1263,6 +1298,7 @@ impl<'a> From<NormalEntry<&'a [u8]>> for NormalEntry<Cow<'a, [u8]>> {
     fn from(value: NormalEntry<&'a [u8]>) -> Self {
         Self {
             header: value.header,
+            header_raw: value.header_raw,
             phsf: value.phsf,
             extra: value.extra.into_iter().map(Into::into).collect(),
             data: value.data.into_iter().map(Into::into).collect(),
@@ -1577,8 +1613,10 @@ mod tests {
 
     #[test]
     fn solid_entry_encoded_reader_concatenates_sdat_bodies() {
+        let header = SolidHeader::new(Compression::NO, Encryption::NO, CipherMode::CBC);
         let solid = SolidEntry {
-            header: SolidHeader::new(Compression::NO, Encryption::NO, CipherMode::CBC),
+            header_raw: header.to_bytes().to_vec(),
+            header,
             phsf: None,
             data: vec![b"abc".to_vec(), b"def".to_vec()],
             extra: Vec::new(),
