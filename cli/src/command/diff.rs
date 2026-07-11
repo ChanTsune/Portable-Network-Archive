@@ -58,7 +58,7 @@ fn diff_archive(args: DiffCommand) -> anyhow::Result<()> {
     let read_options = ReadOptions::with_password(password.as_deref());
     let mut source = SplitArchiveReader::new(archives)?;
     source.for_each_entry(
-        password.as_deref(),
+        &read_options,
         #[hooq::skip_all]
         |entry| {
             let entry = entry?;

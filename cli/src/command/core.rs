@@ -28,7 +28,7 @@ use path_slash::*;
 pub(crate) use path_transformer::PathTransformers;
 use pna::{
     Archive, EntryBuilder, EntryPart, LinkTargetType, MIN_CHUNK_BYTES_SIZE, NormalEntry,
-    PNA_HEADER, ReadEntry, SolidEntryBuilder, WriteOptions, prelude::*,
+    PNA_HEADER, ReadEntry, ReadOptions, SolidEntryBuilder, WriteOptions, prelude::*,
 };
 use std::{
     borrow::Cow,
@@ -1261,6 +1261,7 @@ pub(crate) trait TransformStrategy {
     fn transform<W, T, F>(
         archive: &mut Archive<W>,
         password: Option<&[u8]>,
+        read_options: &ReadOptions,
         read_entry: io::Result<ReadEntry<T>>,
         transformer: F,
     ) -> io::Result<()>
@@ -1277,7 +1278,8 @@ pub(crate) struct TransformStrategyUnSolid;
 impl TransformStrategy for TransformStrategyUnSolid {
     fn transform<W, T, F>(
         archive: &mut Archive<W>,
-        password: Option<&[u8]>,
+        _password: Option<&[u8]>,
+        read_options: &ReadOptions,
         read_entry: io::Result<ReadEntry<T>>,
         mut transformer: F,
     ) -> io::Result<()>
@@ -1290,7 +1292,7 @@ impl TransformStrategy for TransformStrategyUnSolid {
     {
         match read_entry? {
             ReadEntry::Solid(s) => {
-                for n in s.entries(password)? {
+                for n in s.entries(read_options)? {
                     if let Some(entry) = transformer(n.map(Into::into))? {
                         archive.add_entry(entry)?;
                     }
@@ -1313,6 +1315,7 @@ impl TransformStrategy for TransformStrategyKeepSolid {
     fn transform<W, T, F>(
         archive: &mut Archive<W>,
         password: Option<&[u8]>,
+        read_options: &ReadOptions,
         read_entry: io::Result<ReadEntry<T>>,
         mut transformer: F,
     ) -> io::Result<()>
@@ -1334,7 +1337,7 @@ impl TransformStrategy for TransformStrategyKeepSolid {
                         .password(password)
                         .build(),
                 )?;
-                for n in s.entries(password)? {
+                for n in s.entries(read_options)? {
                     if let Some(entry) = transformer(n.map(Into::into))? {
                         builder.add_entry(entry)?;
                     }
@@ -1426,43 +1429,39 @@ where
     Ok(())
 }
 
-pub(crate) fn run_process_archive<'p, Provider, F>(
+pub(crate) fn run_process_archive<F>(
     archive_provider: impl IntoIterator<Item = impl Read>,
-    mut password_provider: Provider,
+    read_options: &ReadOptions,
     mut processor: F,
     allow_concatenated_archives: bool,
 ) -> io::Result<()>
 where
-    Provider: FnMut() -> Option<&'p [u8]>,
     F: FnMut(io::Result<NormalEntry>) -> io::Result<()>,
 {
-    let password = password_provider();
     run_read_entries(
         archive_provider,
         |entry| match entry? {
-            ReadEntry::Solid(solid) => solid.entries(password)?.try_for_each(&mut processor),
+            ReadEntry::Solid(solid) => solid.entries(read_options)?.try_for_each(&mut processor),
             ReadEntry::Normal(regular) => processor(Ok(regular)),
         },
         allow_concatenated_archives,
     )
 }
 
-pub(crate) fn run_process_archive_stoppable<'p, Provider, F>(
+pub(crate) fn run_process_archive_stoppable<F>(
     archive_provider: impl IntoIterator<Item = impl Read>,
-    mut password_provider: Provider,
+    read_options: &ReadOptions,
     mut processor: F,
     allow_concatenated_archives: bool,
 ) -> io::Result<()>
 where
-    Provider: FnMut() -> Option<&'p [u8]>,
     F: FnMut(io::Result<NormalEntry>) -> io::Result<ProcessAction>,
 {
-    let password = password_provider();
     run_read_entries_stoppable(
         archive_provider,
         |entry| match entry? {
             ReadEntry::Solid(solid) => {
-                for n in solid.entries(password)? {
+                for n in solid.entries(read_options)? {
                     match processor(n)? {
                         ProcessAction::Continue => {}
                         ProcessAction::Stop => return Ok(ProcessAction::Stop),
@@ -1530,21 +1529,19 @@ where
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_entries<'d, 'p, Provider, F>(
+pub(crate) fn run_entries<'d, F>(
     archives: impl IntoIterator<Item = &'d [u8]>,
-    mut password_provider: Provider,
+    read_options: &ReadOptions,
     mut processor: F,
 ) -> io::Result<()>
 where
-    Provider: FnMut() -> Option<&'p [u8]>,
     F: FnMut(io::Result<NormalEntry<Cow<'d, [u8]>>>) -> io::Result<()>,
 {
-    let password = password_provider();
     run_read_entries_mem(
         archives,
         |entry| match entry? {
             ReadEntry::Solid(s) => s
-                .entries(password)?
+                .entries(read_options)?
                 .try_for_each(|r| processor(r.map(Into::into))),
             ReadEntry::Normal(r) => processor(Ok(r)),
         },
@@ -1615,21 +1612,19 @@ where
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_entries_stoppable<'d, 'p, Provider, F>(
+pub(crate) fn run_entries_stoppable<'d, F>(
     archives: impl IntoIterator<Item = &'d [u8]>,
-    mut password_provider: Provider,
+    read_options: &ReadOptions,
     mut processor: F,
 ) -> io::Result<()>
 where
-    Provider: FnMut() -> Option<&'p [u8]>,
     F: FnMut(io::Result<NormalEntry<Cow<'d, [u8]>>>) -> io::Result<ProcessAction>,
 {
-    let password = password_provider();
     run_read_entries_mem_stoppable(
         archives,
         |entry| match entry? {
             ReadEntry::Solid(s) => {
-                for n in s.entries(password)? {
+                for n in s.entries(read_options)? {
                     match processor(n.map(Into::into))? {
                         ProcessAction::Continue => {}
                         ProcessAction::Stop => return Ok(ProcessAction::Stop),
@@ -1660,10 +1655,19 @@ where
     Transform: TransformStrategy,
 {
     let password = password_provider();
+    let read_options = ReadOptions::with_password(password);
     let mut out_archive = Archive::write_header(writer)?;
     run_read_entries_mem(
         archives,
-        |entry| Transform::transform(&mut out_archive, password, entry, &mut processor),
+        |entry| {
+            Transform::transform(
+                &mut out_archive,
+                password,
+                &read_options,
+                entry,
+                &mut processor,
+            )
+        },
         false,
     )?;
     out_archive.finalize()?;
@@ -1723,10 +1727,19 @@ where
     Transform: TransformStrategy,
 {
     let password = password_provider();
+    let read_options = ReadOptions::with_password(password);
     let mut out_archive = Archive::write_header(writer)?;
     run_read_entries(
         archives,
-        |entry| Transform::transform(&mut out_archive, password, entry, &mut processor),
+        |entry| {
+            Transform::transform(
+                &mut out_archive,
+                password,
+                &read_options,
+                entry,
+                &mut processor,
+            )
+        },
         false,
     )?;
     out_archive.finalize()?;
@@ -1898,9 +1911,10 @@ pub(crate) fn transform_archive_entries<R: io::Read>(
     allow_concatenated_archives: bool,
 ) -> io::Result<Vec<io::Result<Option<NormalEntry>>>> {
     let mut results = Vec::new();
+    let read_options = ReadOptions::with_password(password);
     run_process_archive(
         std::iter::once(reader),
-        || password,
+        &read_options,
         |entry| {
             let entry = entry?;
             if filter.excluded(entry.header().path()) {

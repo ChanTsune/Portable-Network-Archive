@@ -1,3 +1,4 @@
+use pna::ReadOptions;
 use pna::prelude::*;
 use std::{
     fs::File,
@@ -113,7 +114,9 @@ pub fn extract_single_entry(
     name: &str,
 ) -> io::Result<Option<pna::NormalEntry>> {
     let mut archive = pna::Archive::open(path)?;
-    let entries = archive.entries().extract_solid_entries(None);
+    let entries = archive
+        .entries()
+        .extract_solid_entries(&ReadOptions::builder().build());
     for entry in entries {
         let entry = entry?;
         if entry.header().path() == name {
@@ -140,7 +143,8 @@ where
 {
     let password = password.into().map(|p| p.as_bytes());
     let mut archive = pna::Archive::open(path)?;
-    let entries = archive.entries().extract_solid_entries(password);
+    let read_options = ReadOptions::with_password(password);
+    let entries = archive.entries().extract_solid_entries(&read_options);
     for entry in entries {
         f(entry?);
     }

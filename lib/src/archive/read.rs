@@ -5,7 +5,7 @@ mod slice;
 use crate::{
     archive::{Archive, ArchiveHeader, PNA_HEADER},
     chunk::{Chunk, ChunkReader, ChunkType, RawChunk, read_chunk},
-    entry::{Entry, NormalEntry, RawEntry, ReadEntry},
+    entry::{Entry, NormalEntry, RawEntry, ReadEntry, ReadOptions},
 };
 #[cfg(feature = "unstable-async")]
 use futures_util::AsyncReadExt;
@@ -127,14 +127,14 @@ impl<R: Read> Archive<R> {
         RawEntries(self)
     }
 
-    /// Returns an iterator over entries including those in solid mode, decrypting
-    /// solid entries with the provided password.
+    /// Returns an iterator over entries including those in solid mode, using
+    /// the supplied read options for decryption.
     #[inline]
-    pub fn entries_with_password<'a>(
+    pub fn entries_with_options<'a>(
         &'a mut self,
-        password: Option<&'a [u8]>,
+        options: &ReadOptions,
     ) -> impl Iterator<Item = io::Result<NormalEntry>> + 'a {
-        self.entries().extract_solid_entries(password)
+        self.entries().extract_solid_entries(options)
     }
 
     /// Reads the next archive from the provided reader and returns a new [`Archive`].
@@ -308,7 +308,8 @@ impl<'r, R> Entries<'r, R> {
     /// # fn main() -> io::Result<()> {
     /// let file = fs::File::open("foo.pna")?;
     /// let mut archive = Archive::read_header(file)?;
-    /// for entry in archive.entries().extract_solid_entries(Some(b"password")) {
+    /// let options = ReadOptions::with_password(Some(b"password"));
+    /// for entry in archive.entries().extract_solid_entries(&options) {
     ///     let mut reader = entry?.reader(ReadOptions::builder().build());
     ///     // process the entry
     /// }
@@ -316,8 +317,8 @@ impl<'r, R> Entries<'r, R> {
     /// # }
     /// ```
     #[inline]
-    pub fn extract_solid_entries(self, password: Option<&'r [u8]>) -> NormalEntries<'r, R> {
-        NormalEntries::new(self.reader, password)
+    pub fn extract_solid_entries(self, options: &ReadOptions) -> NormalEntries<'r, R> {
+        NormalEntries::new(self.reader, options)
     }
 }
 
@@ -363,16 +364,16 @@ impl<R: futures_io::AsyncRead + Unpin> futures_util::Stream for Entries<'_, R> {
 /// An iterator over the entries in the archive.
 pub struct NormalEntries<'r, R> {
     reader: &'r mut Archive<R>,
-    password: Option<&'r [u8]>,
+    read_options: ReadOptions,
     solid_iter: Option<crate::entry::SolidIntoEntries>,
 }
 
 impl<'r, R> NormalEntries<'r, R> {
     #[inline]
-    pub(crate) fn new(reader: &'r mut Archive<R>, password: Option<&'r [u8]>) -> Self {
+    pub(crate) fn new(reader: &'r mut Archive<R>, options: &ReadOptions) -> Self {
         Self {
             reader,
-            password,
+            read_options: options.clone(),
             solid_iter: None,
         }
     }
@@ -393,13 +394,15 @@ impl<R: Read> Iterator for NormalEntries<'_, R> {
 
             match self.reader.read_entry() {
                 Ok(Some(ReadEntry::Normal(entry))) => return Some(Ok(entry)),
-                Ok(Some(ReadEntry::Solid(entry))) => match entry.into_entries(self.password) {
-                    Ok(iter) => {
-                        self.solid_iter = Some(iter);
-                        continue;
+                Ok(Some(ReadEntry::Solid(entry))) => {
+                    match entry.into_entries_with_options(&self.read_options) {
+                        Ok(iter) => {
+                            self.solid_iter = Some(iter);
+                            continue;
+                        }
+                        Err(e) => return Some(Err(e)),
                     }
-                    Err(e) => return Some(Err(e)),
-                },
+                }
                 Ok(None) => return None,
                 Err(e) => return Some(Err(e)),
             }
@@ -494,7 +497,7 @@ mod tests {
         while let Some(entry) = archive.read_entry_async().await? {
             match entry {
                 ReadEntry::Solid(solid_entry) => {
-                    for entry in solid_entry.entries(None)? {
+                    for entry in solid_entry.entries(ReadOptions::builder().build())? {
                         let entry = entry?;
                         let mut file = io::Cursor::new(Vec::new());
                         let mut reader = entry.reader(ReadOptions::builder().build())?.compat();

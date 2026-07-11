@@ -551,7 +551,7 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
         |entry| {
         match entry? {
             ReadEntry::Solid(solid) if options.solid => {
-                for entry in solid.entries(password)? {
+                for entry in solid.entries(&read_options)? {
                     entries.push(TableRow::from_entry(
                         &entry?,
                         &read_options,
@@ -659,7 +659,7 @@ pub(crate) fn run_list_archive<'a>(
             |entry| {
                 match entry? {
                     ReadEntry::Solid(solid) if args.solid => {
-                        for entry in solid.entries(password)? {
+                        for entry in solid.entries(&read_options)? {
                             entries.push(TableRow::from_entry(
                                 &entry?,
                                 &read_options,
@@ -695,7 +695,7 @@ pub(crate) fn run_list_archive<'a>(
         |entry| {
             match entry? {
                 ReadEntry::Solid(solid) if args.solid => {
-                    for entry in solid.entries(password)? {
+                    for entry in solid.entries(&read_options)? {
                         let entry = entry?;
                         let entry_path = entry.name().to_string();
                         if !globs.matches_any_pattern(&entry_path) {

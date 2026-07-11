@@ -475,6 +475,46 @@ mod tests {
         assert_eq!(read_options.cached_key_count(), 2);
     }
 
+    /// Precondition: multiple encrypted solid blocks share one WriteOptions,
+    /// and therefore one PHSF.
+    /// Action: decode every block with one shared ReadOptions.
+    /// Expectation: all blocks decode and the derived key is cached once.
+    #[test]
+    fn read_options_cache_is_reused_across_solid_blocks() {
+        let write_options = WriteOptions::builder()
+            .encryption(Encryption::Aes)
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .password(Some("password"))
+            .try_build()
+            .unwrap();
+        let mut writer = Archive::write_header(Vec::new()).unwrap();
+        for i in 0..2 {
+            let mut solid = SolidEntryBuilder::new(&write_options).unwrap();
+            solid
+                .write_file(format!("test/file-{i}").into(), Metadata::new(), |w| {
+                    w.write_all(b"some text")
+                })
+                .unwrap();
+            writer.add_entry(solid.build().unwrap()).unwrap();
+        }
+        let archived = writer.finalize().unwrap();
+
+        let read_options = ReadOptions::with_password(Some("password"));
+        let mut reader = Archive::read_header(archived.as_slice()).unwrap();
+        for entry in reader.entries() {
+            let ReadEntry::Solid(solid) = entry.unwrap() else {
+                panic!("expected a solid entry");
+            };
+            let entries = solid
+                .entries(&read_options)
+                .unwrap()
+                .collect::<io::Result<Vec<_>>>()
+                .unwrap();
+            assert_eq!(entries.len(), 1);
+        }
+        assert_eq!(read_options.cached_key_count(), 1);
+    }
+
     /// Precondition: encryption-enabled WriteOptions built once.
     /// Action: create multiple archives reusing the same options.
     /// Expectation: every archive round-trips with the original password.
@@ -534,7 +574,8 @@ mod tests {
         let mut entries = archive.entries();
         let entry = entries.next().unwrap().unwrap();
         if let ReadEntry::Solid(entry) = entry {
-            let mut entries = entry.entries(password.as_deref()).unwrap();
+            let read_options = ReadOptions::with_password(password.as_deref());
+            let mut entries = entry.entries(&read_options).unwrap();
             for i in 0..200 {
                 let entry = entries.next().unwrap().unwrap();
                 let mut reader = entry.reader(ReadOptions::builder().build()).unwrap();
@@ -586,7 +627,8 @@ mod tests {
         };
 
         let mut archive_reader = Archive::read_header(archive.as_slice()).unwrap();
-        let mut entries = archive_reader.entries_with_password(Some(b"password"));
+        let options = ReadOptions::with_password(Some(b"password"));
+        let mut entries = archive_reader.entries_with_options(&options);
         entries.next().unwrap().expect("failed to read entry");
         entries.next().unwrap().expect("failed to read entry");
         assert!(entries.next().is_none());
@@ -666,7 +708,7 @@ mod tests {
 
         let mut archive = Archive::read_header(buf.as_slice()).unwrap();
 
-        let mut entries = archive.entries_with_password(None);
+        let mut entries = archive.entries_with_options(&ReadOptions::builder().build());
         let read_entry = entries.next().unwrap().unwrap();
 
         assert_eq!(

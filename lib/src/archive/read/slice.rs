@@ -1,7 +1,7 @@
 //! Slice-based archive reading for memory-mapped access.
 
 use crate::{
-    Archive, Chunk, ChunkType, Entry, NormalEntry, PNA_HEADER, RawChunk, ReadEntry,
+    Archive, Chunk, ChunkType, Entry, NormalEntry, PNA_HEADER, RawChunk, ReadEntry, ReadOptions,
     archive::ArchiveHeader, chunk::read_chunk_from_slice, entry::RawEntry,
 };
 use std::borrow::Cow;
@@ -204,9 +204,10 @@ impl<'a, 'r> Entries<'a, 'r> {
     /// # fn main() -> io::Result<()> {
     /// let file = fs::read("foo.pna")?;
     /// let mut archive = Archive::read_header_from_slice(&file[..])?;
+    /// let options = ReadOptions::with_password(Some(b"password"));
     /// for entry in archive
     ///     .entries_slice()
-    ///     .extract_solid_entries(Some(b"password"))
+    ///     .extract_solid_entries(&options)
     /// {
     ///     let mut reader = entry?.reader(ReadOptions::builder().build());
     ///     // process the entry
@@ -217,14 +218,15 @@ impl<'a, 'r> Entries<'a, 'r> {
     #[inline]
     pub fn extract_solid_entries(
         self,
-        password: Option<&'r [u8]>,
+        options: &ReadOptions,
     ) -> impl Iterator<Item = io::Result<NormalEntry>> + 'a
     where
         'a: 'r,
     {
+        let read_options = options.clone();
         self.flat_map(move |f| match f {
             Ok(ReadEntry::Normal(r)) => vec![Ok(r.into())],
-            Ok(ReadEntry::Solid(r)) => match r.entries(password) {
+            Ok(ReadEntry::Solid(r)) => match r.entries(&read_options) {
                 Ok(entries) => entries.collect(),
                 Err(e) => vec![Err(e)],
             },
@@ -278,7 +280,7 @@ mod tests {
         let mut entries = archive.entries_slice();
         let solid_entry = entries.next().unwrap().unwrap();
         if let ReadEntry::Solid(solid_entry) = solid_entry {
-            let mut entries = solid_entry.entries(None).unwrap();
+            let mut entries = solid_entry.entries(ReadOptions::builder().build()).unwrap();
             assert!(entries.next().is_some());
             assert!(entries.next().is_some());
             assert!(entries.next().is_some());

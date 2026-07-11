@@ -15,7 +15,7 @@ use base64::Engine;
 use bstr::{ByteSlice, io::BufReadExt};
 use clap::{ArgGroup, Parser, ValueEnum, ValueHint};
 use indexmap::IndexMap;
-use pna::NormalEntry;
+use pna::{NormalEntry, ReadOptions};
 use regex::Regex;
 use std::{
     collections::HashMap,
@@ -196,9 +196,10 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
     let mut source = SplitArchiveReader::new(collect_split_archives(&args.file.archive)?)?;
+    let read_options = ReadOptions::with_password(password.as_deref());
 
     source.for_each_entry(
-        password.as_deref(),
+        &read_options,
         #[hooq::skip_all]
         |entry| {
             let entry = entry?;

@@ -38,7 +38,7 @@ async fn extract(path: String) -> io::Result<()> {
     while let Some(entry) = archive.read_entry_async().await? {
         match entry {
             ReadEntry::Solid(solid_entry) => {
-                for entry in solid_entry.entries(None)? {
+                for entry in solid_entry.entries(ReadOptions::builder().build())? {
                     let entry = entry?;
                     let mut file = io::Cursor::new(Vec::new());
                     let mut reader = entry.reader(ReadOptions::builder().build())?.compat();

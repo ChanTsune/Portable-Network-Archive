@@ -613,7 +613,7 @@ where
             if fast_read && !globs.is_empty() {
                 run_process_archive_stoppable(
                     reader,
-                    password_provider,
+                    read_options,
                     |entry| {
                         let item = entry.map_err(|e| {
                             io::Error::new(e.kind(), format!("reading archive entry: {e}"))
@@ -679,7 +679,7 @@ where
             } else {
                 run_process_archive(
                     reader,
-                    password_provider,
+                    read_options,
                     |entry| {
                         let item = entry.map_err(|e| {
                             io::Error::new(e.kind(), format!("reading archive entry: {e}"))
@@ -740,7 +740,7 @@ where
         if fast_read && !globs.is_empty() {
             run_process_archive_stoppable(
                 reader,
-                password_provider,
+                read_options,
                 |entry| {
                     let item = entry.map_err(|e| {
                         io::Error::new(e.kind(), format!("reading archive entry: {e}"))
@@ -795,7 +795,7 @@ where
         } else {
             run_process_archive(
                 reader,
-                password_provider,
+                read_options,
                 |entry| {
                     let item = entry.map_err(|e| {
                         io::Error::new(e.kind(), format!("reading archive entry: {e}"))
@@ -883,7 +883,7 @@ where
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
         if fast_read && !globs.is_empty() {
             #[hooq::skip_all]
-            run_entries_stoppable(archives, password_provider, |entry| {
+            run_entries_stoppable(archives, read_options, |entry| {
                 let item = entry
                     .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
                 let item_path = item.name().to_string();
@@ -943,7 +943,7 @@ where
             .with_context(|| "streaming archive entries")?;
         } else {
             #[hooq::skip_all]
-            run_entries(archives, password_provider, |entry| {
+            run_entries(archives, read_options, |entry| {
                 let item = entry
                     .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
                 let Some(name) = filter_entry(&item, &mut globs, &args) else {

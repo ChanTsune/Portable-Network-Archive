@@ -127,7 +127,7 @@ fn verify_solid(
     fast: bool,
     report: &mut VerifyReport,
 ) -> io::Result<()> {
-    for entry in solid.entries(password)? {
+    for entry in solid.entries(read_options)? {
         verify_entry(&entry?, password, read_options, fast, report);
     }
     Ok(())

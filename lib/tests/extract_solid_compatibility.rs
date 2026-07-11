@@ -50,7 +50,8 @@ fn assert_entry(item: NormalEntry, password: Option<&[u8]>) {
 fn extract_all(bytes: &[u8], password: Option<&[u8]>) {
     let mut n = 0;
     let mut archive_reader = Archive::read_header(bytes).unwrap();
-    for entry in archive_reader.entries_with_password(password) {
+    let read_options = ReadOptions::with_password(password);
+    for entry in archive_reader.entries_with_options(&read_options) {
         let item = entry.unwrap();
         if item.header().data_kind() == DataKind::Directory {
             continue;
@@ -66,7 +67,7 @@ fn extract_all(bytes: &[u8], password: Option<&[u8]>) {
         let item = entry.unwrap();
         match item {
             ReadEntry::Solid(item) => {
-                for item in item.entries(password).unwrap() {
+                for item in item.entries(&read_options).unwrap() {
                     let item = item.unwrap();
                     if item.header().data_kind() == DataKind::Directory {
                         continue;

@@ -11,7 +11,7 @@ fn read_archive_entries(bytes: &[u8]) -> Vec<(String, String)> {
     let mut archive = Archive::read_header(Cursor::new(bytes)).unwrap();
     archive
         .entries()
-        .extract_solid_entries(None)
+        .extract_solid_entries(&ReadOptions::builder().build())
         .map(|entry| {
             let entry = entry.unwrap();
             let mut reader = entry.reader(ReadOptions::builder().build()).unwrap();

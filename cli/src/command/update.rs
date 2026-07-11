@@ -22,7 +22,7 @@ use crate::{
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
-use pna::{Archive, EntryName, Metadata, prelude::*};
+use pna::{Archive, EntryName, Metadata, ReadOptions, prelude::*};
 use std::{
     env, fs, io,
     path::{Path, PathBuf},
@@ -563,6 +563,7 @@ where
     W: io::Write + Send,
 {
     let (tx, rx) = std::sync::mpsc::channel();
+    let read_options = ReadOptions::with_password(password);
 
     // Overlapping source arguments (e.g. a directory and a file within it)
     // routinely collect the same path spelling twice; that case is
@@ -601,7 +602,7 @@ where
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
         source.for_each_read_entry(
             |entry| {
-                Strategy::transform(out_archive, password, entry, |entry| {
+                Strategy::transform(out_archive, password, &read_options, entry, |entry| {
                     let entry = entry?;
                     if let Some((idx, item)) = target_files_mapping
                         .get_mut(entry.header().path())
