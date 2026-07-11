@@ -10,9 +10,9 @@ use crate::{
             AclStrategy, CollectOptions, CollectedEntry, CreateOptions, FflagsStrategy,
             KeepOptions, MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
             PermissionStrategyResolver, SplitArchiveReader, TimeFilterResolver,
-            TimestampStrategyResolver, TransformStrategy, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid, XattrStrategy, collect_items_from_paths,
-            collect_split_archives, create_entry, entry_option,
+            TimestampStrategyResolver, TransformContext, TransformStrategy,
+            TransformStrategyKeepSolid, TransformStrategyUnSolid, XattrStrategy,
+            collect_items_from_paths, collect_split_archives, create_entry, entry_option,
             iter::ReorderByIndex,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin,
@@ -22,7 +22,7 @@ use crate::{
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
-use pna::{Archive, EntryName, Metadata, ReadOptions, prelude::*};
+use pna::{Archive, EntryName, Metadata, prelude::*};
 use std::{
     env, fs, io,
     path::{Path, PathBuf},
@@ -563,7 +563,7 @@ where
     W: io::Write + Send,
 {
     let (tx, rx) = std::sync::mpsc::channel();
-    let read_options = ReadOptions::with_password(password);
+    let context = TransformContext::new(password);
 
     // Overlapping source arguments (e.g. a directory and a file within it)
     // routinely collect the same path spelling twice; that case is
@@ -602,7 +602,7 @@ where
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
         source.for_each_read_entry(
             |entry| {
-                Strategy::transform(out_archive, password, &read_options, entry, |entry| {
+                Strategy::transform(out_archive, &context, entry, |entry| {
                     let entry = entry?;
                     if let Some((idx, item)) = target_files_mapping
                         .get_mut(entry.header().path())
