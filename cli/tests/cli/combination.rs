@@ -27,8 +27,10 @@ const ENCRYPTION_OPTIONS: &[Option<[&str; 2]>] = &[
     None,
     Some(["--aes", "ctr"]),
     Some(["--aes", "cbc"]),
+    Some(["--aes", "gcm"]),
     Some(["--camellia", "ctr"]),
     Some(["--camellia", "cbc"]),
+    Some(["--camellia", "gcm"]),
 ];
 
 const HASH_OPTIONS: &[[&str; 2]] = &[["--pbkdf2", "r=1"], ["--argon2", "t=1,m=50"]];

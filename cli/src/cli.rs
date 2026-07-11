@@ -338,6 +338,7 @@ impl CipherAlgorithmArgs {
         } {
             CipherMode::Cbc => pna::CipherMode::CBC,
             CipherMode::Ctr => pna::CipherMode::CTR,
+            CipherMode::Gcm => pna::CipherMode::GCM,
         }
     }
 }
@@ -347,6 +348,7 @@ pub(crate) enum CipherMode {
     Cbc,
     #[default]
     Ctr,
+    Gcm,
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]

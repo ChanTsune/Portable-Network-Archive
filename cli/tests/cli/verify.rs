@@ -255,7 +255,8 @@ fn verify_with_password_on_encrypted_archive() {
         .stdout(contains("failed: 0").and(contains("skipped (encrypted): 0")));
 }
 
-/// Precondition: An encrypted archive exists and a wrong password is supplied.
+/// Precondition: An archive encrypted in an unauthenticated mode exists and a
+/// wrong password is supplied.
 /// Action: Run verify with the wrong password.
 /// Expectation: Exit failure with entries reported as FAILED and a note that
 /// a wrong password is indistinguishable from corruption.
@@ -294,6 +295,111 @@ fn verify_with_wrong_password_on_encrypted_archive() {
         .stdout(contains("FAILED").and(contains(
             "note: a wrong password is indistinguishable from corruption",
         )));
+}
+
+/// Precondition: An archive holds entries in both an AEAD and a non-AEAD cipher
+/// mode, and a wrong password is supplied.
+/// Action: Run verify with the wrong password.
+/// Expectation: Exit failure, and the note about a wrong password being
+/// indistinguishable from corruption is printed because at least one failing
+/// entry uses a mode without authenticity.
+#[test]
+fn verify_with_wrong_password_on_mixed_cipher_mode_archive() {
+    setup();
+    TestResources::extract_in("raw/first/", "verify_mixed/in/").unwrap();
+    TestResources::extract_in("raw/text.txt", "verify_mixed/appended/").unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "verify_mixed/verify_mixed.pna",
+        "--overwrite",
+        "verify_mixed/in/",
+        "--password",
+        "password",
+        "--aes",
+        "ctr",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "a",
+        "-f",
+        "verify_mixed/verify_mixed.pna",
+        "verify_mixed/appended/",
+        "--password",
+        "password",
+        "--aes",
+        "gcm",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "experimental",
+            "verify",
+            "-f",
+            "verify_mixed/verify_mixed.pna",
+            "--password",
+            "wrong-password",
+        ])
+        .assert()
+        .failure()
+        .stdout(
+            contains("FAILED")
+                .and(contains("key mismatch"))
+                .and(contains("indistinguishable from corruption")),
+        );
+}
+
+/// Precondition: An archive encrypted in an AEAD mode exists and a wrong
+/// password is supplied.
+/// Action: Run verify with the wrong password.
+/// Expectation: Exit failure with entries reported as FAILED, without the note
+/// about a wrong password being indistinguishable from corruption.
+#[test]
+fn verify_with_wrong_password_on_aead_encrypted_archive() {
+    setup();
+    TestResources::extract_in("raw/", "verify_aead_wrong/in/").unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "verify_aead_wrong/verify_aead_wrong.pna",
+        "--overwrite",
+        "verify_aead_wrong/in/",
+        "--password",
+        "password",
+        "--aes",
+        "gcm",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "experimental",
+            "verify",
+            "-f",
+            "verify_aead_wrong/verify_aead_wrong.pna",
+            "--password",
+            "wrong-password",
+        ])
+        .assert()
+        .failure()
+        .stdout(
+            contains("FAILED")
+                .and(contains("key mismatch"))
+                .and(contains("indistinguishable from corruption").not()),
+        );
 }
 
 /// Precondition: A plain solid archive exists.

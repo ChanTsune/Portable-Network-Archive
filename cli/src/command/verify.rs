@@ -6,12 +6,12 @@ use crate::{
     },
 };
 use clap::{Parser, ValueHint};
-use pna::{Encryption, NormalEntry, ReadEntry, ReadOptions, SolidEntry};
+use pna::{CipherMode, Encryption, NormalEntry, ReadEntry, ReadOptions, SolidEntry};
 use std::{io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(
-    after_long_help = "Note: for encrypted entries, a wrong password is indistinguishable from corruption."
+    after_long_help = "Note: for entries encrypted in CBC or CTR mode, a wrong password is indistinguishable from corruption. GCM mode instead reports a key mismatch, meaning the password does not match the key derivation parameters recorded for the entry: either the password is wrong, or those recorded parameters were themselves altered."
 )]
 pub(crate) struct VerifyCommand {
     #[arg(short = 'f', long = "file", help = "Archive file path", value_hint = ValueHint::FilePath)]
@@ -38,7 +38,8 @@ struct VerifyReport {
     ok: usize,
     failed: usize,
     skipped: usize,
-    encrypted_failure: bool,
+    /// Gates the note that a wrong password cannot be told from corruption.
+    unauthenticated_failure: bool,
 }
 
 impl VerifyReport {
@@ -99,7 +100,8 @@ fn verify_archive(args: VerifyCommand) -> anyhow::Result<()> {
                             {
                                 println!("<solid block #{solid_blocks}>: FAILED ({err})");
                                 report.failed += 1;
-                                report.encrypted_failure |= solid.encryption() != Encryption::NO;
+                                report.unauthenticated_failure |=
+                                    is_unauthenticated(solid.encryption(), solid.cipher_mode());
                             }
                         }
                         ReadEntry::Normal(entry) => {
@@ -168,9 +170,21 @@ fn verify_entry(
         Err(err) => {
             println!("{}: FAILED ({err})", entry.name());
             report.failed += 1;
-            report.encrypted_failure |= encrypted;
+            report.unauthenticated_failure |=
+                is_unauthenticated(entry.header().encryption(), entry.header().cipher_mode());
         }
     }
+}
+
+/// Whether the encryption offers confidentiality without authenticity, so a
+/// decoding failure cannot tell a wrong password from corruption.
+///
+/// Both fields are allow-lists. An entry whose encryption method or cipher mode
+/// this build does not implement fails for a reason a password cannot explain,
+/// so the note must not be attributed to it.
+fn is_unauthenticated(encryption: Encryption, cipher_mode: CipherMode) -> bool {
+    matches!(encryption, Encryption::AES | Encryption::CAMELLIA)
+        && matches!(cipher_mode, CipherMode::CBC | CipherMode::CTR)
 }
 
 fn read_through(entry: &NormalEntry, read_options: &ReadOptions) -> io::Result<u64> {
@@ -192,9 +206,50 @@ fn print_summary(report: &VerifyReport) {
         report.failed,
         report.skipped
     );
-    if report.encrypted_failure {
+    if report.unauthenticated_failure {
         println!(
-            "note: a wrong password is indistinguishable from corruption for encrypted entries"
+            "note: a wrong password is indistinguishable from corruption for CBC/CTR encrypted entries"
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cbc_and_ctr_encrypted_entries_are_unauthenticated() {
+        assert!(is_unauthenticated(Encryption::AES, CipherMode::CBC));
+        assert!(is_unauthenticated(Encryption::AES, CipherMode::CTR));
+        assert!(is_unauthenticated(Encryption::CAMELLIA, CipherMode::CBC));
+        assert!(is_unauthenticated(Encryption::CAMELLIA, CipherMode::CTR));
+    }
+
+    #[test]
+    fn gcm_encrypted_entries_are_authenticated() {
+        assert!(!is_unauthenticated(Encryption::AES, CipherMode::GCM));
+        assert!(!is_unauthenticated(Encryption::CAMELLIA, CipherMode::GCM));
+    }
+
+    #[test]
+    fn unencrypted_entries_are_not_unauthenticated() {
+        assert!(!is_unauthenticated(Encryption::NO, CipherMode::CBC));
+        assert!(!is_unauthenticated(Encryption::NO, CipherMode::GCM));
+    }
+
+    #[test]
+    fn unsupported_encryption_method_is_not_unauthenticated() {
+        assert!(!is_unauthenticated(
+            Encryption::from_byte(5),
+            CipherMode::CBC
+        ));
+    }
+
+    #[test]
+    fn unsupported_cipher_mode_is_not_unauthenticated() {
+        assert!(!is_unauthenticated(
+            Encryption::AES,
+            CipherMode::from_byte(3)
+        ));
     }
 }
