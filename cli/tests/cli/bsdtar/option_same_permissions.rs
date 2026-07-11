@@ -6,6 +6,8 @@
 
 #[cfg(unix)]
 use crate::utils::archive;
+#[cfg(unix)]
+use crate::utils::pna_cmd_with_umask;
 use crate::utils::setup;
 use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::prelude::predicate;
@@ -27,28 +29,6 @@ macro_rules! set_permissions_or_skip {
             Err(e) => panic!("Failed to set permissions: {}", e),
         }
     };
-}
-
-/// Spawns the `pna` binary under `mask` without touching this test process's
-/// own umask, which `libc::umask` would otherwise change process-wide (it is
-/// not thread-local) and race with unrelated tests running concurrently in
-/// this binary.
-#[cfg(unix)]
-fn pna_cmd_with_umask(mask: u16) -> assert_cmd::Command {
-    use assert_cmd::cargo::CommandCargoExt as _;
-    use std::os::unix::process::CommandExt as _;
-
-    let mut cmd = std::process::Command::cargo_bin("pna").expect("pna binary not found");
-    // SAFETY: umask() only runs in the forked child, after fork() and before
-    // exec(), so it affects only that child process and never the parent
-    // test runner or its other threads.
-    unsafe {
-        cmd.pre_exec(move || {
-            libc::umask(mask as libc::mode_t);
-            Ok(())
-        });
-    }
-    assert_cmd::Command::from_std(cmd)
 }
 
 // =============================================================================
