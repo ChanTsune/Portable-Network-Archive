@@ -139,6 +139,22 @@ fn zstd_camellia_ctr() {
 }
 
 #[test]
+fn zstd_aes_gcm() {
+    extract_all(
+        include_bytes!("../../resources/test/zstd_aes_gcm.pna"),
+        Some(b"password"),
+    );
+}
+
+#[test]
+fn zstd_camellia_gcm() {
+    extract_all(
+        include_bytes!("../../resources/test/zstd_camellia_gcm.pna"),
+        Some(b"password"),
+    );
+}
+
+#[test]
 fn keep_permission() {
     extract_all(
         include_bytes!("../../resources/test/zstd_keep_permission.pna"),
