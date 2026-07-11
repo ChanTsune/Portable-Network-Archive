@@ -1832,6 +1832,7 @@ Update entries in archive
 
 ###### **Options:**
 
+* `--output <OUTPUT>` — Output file path
 * `--one-file-system` — Stay in the same file system when collecting files
 
   Default value: `false`
