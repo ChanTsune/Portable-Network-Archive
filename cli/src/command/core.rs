@@ -1257,11 +1257,25 @@ pub(crate) fn split_to_parts(
     Ok(parts)
 }
 
+pub(crate) struct TransformContext<'a> {
+    password: Option<&'a [u8]>,
+    read_options: ReadOptions,
+}
+
+impl<'a> TransformContext<'a> {
+    #[inline]
+    pub(crate) fn new(password: Option<&'a [u8]>) -> Self {
+        Self {
+            password,
+            read_options: ReadOptions::with_password(password),
+        }
+    }
+}
+
 pub(crate) trait TransformStrategy {
     fn transform<W, T, F>(
         archive: &mut Archive<W>,
-        password: Option<&[u8]>,
-        read_options: &ReadOptions,
+        context: &TransformContext<'_>,
         read_entry: io::Result<ReadEntry<T>>,
         transformer: F,
     ) -> io::Result<()>
@@ -1278,8 +1292,7 @@ pub(crate) struct TransformStrategyUnSolid;
 impl TransformStrategy for TransformStrategyUnSolid {
     fn transform<W, T, F>(
         archive: &mut Archive<W>,
-        _password: Option<&[u8]>,
-        read_options: &ReadOptions,
+        context: &TransformContext<'_>,
         read_entry: io::Result<ReadEntry<T>>,
         mut transformer: F,
     ) -> io::Result<()>
@@ -1292,7 +1305,7 @@ impl TransformStrategy for TransformStrategyUnSolid {
     {
         match read_entry? {
             ReadEntry::Solid(s) => {
-                for n in s.entries(read_options)? {
+                for n in s.entries(&context.read_options)? {
                     if let Some(entry) = transformer(n.map(Into::into))? {
                         archive.add_entry(entry)?;
                     }
@@ -1314,8 +1327,7 @@ pub(crate) struct TransformStrategyKeepSolid;
 impl TransformStrategy for TransformStrategyKeepSolid {
     fn transform<W, T, F>(
         archive: &mut Archive<W>,
-        password: Option<&[u8]>,
-        read_options: &ReadOptions,
+        context: &TransformContext<'_>,
         read_entry: io::Result<ReadEntry<T>>,
         mut transformer: F,
     ) -> io::Result<()>
@@ -1334,10 +1346,10 @@ impl TransformStrategy for TransformStrategyKeepSolid {
                         .compression(header.compression())
                         .encryption(header.encryption())
                         .cipher_mode(header.cipher_mode())
-                        .password(password)
+                        .password(context.password)
                         .build(),
                 )?;
-                for n in s.entries(read_options)? {
+                for n in s.entries(&context.read_options)? {
                     if let Some(entry) = transformer(n.map(Into::into))? {
                         builder.add_entry(entry)?;
                     }
@@ -1655,19 +1667,11 @@ where
     Transform: TransformStrategy,
 {
     let password = password_provider();
-    let read_options = ReadOptions::with_password(password);
+    let context = TransformContext::new(password);
     let mut out_archive = Archive::write_header(writer)?;
     run_read_entries_mem(
         archives,
-        |entry| {
-            Transform::transform(
-                &mut out_archive,
-                password,
-                &read_options,
-                entry,
-                &mut processor,
-            )
-        },
+        |entry| Transform::transform(&mut out_archive, &context, entry, &mut processor),
         false,
     )?;
     out_archive.finalize()?;
@@ -1727,19 +1731,11 @@ where
     Transform: TransformStrategy,
 {
     let password = password_provider();
-    let read_options = ReadOptions::with_password(password);
+    let context = TransformContext::new(password);
     let mut out_archive = Archive::write_header(writer)?;
     run_read_entries(
         archives,
-        |entry| {
-            Transform::transform(
-                &mut out_archive,
-                password,
-                &read_options,
-                entry,
-                &mut processor,
-            )
-        },
+        |entry| Transform::transform(&mut out_archive, &context, entry, &mut processor),
         false,
     )?;
     out_archive.finalize()?;
