@@ -688,6 +688,31 @@ mod tests {
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
+    /// The cipher-mode byte carries no meaning for an unencrypted entry, but it
+    /// is on the wire, and the two builders deliberately disagree on it: the file
+    /// builder writes whatever the options report, while the link builders pin
+    /// CBC to match what their legacy constructors emitted. Changing either value
+    /// rewrites the `FHED` of every unencrypted entry already in the wild.
+    #[test]
+    fn unencrypted_entries_keep_their_cipher_mode_byte() {
+        let file = FileEntryBuilder::new_with_options("f".into(), WriteOptions::store())
+            .unwrap()
+            .build()
+            .unwrap();
+        let link = SymlinkEntryBuilder::new_with_options(
+            "l".into(),
+            EntryReference::from("target"),
+            WriteOptions::store(),
+        )
+        .unwrap()
+        .build()
+        .unwrap();
+
+        // `FHED` data: major, minor, kind, compression, encryption, cipher_mode.
+        assert_eq!(&file.header().to_bytes()[4..6], &[0, 1], "unencrypted, CTR");
+        assert_eq!(&link.header().to_bytes()[4..6], &[0, 0], "unencrypted, CBC");
+    }
+
     #[test]
     fn entry_extra_chunk() {
         let mut builder = DirEntryBuilder::new("dir".into());

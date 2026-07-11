@@ -346,8 +346,8 @@ impl CipherAlgorithmArgs {
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, ValueEnum)]
 pub(crate) enum CipherMode {
     Cbc,
-    #[default]
     Ctr,
+    #[default]
     Gcm,
 }
 
@@ -591,5 +591,23 @@ mod tests {
                 err.render()
             );
         }
+    }
+
+    /// `mode()` resolves the default in two separate arms. The one reached with
+    /// no algorithm flag at all is what `pna create --password …` takes, so it
+    /// carries most invocations, and nothing else exercises it.
+    #[test]
+    fn cipher_algorithm_args_default_to_gcm_when_no_mode_is_given() {
+        let flag_without_mode = CipherAlgorithmArgs {
+            aes: Some(None),
+            camellia: None,
+        };
+        let no_flag_at_all = CipherAlgorithmArgs {
+            aes: None,
+            camellia: None,
+        };
+
+        assert_eq!(flag_without_mode.mode(), pna::CipherMode::GCM);
+        assert_eq!(no_flag_at_all.mode(), pna::CipherMode::GCM);
     }
 }
