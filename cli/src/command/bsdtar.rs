@@ -6,7 +6,7 @@ use crate::{
     command::{
         Command,
         append::{open_archive_then_seek_to_end, run_append_archive},
-        ask_password, check_password,
+        ask_password,
         core::{
             AclStrategy, CollectOptions, CreateOptions, FflagsStrategy, ItemSource, KeepOptions,
             MacMetadataStrategy, ModeStrategy, OwnerOptions, OwnerStrategy, PathFilter,
@@ -872,7 +872,6 @@ impl ExtractionPermissionStrategyResolver {
 fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
-    check_password(&password, &args.cipher);
     // NOTE: "-" will use stdout
     let mut file = args.file;
     file.take_if(|it| it == "-");
@@ -1264,7 +1263,6 @@ fn run_list_archive(args: BsdtarCommand) -> anyhow::Result<()> {
 fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
-    check_password(&password, &args.cipher);
     let password = password.as_deref();
     let option = build_write_options(
         &args.compression,
@@ -1427,7 +1425,6 @@ fn resolve_name_id(
 fn run_update(args: BsdtarCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
-    check_password(&password, &args.cipher);
     let password = password.as_deref();
     let option = build_write_options(
         &args.compression,

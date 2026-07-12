@@ -4,7 +4,7 @@ use crate::{
         MissingTimePolicy, PasswordArgs,
     },
     command::{
-        Command, ask_password, check_password,
+        Command, ask_password,
         core::{
             AclStrategy, CollectOptions, CollectedItem, CreateOptions, EntryResult, FflagsStrategy,
             KeepOptions, MIN_SPLIT_PART_BYTES, MacMetadataStrategy, PathFilter, PathTransformers,
@@ -404,7 +404,6 @@ impl Command for CreateCommand {
 fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
-    check_password(&password, &args.cipher);
     let start = Instant::now();
     let archive = &args.file.archive;
     let max_file_size = args

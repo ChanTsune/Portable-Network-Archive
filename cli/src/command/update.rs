@@ -5,7 +5,7 @@ use crate::{
         SolidEntriesTransformStrategyArgs,
     },
     command::{
-        Command, ask_password, check_password,
+        Command, ask_password,
         core::{
             AclStrategy, CollectOptions, CollectedEntry, CreateOptions, FflagsStrategy,
             KeepOptions, MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
@@ -405,7 +405,6 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
     let sync = args.sync;
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
-    check_password(&password, &args.cipher);
     let archive_path = &args.file.archive;
     if !archive_path.exists() {
         anyhow::bail!("{} is not exists", archive_path.display());
