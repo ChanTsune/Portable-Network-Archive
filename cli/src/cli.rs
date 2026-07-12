@@ -300,7 +300,7 @@ impl CompressionAlgorithmArgs {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-#[command(group(ArgGroup::new("cipher_algorithm").args(["aes", "camellia"])))]
+#[command(group(ArgGroup::new("cipher_algorithm").args(["aes", "camellia"]).requires("password_provider")))]
 pub(crate) struct CipherAlgorithmArgs {
     #[arg(long, value_name = "cipher mode", help = "Use aes for encryption")]
     pub(crate) aes: Option<Option<CipherMode>>,
@@ -338,7 +338,7 @@ pub(crate) enum CipherMode {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-#[command(group(ArgGroup::new("hash_algorithm").args(["argon2", "pbkdf2"])))]
+#[command(group(ArgGroup::new("hash_algorithm").args(["argon2", "pbkdf2"]).requires("password_provider")))]
 pub(crate) struct HashAlgorithmArgs {
     #[arg(long, value_name = "PARAMS", help = "Use argon2 for password hashing")]
     argon2: Option<Option<Argon2idParams>>,

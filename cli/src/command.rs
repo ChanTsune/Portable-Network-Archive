@@ -23,7 +23,7 @@ pub mod update;
 pub(crate) mod verify;
 pub mod xattr;
 
-use crate::cli::{CipherAlgorithmArgs, Cli, Commands, GlobalContext, PasswordArgs};
+use crate::cli::{Cli, Commands, GlobalContext, PasswordArgs};
 use std::{fs, io};
 
 fn ask_password(args: PasswordArgs) -> io::Result<Option<Vec<u8>>> {
@@ -42,19 +42,6 @@ fn ask_password(args: PasswordArgs) -> io::Result<Option<Vec<u8>>> {
         ),
         None => None,
     })
-}
-
-fn check_password(password: &Option<Vec<u8>>, cipher_args: &CipherAlgorithmArgs) {
-    if password.is_some() {
-        return;
-    }
-    if cipher_args.aes.is_some() {
-        log::warn!("Using `--aes` option but, `--password` was not provided. It will not encrypt.");
-    } else if cipher_args.camellia.is_some() {
-        log::warn!(
-            "Using `--camellia` option but, `--password` was not provided. It will not encrypt."
-        );
-    }
 }
 
 pub(crate) trait Command {
