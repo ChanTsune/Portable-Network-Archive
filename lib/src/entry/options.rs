@@ -660,6 +660,19 @@ impl CipherMode {
     pub const fn is_private(self) -> bool {
         self.0 >= 128
     }
+
+    /// Returns `true` if an entry's header can be rewritten without making its
+    /// encrypted data unreadable.
+    ///
+    /// [`CipherMode::GCM`] derives its stream key from the entry header bytes,
+    /// so rewriting the header — renaming the entry, for instance — leaves data
+    /// that no key can decrypt. Modes this build does not implement answer
+    /// `false`, so a caller that rewrites headers refuses rather than silently
+    /// destroying data.
+    #[inline]
+    pub const fn allows_header_rewrite(self) -> bool {
+        matches!(self, Self::CBC | Self::CTR)
+    }
 }
 
 impl fmt::Debug for CipherMode {
@@ -1831,6 +1844,23 @@ mod tests {
         assert!(!CipherMode::from_byte(128).is_reserved());
         assert!(CipherMode::from_byte(128).is_private());
         assert!(CipherMode::from_byte(255).is_private());
+    }
+
+    #[test]
+    fn allows_header_rewrite_only_for_cbc_and_ctr() {
+        assert!(CipherMode::CBC.allows_header_rewrite());
+        assert!(CipherMode::CTR.allows_header_rewrite());
+        assert!(!CipherMode::GCM.allows_header_rewrite());
+    }
+
+    #[test]
+    fn allows_header_rewrite_is_false_for_unassigned_cipher_modes() {
+        for byte in [3u8, 63, 128, 255] {
+            assert!(
+                !CipherMode::from_byte(byte).allows_header_rewrite(),
+                "byte={byte}"
+            );
+        }
     }
 
     #[test]
