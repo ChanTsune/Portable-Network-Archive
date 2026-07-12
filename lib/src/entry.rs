@@ -1160,6 +1160,13 @@ impl<T> NormalEntry<T> {
     /// This is useful for path transformations during archive-to-archive copying
     /// where the entry data should remain unchanged.
     ///
+    /// # Panics
+    ///
+    /// Panics when the entry is encrypted with cipher mode 2 (GCM): the stream
+    /// key is bound to the `FHED` bytes, so renaming would make the entry's data
+    /// undecryptable. See [`NormalEntry::try_with_name`] for the fallible
+    /// variant.
+    ///
     /// # Examples
     /// ```rust
     /// # use std::io;
@@ -1173,9 +1180,46 @@ impl<T> NormalEntry<T> {
     /// # }
     /// ```
     #[inline]
-    pub fn with_name(mut self, name: EntryName) -> Self {
+    pub fn with_name(self, name: EntryName) -> Self {
+        self.try_with_name(name)
+            .expect("renaming a cipher mode 2 (GCM) entry makes its data undecryptable: the stream key is bound to the original header bytes")
+    }
+
+    /// Returns this entry with a new name, refusing renames that
+    /// would make the entry's data undecryptable.
+    ///
+    /// For cipher mode 2 (GCM) encrypted entries the stream key is bound to the
+    /// `FHED` bytes, so a renamed entry can no longer be decrypted; this method
+    /// returns an error for such entries instead of producing one. See
+    /// [`NormalEntry::with_name`] for the panicking variant.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the entry is encrypted with cipher mode 2 (GCM).
+    ///
+    /// # Examples
+    /// ```rust
+    /// # use std::io;
+    /// use libpna::DirEntryBuilder;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let entry = DirEntryBuilder::new("original/path".into()).build()?;
+    /// let renamed = entry.try_with_name("new/path".into())?;
+    /// assert_eq!(renamed.header().path().as_str(), "new/path");
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn try_with_name(mut self, name: EntryName) -> io::Result<Self> {
+        if self.header.encryption != Encryption::NO && self.header.cipher_mode == CipherMode::GCM {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "renaming a cipher mode 2 (GCM) entry makes its data undecryptable: the stream key is bound to the original header bytes",
+            ));
+        }
         self.header = self.header.with_name(name);
-        self
+        self.header_raw = self.header.to_bytes();
+        Ok(self)
     }
 }
 
@@ -1586,6 +1630,104 @@ mod tests {
         let renamed = entry.with_name("new".into());
         assert_eq!(renamed.header().path().as_str(), "new");
         assert_eq!(renamed.name().as_str(), "new");
+    }
+
+    #[test]
+    fn normal_entry_with_name_supports_borrowed_data() {
+        let header = EntryHeader::for_file(
+            Compression::NO,
+            Encryption::NO,
+            CipherMode::CTR,
+            "original".into(),
+        )
+        .to_bytes();
+        let raw = RawEntry(vec![
+            RawChunk::from_slice(ChunkType::FHED, &header),
+            RawChunk::from_slice(ChunkType::FEND, &[]),
+        ]);
+        let entry: NormalEntry<&[u8]> = raw.try_into().unwrap();
+
+        let renamed = entry.with_name("renamed".into());
+
+        assert_eq!(renamed.header().path().as_str(), "renamed");
+    }
+
+    #[test]
+    #[should_panic(expected = "renaming a cipher mode 2 (GCM) entry")]
+    fn with_name_panics_on_gcm_encrypted_entry() {
+        let options = WriteOptions::builder()
+            .encryption(Encryption::AES)
+            .cipher_mode(CipherMode::GCM)
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .password(Some("password"))
+            .build();
+        let mut builder =
+            FileEntryBuilder::new_with_options("dir/original".into(), &options).unwrap();
+        builder.write_all(b"secret payload").unwrap();
+        let entry = builder.build().unwrap();
+
+        let _ = entry.with_name("dir/renamed".into());
+    }
+
+    #[test]
+    fn try_with_name_refuses_gcm_encrypted_entry() {
+        let options = WriteOptions::builder()
+            .encryption(Encryption::AES)
+            .cipher_mode(CipherMode::GCM)
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .password(Some("password"))
+            .build();
+        let mut builder =
+            FileEntryBuilder::new_with_options("dir/original".into(), &options).unwrap();
+        builder.write_all(b"secret payload").unwrap();
+        let entry = builder.build().unwrap();
+
+        assert!(entry.try_with_name("dir/renamed".into()).is_err());
+    }
+
+    #[test]
+    fn try_with_name_renames_cbc_entry() {
+        let options = WriteOptions::builder()
+            .encryption(Encryption::AES)
+            .cipher_mode(CipherMode::CBC)
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .password(Some("password"))
+            .build();
+        let mut builder =
+            FileEntryBuilder::new_with_options("dir/original".into(), &options).unwrap();
+        builder.write_all(b"secret payload").unwrap();
+        let entry = builder.build().unwrap();
+
+        let renamed = entry.try_with_name("dir/renamed".into()).unwrap();
+        assert_eq!(renamed.header().path().as_str(), "dir/renamed");
+        let mut reader = renamed
+            .reader(ReadOptions::with_password(Some("password")))
+            .unwrap();
+        let mut out = Vec::new();
+        reader.read_to_end(&mut out).unwrap();
+        assert_eq!(out, b"secret payload");
+    }
+
+    #[test]
+    fn cbc_entry_is_readable_after_rename() {
+        let options = WriteOptions::builder()
+            .encryption(Encryption::AES)
+            .cipher_mode(CipherMode::CBC)
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .password(Some("password"))
+            .build();
+        let mut builder =
+            FileEntryBuilder::new_with_options("dir/original".into(), &options).unwrap();
+        builder.write_all(b"secret payload").unwrap();
+        let entry = builder.build().unwrap();
+
+        let renamed = entry.with_name("dir/renamed".into());
+        let mut reader = renamed
+            .reader(ReadOptions::with_password(Some("password")))
+            .unwrap();
+        let mut out = Vec::new();
+        reader.read_to_end(&mut out).unwrap();
+        assert_eq!(out, b"secret payload");
     }
 
     #[test]
