@@ -453,4 +453,74 @@ mod tests {
             Cli::try_parse_from(["pna", "--log-level", "debug", "list", "-f", "a.pna"]).unwrap();
         assert_eq!(cli.global.verbosity.log_level_filter(), LevelFilter::Debug);
     }
+
+    #[test]
+    fn cipher_or_kdf_without_password_is_rejected() {
+        for args in [
+            vec!["pna", "c", "-f", "a.pna", "src", "--aes"],
+            vec!["pna", "c", "-f", "a.pna", "src", "--camellia"],
+            vec!["pna", "c", "-f", "a.pna", "src", "--argon2"],
+            vec!["pna", "c", "-f", "a.pna", "src", "--pbkdf2"],
+            vec!["pna", "c", "-f", "a.pna", "src", "--aes", "--argon2"],
+            vec!["pna", "a", "-f", "a.pna", "src", "--aes"],
+            vec![
+                "pna",
+                "experimental",
+                "update",
+                "-f",
+                "a.pna",
+                "src",
+                "--aes",
+            ],
+            vec![
+                "pna", "compat", "bsdtar", "-c", "-f", "out.pna", "src", "--aes",
+            ],
+        ] {
+            let err = Cli::try_parse_from(&args).unwrap_err();
+            assert_eq!(
+                err.kind(),
+                clap::error::ErrorKind::MissingRequiredArgument,
+                "args {args:?} produced unexpected error kind: {}",
+                err.render()
+            );
+        }
+    }
+
+    #[test]
+    fn cipher_or_kdf_with_password_is_accepted() {
+        for args in [
+            vec![
+                "pna",
+                "c",
+                "-f",
+                "a.pna",
+                "src",
+                "--aes",
+                "--password=secret",
+            ],
+            vec!["pna", "c", "-f", "a.pna", "src", "--aes", "--password"],
+            vec![
+                "pna",
+                "c",
+                "-f",
+                "a.pna",
+                "src",
+                "--aes",
+                "--password-file",
+                "pw.txt",
+            ],
+            vec![
+                "pna",
+                "c",
+                "-f",
+                "a.pna",
+                "src",
+                "--argon2",
+                "--password=secret",
+            ],
+            vec!["pna", "c", "-f", "a.pna", "src", "--password=secret"],
+        ] {
+            Cli::try_parse_from(&args).unwrap_or_else(|e| panic!("args {args:?} rejected: {e}"));
+        }
+    }
 }
