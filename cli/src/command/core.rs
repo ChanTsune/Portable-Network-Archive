@@ -29,12 +29,14 @@ pub(crate) use path_filter::PathFilter;
 use path_slash::*;
 pub(crate) use path_transformer::PathTransformers;
 use pna::{
-    Archive, DirEntryBuilder, EntryPart, FileEntryBuilder, HardLinkEntryBuilder, LinkTargetType,
-    MIN_CHUNK_BYTES_SIZE, Metadata, NormalEntry, PNA_HEADER, ReadEntry, ReadOptions,
-    SolidEntryBuilder, SymlinkEntryBuilder, WriteOptions, prelude::*,
+    Archive, DataKind, DirEntryBuilder, EntryContent, EntryPart, FileEntryBuilder,
+    HardLinkEntryBuilder, LinkTargetType, MIN_CHUNK_BYTES_SIZE, Metadata, NormalEntry,
+    OpaqueEntryBuilder, PNA_HEADER, ReadEntry, ReadOptions, SolidEntryBuilder, SymlinkEntryBuilder,
+    WriteOptions, prelude::*,
 };
 use std::{
     borrow::Cow,
+    collections::HashMap,
     fmt, fs,
     io::{self, prelude::*},
     path::{Path, PathBuf},
@@ -1945,7 +1947,10 @@ pub(crate) fn apply_chroot(chroot: bool) -> anyhow::Result<()> {
 /// if a password is provided; without a password they will cause an error.
 ///
 /// The entry data (FDAT chunks) is preserved as-is, maintaining the original
-/// compression and encryption. Only the entry headers (paths, ownership) are modified.
+/// compression and encryption. Only the entry headers (paths, ownership) are
+/// modified. The exception is renaming a cipher mode 2 (GCM) entry, whose data
+/// is bound to the header bytes: it is decrypted and re-encrypted under the new
+/// name using the provided password, and refused when no password is available.
 ///
 /// Entries whose path matches the filter exclusion rules will be skipped.
 /// Time filters are also applied to filter entries by timestamps.
@@ -1958,6 +1963,7 @@ pub(crate) fn transform_archive_entries<R: io::Read>(
     allow_concatenated_archives: bool,
 ) -> io::Result<Vec<io::Result<Option<NormalEntry>>>> {
     let mut results = Vec::new();
+    let mut reencrypt_options = HashMap::new();
     let read_options = ReadOptions::with_password(password);
     run_process_archive(
         std::iter::once(reader),
@@ -1972,7 +1978,12 @@ pub(crate) fn transform_archive_entries<R: io::Read>(
             if !time_filters.matches(ctime, mtime) {
                 return Ok(());
             }
-            results.push(transform_normal_entry(entry, create_options));
+            results.push(transform_normal_entry(
+                entry,
+                create_options,
+                password,
+                &mut reencrypt_options,
+            ));
             Ok(())
         },
         allow_concatenated_archives,
@@ -2099,10 +2110,12 @@ pub(crate) fn read_archive_source(
 fn transform_normal_entry(
     entry: NormalEntry,
     CreateOptions {
+        option,
         pathname_editor,
         keep_options,
-        ..
     }: &CreateOptions,
+    password: Option<&[u8]>,
+    reencrypt_options: &mut ReencryptOptionsCache,
 ) -> io::Result<Option<NormalEntry>> {
     // The editor applies the name policy, which may be to keep the name exactly as
     // received, so it has to see the stored name. A sanitized path arrives with the
@@ -2113,7 +2126,28 @@ fn transform_normal_entry(
         return Ok(None);
     };
 
-    let mut result = entry.with_name(new_name);
+    let mut result = if new_name == *entry.name() {
+        // A name that did not change is not a rename, so it must not be sent
+        // through the re-encryption path below.
+        entry
+    } else if entry.encryption() != pna::Encryption::NO
+        && !entry.cipher_mode().allows_header_rewrite()
+    {
+        // The stream key is bound to the header bytes, so a renamed entry is
+        // only readable if it is decrypted and re-encrypted under the new name.
+        let Some(password) = password else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "cannot rename encrypted entry {original_name}: an entry encrypted in cipher mode {:?} must be re-encrypted under the new name, which requires the password",
+                    entry.cipher_mode()
+                ),
+            ));
+        };
+        re_encrypt_entry_with_name(&entry, new_name, password, option, reencrypt_options)?
+    } else {
+        entry.try_with_name(new_name)?
+    };
 
     let mut metadata = result.metadata().clone();
     match keep_options.timestamp_strategy {
@@ -2190,6 +2224,83 @@ fn transform_normal_entry(
     Ok(Some(result))
 }
 
+type ReencryptOptionsKey = (pna::Compression, pna::Encryption, pna::CipherMode);
+type ReencryptOptionsCache = HashMap<ReencryptOptionsKey, WriteOptions>;
+
+/// Decrypts `entry` and rebuilds it under `new_name`, re-encrypted with the
+/// same encryption algorithm, cipher mode, and compression as the source entry.
+///
+/// Everything else — the hash algorithm and its cost parameters, the compression
+/// level, the GCM segment size — is inherited from `create_options` so that the
+/// flags the user passed on this command line are honored. Those settings live
+/// inside the cipher of `create_options`, so they are only available to inherit
+/// when this run also selected an encryption algorithm; otherwise the defaults
+/// apply. The source entry's own KDF cost parameters are never recoverable from a
+/// parsed entry, so they cannot be carried over either way.
+fn re_encrypt_entry_with_name(
+    entry: &NormalEntry,
+    new_name: pna::EntryName,
+    password: &[u8],
+    create_options: &WriteOptions,
+    reencrypt_options: &mut ReencryptOptionsCache,
+) -> io::Result<NormalEntry> {
+    let header = entry.header();
+    let key = (
+        header.compression(),
+        header.encryption(),
+        header.cipher_mode(),
+    );
+    let options = match reencrypt_options.entry(key) {
+        std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+        std::collections::hash_map::Entry::Vacant(entry) => {
+            log::warn!(
+                "re-encrypting entries under their new names: the key derivation parameters recorded in the source cannot be recovered, so this run's settings are used instead"
+            );
+            let options = create_options
+                .clone()
+                .into_builder()
+                .compression(header.compression())
+                .encryption(header.encryption())
+                .cipher_mode(header.cipher_mode())
+                .password(Some(password))
+                .try_build()?;
+            entry.insert(options)
+        }
+    };
+    let read_options = pna::ReadOptions::with_password(Some(password));
+    let built = match entry.header().data_kind() {
+        DataKind::SYMBOLIC_LINK => {
+            let EntryContent::SymbolicLink(reference) = entry.content(read_options)? else {
+                unreachable!("data kind is SYMBOLIC_LINK")
+            };
+            SymlinkEntryBuilder::new_with_options(new_name, reference, &*options)?.build()?
+        }
+        DataKind::HARD_LINK => {
+            let EntryContent::HardLink(reference) = entry.content(read_options)? else {
+                unreachable!("data kind is HARD_LINK")
+            };
+            HardLinkEntryBuilder::new_with_options(new_name, reference, &*options)?.build()?
+        }
+        DataKind::FILE => {
+            let mut builder = FileEntryBuilder::new_with_options(new_name, &*options)?;
+            io::copy(&mut entry.reader(read_options)?, &mut builder)?;
+            builder.build()?
+        }
+        // Kinds with no builder that takes both a payload and write options —
+        // directories, and private or reserved kinds. Re-encrypting the opaque
+        // byte stream preserves data that another tool may have attached to a
+        // kind this build does not model, instead of dropping it.
+        kind => {
+            let mut builder = OpaqueEntryBuilder::new_with_options(new_name, kind, &*options)?;
+            io::copy(&mut entry.reader(read_options)?, &mut builder)?;
+            builder.build()?
+        }
+    };
+    Ok(built
+        .with_metadata(entry.metadata().clone())
+        .with_extra_chunks(entry.extra_chunks()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2212,6 +2323,280 @@ mod tests {
                 TimeRange::new_strict(None, None),
                 MissingTimePolicy::Include,
             ),
+        }
+    }
+
+    #[test]
+    fn gcm_reencrypt_options_are_reused_for_matching_entries() {
+        let source_options = WriteOptions::builder()
+            .encryption(pna::Encryption::AES)
+            .cipher_mode(pna::CipherMode::GCM)
+            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .password(Some("password"))
+            .build();
+        let mut source =
+            FileEntryBuilder::new_with_options("original".into(), &source_options).unwrap();
+        source.write_all(b"secret payload").unwrap();
+        let source = source.build().unwrap();
+        let mut cache = ReencryptOptionsCache::new();
+
+        let first = re_encrypt_entry_with_name(
+            &source,
+            "first".into(),
+            b"password",
+            &gcm_write_options(),
+            &mut cache,
+        )
+        .unwrap();
+        let second = re_encrypt_entry_with_name(
+            &source,
+            "second".into(),
+            b"password",
+            &gcm_write_options(),
+            &mut cache,
+        )
+        .unwrap();
+
+        assert_eq!(cache.len(), 1);
+        for entry in [first, second] {
+            let mut reader = entry
+                .reader(pna::ReadOptions::with_password(Some("password")))
+                .unwrap();
+            let mut out = Vec::new();
+            reader.read_to_end(&mut out).unwrap();
+            assert_eq!(out, b"secret payload");
+        }
+    }
+
+    #[test]
+    fn gcm_reencrypt_inherits_the_hash_algorithm_from_create_options() {
+        let source_options = WriteOptions::builder()
+            .encryption(pna::Encryption::AES)
+            .cipher_mode(pna::CipherMode::GCM)
+            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .password(Some("password"))
+            .build();
+        let mut source =
+            FileEntryBuilder::new_with_options("original".into(), &source_options).unwrap();
+        source.write_all(b"secret payload").unwrap();
+        let source = source.build().unwrap();
+        let create_options = WriteOptions::builder()
+            .encryption(pna::Encryption::AES)
+            .cipher_mode(pna::CipherMode::GCM)
+            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(2)))
+            .password(Some("password"))
+            .build();
+        let mut cache = ReencryptOptionsCache::new();
+
+        let renamed = re_encrypt_entry_with_name(
+            &source,
+            "renamed".into(),
+            b"password",
+            &create_options,
+            &mut cache,
+        )
+        .unwrap();
+
+        let mut archive = pna::Archive::write_header(Vec::new()).unwrap();
+        archive.add_entry(renamed).unwrap();
+        let bytes = archive.finalize().unwrap();
+        let text = String::from_utf8_lossy(&bytes);
+        assert!(text.contains("$pbkdf2-sha256$i=2"), "{text}");
+        assert!(!text.contains("$pbkdf2-sha256$i=1"), "{text}");
+    }
+
+    fn gcm_write_options() -> WriteOptions {
+        WriteOptions::builder()
+            .encryption(pna::Encryption::AES)
+            .cipher_mode(pna::CipherMode::GCM)
+            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .password(Some("password"))
+            .build()
+    }
+
+    #[test]
+    fn gcm_reencrypt_preserves_file_kind() {
+        let mut source =
+            FileEntryBuilder::new_with_options("original".into(), gcm_write_options()).unwrap();
+        source.write_all(b"secret payload").unwrap();
+        let source = source.build().unwrap();
+        let mut cache = ReencryptOptionsCache::new();
+
+        let renamed = re_encrypt_entry_with_name(
+            &source,
+            "renamed".into(),
+            b"password",
+            &gcm_write_options(),
+            &mut cache,
+        )
+        .unwrap();
+
+        assert_eq!(renamed.data_kind(), pna::DataKind::FILE);
+        assert_eq!(renamed.header().path().as_str(), "renamed");
+        let mut reader = renamed
+            .reader(pna::ReadOptions::with_password(Some("password")))
+            .unwrap();
+        let mut out = Vec::new();
+        reader.read_to_end(&mut out).unwrap();
+        assert_eq!(out, b"secret payload");
+    }
+
+    #[test]
+    fn gcm_reencrypt_preserves_symlink_kind() {
+        let source = SymlinkEntryBuilder::new_with_options(
+            "link".into(),
+            pna::EntryReference::from("target/path"),
+            gcm_write_options(),
+        )
+        .unwrap()
+        .build()
+        .unwrap();
+        let mut cache = ReencryptOptionsCache::new();
+
+        let renamed = re_encrypt_entry_with_name(
+            &source,
+            "renamed".into(),
+            b"password",
+            &gcm_write_options(),
+            &mut cache,
+        )
+        .unwrap();
+
+        assert_eq!(renamed.data_kind(), pna::DataKind::SYMBOLIC_LINK);
+        assert_eq!(renamed.header().path().as_str(), "renamed");
+        match renamed
+            .content(pna::ReadOptions::with_password(Some("password")))
+            .unwrap()
+        {
+            EntryContent::SymbolicLink(target) => assert_eq!(target, "target/path"),
+            other => panic!("expected symlink, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn gcm_reencrypt_preserves_hardlink_kind() {
+        let source = HardLinkEntryBuilder::new_with_options(
+            "link".into(),
+            pna::EntryReference::from("target/entry"),
+            gcm_write_options(),
+        )
+        .unwrap()
+        .build()
+        .unwrap();
+        let mut cache = ReencryptOptionsCache::new();
+
+        let renamed = re_encrypt_entry_with_name(
+            &source,
+            "renamed".into(),
+            b"password",
+            &gcm_write_options(),
+            &mut cache,
+        )
+        .unwrap();
+
+        assert_eq!(renamed.data_kind(), pna::DataKind::HARD_LINK);
+        assert_eq!(renamed.header().path().as_str(), "renamed");
+        match renamed
+            .content(pna::ReadOptions::with_password(Some("password")))
+            .unwrap()
+        {
+            EntryContent::HardLink(target) => assert_eq!(target, "target/entry"),
+            other => panic!("expected hardlink, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn gcm_reencrypt_preserves_directory_kind() {
+        let source = DirEntryBuilder::new("dir".into()).build().unwrap();
+        let mut cache = ReencryptOptionsCache::new();
+
+        let renamed = re_encrypt_entry_with_name(
+            &source,
+            "renamed".into(),
+            b"password",
+            &gcm_write_options(),
+            &mut cache,
+        )
+        .unwrap();
+
+        assert_eq!(renamed.data_kind(), pna::DataKind::DIRECTORY);
+        assert_eq!(renamed.header().path().as_str(), "renamed");
+        assert!(matches!(
+            renamed
+                .content(pna::ReadOptions::with_password(Some("password")))
+                .unwrap(),
+            EntryContent::Directory
+        ));
+    }
+
+    #[test]
+    fn gcm_reencrypt_preserves_an_encrypted_directory_payload() {
+        // libpna's own directory builder takes neither a payload nor write
+        // options, but the wire format allows both, so an archive from another
+        // tool can carry an encrypted directory entry with data attached.
+        let mut source = OpaqueEntryBuilder::new_with_options(
+            "dir".into(),
+            pna::DataKind::DIRECTORY,
+            gcm_write_options(),
+        )
+        .unwrap();
+        source.write_all(b"directory payload").unwrap();
+        let source = source.build().unwrap();
+        let mut cache = ReencryptOptionsCache::new();
+
+        let renamed = re_encrypt_entry_with_name(
+            &source,
+            "renamed".into(),
+            b"password",
+            &gcm_write_options(),
+            &mut cache,
+        )
+        .unwrap();
+
+        assert_eq!(renamed.data_kind(), pna::DataKind::DIRECTORY);
+        assert_eq!(renamed.header().path().as_str(), "renamed");
+        assert_eq!(renamed.header().encryption(), pna::Encryption::AES);
+        assert_eq!(renamed.header().cipher_mode(), pna::CipherMode::GCM);
+        let mut reader = renamed
+            .reader(pna::ReadOptions::with_password(Some("password")))
+            .unwrap();
+        let mut out = Vec::new();
+        reader.read_to_end(&mut out).unwrap();
+        assert_eq!(out, b"directory payload");
+    }
+
+    #[test]
+    fn gcm_reencrypt_preserves_private_kind() {
+        let kind = pna::DataKind::new_private(200).unwrap();
+        let mut source =
+            OpaqueEntryBuilder::new_with_options("original".into(), kind, gcm_write_options())
+                .unwrap();
+        source.write_all(b"opaque payload").unwrap();
+        let source = source.build().unwrap();
+        let mut cache = ReencryptOptionsCache::new();
+
+        let renamed = re_encrypt_entry_with_name(
+            &source,
+            "renamed".into(),
+            b"password",
+            &gcm_write_options(),
+            &mut cache,
+        )
+        .unwrap();
+
+        assert_eq!(renamed.data_kind(), kind);
+        assert_eq!(renamed.header().path().as_str(), "renamed");
+        match renamed
+            .content(pna::ReadOptions::with_password(Some("password")))
+            .unwrap()
+        {
+            EntryContent::Unknown(k, mut reader) => {
+                assert_eq!(k, kind);
+                let mut out = Vec::new();
+                reader.read_to_end(&mut out).unwrap();
+                assert_eq!(out, b"opaque payload");
+            }
+            other => panic!("expected unknown kind, got {other:?}"),
         }
     }
 

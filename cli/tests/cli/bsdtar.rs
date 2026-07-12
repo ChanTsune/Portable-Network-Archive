@@ -1,6 +1,7 @@
 mod archive_inclusion;
 mod archive_source_name_policy;
 mod archive_source_uid_override;
+mod encrypted_rename;
 mod files_from;
 mod list_line_ending;
 mod missing_file;
