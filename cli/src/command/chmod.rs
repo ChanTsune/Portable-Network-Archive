@@ -89,9 +89,8 @@ fn archive_chmod(args: ChmodCommand) -> anyhow::Result<()> {
 
     drop(source);
 
-    temp_file.persist(output_path)?;
-
     globs.ensure_all_matched()?;
+    temp_file.persist(output_path)?;
     Ok(())
 }
 
