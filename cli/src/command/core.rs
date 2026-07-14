@@ -27,14 +27,15 @@ pub(crate) use path_filter::PathFilter;
 use path_slash::*;
 pub(crate) use path_transformer::PathTransformers;
 use pna::{
-    Archive, EntryBuilder, EntryPart, LinkTargetType, MIN_CHUNK_BYTES_SIZE, NormalEntry,
-    PNA_HEADER, ReadEntry, SolidEntryBuilder, WriteOptions, prelude::*,
+    Archive, DataKind, EntryBuilder, EntryName, EntryPart, EntryReference, LinkTargetType,
+    MIN_CHUNK_BYTES_SIZE, NormalEntry, PNA_HEADER, ReadEntry, SolidEntryBuilder, WriteOptions,
+    prelude::*,
 };
 use std::{
     borrow::Cow,
     fmt, fs,
     io::{self, prelude::*},
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     time::SystemTime,
 };
 pub(crate) use time_filter::{TimeFilter, TimeFilters, TimeRange};
@@ -383,6 +384,14 @@ pub(crate) enum StoreAs {
     Dir,
     Symlink(LinkTargetType),
     Hardlink(PathBuf),
+    /// Windows NTFS junction. The inner `PathBuf` is the target read from
+    /// the reparse point: a `/`-separated path relative to the link's parent
+    /// directory when the target resolves inside the walked tree (see
+    /// `relativize_junction_target`), otherwise the absolute form as stored
+    /// on disk — typically a drive path, though volume-GUID mount targets
+    /// are also possible. Only produced on Windows, but declared on every
+    /// platform so match sites do not need `#[cfg]`-gated arms.
+    Junction(PathBuf),
 }
 
 /// Source of an archive to include (file path or stdin).
@@ -781,8 +790,21 @@ pub(crate) fn collect_items_with_state(
                 // Classify entry and maybe add it to output
                 let store = if is_symlink {
                     let meta = fs::symlink_metadata(entry_path)?;
-                    let link_target_type = detect_symlink_target_type(entry_path, &meta)?;
-                    Some((StoreAs::Symlink(link_target_type), meta))
+                    if let Some(target) = classify_junction(entry_path) {
+                        // A depth-0 junction operand keeps its absolute
+                        // target: the target directory is not part of this
+                        // walk, so a relative form could never resolve in the
+                        // extracted tree.
+                        let target = if depth == 0 {
+                            target
+                        } else {
+                            relativize_junction_target(target, entry_path, walk_path)
+                        };
+                        Some((StoreAs::Junction(target), meta))
+                    } else {
+                        let link_target_type = detect_symlink_target_type(entry_path, &meta)?;
+                        Some((StoreAs::Symlink(link_target_type), meta))
+                    }
                 } else if is_file {
                     if let Some(linked) = hardlink_resolver.resolve(entry_path).ok().flatten() {
                         Some((StoreAs::Hardlink(linked), fs::symlink_metadata(entry_path)?))
@@ -883,6 +905,117 @@ fn detect_symlink_target_type(
     }
 }
 
+/// Returns the junction target if `path` is a Windows junction, or `None` for
+/// any non-junction path (including regular directories, symlinks, and
+/// unknown reparse tags). A probe failure (permission denied, sharing
+/// violation, ...) is reported as a warning and classification falls through
+/// to the symlink handler, matching the per-entry non-fatal error policy:
+/// the entry is then stored as a symbolic link rather than a junction.
+#[cfg(windows)]
+fn classify_junction(path: &Path) -> Option<PathBuf> {
+    match crate::utils::os::windows::fs::junction::detect_junction(path) {
+        Ok(v) => v,
+        Err(e) => {
+            log::warn!(
+                "Failed to inspect reparse point {}; storing it as a symbolic link: {e}",
+                path.display()
+            );
+            None
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn classify_junction(_path: &Path) -> Option<PathBuf> {
+    None
+}
+
+/// Rewrites an in-tree junction target to a relative path.
+///
+/// When `target` resolves under `walk_root` (the CLI operand being walked),
+/// returns the path from `link_path`'s parent directory to the resolved
+/// target, `/`-separated, so the archived junction survives extraction into
+/// a different directory or machine. The target is returned unchanged
+/// (absolute) when it resolves outside `walk_root`, when canonicalization
+/// fails (dangling or inaccessible target), when no lexical relative path
+/// exists (different drives), or when the relative form is not valid UTF-8.
+///
+/// Containment is checked against the walk root, not the final entry set: a
+/// target under `walk_root` that filters later exclude still produces a
+/// relative form, which then dangles on extraction — the same outcome the
+/// absolute form has on any other machine.
+#[cfg(windows)]
+fn relativize_junction_target(target: PathBuf, link_path: &Path, walk_root: &Path) -> PathBuf {
+    let Some(link_parent) = link_path.parent() else {
+        return target;
+    };
+    let (Ok(root), Ok(base), Ok(resolved)) = (
+        fs::canonicalize(walk_root),
+        fs::canonicalize(link_parent),
+        fs::canonicalize(&target),
+    ) else {
+        return target;
+    };
+    if !resolved.starts_with(&root) {
+        return target;
+    }
+    let Some(rel) = relative_path_between(&base, &resolved) else {
+        return target;
+    };
+    // The wire form must be `/`-separated: `EntryReference` keeps the string
+    // as-is, and the non-Windows extraction fallback creates a symlink from
+    // it verbatim, where `\` would be an ordinary name character.
+    let mut segments = Vec::new();
+    for component in rel.components() {
+        match component.as_os_str().to_str() {
+            Some(s) => segments.push(s),
+            None => return target,
+        }
+    }
+    PathBuf::from(segments.join("/"))
+}
+
+#[cfg(not(windows))]
+fn relativize_junction_target(target: PathBuf, _link_path: &Path, _walk_root: &Path) -> PathBuf {
+    target
+}
+
+/// Computes `rel` such that `base.join(rel)`, after lexical normalization,
+/// equals `target`. Returns `None` when no such purely lexical relative path
+/// exists: the paths have different prefixes (e.g. drive letters) or only one
+/// of them is absolute. Returns `.` when the paths are equal.
+///
+/// Both inputs are expected to be lexically normalized already (no `.` or
+/// `..` components), as produced by `fs::canonicalize`.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn relative_path_between(base: &Path, target: &Path) -> Option<PathBuf> {
+    let base: Vec<_> = base.components().collect();
+    let target: Vec<_> = target.components().collect();
+    let common = base
+        .iter()
+        .zip(target.iter())
+        .take_while(|(b, t)| b == t)
+        .count();
+    if base[common..]
+        .iter()
+        .chain(&target[common..])
+        .any(|c| matches!(c, Component::Prefix(_) | Component::RootDir))
+    {
+        return None;
+    }
+    let mut rel = PathBuf::new();
+    for _ in &base[common..] {
+        rel.push("..");
+    }
+    for component in &target[common..] {
+        rel.push(component);
+    }
+    if rel.as_os_str().is_empty() {
+        rel.push(".");
+    }
+    Some(rel)
+}
+
 pub(crate) fn collect_split_archives(first: impl AsRef<Path>) -> io::Result<Vec<fs::File>> {
     let first = first.as_ref();
     let mut archives = Vec::new();
@@ -938,6 +1071,30 @@ pub(crate) fn write_from_path(writer: &mut impl Write, path: impl AsRef<Path>) -
     copy_buffered(file, writer)
 }
 
+/// Returns whether an entry encodes a Windows junction.
+///
+/// A junction has no dedicated entry kind; it is encoded as a hard link whose
+/// link-target type is `Directory` (`DataKind::HardLink` + `fLTP=Directory`).
+/// [`junction_entry_builder`] emits the combination and this predicate is the
+/// decode-side check, so the wire encoding has a single definition.
+pub(crate) fn is_encoded_junction(
+    data_kind: DataKind,
+    link_target_type: Option<LinkTargetType>,
+) -> bool {
+    data_kind == DataKind::HardLink && link_target_type == Some(LinkTargetType::Directory)
+}
+
+/// Start building an entry that encodes a Windows junction (see
+/// [`is_encoded_junction`] for the wire encoding).
+pub(crate) fn junction_entry_builder(
+    name: EntryName,
+    reference: EntryReference,
+) -> io::Result<EntryBuilder> {
+    let mut builder = EntryBuilder::new_hard_link(name, reference)?;
+    builder.link_target_type(LinkTargetType::Directory);
+    Ok(builder)
+}
+
 pub(crate) fn create_entry(
     item: &CollectedEntry,
     CreateOptions {
@@ -978,6 +1135,23 @@ pub(crate) fn create_entry(
         }
         StoreAs::Dir => {
             let entry = EntryBuilder::new_dir(entry_name);
+            apply_metadata(entry, path, keep_options, metadata)?.build()
+        }
+        StoreAs::Junction(target) => {
+            // Route the target through PathnameEditor::edit_junction so user-
+            // specified `-s` / `--transform` substitutions apply to junction
+            // targets on the same footing as symlink targets. Targets whose
+            // UTF-16 is not valid Unicode (unpaired surrogates) degrade
+            // lossily in `from_path_lossy_preserve_root`, matching how
+            // symlink targets are encoded.
+            if target.to_str().is_none() {
+                log::warn!(
+                    "Junction target of {} contains non-Unicode data; it was replaced with U+FFFD in the archived target",
+                    path.display()
+                );
+            }
+            let reference = pathname_editor.edit_junction(target);
+            let entry = junction_entry_builder(entry_name, reference)?;
             apply_metadata(entry, path, keep_options, metadata)?.build()
         }
     }
@@ -2411,6 +2585,72 @@ mod tests {
             let mut reader = Cursor::new(&data[..]);
             let format = detect_format(&mut reader).unwrap();
             assert_eq!(format, SourceFormat::Mtree);
+        }
+    }
+
+    mod relative_path_between {
+        use super::super::relative_path_between;
+        use std::path::{Path, PathBuf};
+
+        #[test]
+        fn sibling_of_base() {
+            let rel = relative_path_between(Path::new("/root"), Path::new("/root/target"));
+            assert_eq!(rel, Some(PathBuf::from("target")));
+        }
+
+        #[test]
+        fn requires_ascending_from_base() {
+            let rel = relative_path_between(Path::new("/root/a"), Path::new("/root/target"));
+            assert_eq!(rel, Some(PathBuf::from("../target")));
+        }
+
+        #[test]
+        fn same_path_is_curdir() {
+            let rel = relative_path_between(Path::new("/root/a"), Path::new("/root/a"));
+            assert_eq!(rel, Some(PathBuf::from(".")));
+        }
+
+        #[test]
+        fn target_is_ancestor_of_base() {
+            let rel = relative_path_between(Path::new("/root/a/b"), Path::new("/root"));
+            assert_eq!(rel, Some(PathBuf::from("../..")));
+        }
+
+        #[test]
+        fn base_is_ancestor_of_target() {
+            let rel = relative_path_between(Path::new("/root"), Path::new("/root/a/b"));
+            assert_eq!(rel, Some(PathBuf::from("a/b")));
+        }
+
+        #[test]
+        fn absolute_and_relative_do_not_relate() {
+            assert_eq!(
+                relative_path_between(Path::new("/root"), Path::new("root/target")),
+                None
+            );
+            assert_eq!(
+                relative_path_between(Path::new("root"), Path::new("/root/target")),
+                None
+            );
+        }
+
+        #[cfg(windows)]
+        #[test]
+        fn different_drives_do_not_relate() {
+            assert_eq!(
+                relative_path_between(Path::new(r"C:\root"), Path::new(r"D:\root\target")),
+                None
+            );
+        }
+
+        #[cfg(windows)]
+        #[test]
+        fn verbatim_paths_relate_within_same_drive() {
+            let rel = relative_path_between(
+                Path::new(r"\\?\C:\root\a"),
+                Path::new(r"\\?\C:\root\target"),
+            );
+            assert_eq!(rel, Some(PathBuf::from("../target")));
         }
     }
 }

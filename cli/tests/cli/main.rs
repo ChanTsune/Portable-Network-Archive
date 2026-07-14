@@ -18,6 +18,7 @@ mod diff;
 mod encrypt;
 mod extract;
 mod hardlink;
+mod junction;
 mod keep_acl;
 mod keep_all;
 mod list;
