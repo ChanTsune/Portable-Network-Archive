@@ -22,12 +22,14 @@ fn mklink_junction(link: &std::path::Path, target: &std::path::Path) {
     assert!(status.success(), "mklink /J failed");
 }
 
-/// Precondition: a directory tree containing a junction.
-/// Action: `pna create` over the tree.
+/// Precondition: a junction passed as its own top-level operand, alongside
+/// its target as a separate operand.
+/// Action: `pna create` over both operands.
 /// Expectation: the junction is encoded as HardLink + fLTP=Directory with the
-/// absolute target path stored verbatim as entry data, and the archive
-/// contains exactly the direct tree — the junction's contents are not
-/// followed and duplicated.
+/// absolute target path stored verbatim as entry data — a top-level junction
+/// operand is never relativized because its target is outside its own walk —
+/// and the archive contains exactly the direct tree; the junction's contents
+/// are not followed and duplicated.
 #[test]
 #[cfg(windows)]
 fn create_records_junction_as_hardlink_directory() {
@@ -64,9 +66,7 @@ fn create_records_junction_as_hardlink_directory() {
                 entry.metadata().link_target_type(),
                 Some(LinkTargetType::Directory)
             );
-            let mut reader = entry.reader(ReadOptions::builder().build()).unwrap();
-            let mut s = String::new();
-            std::io::Read::read_to_string(&mut reader, &mut s).unwrap();
+            let s = read_entry_data_string(&entry);
             let expected = target.to_string_lossy();
             assert_eq!(s, expected, "expected exact absolute target; got {s:?}");
             saw_junction_entry = true;
@@ -87,7 +87,9 @@ fn create_records_junction_as_hardlink_directory() {
 /// own ancestor.
 /// Action: `pna create` over the tree.
 /// Expectation: traversal does not recurse through the junction; the archive
-/// contains exactly the direct tree plus the junction entry itself.
+/// contains exactly the direct tree plus the junction entry itself, whose
+/// stored target is the relative form of the ancestor (`.` for the link's
+/// own parent).
 #[test]
 #[cfg(windows)]
 fn create_with_cyclic_junction_does_not_recurse() {
@@ -117,6 +119,9 @@ fn create_with_cyclic_junction_does_not_recurse() {
             continue;
         };
         seen.insert(entry.header().path().as_str().to_string());
+        if entry.header().path().as_str() == "root/loop" {
+            assert_eq!(read_entry_data_string(&entry), ".");
+        }
     }
     let expected: HashSet<String> = ["root", "root/file.txt", "root/loop"]
         .iter()
@@ -125,6 +130,198 @@ fn create_with_cyclic_junction_does_not_recurse() {
     assert_eq!(
         seen, expected,
         "cyclic junction must not be recursed into during create"
+    );
+}
+
+/// Reads an entry's data stream as a UTF-8 string (junction entries store
+/// their target path as the entry data).
+#[cfg(windows)]
+fn read_entry_data_string(entry: &pna::NormalEntry<std::borrow::Cow<'_, [u8]>>) -> String {
+    let mut reader = entry.reader(ReadOptions::builder().build()).unwrap();
+    let mut s = String::new();
+    std::io::Read::read_to_string(&mut reader, &mut s).unwrap();
+    s
+}
+
+/// Precondition: a directory tree where a junction and its target directory
+/// are siblings under the created root.
+/// Action: `pna create` over the root.
+/// Expectation: the stored junction target is the target's name relative to
+/// the link's parent, not the machine-specific absolute path.
+#[test]
+#[cfg(windows)]
+fn create_stores_in_tree_junction_target_relative() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().join("root");
+    std::fs::create_dir(&root).unwrap();
+    let target = root.join("target_dir");
+    std::fs::create_dir(&target).unwrap();
+    let junction = root.join("link_dir");
+    mklink_junction(&junction, &target);
+
+    let archive_path = tmp.path().join("rel.pna");
+    let status = std::process::Command::new(env!("CARGO_BIN_EXE_pna"))
+        .current_dir(tmp.path())
+        .args(["create", "-f"])
+        .arg(&archive_path)
+        .arg("root")
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    let bytes = std::fs::read(&archive_path).unwrap();
+    let mut archive = Archive::read_header(&bytes[..]).unwrap();
+    let mut saw_junction_entry = false;
+    for entry in archive.entries_slice() {
+        let entry = entry.unwrap();
+        let ReadEntry::Normal(entry) = entry else {
+            continue;
+        };
+        if entry.header().path().as_str() == "root/link_dir" {
+            assert_eq!(read_entry_data_string(&entry), "target_dir");
+            saw_junction_entry = true;
+        }
+    }
+    assert!(saw_junction_entry, "no entry found for junction");
+}
+
+/// Precondition: a directory tree where a junction sits in a subdirectory and
+/// points at a directory one level up in the same tree.
+/// Action: `pna create` over the root.
+/// Expectation: the stored junction target ascends with `..` segments,
+/// `/`-separated.
+#[test]
+#[cfg(windows)]
+fn create_stores_nested_junction_target_relative() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().join("root");
+    std::fs::create_dir_all(root.join("a")).unwrap();
+    let target = root.join("target");
+    std::fs::create_dir(&target).unwrap();
+    let junction = root.join("a").join("link");
+    mklink_junction(&junction, &target);
+
+    let archive_path = tmp.path().join("nested.pna");
+    let status = std::process::Command::new(env!("CARGO_BIN_EXE_pna"))
+        .current_dir(tmp.path())
+        .args(["create", "-f"])
+        .arg(&archive_path)
+        .arg("root")
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    let bytes = std::fs::read(&archive_path).unwrap();
+    let mut archive = Archive::read_header(&bytes[..]).unwrap();
+    let mut saw_junction_entry = false;
+    for entry in archive.entries_slice() {
+        let entry = entry.unwrap();
+        let ReadEntry::Normal(entry) = entry else {
+            continue;
+        };
+        if entry.header().path().as_str() == "root/a/link" {
+            assert_eq!(read_entry_data_string(&entry), "../target");
+            saw_junction_entry = true;
+        }
+    }
+    assert!(saw_junction_entry, "no entry found for junction");
+}
+
+/// Precondition: a directory tree containing a junction whose target lies
+/// outside the created root.
+/// Action: `pna create` over the root only.
+/// Expectation: the stored junction target keeps the absolute on-disk form —
+/// a relative form could never resolve inside the extracted tree.
+#[test]
+#[cfg(windows)]
+fn create_keeps_out_of_tree_junction_target_absolute() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().join("root");
+    std::fs::create_dir(&root).unwrap();
+    let external = tmp.path().join("external");
+    std::fs::create_dir(&external).unwrap();
+    let junction = root.join("link_dir");
+    mklink_junction(&junction, &external);
+
+    let archive_path = tmp.path().join("ext.pna");
+    let status = std::process::Command::new(env!("CARGO_BIN_EXE_pna"))
+        .current_dir(tmp.path())
+        .args(["create", "-f"])
+        .arg(&archive_path)
+        .arg("root")
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    let bytes = std::fs::read(&archive_path).unwrap();
+    let mut archive = Archive::read_header(&bytes[..]).unwrap();
+    let mut saw_junction_entry = false;
+    for entry in archive.entries_slice() {
+        let entry = entry.unwrap();
+        let ReadEntry::Normal(entry) = entry else {
+            continue;
+        };
+        if entry.header().path().as_str() == "root/link_dir" {
+            assert_eq!(read_entry_data_string(&entry), external.to_string_lossy());
+            saw_junction_entry = true;
+        }
+    }
+    assert!(saw_junction_entry, "no entry found for junction");
+}
+
+/// Precondition: an archive created from a tree whose junction points at a
+/// sibling directory inside the tree; the source tree is then deleted.
+/// Action: extract with `--allow-unsafe-links` into a different directory.
+/// Expectation: the junction resolves inside the extracted tree — reading the
+/// target's payload through the link succeeds even though the original
+/// location no longer exists.
+#[test]
+#[cfg(windows)]
+fn round_trip_junction_into_different_directory() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().join("root");
+    std::fs::create_dir(&root).unwrap();
+    let target = root.join("target_dir");
+    std::fs::create_dir(&target).unwrap();
+    std::fs::write(target.join("payload.txt"), b"payload").unwrap();
+    let junction = root.join("link_dir");
+    mklink_junction(&junction, &target);
+
+    let archive_path = tmp.path().join("moved.pna");
+    assert!(
+        std::process::Command::new(env!("CARGO_BIN_EXE_pna"))
+            .current_dir(tmp.path())
+            .args(["create", "-f"])
+            .arg(&archive_path)
+            .arg("root")
+            .status()
+            .unwrap()
+            .success()
+    );
+
+    // Deleting the source tree makes the assertion discriminating: an
+    // absolute stored target would still resolve to the original location.
+    std::fs::remove_dir_all(&root).unwrap();
+
+    let out_dir = tmp.path().join("elsewhere");
+    std::fs::create_dir(&out_dir).unwrap();
+    assert!(
+        std::process::Command::new(env!("CARGO_BIN_EXE_pna"))
+            .args(["extract", "-f"])
+            .arg(&archive_path)
+            .arg("--out-dir")
+            .arg(&out_dir)
+            .arg("--allow-unsafe-links")
+            .status()
+            .unwrap()
+            .success()
+    );
+
+    let link = out_dir.join("root").join("link_dir");
+    let read_through = std::fs::read(link.join("payload.txt")).unwrap();
+    assert_eq!(
+        read_through, b"payload",
+        "the junction must resolve inside the extracted tree, not the original location"
     );
 }
 
@@ -686,9 +883,9 @@ fn extract_junction_with_relative_target_passes_through_verbatim() {
 /// junction entry whose stored target is a relative path resolvable against
 /// the link's parent after extraction.
 /// Action: extract with `--allow-unsafe-links`.
-/// Expectation: the deferred link phase runs after files/directories are
-/// restored, so the relative target canonicalizes; the created junction
-/// resolves and the file is readable through it.
+/// Expectation: the relative target is resolved lexically against the link's
+/// parent; the created junction resolves against the restored tree and the
+/// file is readable through it.
 #[test]
 #[cfg(windows)]
 fn extract_junction_with_relative_target_resolves() {
@@ -754,10 +951,10 @@ fn extract_junction_with_relative_target_resolves() {
 
 /// Precondition: archive with a junction entry whose stored target is a
 /// relative path that exists neither in the archive nor on disk.
-/// Action: extract with `--allow-unsafe-links` into an absolute output
+/// Action: extract with `--allow-unsafe-links` into a relative output
 /// directory.
-/// Expectation: canonicalization of the joined target fails, the raw join is
-/// absolute and is used as-is, so extraction succeeds and creates a dangling
+/// Expectation: the joined target is made absolute lexically without
+/// consulting the filesystem, so extraction succeeds and creates a dangling
 /// junction.
 #[test]
 #[cfg(windows)]
@@ -767,9 +964,6 @@ fn extract_junction_with_unresolvable_relative_target_creates_dangling() {
     let _ = fs::remove_dir_all(base);
     let out_dir = format!("{base}/out");
     fs::create_dir_all(&out_dir).unwrap();
-    // The raw-join fallback produces an absolute path only when the link path
-    // itself is absolute, so pass the output directory in absolute form.
-    let out_dir_abs = fs::canonicalize(&out_dir).unwrap();
 
     let archive_path = format!("{base}/{base}.pna");
     fs::write(&archive_path, build_junction_fixture("missing_target")).unwrap();
@@ -781,14 +975,14 @@ fn extract_junction_with_unresolvable_relative_target_creates_dangling() {
         "-f",
         &archive_path,
         "--out-dir",
-        out_dir_abs.to_str().unwrap(),
+        &out_dir,
         "--allow-unsafe-links",
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    let link = out_dir_abs.join("link_dir");
+    let link = std::path::Path::new(&out_dir).join("link_dir");
     let meta = fs::symlink_metadata(&link).unwrap();
     use std::os::windows::fs::FileTypeExt;
     let ft = meta.file_type();

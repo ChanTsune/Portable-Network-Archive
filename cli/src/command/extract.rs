@@ -2064,12 +2064,12 @@ fn symlink_with_type<P: AsRef<Path>, Q: AsRef<Path>>(
 /// the PNA spec (`chunk_specifications/index.md`). Accepts both absolute and
 /// relative stored targets:
 ///
-/// - On Windows, relative targets are resolved against `link`'s parent then
-///   canonicalized to an absolute path (the kernel requires junction targets
-///   to be absolute). If canonicalization fails (e.g. the target does not
-///   exist), the raw join is used instead: an absolute join is still
-///   attempted, possibly producing a dangling junction, while a non-absolute
-///   join is rejected by `create_junction`.
+/// - On Windows, relative targets are resolved against `link`'s parent and
+///   made absolute lexically (the kernel requires junction targets to be
+///   absolute). The resolution must not consult the filesystem: a dangling
+///   target is a legitimate junction state, and filesystem-dependent
+///   resolution would make the reparse data depend on what happens to exist
+///   at extraction time.
 /// - On non-Windows, the raw stored string is passed to `symlink` verbatim
 ///   so the resulting symlink is identical to what the archive encoded.
 ///
@@ -2091,18 +2091,7 @@ fn create_junction_or_fallback(link: &Path, target: &EntryReference) -> io::Resu
             raw.to_path_buf()
         } else {
             let base = link.parent().unwrap_or_else(|| Path::new("."));
-            let joined = base.join(raw);
-            match std::fs::canonicalize(&joined) {
-                Ok(canon) => canon,
-                Err(e) => {
-                    log::warn!(
-                        "Failed to canonicalize junction target {}: {}; using the raw join (the created junction may not resolve)",
-                        joined.display(),
-                        e
-                    );
-                    joined
-                }
-            }
+            std::path::absolute(base.join(raw))?
         };
         crate::utils::os::windows::fs::reparse::create_junction(link, &absolute)
     }
