@@ -431,15 +431,11 @@ impl<T> SolidEntry<T> {
 }
 
 impl<T: AsRef<[u8]>> SolidEntry<T> {
-    /// Returns a reader over the encoded `SDAT` chunk body bytes.
-    ///
-    /// This reader exposes the solid entry data as stored in the archive,
-    /// before decryption or decompression. It returns the concatenated bodies
-    /// of all `SDAT` chunks and does not include chunk length, type, or CRC
-    /// bytes.
+    /// Deprecated alias for [`SolidEntry::raw_content`].
     #[inline]
+    #[deprecated(since = "0.36.0", note = "use raw_content() instead")]
     pub fn encoded_reader(&self) -> EncodedDataReader<'_> {
-        encoded_data_reader(&self.data)
+        self.raw_content()
     }
 
     /// Returns a reader over the encoded `SDAT` chunk body bytes.
@@ -493,7 +489,7 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
         options: O,
     ) -> io::Result<impl Iterator<Item = io::Result<NormalEntry>> + use<'a, T, O>> {
         let reader = decrypt_reader(
-            self.encoded_reader(),
+            self.raw_content(),
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
@@ -1173,14 +1169,11 @@ impl<T: Clone> NormalEntry<T> {
 }
 
 impl<T: AsRef<[u8]>> NormalEntry<T> {
-    /// Returns a reader over the encoded `FDAT` chunk body bytes.
-    ///
-    /// This reader exposes the entry data as stored in the archive, before
-    /// decryption or decompression. It returns the concatenated bodies of all
-    /// `FDAT` chunks and does not include chunk length, type, or CRC bytes.
+    /// Deprecated alias for [`NormalEntry::raw_content`].
     #[inline]
+    #[deprecated(since = "0.36.0", note = "use raw_content() instead")]
     pub fn encoded_reader(&self) -> EncodedDataReader<'_> {
-        encoded_data_reader(&self.data)
+        self.raw_content()
     }
 
     /// Returns a reader over the encoded `FDAT` chunk body bytes.
@@ -1221,7 +1214,7 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
     #[inline]
     pub fn reader(&self, option: impl ReadOption) -> io::Result<EntryDataReader<'_>> {
         let decrypt_reader = decrypt_reader(
-            self.encoded_reader(),
+            self.raw_content(),
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
@@ -1567,7 +1560,7 @@ mod tests {
     }
 
     #[test]
-    fn normal_entry_encoded_reader_returns_encoded_fdat_body() {
+    fn normal_entry_raw_content_returns_encoded_fdat_body() {
         let data = b"plain data plain data plain data";
         let mut builder = EntryBuilder::new_file(
             "encoded".into(),
@@ -1580,7 +1573,7 @@ mod tests {
         let entry = builder.build().unwrap();
 
         let mut encoded = Vec::new();
-        entry.encoded_reader().read_to_end(&mut encoded).unwrap();
+        entry.raw_content().read_to_end(&mut encoded).unwrap();
 
         let mut decoded = Vec::new();
         entry
@@ -1594,7 +1587,7 @@ mod tests {
     }
 
     #[test]
-    fn solid_entry_encoded_reader_concatenates_sdat_bodies() {
+    fn solid_entry_raw_content_concatenates_sdat_bodies() {
         let solid = SolidEntry {
             header: SolidHeader::new(Compression::No, Encryption::No, CipherMode::CBC),
             phsf: None,
@@ -1603,7 +1596,7 @@ mod tests {
         };
 
         let mut encoded = Vec::new();
-        solid.encoded_reader().read_to_end(&mut encoded).unwrap();
+        solid.raw_content().read_to_end(&mut encoded).unwrap();
 
         assert_eq!(encoded, b"abcdef");
     }
