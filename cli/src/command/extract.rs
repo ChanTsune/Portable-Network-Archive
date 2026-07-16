@@ -27,7 +27,8 @@ use crate::{
 use anyhow::Context;
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::{
-    DataKind, EntryName, EntryReference, LinkTargetType, NormalEntry, ReadOptions, prelude::*,
+    DataKind, EntryContent, EntryName, EntryReference, LinkTargetType, NormalEntry, ReadOptions,
+    prelude::*,
 };
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
@@ -1393,11 +1394,9 @@ where
         return Ok(());
     };
 
-    match item.header().data_kind() {
-        DataKind::SymbolicLink => {
-            let reader = item.reader(read_options)?;
-            let original = io::read_to_string(reader)?;
-            let original = pathname_editor.edit_symlink(original.as_ref());
+    match item.content(read_options)? {
+        EntryContent::SymbolicLink(stored) => {
+            let original = pathname_editor.edit_symlink(Path::new(stored.as_str()));
             if !allow_unsafe_links && is_unsafe_link(&original) {
                 log::warn!(
                     "Skipped extracting a symbolic link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
@@ -1410,14 +1409,13 @@ where
             let link_target_type = item.metadata().link_target_type();
             symlink_with_type(&original, &path, link_target_type)?;
         }
-        DataKind::HardLink => {
-            let reader = item.reader(read_options)?;
-            let original = io::read_to_string(reader)?;
-            let Some((original, had_root)) = pathname_editor.edit_hardlink(original.as_ref())
+        EntryContent::HardLink(stored) => {
+            let Some((original, had_root)) =
+                pathname_editor.edit_hardlink(Path::new(stored.as_str()))
             else {
                 log::warn!(
                     "Skipped extracting a hard link that pointed at a file which was skipped.: {}",
-                    original
+                    stored
                 );
                 return Ok(());
             };
@@ -1440,7 +1438,7 @@ where
             }
             fs::hard_link(original, &path)?;
         }
-        kind => unreachable!("extract_link_entry called with {kind:?}"),
+        content => unreachable!("extract_link_entry called with {content:?}"),
     }
 
     restore_metadata(&item, &path, keep_options)?;
