@@ -10,7 +10,7 @@ use crate::{
 use clap::Parser;
 #[cfg(unix)]
 use pna::prelude::MetadataTimeExt;
-use pna::{DataKind, NormalEntry, ReadOptions};
+use pna::{DataKind, EntryContent, NormalEntry, ReadOptions};
 use same_file::is_same_file;
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
@@ -18,11 +18,7 @@ use std::os::unix::fs::MetadataExt;
 use std::os::unix::fs::PermissionsExt;
 #[cfg(unix)]
 use std::time::SystemTime;
-use std::{
-    fmt, fs,
-    io::{self, prelude::*},
-    path::Path,
-};
+use std::{fmt, fs, io, path::Path};
 
 #[derive(Parser, Clone, Debug)]
 pub(crate) struct DiffCommand {
@@ -313,10 +309,10 @@ fn compare_entry<T: AsRef<[u8]>>(
         }
         DataKind::SymbolicLink if meta.is_symlink() => {
             let link = fs::read_link(path)?;
-            let mut reader = entry.reader(read_options)?;
-            let mut link_str = String::new();
-            reader.read_to_string(&mut link_str)?;
-            if link.as_path() != Path::new(&link_str) {
+            let EntryContent::SymbolicLink(stored) = entry.content(read_options)? else {
+                unreachable!("data_kind() returned SymbolicLink");
+            };
+            if link.as_path() != Path::new(stored.as_str()) {
                 println!("{}", DiffKind::SymlinkDiffers.display(path_str));
             }
         }
@@ -324,14 +320,16 @@ fn compare_entry<T: AsRef<[u8]>>(
             println!("{}", DiffKind::TypeMismatch.display(path_str));
         }
         DataKind::HardLink if meta.is_file() => {
-            let mut reader = entry.reader(read_options)?;
-            let mut target = String::new();
-            reader.read_to_string(&mut target)?;
-
-            match is_same_file(path, &target) {
+            let EntryContent::HardLink(stored) = entry.content(read_options)? else {
+                unreachable!("data_kind() returned HardLink");
+            };
+            match is_same_file(path, stored.as_str()) {
                 Ok(true) => (),
                 Ok(false) => {
-                    println!("{}", DiffKind::NotLinked(target).display(path_str));
+                    println!(
+                        "{}",
+                        DiffKind::NotLinked(stored.to_string()).display(path_str)
+                    );
                 }
                 Err(e) if e.kind() == io::ErrorKind::NotFound => {
                     println!("{}", DiffKind::Missing.display(path_str));
