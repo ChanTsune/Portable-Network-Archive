@@ -18,8 +18,8 @@ use clap::{
 };
 use jiff::{Timestamp, Zoned, tz::TimeZone};
 use pna::{
-    Compression, DataKind, Encryption, ExtendedAttribute, NormalEntry, RawChunk, ReadEntry,
-    ReadOptions, SolidHeader, prelude::*,
+    Compression, DataKind, Encryption, EntryContent, ExtendedAttribute, NormalEntry, RawChunk,
+    ReadEntry, ReadOptions, SolidHeader, prelude::*,
 };
 use rayon::prelude::*;
 use serde::Serialize;
@@ -420,10 +420,10 @@ impl TableRow {
                     entry.name().to_string(),
                     // Only read link target if needed (requires decompression)
                     if collect.link_target {
-                        entry
-                            .reader(read_options)
-                            .and_then(io::read_to_string)
-                            .unwrap_or_else(|_| "-".into())
+                        match entry.content(read_options) {
+                            Ok(EntryContent::SymbolicLink(target)) => target.to_string(),
+                            _ => "-".into(),
+                        }
                     } else {
                         String::new()
                     },
@@ -432,10 +432,10 @@ impl TableRow {
                     entry.name().to_string(),
                     // Only read link target if needed (requires decompression)
                     if collect.link_target {
-                        entry
-                            .reader(read_options)
-                            .and_then(io::read_to_string)
-                            .unwrap_or_else(|_| "-".into())
+                        match entry.content(read_options) {
+                            Ok(EntryContent::HardLink(target)) => target.to_string(),
+                            _ => "-".into(),
+                        }
                     } else {
                         String::new()
                     },
