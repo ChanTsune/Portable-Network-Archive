@@ -442,6 +442,17 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
         encoded_data_reader(&self.data)
     }
 
+    /// Returns a reader over the encoded `SDAT` chunk body bytes.
+    ///
+    /// This reader exposes the solid entry data as stored in the archive,
+    /// before decryption or decompression. It returns the concatenated bodies
+    /// of all `SDAT` chunks and does not include chunk length, type, or CRC
+    /// bytes.
+    #[inline]
+    pub fn raw_content(&self) -> EncodedDataReader<'_> {
+        encoded_data_reader(&self.data)
+    }
+
     /// Returns an iterator over the entries in the [`SolidEntry`].
     ///
     /// # Errors
@@ -1169,6 +1180,16 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
     /// `FDAT` chunks and does not include chunk length, type, or CRC bytes.
     #[inline]
     pub fn encoded_reader(&self) -> EncodedDataReader<'_> {
+        encoded_data_reader(&self.data)
+    }
+
+    /// Returns a reader over the encoded `FDAT` chunk body bytes.
+    ///
+    /// This reader exposes the entry data as stored in the archive, before
+    /// decryption or decompression. It returns the concatenated bodies of all
+    /// `FDAT` chunks and does not include chunk length, type, or CRC bytes.
+    #[inline]
+    pub fn raw_content(&self) -> EncodedDataReader<'_> {
         encoded_data_reader(&self.data)
     }
 
