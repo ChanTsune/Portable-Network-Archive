@@ -207,4 +207,64 @@ mod tests {
         };
         assert_eq!("target", target);
     }
+
+    #[test]
+    fn directory_with_stray_data_is_still_directory() {
+        let mut entry = EntryBuilder::new_dir("d".into()).build().unwrap();
+        entry.data = vec![b"junk".to_vec()];
+        assert!(matches!(
+            entry.content(read_options()).unwrap(),
+            EntryContent::Directory
+        ));
+    }
+
+    #[test]
+    fn non_utf8_symlink_target_is_invalid_data() {
+        let mut entry =
+            EntryBuilder::new_symlink("l".into(), EntryReference::from_utf8_preserve_root("t"))
+                .unwrap()
+                .build()
+                .unwrap();
+        entry.data = vec![vec![0xFF, 0xFE, 0xFD]];
+        let err = entry.content(read_options()).unwrap_err();
+        assert_eq!(io::ErrorKind::InvalidData, err.kind());
+    }
+
+    #[test]
+    fn non_utf8_hard_link_target_is_invalid_data() {
+        let mut entry =
+            EntryBuilder::new_hard_link("l".into(), EntryReference::from_utf8_preserve_root("t"))
+                .unwrap()
+                .build()
+                .unwrap();
+        entry.data = vec![vec![0xFF, 0xFE, 0xFD]];
+        let err = entry.content(read_options()).unwrap_err();
+        assert_eq!(io::ErrorKind::InvalidData, err.kind());
+    }
+
+    #[test]
+    fn reserved_kind_yields_unknown_with_raw_bytes() {
+        let mut builder = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
+        builder.write_all(b"raw").unwrap();
+        let mut entry = builder.build().unwrap();
+        entry.header.data_kind = DataKind::Reserved(42);
+        let EntryContent::Unknown(kind, reader) = entry.content(read_options()).unwrap() else {
+            panic!("expected Unknown");
+        };
+        assert_eq!(DataKind::Reserved(42), kind);
+        assert_eq!("raw", io::read_to_string(reader).unwrap());
+    }
+
+    #[test]
+    fn private_kind_yields_unknown_with_raw_bytes() {
+        let mut builder = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
+        builder.write_all(b"raw").unwrap();
+        let mut entry = builder.build().unwrap();
+        entry.header.data_kind = DataKind::Private(200);
+        let EntryContent::Unknown(kind, reader) = entry.content(read_options()).unwrap() else {
+            panic!("expected Unknown");
+        };
+        assert_eq!(DataKind::Private(200), kind);
+        assert_eq!("raw", io::read_to_string(reader).unwrap());
+    }
 }
