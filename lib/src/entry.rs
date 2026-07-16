@@ -2,6 +2,7 @@
 
 mod attr;
 mod builder;
+mod content;
 mod header;
 mod meta;
 mod name;
@@ -13,6 +14,7 @@ mod write;
 pub use self::{
     attr::*,
     builder::{EntryBuilder, SolidEntryBuilder},
+    content::*,
     header::*,
     meta::*,
     name::*,
