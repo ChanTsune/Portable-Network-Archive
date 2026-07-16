@@ -64,27 +64,27 @@ fn symlink_no_follow() {
         "symlink_no_follow/symlink_no_follow.pna",
         |entry| match entry.header().path().as_str() {
             "symlink_no_follow/source" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::DIRECTORY)
             }
             "symlink_no_follow/source/text.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::FILE)
             }
             "symlink_no_follow/source/dir" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::DIRECTORY)
             }
             "symlink_no_follow/source/dir/in_dir_text.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::FILE)
             }
             "symlink_no_follow/source/dir/in_dir_link.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SYMBOLIC_LINK);
                 assert_eq!(archive::read_symlink_target(&entry), "in_dir_text.txt");
             }
             "symlink_no_follow/source/link_dir" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SYMBOLIC_LINK);
                 assert_eq!(archive::read_symlink_target(&entry), "dir");
             }
             "symlink_no_follow/source/link.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SYMBOLIC_LINK);
                 assert_eq!(archive::read_symlink_target(&entry), "text.txt");
             }
             path => unreachable!("unexpected entry found: {path}"),
@@ -155,31 +155,31 @@ fn symlink_follow() {
     archive::for_each_entry("symlink_follow/symlink_follow.pna", |entry| {
         match entry.header().path().as_str() {
             "symlink_follow/source" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::DIRECTORY)
             }
             "symlink_follow/source/text.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::FILE)
             }
             "symlink_follow/source/dir" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::DIRECTORY)
             }
             "symlink_follow/source/dir/in_dir_text.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::FILE)
             }
             "symlink_follow/source/dir/in_dir_link.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::FILE)
             }
             "symlink_follow/source/link_dir" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::DIRECTORY)
             }
             "symlink_follow/source/link_dir/in_dir_link.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::FILE)
             }
             "symlink_follow/source/link_dir/in_dir_text.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::FILE)
             }
             "symlink_follow/source/link.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::FILE)
             }
             path => unreachable!("unexpected entry found: {path}"),
         }
@@ -240,14 +240,14 @@ fn broken_symlink_no_follow() {
         "broken_symlink_no_follow/broken_symlink_no_follow.pna",
         |entry| match entry.header().path().as_str() {
             "broken_symlink_no_follow/source" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::DIRECTORY)
             }
             "broken_symlink_no_follow/source/broken.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SYMBOLIC_LINK);
                 assert_eq!(archive::read_symlink_target(&entry), "missing.txt");
             }
             "broken_symlink_no_follow/source/broken_link" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SYMBOLIC_LINK);
                 assert_eq!(archive::read_symlink_target(&entry), "missing_target");
             }
             path => unreachable!("unexpected entry found: {path}"),
@@ -312,14 +312,14 @@ fn broken_symlink_follow() {
         "broken_symlink_follow/broken_symlink_follow.pna",
         |entry| match entry.header().path().as_str() {
             "broken_symlink_follow/source" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::DIRECTORY)
             }
             "broken_symlink_follow/source/broken.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SYMBOLIC_LINK);
                 assert_eq!(archive::read_symlink_target(&entry), "missing.txt");
             }
             "broken_symlink_follow/source/broken_link" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SYMBOLIC_LINK);
                 assert_eq!(archive::read_symlink_target(&entry), "missing_target");
             }
             path => unreachable!("unexpected entry found: {path}"),
@@ -389,7 +389,7 @@ fn symlink_depth0_no_follow_file() {
         "symlink_depth0_no_follow_file/symlink_depth0_no_follow_file.pna",
         |entry| match entry.header().path().as_str() {
             "symlink_depth0_no_follow_file/link.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SYMBOLIC_LINK);
                 assert_eq!(archive::read_symlink_target(&entry), "target.txt");
             }
             path => unreachable!("unexpected entry found: {path}"),
@@ -456,7 +456,7 @@ fn symlink_depth0_no_follow_dir() {
         "symlink_depth0_no_follow_dir/symlink_depth0_no_follow_dir.pna",
         |entry| match entry.header().path().as_str() {
             "symlink_depth0_no_follow_dir/link_dir" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SYMBOLIC_LINK);
                 assert_eq!(archive::read_symlink_target(&entry), "dir");
             }
             path => unreachable!("unexpected entry found: {path}"),
@@ -516,30 +516,30 @@ fn symlink_follow_command_line_partial() {
     archive::for_each_entry("symlink_follow_partial/partial.pna", |entry| {
         match entry.header().path().as_str() {
             "symlink_follow_partial/source/dir" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory);
+                assert_eq!(entry.header().data_kind(), pna::DataKind::DIRECTORY);
             }
             "symlink_follow_partial/source/dir/in_dir_link.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SYMBOLIC_LINK);
                 assert_eq!(archive::read_symlink_target(&entry), "in_dir_text.txt");
             }
             "symlink_follow_partial/source/dir/in_dir_text.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::File);
+                assert_eq!(entry.header().data_kind(), pna::DataKind::FILE);
             }
             "symlink_follow_partial/source/link_dir" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory);
+                assert_eq!(entry.header().data_kind(), pna::DataKind::DIRECTORY);
             }
             "symlink_follow_partial/source/link_dir/in_dir_link.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SYMBOLIC_LINK);
                 assert_eq!(archive::read_symlink_target(&entry), "in_dir_text.txt");
             }
             "symlink_follow_partial/source/link_dir/in_dir_text.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::File);
+                assert_eq!(entry.header().data_kind(), pna::DataKind::FILE);
             }
             "symlink_follow_partial/source/link.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::File);
+                assert_eq!(entry.header().data_kind(), pna::DataKind::FILE);
             }
             "symlink_follow_partial/source/text.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::File);
+                assert_eq!(entry.header().data_kind(), pna::DataKind::FILE);
             }
             path => unreachable!("unexpected entry found: {path}"),
         }

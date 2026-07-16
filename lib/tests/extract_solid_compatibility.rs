@@ -53,7 +53,7 @@ fn extract_all(bytes: &[u8], password: Option<&[u8]>) {
     let read_options = ReadOptions::with_password(password);
     for entry in archive_reader.entries_with_options(&read_options) {
         let item = entry.unwrap();
-        if item.header().data_kind() == DataKind::Directory {
+        if item.header().data_kind() == DataKind::DIRECTORY {
             continue;
         }
         n += 1;
@@ -69,7 +69,7 @@ fn extract_all(bytes: &[u8], password: Option<&[u8]>) {
             ReadEntry::Solid(item) => {
                 for item in item.entries(&read_options).unwrap() {
                     let item = item.unwrap();
-                    if item.header().data_kind() == DataKind::Directory {
+                    if item.header().data_kind() == DataKind::DIRECTORY {
                         continue;
                     }
                     n += 1;
@@ -77,7 +77,7 @@ fn extract_all(bytes: &[u8], password: Option<&[u8]>) {
                 }
             }
             ReadEntry::Normal(item) => {
-                if item.header().data_kind() == DataKind::Directory {
+                if item.header().data_kind() == DataKind::DIRECTORY {
                     continue;
                 }
                 n += 1;

@@ -8,7 +8,7 @@ fn extract_all(follows: &[&[u8]], password: Option<&str>) {
         idx += 1;
         for entry in archive_reader.entries().skip_solid() {
             let item = entry.unwrap();
-            if item.header().data_kind() == DataKind::Directory {
+            if item.header().data_kind() == DataKind::DIRECTORY {
                 continue;
             }
             let path = item.header().path().to_string();

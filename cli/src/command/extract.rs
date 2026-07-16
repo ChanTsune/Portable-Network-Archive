@@ -637,7 +637,7 @@ where
                         }
                         if matches!(
                             item.header().data_kind(),
-                            DataKind::SymbolicLink | DataKind::HardLink
+                            DataKind::SYMBOLIC_LINK | DataKind::HARD_LINK
                         ) {
                             link_entries.push((name, item));
                             if globs.all_matched() {
@@ -645,7 +645,7 @@ where
                             }
                             return Ok(ProcessAction::Continue);
                         }
-                        if item.header().data_kind() == DataKind::Directory {
+                        if item.header().data_kind() == DataKind::DIRECTORY {
                             if extract_directory_structure(&item, &name, &args).map_err(|e| {
                                 io::Error::new(e.kind(), format!("extracting {}: {e}", item.name()))
                             })? {
@@ -696,12 +696,12 @@ where
                         }
                         if matches!(
                             item.header().data_kind(),
-                            DataKind::SymbolicLink | DataKind::HardLink
+                            DataKind::SYMBOLIC_LINK | DataKind::HARD_LINK
                         ) {
                             link_entries.push((name, item));
                             return Ok(());
                         }
-                        if item.header().data_kind() == DataKind::Directory {
+                        if item.header().data_kind() == DataKind::DIRECTORY {
                             if extract_directory_structure(&item, &name, &args).map_err(|e| {
                                 io::Error::new(e.kind(), format!("extracting {}: {e}", item.name()))
                             })? {
@@ -763,7 +763,7 @@ where
                     }
                     if matches!(
                         item.header().data_kind(),
-                        DataKind::SymbolicLink | DataKind::HardLink
+                        DataKind::SYMBOLIC_LINK | DataKind::HARD_LINK
                     ) {
                         link_entries.push((name, item));
                         if globs.all_matched() {
@@ -771,7 +771,7 @@ where
                         }
                         return Ok(ProcessAction::Continue);
                     }
-                    if item.header().data_kind() == DataKind::Directory {
+                    if item.header().data_kind() == DataKind::DIRECTORY {
                         if extract_directory_structure(&item, &name, &args).map_err(|e| {
                             io::Error::new(e.kind(), format!("extracting {}: {e}", item.name()))
                         })? {
@@ -812,12 +812,12 @@ where
                     }
                     if matches!(
                         item.header().data_kind(),
-                        DataKind::SymbolicLink | DataKind::HardLink
+                        DataKind::SYMBOLIC_LINK | DataKind::HARD_LINK
                     ) {
                         link_entries.push((name, item));
                         return Ok(());
                     }
-                    if item.header().data_kind() == DataKind::Directory {
+                    if item.header().data_kind() == DataKind::DIRECTORY {
                         if extract_directory_structure(&item, &name, &args).map_err(|e| {
                             io::Error::new(e.kind(), format!("extracting {}: {e}", item.name()))
                         })? {
@@ -904,7 +904,7 @@ where
                 }
                 if matches!(
                     item.header().data_kind(),
-                    DataKind::SymbolicLink | DataKind::HardLink
+                    DataKind::SYMBOLIC_LINK | DataKind::HARD_LINK
                 ) {
                     link_entries.push((name, item.into()));
                     if globs.all_matched() {
@@ -912,7 +912,7 @@ where
                     }
                     return Ok(ProcessAction::Continue);
                 }
-                if item.header().data_kind() == DataKind::Directory {
+                if item.header().data_kind() == DataKind::DIRECTORY {
                     if extract_directory_structure(&item, &name, &args).map_err(|e| {
                         io::Error::new(e.kind(), format!("extracting {}: {e}", item.name()))
                     })? {
@@ -958,12 +958,12 @@ where
                 }
                 if matches!(
                     item.header().data_kind(),
-                    DataKind::SymbolicLink | DataKind::HardLink
+                    DataKind::SYMBOLIC_LINK | DataKind::HARD_LINK
                 ) {
                     link_entries.push((name, item.into()));
                     return Ok(());
                 }
-                if item.header().data_kind() == DataKind::Directory {
+                if item.header().data_kind() == DataKind::DIRECTORY {
                     if extract_directory_structure(&item, &name, &args).map_err(|e| {
                         io::Error::new(e.kind(), format!("extracting {}: {e}", item.name()))
                     })? {
@@ -1176,7 +1176,7 @@ where
         })
         .unwrap_or((false, false));
     let unlink_existing =
-        unlink_first && had_existing && (entry_kind != DataKind::Directory || !existing_is_dir);
+        unlink_first && had_existing && (entry_kind != DataKind::DIRECTORY || !existing_is_dir);
     let should_overwrite_existing = matches!(
         overwrite_strategy,
         OverwriteStrategy::Always | OverwriteStrategy::KeepNewer
@@ -1194,11 +1194,11 @@ where
 
     // Handle type conflicts (symlink blocking file, file blocking directory)
     if let Some(meta) = metadata
-        && (meta.is_symlink() || (meta.is_file() && entry_kind == DataKind::Directory))
+        && (meta.is_symlink() || (meta.is_file() && entry_kind == DataKind::DIRECTORY))
     {
         let follow_symlink = !secure_symlinks
             && meta.is_symlink()
-            && entry_kind == DataKind::Directory
+            && entry_kind == DataKind::DIRECTORY
             && path.metadata().is_ok_and(|m| m.is_dir());
         if !follow_symlink {
             match utils::fs::remove_path(path) {
@@ -1228,7 +1228,7 @@ where
     T: AsRef<[u8]>,
     pna::RawChunk<T>: Chunk,
 {
-    if item.header().data_kind() != DataKind::Directory {
+    if item.header().data_kind() != DataKind::DIRECTORY {
         unreachable!(
             "extract_directory_structure called with {:?}",
             item.header().data_kind()
@@ -1239,7 +1239,7 @@ where
 
     let ExtractionDecision::Proceed { .. } = check_and_prepare_target(
         &path,
-        DataKind::Directory,
+        DataKind::DIRECTORY,
         item,
         args.overwrite_strategy,
         args.unlink_first,
@@ -1311,7 +1311,7 @@ where
     T: AsRef<[u8]>,
     pna::RawChunk<T>: Chunk,
 {
-    if item.header().data_kind() != DataKind::File {
+    if item.header().data_kind() != DataKind::FILE {
         unreachable!(
             "extract_file_entry called with {:?}",
             item.header().data_kind()
@@ -1570,7 +1570,7 @@ where
     // Regular files are handled by restore_timestamps() with an open file handle.
     // On WASM, path-based timestamp restoration is not supported (filetime limitation).
     #[cfg(not(target_family = "wasm"))]
-    if item.header().data_kind() != DataKind::File {
+    if item.header().data_kind() != DataKind::FILE {
         restore_path_timestamps(path, item.metadata(), keep_options)?;
     }
     let ownership = crate::ext::ResolvedOwnership::from_metadata(item.metadata());
@@ -1585,7 +1585,7 @@ where
     // Restore mode bits when configured.
     // Skip for symlinks: symlink permissions are not settable via chmod() on most
     // platforms, and chmod() follows symlinks, which would corrupt the target's permissions.
-    if item.header().data_kind() != DataKind::SymbolicLink
+    if item.header().data_kind() != DataKind::SYMBOLIC_LINK
         && let Some(mode) = ownership.mode
     {
         match keep_options.mode_strategy {
@@ -1625,7 +1625,7 @@ where
     }
     #[cfg(feature = "acl")]
     if !skip_xattr_acl {
-        let follow_links = item.header().data_kind() != DataKind::SymbolicLink;
+        let follow_links = item.header().data_kind() != DataKind::SYMBOLIC_LINK;
         restore_acls(path, item.acl()?, keep_options.acl_strategy, follow_links)?;
     }
     #[cfg(not(feature = "acl"))]
@@ -1865,7 +1865,7 @@ where
     T: AsRef<[u8]>,
     pna::RawChunk<T>: Chunk,
 {
-    if !matches!(item.header().data_kind(), DataKind::File) {
+    if !matches!(item.header().data_kind(), DataKind::FILE) {
         return Ok(());
     }
 

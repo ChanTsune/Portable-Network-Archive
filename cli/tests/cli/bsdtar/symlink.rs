@@ -37,7 +37,7 @@ fn archive_entries(path: &Path) -> HashMap<String, (DataKind, Option<String>)> {
     for_each_entry(path, |entry| {
         let kind = entry.header().data_kind();
         let link_target = match kind {
-            DataKind::SymbolicLink => Some(normalize_link_target(&read_symlink_target(&entry))),
+            DataKind::SYMBOLIC_LINK => Some(normalize_link_target(&read_symlink_target(&entry))),
             _ => None,
         };
         let prev = entries.insert(entry.header().path().to_string(), (kind, link_target));
@@ -97,11 +97,11 @@ fn bsdtar_broken_symlink_no_follow_roundtrip() {
     let entries = archive_entries(&archive);
     assert_eq!(
         entries.get("source/broken.txt"),
-        Some(&(DataKind::SymbolicLink, Some("missing.txt".to_string())))
+        Some(&(DataKind::SYMBOLIC_LINK, Some("missing.txt".to_string())))
     );
     assert_eq!(
         entries.get("source/broken_dir"),
-        Some(&(DataKind::SymbolicLink, Some("missing_dir".to_string())))
+        Some(&(DataKind::SYMBOLIC_LINK, Some("missing_dir".to_string())))
     );
 
     cargo_bin_cmd!("pna")
