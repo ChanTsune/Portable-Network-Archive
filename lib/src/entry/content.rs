@@ -112,6 +112,7 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::io::TryIntoInner;
     use std::io::Write;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
@@ -266,5 +267,71 @@ mod tests {
         };
         assert_eq!(DataKind::Private(200), kind);
         assert_eq!("raw", io::read_to_string(reader).unwrap());
+    }
+
+    /// Wire format allows encrypted link entries, but the public builder
+    /// always writes links with store options; assemble one manually the
+    /// same way `EntryBuilder::build` does.
+    fn encrypted_symlink_entry(target: &str, password: &str) -> NormalEntry {
+        let options = WriteOptions::builder()
+            .encryption(Encryption::Aes)
+            .password(Some(password))
+            .try_build()
+            .unwrap();
+        let context = get_writer_context(&options).unwrap();
+        let mut writer = get_writer(crate::io::FlattenWriter::new(), &context).unwrap();
+        writer.write_all(target.as_bytes()).unwrap();
+        let mut data = writer
+            .try_into_inner()
+            .unwrap()
+            .try_into_inner()
+            .unwrap()
+            .inner;
+        let (iv, phsf) = match context.cipher {
+            None => (None, None),
+            Some(WriteCipher { context: c, .. }) => (Some(c.iv), Some(c.phsf)),
+        };
+        if let Some(iv) = iv {
+            data.insert(0, iv);
+        }
+        let mut entry =
+            EntryBuilder::new_symlink("l".into(), EntryReference::from_utf8_preserve_root(target))
+                .unwrap()
+                .build()
+                .unwrap();
+        entry.header.encryption = options.encryption();
+        entry.header.cipher_mode = options.cipher_mode();
+        entry.phsf = phsf;
+        entry.data = data;
+        entry
+    }
+
+    #[test]
+    fn encrypted_symlink_with_password_decodes_target() {
+        let entry = encrypted_symlink_entry("enc/target", "password");
+        let EntryContent::SymbolicLink(target) = entry
+            .content(ReadOptions::with_password(Some("password")))
+            .unwrap()
+        else {
+            panic!("expected SymbolicLink");
+        };
+        assert_eq!("enc/target", target);
+    }
+
+    #[test]
+    fn encrypted_symlink_without_password_errors() {
+        let entry = encrypted_symlink_entry("enc/target", "password");
+        assert!(entry.content(read_options()).is_err());
+    }
+
+    #[test]
+    fn encrypted_directory_decodes_without_password() {
+        let mut entry = EntryBuilder::new_dir("d".into()).build().unwrap();
+        entry.header.encryption = Encryption::Aes;
+        entry.header.cipher_mode = CipherMode::CTR;
+        assert!(matches!(
+            entry.content(read_options()).unwrap(),
+            EntryContent::Directory
+        ));
     }
 }
