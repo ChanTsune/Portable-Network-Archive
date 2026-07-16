@@ -120,9 +120,9 @@ fn collect_paths_with_mtime(archive: &Path) -> Vec<(String, Option<PnaDuration>)
             // pna's `EntryName::Display` does not append a trailing `/` to
             // directory entries, while bsdtar's `-tf` output does. To make
             // the two backends comparable, normalize to bsdtar's convention
-            // by suffixing `/` for `DataKind::Directory` entries.
+            // by suffixing `/` for `DataKind::DIRECTORY` entries.
             let mut p = e.header().path().to_string();
-            if matches!(e.header().data_kind(), pna::DataKind::Directory) && !p.ends_with('/') {
+            if matches!(e.header().data_kind(), pna::DataKind::DIRECTORY) && !p.ends_with('/') {
                 p.push('/');
             }
             let m = e.metadata().modified();

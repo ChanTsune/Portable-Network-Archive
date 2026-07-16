@@ -58,23 +58,23 @@ impl EntryHeader {
         cipher_mode: CipherMode,
         path: EntryName,
     ) -> Self {
-        Self::new_with_options(DataKind::File, compression, encryption, cipher_mode, path)
+        Self::new_with_options(DataKind::FILE, compression, encryption, cipher_mode, path)
     }
 
     #[inline]
     pub(crate) const fn for_dir(path: EntryName) -> Self {
-        Self::new(DataKind::Directory, path)
+        Self::new(DataKind::DIRECTORY, path)
     }
 
     /// Creates a header for a symbolic link (symlink).
     #[inline]
     pub(crate) const fn for_symlink(path: EntryName) -> Self {
-        Self::new(DataKind::SymbolicLink, path)
+        Self::new(DataKind::SYMBOLIC_LINK, path)
     }
 
     #[inline]
     pub(crate) const fn for_hard_link(path: EntryName) -> Self {
-        Self::new(DataKind::HardLink, path)
+        Self::new(DataKind::HARD_LINK, path)
     }
 
     /// Creates a new EntryHeader with a different name, resetting the sanitized path cache.
@@ -145,8 +145,7 @@ impl EntryHeader {
         let header = Self {
             major: bytes[0],
             minor: bytes[1],
-            data_kind: DataKind::try_from(bytes[2])
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+            data_kind: DataKind::from_byte(bytes[2]),
             compression: Compression::try_from(bytes[3])
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
             encryption: Encryption::try_from(bytes[4])

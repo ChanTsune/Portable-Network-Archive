@@ -45,19 +45,19 @@ fn empty_file_and_directory_round_trip() {
     assert!(
         entries
             .iter()
-            .any(|(p, k)| p.ends_with("empty.txt") && *k == pna::DataKind::File),
+            .any(|(p, k)| p.ends_with("empty.txt") && *k == pna::DataKind::FILE),
         "empty file should be in archive as File"
     );
     assert!(
         entries
             .iter()
-            .any(|(p, k)| p.ends_with("empty_dir") && *k == pna::DataKind::Directory),
+            .any(|(p, k)| p.ends_with("empty_dir") && *k == pna::DataKind::DIRECTORY),
         "empty directory should be in archive as Directory"
     );
     assert!(
         entries
             .iter()
-            .any(|(p, k)| p.ends_with("data.txt") && *k == pna::DataKind::File),
+            .any(|(p, k)| p.ends_with("data.txt") && *k == pna::DataKind::FILE),
         "non-empty file should be in archive as File"
     );
 

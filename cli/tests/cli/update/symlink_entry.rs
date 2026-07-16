@@ -58,7 +58,7 @@ fn update_keeps_symlink_entry() {
     let mut symlink_kind = false;
     archive::for_each_entry("update_keeps_symlink/archive.pna", |entry| {
         if entry.header().path().as_str() == "update_keeps_symlink/in/link.txt" {
-            symlink_kind = entry.header().data_kind() == pna::DataKind::SymbolicLink;
+            symlink_kind = entry.header().data_kind() == pna::DataKind::SYMBOLIC_LINK;
         }
         seen.insert(entry.header().path().to_string());
     })

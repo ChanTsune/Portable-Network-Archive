@@ -38,7 +38,7 @@ fn delete_symlink_entry() {
         if entry.header().path().as_str() == "delete_symlink_entry/in/link.txt" {
             assert_eq!(
                 entry.header().data_kind(),
-                pna::DataKind::SymbolicLink,
+                pna::DataKind::SYMBOLIC_LINK,
                 "link.txt should be a symlink entry"
             );
             has_symlink = true;
@@ -133,7 +133,7 @@ fn delete_symlink_target_keeps_symlink() {
         if path == "delete_symlink_target/in/link.txt" {
             assert_eq!(
                 entry.header().data_kind(),
-                pna::DataKind::SymbolicLink,
+                pna::DataKind::SYMBOLIC_LINK,
                 "link.txt should still be a symlink"
             );
             seen_symlink = true;

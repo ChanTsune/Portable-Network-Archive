@@ -416,7 +416,7 @@ impl TableRow {
             modified: metadata.saturating_modified_time(),
             accessed: metadata.saturating_accessed_time(),
             entry_type: match entry.data_kind() {
-                DataKind::SymbolicLink => EntryType::SymbolicLink(
+                DataKind::SYMBOLIC_LINK => EntryType::SymbolicLink(
                     entry.name().to_string(),
                     // Only read link target if needed (requires decompression)
                     if collect.link_target {
@@ -428,7 +428,7 @@ impl TableRow {
                         String::new()
                     },
                 ),
-                DataKind::HardLink => EntryType::HardLink(
+                DataKind::HARD_LINK => EntryType::HardLink(
                     entry.name().to_string(),
                     // Only read link target if needed (requires decompression)
                     if collect.link_target {
@@ -440,8 +440,8 @@ impl TableRow {
                         String::new()
                     },
                 ),
-                DataKind::Directory => EntryType::Directory(entry.name().to_string()),
-                DataKind::File => EntryType::File(entry.name().to_string()),
+                DataKind::DIRECTORY => EntryType::Directory(entry.name().to_string()),
+                DataKind::FILE => EntryType::File(entry.name().to_string()),
                 kind => EntryType::Unknown(entry.name().to_string(), kind),
             },
             // Only collect xattrs if needed
@@ -1518,14 +1518,14 @@ fn tree_entries_to(
     mut out: impl Write,
 ) -> io::Result<()> {
     let entries = entries.iter().map(|it| match &it.entry_type {
-        EntryType::File(name) => (name.as_str(), DataKind::File),
-        EntryType::Directory(name) => (name.as_str(), DataKind::Directory),
-        EntryType::SymbolicLink(name, _) => (name.as_str(), DataKind::SymbolicLink),
-        EntryType::HardLink(name, _) => (name.as_str(), DataKind::HardLink),
+        EntryType::File(name) => (name.as_str(), DataKind::FILE),
+        EntryType::Directory(name) => (name.as_str(), DataKind::DIRECTORY),
+        EntryType::SymbolicLink(name, _) => (name.as_str(), DataKind::SYMBOLIC_LINK),
+        EntryType::HardLink(name, _) => (name.as_str(), DataKind::HARD_LINK),
         EntryType::Unknown(name, kind) => (name.as_str(), *kind),
     });
     let map = build_tree_map(entries);
-    let tree = build_term_tree(&map, Cow::Borrowed(""), None, DataKind::Directory, options);
+    let tree = build_term_tree(&map, Cow::Borrowed(""), None, DataKind::DIRECTORY, options);
     writeln!(out, "{tree}")
 }
 
@@ -1538,7 +1538,7 @@ fn build_tree_map<'s>(
         let indices = path
             .char_indices()
             .filter(|(_, c)| *c == '/')
-            .map(|(idx, _)| (idx, DataKind::Directory))
+            .map(|(idx, _)| (idx, DataKind::DIRECTORY))
             .chain([(path.len(), kind)]);
         let mut start = 0;
         for (end, k) in indices {
@@ -1587,8 +1587,8 @@ fn build_term_tree<'a>(
 
 fn format_name<'a>(name: &'a str, kind: DataKind, options: &ListOptions) -> Cow<'a, str> {
     let name = match kind {
-        DataKind::Directory if options.classify => Cow::Owned(format!("{name}/")),
-        DataKind::SymbolicLink if options.classify => Cow::Owned(format!("{name}@")),
+        DataKind::DIRECTORY if options.classify => Cow::Owned(format!("{name}/")),
+        DataKind::SYMBOLIC_LINK if options.classify => Cow::Owned(format!("{name}@")),
         _ => Cow::Borrowed(name),
     };
     if options.hide_control_chars {
@@ -1647,7 +1647,8 @@ mod tests {
 
     #[test]
     fn unknown_entry_type_does_not_render_as_file() {
-        let entry_type = EntryType::Unknown("private-entry".into(), DataKind::Private(128));
+        let entry_type =
+            EntryType::Unknown("private-entry".into(), DataKind::new_private(128).unwrap());
 
         assert_eq!(entry_type.name(), "private-entry");
         assert_eq!(

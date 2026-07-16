@@ -645,64 +645,123 @@ impl HashAlgorithm {
 
 /// Type of filesystem object represented by an entry.
 ///
-/// Each variant determines how the entry's data should be interpreted
-/// and how the entry should be extracted to the filesystem.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum DataKind {
-    /// Regular file. Entry data contains the file contents.
-    File,
-    /// Directory. Entry has no data content.
-    Directory,
-    /// Symbolic link. Entry data contains the UTF-8 encoded link target path.
-    SymbolicLink,
-    /// Hard link. Entry data contains the UTF-8 encoded path of the target entry
-    /// within the same archive.
-    HardLink,
-    /// Value reserved for future PNA specification (raw value < 128).
-    Reserved(u8),
-    /// Application-specific private value (raw value >= 128).
-    Private(u8),
-}
+/// Each value determines how the entry's data should be interpreted
+/// and how the entry should be extracted to the filesystem. Values
+/// without an associated constant are either reserved for future PNA
+/// specification (raw value < 128) or application-specific private
+/// values (raw value >= 128).
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct DataKind(u8);
 
 impl DataKind {
-    /// Serialize this data kind to its u8 representation.
+    /// Regular file. Entry data contains the file contents.
+    pub const FILE: Self = Self(0);
+    /// Directory. Entry has no data content.
+    pub const DIRECTORY: Self = Self(1);
+    /// Symbolic link. Entry data contains the UTF-8 encoded link target path.
+    pub const SYMBOLIC_LINK: Self = Self(2);
+    /// Hard link. Entry data contains the UTF-8 encoded path of the target
+    /// entry within the same archive.
+    pub const HARD_LINK: Self = Self(3);
+
+    /// Deprecated alias of [`DataKind::FILE`].
+    #[deprecated(since = "0.36.0", note = "renamed to `DataKind::FILE`")]
+    #[allow(non_upper_case_globals)]
+    pub const File: Self = Self::FILE;
+    /// Deprecated alias of [`DataKind::DIRECTORY`].
+    #[deprecated(since = "0.36.0", note = "renamed to `DataKind::DIRECTORY`")]
+    #[allow(non_upper_case_globals)]
+    pub const Directory: Self = Self::DIRECTORY;
+    /// Deprecated alias of [`DataKind::SYMBOLIC_LINK`].
+    #[deprecated(since = "0.36.0", note = "renamed to `DataKind::SYMBOLIC_LINK`")]
+    #[allow(non_upper_case_globals)]
+    pub const SymbolicLink: Self = Self::SYMBOLIC_LINK;
+    /// Deprecated alias of [`DataKind::HARD_LINK`].
+    #[deprecated(since = "0.36.0", note = "renamed to `DataKind::HARD_LINK`")]
+    #[allow(non_upper_case_globals)]
+    pub const HardLink: Self = Self::HARD_LINK;
+
+    /// Deserializes a data kind from its u8 representation.
+    ///
+    /// Every byte value is a valid data kind, so this conversion never fails.
+    #[inline]
+    pub const fn from_byte(value: u8) -> Self {
+        Self(value)
+    }
+
+    /// Serializes this data kind to its u8 representation.
     #[inline]
     pub const fn to_byte(self) -> u8 {
-        match self {
-            Self::File => 0,
-            Self::Directory => 1,
-            Self::SymbolicLink => 2,
-            Self::HardLink => 3,
-            Self::Reserved(v) | Self::Private(v) => v,
+        self.0
+    }
+
+    /// Creates an application-specific private value.
+    ///
+    /// Returns `Some` if `value` is in the private range (`128..=255`),
+    /// otherwise `None`.
+    #[inline]
+    pub const fn new_private(value: u8) -> Option<Self> {
+        if value >= 128 {
+            Some(Self(value))
+        } else {
+            None
         }
     }
 
-    /// Returns `true` if this is a reserved value.
+    /// Converts a `u8` into a [`DataKind`]. Never fails.
+    ///
+    /// Shadows `<DataKind as TryFrom<u8>>::try_from` so existing
+    /// `DataKind::try_from(..)` call sites receive a deprecation warning;
+    /// both will be removed together in a future release.
+    ///
+    /// # Errors
+    ///
+    /// Never returns `Err`; every byte value is a valid data kind.
+    #[deprecated(since = "0.36.0", note = "use `DataKind::from_byte`")]
+    #[allow(clippy::should_implement_trait)]
     #[inline]
-    pub const fn is_reserved(self) -> bool {
-        matches!(self, Self::Reserved(_))
+    pub const fn try_from(value: u8) -> Result<Self, UnknownValueError> {
+        Ok(Self::from_byte(value))
     }
 
-    /// Returns `true` if this is a private value.
+    /// Returns `true` if this value is reserved for future PNA specification
+    /// (unassigned and raw value < 128).
+    #[inline]
+    pub const fn is_reserved(self) -> bool {
+        !matches!(self.0, 0..=3) && self.0 < 128
+    }
+
+    /// Returns `true` if this is an application-specific private value
+    /// (raw value >= 128).
     #[inline]
     pub const fn is_private(self) -> bool {
-        matches!(self, Self::Private(_))
+        self.0 >= 128
     }
 }
 
+impl fmt::Debug for DataKind {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::FILE => f.write_str("File"),
+            Self::DIRECTORY => f.write_str("Directory"),
+            Self::SYMBOLIC_LINK => f.write_str("SymbolicLink"),
+            Self::HARD_LINK => f.write_str("HardLink"),
+            Self(v) if v < 128 => f.debug_tuple("Reserved").field(&v).finish(),
+            Self(v) => f.debug_tuple("Private").field(&v).finish(),
+        }
+    }
+}
+
+/// Infallible; kept for backward compatibility with the former enum-based
+/// API and scheduled for removal in a future release. Use
+/// [`DataKind::from_byte`] instead.
 impl TryFrom<u8> for DataKind {
     type Error = UnknownValueError;
 
     #[inline]
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(Self::File),
-            1 => Ok(Self::Directory),
-            2 => Ok(Self::SymbolicLink),
-            3 => Ok(Self::HardLink),
-            v if v < 128 => Ok(Self::Reserved(v)),
-            v => Ok(Self::Private(v)),
-        }
+        Ok(Self::from_byte(value))
     }
 }
 
@@ -1262,5 +1321,72 @@ mod tests {
         options.key_cache.insert("phsf-a", test_output(1));
         let rebuilt = options.clone().into_builder().build();
         assert_eq!(rebuilt.cached_key_count(), 0);
+    }
+
+    #[test]
+    fn data_kind_round_trips_all_byte_values() {
+        for v in 0..=u8::MAX {
+            assert_eq!(DataKind::from_byte(v).to_byte(), v);
+        }
+    }
+
+    #[test]
+    fn data_kind_known_constants_map_to_spec_bytes() {
+        assert_eq!(DataKind::FILE.to_byte(), 0);
+        assert_eq!(DataKind::DIRECTORY.to_byte(), 1);
+        assert_eq!(DataKind::SYMBOLIC_LINK.to_byte(), 2);
+        assert_eq!(DataKind::HARD_LINK.to_byte(), 3);
+    }
+
+    #[test]
+    fn data_kind_new_private_boundary() {
+        assert_eq!(DataKind::new_private(0), None);
+        assert_eq!(DataKind::new_private(127), None);
+        assert_eq!(DataKind::new_private(128), Some(DataKind::from_byte(128)));
+        assert_eq!(DataKind::new_private(255), Some(DataKind::from_byte(255)));
+    }
+
+    #[test]
+    fn data_kind_predicates() {
+        assert!(!DataKind::FILE.is_reserved());
+        assert!(!DataKind::FILE.is_private());
+        assert!(!DataKind::HARD_LINK.is_reserved());
+        assert!(DataKind::from_byte(4).is_reserved());
+        assert!(DataKind::from_byte(127).is_reserved());
+        assert!(!DataKind::from_byte(127).is_private());
+        assert!(!DataKind::from_byte(128).is_reserved());
+        assert!(DataKind::from_byte(128).is_private());
+        assert!(DataKind::from_byte(255).is_private());
+    }
+
+    #[test]
+    fn data_kind_debug_matches_former_enum_output() {
+        assert_eq!(format!("{:?}", DataKind::FILE), "File");
+        assert_eq!(format!("{:?}", DataKind::DIRECTORY), "Directory");
+        assert_eq!(format!("{:?}", DataKind::SYMBOLIC_LINK), "SymbolicLink");
+        assert_eq!(format!("{:?}", DataKind::HARD_LINK), "HardLink");
+        assert_eq!(format!("{:?}", DataKind::from_byte(5)), "Reserved(5)");
+        assert_eq!(format!("{:?}", DataKind::from_byte(200)), "Private(200)");
+    }
+
+    #[allow(deprecated)]
+    #[test]
+    fn data_kind_deprecated_aliases_equal_new_constants() {
+        assert_eq!(DataKind::File, DataKind::FILE);
+        assert_eq!(DataKind::Directory, DataKind::DIRECTORY);
+        assert_eq!(DataKind::SymbolicLink, DataKind::SYMBOLIC_LINK);
+        assert_eq!(DataKind::HardLink, DataKind::HARD_LINK);
+    }
+
+    #[allow(deprecated)]
+    #[test]
+    fn data_kind_try_from_is_infallible_and_matches_from_byte() {
+        for v in 0..=u8::MAX {
+            assert_eq!(DataKind::try_from(v).unwrap(), DataKind::from_byte(v));
+            assert_eq!(
+                <DataKind as TryFrom<u8>>::try_from(v).unwrap(),
+                DataKind::from_byte(v)
+            );
+        }
     }
 }

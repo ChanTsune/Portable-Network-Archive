@@ -288,7 +288,7 @@ fn compare_entry<T: AsRef<[u8]>>(
     };
     let mut diff_count = 0usize;
     match data_kind {
-        DataKind::File if meta.is_file() => {
+        DataKind::FILE if meta.is_file() => {
             // Compare metadata first
             let meta_diffs = compare_file_metadata(&entry, &meta, options);
             diff_count += meta_diffs.len();
@@ -311,14 +311,14 @@ fn compare_entry<T: AsRef<[u8]>>(
                 }
             }
         }
-        DataKind::Directory if meta.is_dir() => {
+        DataKind::DIRECTORY if meta.is_dir() => {
             let diffs = compare_directory_metadata(&entry, &meta, options);
             diff_count += diffs.len();
             for diff in diffs {
                 println!("{}", diff.display(path_str));
             }
         }
-        DataKind::SymbolicLink if meta.is_symlink() => {
+        DataKind::SYMBOLIC_LINK if meta.is_symlink() => {
             let link = fs::read_link(path)?;
             let EntryContent::SymbolicLink(stored) = entry.content(read_options)? else {
                 unreachable!("data_kind() returned SymbolicLink");
@@ -328,11 +328,11 @@ fn compare_entry<T: AsRef<[u8]>>(
                 diff_count += 1;
             }
         }
-        DataKind::File | DataKind::Directory | DataKind::SymbolicLink => {
+        DataKind::FILE | DataKind::DIRECTORY | DataKind::SYMBOLIC_LINK => {
             println!("{}", DiffKind::TypeMismatch.display(path_str));
             diff_count += 1;
         }
-        DataKind::HardLink if meta.is_file() => {
+        DataKind::HARD_LINK if meta.is_file() => {
             let EntryContent::HardLink(stored) = entry.content(read_options)? else {
                 unreachable!("data_kind() returned HardLink");
             };
@@ -352,7 +352,7 @@ fn compare_entry<T: AsRef<[u8]>>(
                 Err(e) => return Err(e),
             }
         }
-        DataKind::HardLink => {
+        DataKind::HARD_LINK => {
             println!("{}", DiffKind::TypeMismatch.display(path_str));
             diff_count += 1;
         }

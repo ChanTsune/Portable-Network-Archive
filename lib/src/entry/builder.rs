@@ -451,7 +451,7 @@ impl EntryBuilder {
         }
         let metadata = Metadata {
             raw_file_size: match (self.store_file_size, self.header.data_kind) {
-                (true, DataKind::File) => Some(self.file_size),
+                (true, DataKind::FILE) => Some(self.file_size),
                 _ => None,
             },
             compressed_size: data.iter().map(|d| d.len()).sum(),

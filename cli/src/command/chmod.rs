@@ -135,9 +135,9 @@ fn transform_entry<T>(entry: NormalEntry<T>, mode: &Mode) -> NormalEntry<T> {
 #[inline]
 const fn default_permission_mode(kind: DataKind) -> u16 {
     match kind {
-        DataKind::Directory => 0o755,
-        DataKind::File | DataKind::SymbolicLink | DataKind::HardLink => 0o644,
-        DataKind::Reserved(_) | DataKind::Private(_) => 0,
+        DataKind::DIRECTORY => 0o755,
+        DataKind::FILE | DataKind::SYMBOLIC_LINK | DataKind::HARD_LINK => 0o644,
+        _ => 0,
     }
 }
 

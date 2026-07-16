@@ -501,7 +501,7 @@ fn extract_preserves_directory_permission() {
     archive::for_each_entry("extract_dir_perm/archive.pna", |entry| {
         if entry.header().path().as_str().ends_with("raw/images") {
             found = true;
-            assert_eq!(entry.header().data_kind(), pna::DataKind::Directory);
+            assert_eq!(entry.header().data_kind(), pna::DataKind::DIRECTORY);
             let mode = entry.metadata().permission_mode().unwrap();
             assert_eq!(mode.get() & 0o777, 0o750);
         }

@@ -94,17 +94,15 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
     #[inline]
     pub fn content(&self, option: impl ReadOption) -> io::Result<EntryContent<'_>> {
         match self.header.data_kind {
-            DataKind::File => Ok(EntryContent::File(self.reader(option)?)),
-            DataKind::Directory => Ok(EntryContent::Directory),
-            DataKind::SymbolicLink => Ok(EntryContent::SymbolicLink(read_reference(
+            DataKind::FILE => Ok(EntryContent::File(self.reader(option)?)),
+            DataKind::DIRECTORY => Ok(EntryContent::Directory),
+            DataKind::SYMBOLIC_LINK => Ok(EntryContent::SymbolicLink(read_reference(
                 self.reader(option)?,
             )?)),
-            DataKind::HardLink => Ok(EntryContent::HardLink(read_reference(
+            DataKind::HARD_LINK => Ok(EntryContent::HardLink(read_reference(
                 self.reader(option)?,
             )?)),
-            kind @ (DataKind::Reserved(_) | DataKind::Private(_)) => {
-                Ok(EntryContent::Unknown(kind, self.reader(option)?))
-            }
+            kind => Ok(EntryContent::Unknown(kind, self.reader(option)?)),
         }
     }
 }
@@ -248,11 +246,11 @@ mod tests {
         let mut builder = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
         builder.write_all(b"raw").unwrap();
         let mut entry = builder.build().unwrap();
-        entry.header.data_kind = DataKind::Reserved(42);
+        entry.header.data_kind = DataKind::from_byte(42);
         let EntryContent::Unknown(kind, reader) = entry.content(read_options()).unwrap() else {
             panic!("expected Unknown");
         };
-        assert_eq!(DataKind::Reserved(42), kind);
+        assert_eq!(DataKind::from_byte(42), kind);
         assert_eq!("raw", io::read_to_string(reader).unwrap());
     }
 
@@ -261,11 +259,11 @@ mod tests {
         let mut builder = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
         builder.write_all(b"raw").unwrap();
         let mut entry = builder.build().unwrap();
-        entry.header.data_kind = DataKind::Private(200);
+        entry.header.data_kind = DataKind::from_byte(200);
         let EntryContent::Unknown(kind, reader) = entry.content(read_options()).unwrap() else {
             panic!("expected Unknown");
         };
-        assert_eq!(DataKind::Private(200), kind);
+        assert_eq!(DataKind::from_byte(200), kind);
         assert_eq!("raw", io::read_to_string(reader).unwrap());
     }
 

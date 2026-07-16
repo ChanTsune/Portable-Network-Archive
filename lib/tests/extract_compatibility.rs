@@ -5,7 +5,7 @@ fn extract_all(bytes: &[u8], password: Option<&[u8]>) {
     let mut archive_reader = Archive::read_header(bytes).unwrap();
     for entry in archive_reader.entries().skip_solid() {
         let item = entry.unwrap();
-        if item.header().data_kind() == DataKind::Directory {
+        if item.header().data_kind() == DataKind::DIRECTORY {
             continue;
         }
         let path = item.header().path().as_str();

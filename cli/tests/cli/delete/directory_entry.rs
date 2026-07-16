@@ -44,11 +44,11 @@ fn delete_directory_entry() {
     })
     .unwrap();
     assert!(
-        before.contains(&(format!("{base}/in"), pna::DataKind::Directory)),
+        before.contains(&(format!("{base}/in"), pna::DataKind::DIRECTORY)),
         "archive should contain directory entry before deletion"
     );
     assert!(
-        before.contains(&(format!("{base}/in/subdir"), pna::DataKind::Directory)),
+        before.contains(&(format!("{base}/in/subdir"), pna::DataKind::DIRECTORY)),
         "archive should contain subdir entry before deletion"
     );
 

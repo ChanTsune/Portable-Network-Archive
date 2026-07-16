@@ -51,7 +51,7 @@ fn create_symlink_stores_own_permissions() {
 
     let mut found_symlink = false;
     archive::for_each_entry(format!("{base}/{base}.pna"), |entry| {
-        if entry.header().data_kind() == pna::DataKind::SymbolicLink {
+        if entry.header().data_kind() == pna::DataKind::SYMBOLIC_LINK {
             let pm = entry
                 .metadata()
                 .permission_mode()
@@ -107,7 +107,7 @@ fn create_symlink_stores_own_timestamps() {
 
     let mut found_symlink = false;
     archive::for_each_entry(format!("{base}/{base}.pna"), |entry| {
-        if entry.header().data_kind() == pna::DataKind::SymbolicLink {
+        if entry.header().data_kind() == pna::DataKind::SYMBOLIC_LINK {
             let archived_mtime = entry
                 .metadata()
                 .modified()
@@ -154,7 +154,7 @@ fn create_broken_symlink_stores_metadata() {
 
     let mut found_broken = false;
     archive::for_each_entry(format!("{base}/{base}.pna"), |entry| {
-        if entry.header().data_kind() == pna::DataKind::SymbolicLink {
+        if entry.header().data_kind() == pna::DataKind::SYMBOLIC_LINK {
             assert_eq!(archive::read_symlink_target(&entry), "nonexistent");
             // wasi has no POSIX mode; permission is never populated there.
             #[cfg(not(target_os = "wasi"))]
@@ -224,7 +224,7 @@ fn create_follow_links_stores_target_metadata() {
 
     assert_eq!(
         link_entry_kind,
-        Some(pna::DataKind::File),
+        Some(pna::DataKind::FILE),
         "with --follow-links, symlink should be archived as File"
     );
     assert_eq!(
@@ -281,7 +281,7 @@ fn create_follow_links_stores_target_timestamps() {
 
     assert_eq!(
         link_entry_kind,
-        Some(pna::DataKind::File),
+        Some(pna::DataKind::FILE),
         "with --follow-links, symlink should be archived as File"
     );
     let archived_secs = link_entry_mtime.expect("should have mtime");
@@ -335,7 +335,7 @@ fn create_symlink_does_not_store_target_permissions() {
         if entry.header().path().as_str().ends_with("target.txt") {
             target_perm = entry.metadata().permission_mode().map(|v| v.get() & 0o777);
         }
-        if entry.header().data_kind() == pna::DataKind::SymbolicLink {
+        if entry.header().data_kind() == pna::DataKind::SYMBOLIC_LINK {
             symlink_perm = entry.metadata().permission_mode().map(|v| v.get() & 0o777);
         }
     })
@@ -380,7 +380,7 @@ fn roundtrip_symlink_metadata_preserved() {
     // Verify the archive has a symlink entry with metadata
     let mut has_symlink_with_perm = false;
     archive::for_each_entry(format!("{base}/{base}.pna"), |entry| {
-        if entry.header().data_kind() == pna::DataKind::SymbolicLink {
+        if entry.header().data_kind() == pna::DataKind::SYMBOLIC_LINK {
             // wasi has no POSIX mode; permission is never populated there.
             #[cfg(not(target_os = "wasi"))]
             {
@@ -454,7 +454,7 @@ fn roundtrip_broken_symlink_metadata_preserved() {
     // Verify archive content
     let mut has_broken_symlink = false;
     archive::for_each_entry(format!("{base}/{base}.pna"), |entry| {
-        if entry.header().data_kind() == pna::DataKind::SymbolicLink {
+        if entry.header().data_kind() == pna::DataKind::SYMBOLIC_LINK {
             assert_eq!(archive::read_symlink_target(&entry), "nonexistent");
             // wasi has no POSIX mode; permission is never populated there.
             #[cfg(not(target_os = "wasi"))]
