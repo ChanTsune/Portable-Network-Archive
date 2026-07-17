@@ -32,6 +32,9 @@ Keep shell scripts on 2-space indents (see `.editorconfig`), and reuse the archi
 Drop focused unit tests next to the code you touch (`#[cfg(test)]` blocks), and place broader scenarios in each crate’s `tests/` directory.  
 If behavior differs across platforms, adding a short note in your PR description really helps reviewers.
 
+## Deprecation Policy
+While the version stays in the `0.x` series, a deprecated interface is not removed before four minor versions after the one it was deprecated in. This covers both library APIs marked `#[deprecated(since = "X.Y.Z", ...)]` and CLI interfaces (subcommands, flags) marked deprecated via a runtime warning — in both cases, removable starting at `X.(Y+4).0`. For example, an interface deprecated in `0.34.0` may be removed starting at `0.38.0`.
+
 ## Commits & Pull Requests
 Many commits use emoji-prefixed, imperative subjects (for example, `:recycle: Refine archive extraction path handling`).  
 Follow the pattern if you like — clarity wins either way.
