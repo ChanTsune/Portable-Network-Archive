@@ -196,7 +196,7 @@ fn bench_write_aes_ctr_archive(c: &mut Criterion) {
         bench_write_archive(b, {
             let mut builder = WriteOptions::builder();
             builder
-                .encryption(Encryption::Aes)
+                .encryption(Encryption::AES)
                 .cipher_mode(CipherMode::CTR);
             builder
         });
@@ -208,7 +208,7 @@ fn bench_read_aes_ctr_archive(c: &mut Criterion) {
         bench_read_archive(b, {
             let mut builder = WriteOptions::builder();
             builder
-                .encryption(Encryption::Aes)
+                .encryption(Encryption::AES)
                 .cipher_mode(CipherMode::CTR);
             builder
         });
@@ -220,7 +220,7 @@ fn bench_write_aes_cbc_archive(c: &mut Criterion) {
         bench_write_archive(b, {
             let mut builder = WriteOptions::builder();
             builder
-                .encryption(Encryption::Aes)
+                .encryption(Encryption::AES)
                 .cipher_mode(CipherMode::CBC);
             builder
         });
@@ -232,7 +232,7 @@ fn bench_read_aes_cbc_archive(c: &mut Criterion) {
         bench_read_archive(b, {
             let mut builder = WriteOptions::builder();
             builder
-                .encryption(Encryption::Aes)
+                .encryption(Encryption::AES)
                 .cipher_mode(CipherMode::CBC);
             builder
         });
@@ -244,7 +244,7 @@ fn bench_write_camellia_ctr_archive(c: &mut Criterion) {
         bench_write_archive(b, {
             let mut builder = WriteOptions::builder();
             builder
-                .encryption(Encryption::Camellia)
+                .encryption(Encryption::CAMELLIA)
                 .cipher_mode(CipherMode::CTR);
             builder
         });
@@ -256,7 +256,7 @@ fn bench_read_camellia_ctr_archive(c: &mut Criterion) {
         bench_read_archive(b, {
             let mut builder = WriteOptions::builder();
             builder
-                .encryption(Encryption::Camellia)
+                .encryption(Encryption::CAMELLIA)
                 .cipher_mode(CipherMode::CTR);
             builder
         });
@@ -268,7 +268,7 @@ fn bench_write_camellia_cbc_archive(c: &mut Criterion) {
         bench_write_archive(b, {
             let mut builder = WriteOptions::builder();
             builder
-                .encryption(Encryption::Camellia)
+                .encryption(Encryption::CAMELLIA)
                 .cipher_mode(CipherMode::CBC);
             builder
         });
@@ -280,7 +280,7 @@ fn bench_read_camellia_cbc_archive(c: &mut Criterion) {
         bench_read_archive(b, {
             let mut builder = WriteOptions::builder();
             builder
-                .encryption(Encryption::Camellia)
+                .encryption(Encryption::CAMELLIA)
                 .cipher_mode(CipherMode::CBC);
             builder
         });

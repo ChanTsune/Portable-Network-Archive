@@ -998,7 +998,7 @@ pub(crate) fn entry_option(
         .encryption(if password.is_some() {
             cipher.algorithm()
         } else {
-            pna::Encryption::No
+            pna::Encryption::NO
         })
         .cipher_mode(cipher.mode())
         .hash_algorithm(hash.algorithm())

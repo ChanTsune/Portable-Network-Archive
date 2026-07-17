@@ -138,9 +138,9 @@ mod private {
         #[inline]
         fn encryption(&self) -> Encryption {
             self.cipher()
-                .map_or(Encryption::No, |it| match it.cipher_algorithm {
-                    CipherAlgorithm::Aes => Encryption::Aes,
-                    CipherAlgorithm::Camellia => Encryption::Camellia,
+                .map_or(Encryption::NO, |it| match it.cipher_algorithm {
+                    CipherAlgorithm::Aes => Encryption::AES,
+                    CipherAlgorithm::Camellia => Encryption::CAMELLIA,
                 })
         }
 
@@ -466,57 +466,115 @@ impl<T: AsRef<[u8]>> From<T> for Password {
 }
 
 /// Encryption algorithm.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum Encryption {
-    /// Do not apply any encryption.
-    No,
-    /// Aes algorithm.
-    Aes,
-    /// Camellia algorithm.
-    Camellia,
-    /// Value reserved for future PNA specification (raw value < 128).
-    Reserved(u8),
-    /// Application-specific private value (raw value >= 128).
-    Private(u8),
-}
+///
+/// Values without an associated constant are either reserved for future
+/// PNA specification (raw value < 128) or application-specific private
+/// values (raw value >= 128).
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct Encryption(u8);
 
 impl Encryption {
-    /// Serialize this encryption method to its u8 representation.
+    /// Do not apply any encryption.
+    pub const NO: Self = Self(0);
+    /// Aes algorithm.
+    pub const AES: Self = Self(1);
+    /// Camellia algorithm.
+    pub const CAMELLIA: Self = Self(2);
+
+    /// Deprecated alias of [`Encryption::NO`].
+    #[deprecated(since = "0.36.0", note = "renamed to `Encryption::NO`")]
+    #[allow(non_upper_case_globals)]
+    pub const No: Self = Self::NO;
+    /// Deprecated alias of [`Encryption::AES`].
+    #[deprecated(since = "0.36.0", note = "renamed to `Encryption::AES`")]
+    #[allow(non_upper_case_globals)]
+    pub const Aes: Self = Self::AES;
+    /// Deprecated alias of [`Encryption::CAMELLIA`].
+    #[deprecated(since = "0.36.0", note = "renamed to `Encryption::CAMELLIA`")]
+    #[allow(non_upper_case_globals)]
+    pub const Camellia: Self = Self::CAMELLIA;
+
+    /// Deserializes an encryption algorithm from its u8 representation.
+    ///
+    /// Every byte value is a valid encryption algorithm value, so this
+    /// conversion never fails.
+    #[inline]
+    pub const fn from_byte(value: u8) -> Self {
+        Self(value)
+    }
+
+    /// Serializes this encryption algorithm to its u8 representation.
     #[inline]
     pub const fn to_byte(self) -> u8 {
-        match self {
-            Self::No => 0,
-            Self::Aes => 1,
-            Self::Camellia => 2,
-            Self::Reserved(v) | Self::Private(v) => v,
+        self.0
+    }
+
+    /// Creates an application-specific private value.
+    ///
+    /// Returns `Some` if `value` is in the private range (`128..=255`),
+    /// otherwise `None`.
+    #[inline]
+    pub const fn new_private(value: u8) -> Option<Self> {
+        if value >= 128 {
+            Some(Self(value))
+        } else {
+            None
         }
     }
 
-    /// Returns `true` if this is a reserved value.
+    /// Converts a `u8` into an [`Encryption`]. Never fails.
+    ///
+    /// Shadows `<Encryption as TryFrom<u8>>::try_from` so existing
+    /// `Encryption::try_from(..)` call sites receive a deprecation warning;
+    /// both will be removed together in a future release.
+    ///
+    /// # Errors
+    ///
+    /// Never returns `Err`; every byte value is a valid encryption algorithm.
+    #[deprecated(since = "0.36.0", note = "use `Encryption::from_byte`")]
+    #[allow(clippy::should_implement_trait)]
     #[inline]
-    pub const fn is_reserved(self) -> bool {
-        matches!(self, Self::Reserved(_))
+    pub const fn try_from(value: u8) -> Result<Self, UnknownValueError> {
+        Ok(Self::from_byte(value))
     }
 
-    /// Returns `true` if this is a private value.
+    /// Returns `true` if this value is reserved for future PNA specification
+    /// (unassigned and raw value < 128).
+    #[inline]
+    pub const fn is_reserved(self) -> bool {
+        !matches!(self.0, 0..=2) && self.0 < 128
+    }
+
+    /// Returns `true` if this is an application-specific private value
+    /// (raw value >= 128).
     #[inline]
     pub const fn is_private(self) -> bool {
-        matches!(self, Self::Private(_))
+        self.0 >= 128
     }
 }
 
+impl fmt::Debug for Encryption {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::NO => f.write_str("No"),
+            Self::AES => f.write_str("Aes"),
+            Self::CAMELLIA => f.write_str("Camellia"),
+            Self(v) if v < 128 => f.debug_tuple("Reserved").field(&v).finish(),
+            Self(v) => f.debug_tuple("Private").field(&v).finish(),
+        }
+    }
+}
+
+/// Infallible; kept for backward compatibility with the former enum-based
+/// API and scheduled for removal in a future release. Use
+/// [`Encryption::from_byte`] instead.
 impl TryFrom<u8> for Encryption {
     type Error = UnknownValueError;
 
     #[inline]
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(Self::No),
-            1 => Ok(Self::Aes),
-            2 => Ok(Self::Camellia),
-            v if v < 128 => Ok(Self::Reserved(v)),
-            v => Ok(Self::Private(v)),
-        }
+        Ok(Self::from_byte(value))
     }
 }
 
@@ -606,7 +664,7 @@ impl HashAlgorithm {
     /// use libpna::{WriteOptions, Encryption, HashAlgorithm};
     ///
     /// let opts = WriteOptions::builder()
-    ///     .encryption(Encryption::Aes)
+    ///     .encryption(Encryption::AES)
     ///     .hash_algorithm(HashAlgorithm::pbkdf2_sha256())
     ///     .password(Some("password"))
     ///     .build();
@@ -629,7 +687,7 @@ impl HashAlgorithm {
     /// use libpna::{WriteOptions, Encryption, HashAlgorithm};
     ///
     /// let opts = WriteOptions::builder()
-    ///     .encryption(Encryption::Aes)
+    ///     .encryption(Encryption::AES)
     ///     .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(100_000)))
     ///     .password(Some("password"))
     ///     .build();
@@ -650,7 +708,7 @@ impl HashAlgorithm {
     /// use libpna::{WriteOptions, Encryption, HashAlgorithm};
     ///
     /// let opts = WriteOptions::builder()
-    ///     .encryption(Encryption::Aes)
+    ///     .encryption(Encryption::AES)
     ///     .hash_algorithm(HashAlgorithm::argon2id())
     ///     .password(Some("secure_password"))
     ///     .build();
@@ -677,7 +735,7 @@ impl HashAlgorithm {
     ///
     /// // Custom Argon2id with higher security parameters
     /// let opts = WriteOptions::builder()
-    ///     .encryption(Encryption::Aes)
+    ///     .encryption(Encryption::AES)
     ///     .hash_algorithm(HashAlgorithm::argon2id_with(
     ///         Some(4),       // time_cost: 4 iterations
     ///         Some(65536),   // memory_cost: 64 MiB
@@ -877,7 +935,7 @@ impl TryFrom<u8> for DataKind {
 /// use libpna::{WriteOptions, Encryption, CipherMode, HashAlgorithm};
 ///
 /// let opts = WriteOptions::builder()
-///     .encryption(Encryption::Aes)
+///     .encryption(Encryption::AES)
 ///     .cipher_mode(CipherMode::CTR)
 ///     .hash_algorithm(HashAlgorithm::argon2id())
 ///     .password(Some("secure_password"))
@@ -890,7 +948,7 @@ impl TryFrom<u8> for DataKind {
 ///
 /// let opts = WriteOptions::builder()
 ///     .compression(Compression::ZSTANDARD)
-///     .encryption(Encryption::Aes)
+///     .encryption(Encryption::AES)
 ///     .cipher_mode(CipherMode::CTR)
 ///     .hash_algorithm(HashAlgorithm::argon2id())
 ///     .password(Some("secure_password"))
@@ -1000,7 +1058,7 @@ impl WriteOptionsBuilder {
         Self {
             compression: Compression::NO,
             compression_level: CompressionLevel::DEFAULT,
-            encryption: Encryption::No,
+            encryption: Encryption::NO,
             cipher_mode: CipherMode::CTR,
             hash_algorithm: HashAlgorithm::argon2id(),
             password: None,
@@ -1083,7 +1141,7 @@ impl WriteOptionsBuilder {
     ///
     /// # fn main() -> std::io::Result<()> {
     /// let opts = WriteOptions::builder()
-    ///     .encryption(Encryption::Aes)
+    ///     .encryption(Encryption::AES)
     ///     .password(Some("password"))
     ///     .try_build()?;
     /// # Ok(())
@@ -1092,10 +1150,10 @@ impl WriteOptionsBuilder {
     #[inline]
     #[must_use = "building options without using them is wasteful"]
     pub fn try_build(&self) -> io::Result<WriteOptions> {
-        let cipher = if self.encryption != Encryption::No {
+        let cipher = if self.encryption != Encryption::NO {
             let cipher_algorithm = match self.encryption {
-                Encryption::Aes => CipherAlgorithm::Aes,
-                Encryption::Camellia => CipherAlgorithm::Camellia,
+                Encryption::AES => CipherAlgorithm::Aes,
+                Encryption::CAMELLIA => CipherAlgorithm::Camellia,
                 other => {
                     return Err(io::Error::new(
                         io::ErrorKind::Unsupported,
@@ -1147,8 +1205,8 @@ impl WriteOptionsBuilder {
     ///
     /// # Panics
     ///
-    /// Panics if [`encryption()`](Self::encryption) was set to [`Encryption::Aes`] or
-    /// [`Encryption::Camellia`] but [`password()`](Self::password) was not called with
+    /// Panics if [`encryption()`](Self::encryption) was set to [`Encryption::AES`] or
+    /// [`Encryption::CAMELLIA`] but [`password()`](Self::password) was not called with
     /// a password, or if key derivation fails (see [`try_build()`](Self::try_build) for
     /// the fallible variant).
     ///
@@ -1157,7 +1215,7 @@ impl WriteOptionsBuilder {
     /// use libpna::{WriteOptions, Encryption};
     ///
     /// let opts = WriteOptions::builder()
-    ///     .encryption(Encryption::Aes)
+    ///     .encryption(Encryption::AES)
     ///     .build();  // PANICS: "Password was not provided."
     /// ```
     ///
@@ -1166,7 +1224,7 @@ impl WriteOptionsBuilder {
     /// use libpna::{WriteOptions, Encryption};
     ///
     /// let opts = WriteOptions::builder()
-    ///     .encryption(Encryption::Aes)
+    ///     .encryption(Encryption::AES)
     ///     .password(Some("secure_password"))
     ///     .build();  // OK
     /// ```
@@ -1291,7 +1349,7 @@ mod tests {
     #[test]
     fn try_build_derives_key_at_build() {
         let options = WriteOptions::builder()
-            .encryption(Encryption::Aes)
+            .encryption(Encryption::AES)
             .password(Some("password"))
             .try_build()
             .unwrap();
@@ -1304,7 +1362,7 @@ mod tests {
     fn each_build_generates_fresh_salt() {
         let mut builder = WriteOptions::builder();
         builder
-            .encryption(Encryption::Aes)
+            .encryption(Encryption::AES)
             .password(Some("password"));
         let first = builder.try_build().unwrap();
         let second = builder.try_build().unwrap();
@@ -1317,7 +1375,7 @@ mod tests {
     #[test]
     fn try_build_without_password_returns_error() {
         let err = WriteOptions::builder()
-            .encryption(Encryption::Aes)
+            .encryption(Encryption::AES)
             .try_build()
             .unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
@@ -1326,7 +1384,7 @@ mod tests {
     #[test]
     fn try_build_with_invalid_kdf_params_returns_error() {
         let result = WriteOptions::builder()
-            .encryption(Encryption::Aes)
+            .encryption(Encryption::AES)
             .hash_algorithm(HashAlgorithm::argon2id_with(Some(0), None, None))
             .password(Some("password"))
             .try_build();
@@ -1336,7 +1394,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Password was not provided.")]
     fn build_without_password_panics() {
-        let _ = WriteOptions::builder().encryption(Encryption::Aes).build();
+        let _ = WriteOptions::builder().encryption(Encryption::AES).build();
     }
 
     fn test_output(byte: u8) -> Output {
@@ -1523,6 +1581,86 @@ mod tests {
     fn try_build_with_unknown_compression_returns_unsupported() {
         let err = WriteOptions::builder()
             .compression(Compression::from_byte(5))
+            .try_build()
+            .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::Unsupported);
+    }
+
+    #[test]
+    fn encryption_round_trips_all_byte_values() {
+        for v in 0..=u8::MAX {
+            assert_eq!(Encryption::from_byte(v).to_byte(), v);
+        }
+    }
+
+    #[test]
+    fn encryption_known_constants_map_to_spec_bytes() {
+        assert_eq!(Encryption::NO.to_byte(), 0);
+        assert_eq!(Encryption::AES.to_byte(), 1);
+        assert_eq!(Encryption::CAMELLIA.to_byte(), 2);
+    }
+
+    #[test]
+    fn encryption_new_private_boundary() {
+        assert_eq!(Encryption::new_private(0), None);
+        assert_eq!(Encryption::new_private(127), None);
+        assert_eq!(
+            Encryption::new_private(128),
+            Some(Encryption::from_byte(128))
+        );
+        assert_eq!(
+            Encryption::new_private(255),
+            Some(Encryption::from_byte(255))
+        );
+    }
+
+    #[test]
+    fn encryption_predicates() {
+        assert!(!Encryption::NO.is_reserved());
+        assert!(!Encryption::CAMELLIA.is_reserved());
+        assert!(!Encryption::CAMELLIA.is_private());
+        assert!(Encryption::from_byte(3).is_reserved());
+        assert!(Encryption::from_byte(127).is_reserved());
+        assert!(!Encryption::from_byte(127).is_private());
+        assert!(!Encryption::from_byte(128).is_reserved());
+        assert!(Encryption::from_byte(128).is_private());
+        assert!(Encryption::from_byte(255).is_private());
+    }
+
+    #[test]
+    fn encryption_debug_matches_former_enum_output() {
+        assert_eq!(format!("{:?}", Encryption::NO), "No");
+        assert_eq!(format!("{:?}", Encryption::AES), "Aes");
+        assert_eq!(format!("{:?}", Encryption::CAMELLIA), "Camellia");
+        assert_eq!(format!("{:?}", Encryption::from_byte(3)), "Reserved(3)");
+        assert_eq!(format!("{:?}", Encryption::from_byte(200)), "Private(200)");
+    }
+
+    #[allow(deprecated)]
+    #[test]
+    fn encryption_deprecated_aliases_equal_new_constants() {
+        assert_eq!(Encryption::No, Encryption::NO);
+        assert_eq!(Encryption::Aes, Encryption::AES);
+        assert_eq!(Encryption::Camellia, Encryption::CAMELLIA);
+    }
+
+    #[allow(deprecated)]
+    #[test]
+    fn encryption_try_from_is_infallible_and_matches_from_byte() {
+        for v in 0..=u8::MAX {
+            assert_eq!(Encryption::try_from(v).unwrap(), Encryption::from_byte(v));
+            assert_eq!(
+                <Encryption as TryFrom<u8>>::try_from(v).unwrap(),
+                Encryption::from_byte(v)
+            );
+        }
+    }
+
+    #[test]
+    fn try_build_with_unknown_encryption_returns_unsupported() {
+        let err = WriteOptions::builder()
+            .encryption(Encryption::from_byte(5))
+            .password(Some("password"))
             .try_build()
             .unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::Unsupported);

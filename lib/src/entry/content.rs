@@ -272,7 +272,7 @@ mod tests {
     /// same way `EntryBuilder::build` does.
     fn encrypted_symlink_entry(target: &str, password: &str) -> NormalEntry {
         let options = WriteOptions::builder()
-            .encryption(Encryption::Aes)
+            .encryption(Encryption::AES)
             .password(Some(password))
             .try_build()
             .unwrap();
@@ -325,7 +325,7 @@ mod tests {
     #[test]
     fn encrypted_directory_decodes_without_password() {
         let mut entry = EntryBuilder::new_dir("d".into()).build().unwrap();
-        entry.header.encryption = Encryption::Aes;
+        entry.header.encryption = Encryption::AES;
         entry.header.cipher_mode = CipherMode::CTR;
         assert!(matches!(
             entry.content(read_options()).unwrap(),

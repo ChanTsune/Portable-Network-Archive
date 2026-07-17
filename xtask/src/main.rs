@@ -268,7 +268,7 @@ fn build_write_options(method: CompressionMethod, password: Option<&str>) -> lib
     if let Some(pw) = password {
         libpna::WriteOptions::builder()
             .compression(compression)
-            .encryption(libpna::Encryption::Aes)
+            .encryption(libpna::Encryption::AES)
             .cipher_mode(libpna::CipherMode::CTR)
             .password(Some(pw))
             .build()

@@ -395,7 +395,7 @@ impl TableRow {
                 || (entry.encryption(), entry.cipher_mode()),
                 |s| (s.encryption(), s.cipher_mode()),
             ) {
-                (Encryption::No, _) => "-".into(),
+                (Encryption::NO, _) => "-".into(),
                 (encryption, cipher_mode) => {
                     format!("{encryption:?}({cipher_mode:?})").to_ascii_lowercase()
                 }

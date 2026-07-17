@@ -251,7 +251,7 @@ mod tests {
             b"plain text",
             WriteOptions::builder()
                 .compression(Compression::NO)
-                .encryption(Encryption::Aes)
+                .encryption(Encryption::AES)
                 .cipher_mode(CipherMode::CBC)
                 .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
                 .password(Some("password"))
@@ -266,7 +266,7 @@ mod tests {
             b"plain text",
             WriteOptions::builder()
                 .compression(Compression::ZSTANDARD)
-                .encryption(Encryption::Aes)
+                .encryption(Encryption::AES)
                 .cipher_mode(CipherMode::CTR)
                 .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
                 .password(Some("password"))
@@ -281,7 +281,7 @@ mod tests {
             b"plain text",
             WriteOptions::builder()
                 .compression(Compression::ZSTANDARD)
-                .encryption(Encryption::Aes)
+                .encryption(Encryption::AES)
                 .cipher_mode(CipherMode::CBC)
                 .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
                 .password(Some("password"))
@@ -296,7 +296,7 @@ mod tests {
             b"plain text",
             WriteOptions::builder()
                 .compression(Compression::ZSTANDARD)
-                .encryption(Encryption::Camellia)
+                .encryption(Encryption::CAMELLIA)
                 .cipher_mode(CipherMode::CTR)
                 .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
                 .password(Some("password"))
@@ -311,7 +311,7 @@ mod tests {
             b"plain text",
             WriteOptions::builder()
                 .compression(Compression::ZSTANDARD)
-                .encryption(Encryption::Camellia)
+                .encryption(Encryption::CAMELLIA)
                 .cipher_mode(CipherMode::CBC)
                 .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
                 .password(Some("password"))
@@ -326,7 +326,7 @@ mod tests {
             b"plain text",
             WriteOptions::builder()
                 .compression(Compression::XZ)
-                .encryption(Encryption::Aes)
+                .encryption(Encryption::AES)
                 .cipher_mode(CipherMode::CBC)
                 .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
                 .password(Some("password"))
@@ -341,7 +341,7 @@ mod tests {
             b"plain text",
             WriteOptions::builder()
                 .compression(Compression::XZ)
-                .encryption(Encryption::Camellia)
+                .encryption(Encryption::CAMELLIA)
                 .cipher_mode(CipherMode::CBC)
                 .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
                 .password(Some("password"))
@@ -357,7 +357,7 @@ mod tests {
     #[test]
     fn entries_share_derived_key_with_unique_iv() {
         let options = WriteOptions::builder()
-            .encryption(Encryption::Aes)
+            .encryption(Encryption::AES)
             .password(Some("password"))
             .build();
         let mut writer = Archive::write_header(Vec::new()).unwrap();
@@ -400,7 +400,7 @@ mod tests {
     #[test]
     fn read_options_derives_key_once_per_archive() {
         let options = WriteOptions::builder()
-            .encryption(Encryption::Aes)
+            .encryption(Encryption::AES)
             .password(Some("password"))
             .try_build()
             .unwrap();
@@ -443,7 +443,7 @@ mod tests {
     fn read_options_cache_handles_distinct_phsf_entries() {
         let mut options_builder = WriteOptions::builder();
         options_builder
-            .encryption(Encryption::Aes)
+            .encryption(Encryption::AES)
             .password(Some("password"));
         let mut writer = Archive::write_header(Vec::new()).unwrap();
         for name in ["test/first", "test/second"] {
@@ -482,7 +482,7 @@ mod tests {
     #[test]
     fn read_options_cache_is_reused_across_solid_blocks() {
         let write_options = WriteOptions::builder()
-            .encryption(Encryption::Aes)
+            .encryption(Encryption::AES)
             .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
             .password(Some("password"))
             .try_build()
@@ -521,7 +521,7 @@ mod tests {
     #[test]
     fn write_options_reusable_across_archives() {
         let options = WriteOptions::builder()
-            .encryption(Encryption::Aes)
+            .encryption(Encryption::AES)
             .password(Some("password"))
             .build();
         for _ in 0..2 {
@@ -593,7 +593,7 @@ mod tests {
         solid_archive(
             WriteOptions::builder()
                 .compression(Compression::NO)
-                .encryption(Encryption::Camellia)
+                .encryption(Encryption::CAMELLIA)
                 .cipher_mode(CipherMode::CBC)
                 .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
                 .password(Some("PASSWORD"))

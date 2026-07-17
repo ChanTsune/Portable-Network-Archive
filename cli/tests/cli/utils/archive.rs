@@ -88,7 +88,7 @@ pub fn create_encrypted_archive_with_permissions(
 
     let write_options = pna::WriteOptions::builder()
         .password(Some(password))
-        .encryption(pna::Encryption::Aes)
+        .encryption(pna::Encryption::AES)
         .cipher_mode(pna::CipherMode::CTR)
         .build();
 

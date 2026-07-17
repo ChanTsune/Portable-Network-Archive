@@ -74,7 +74,7 @@
 //! // Encrypted entry (AES-256-CTR with Argon2id key derivation)
 //! let encrypted = WriteOptions::builder()
 //!     .compression(Compression::ZSTANDARD)
-//!     .encryption(Encryption::Aes)
+//!     .encryption(Encryption::AES)
 //!     .cipher_mode(CipherMode::CTR)
 //!     .hash_algorithm(HashAlgorithm::argon2id())
 //!     .password(Some("secure_password"))

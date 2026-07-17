@@ -45,7 +45,7 @@ impl EntryHeader {
         Self::new_with_options(
             data_kind,
             Compression::NO,
-            Encryption::No,
+            Encryption::NO,
             CipherMode::CBC,
             path,
         )
@@ -147,8 +147,7 @@ impl EntryHeader {
             minor: bytes[1],
             data_kind: DataKind::from_byte(bytes[2]),
             compression: Compression::from_byte(bytes[3]),
-            encryption: Encryption::try_from(bytes[4])
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+            encryption: Encryption::from_byte(bytes[4]),
             cipher_mode: CipherMode::try_from(bytes[5])
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
             sanitized_path: OnceLock::new(),
@@ -284,8 +283,7 @@ impl SolidHeader {
             major: bytes[0],
             minor: bytes[1],
             compression: Compression::from_byte(bytes[2]),
-            encryption: Encryption::try_from(bytes[3])
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+            encryption: Encryption::from_byte(bytes[3]),
             cipher_mode: CipherMode::try_from(bytes[4])
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
         })
@@ -316,7 +314,7 @@ mod tests {
     fn entry_header_to_from_bytes() {
         let header = EntryHeader::for_file(
             Compression::ZSTANDARD,
-            Encryption::Camellia,
+            Encryption::CAMELLIA,
             CipherMode::CTR,
             "file".into(),
         );
@@ -334,7 +332,7 @@ mod tests {
 
     #[test]
     fn solid_header_to_from_bytes() {
-        let header = SolidHeader::new(Compression::ZSTANDARD, Encryption::Aes, CipherMode::CBC);
+        let header = SolidHeader::new(Compression::ZSTANDARD, Encryption::AES, CipherMode::CBC);
         assert_eq!(
             header,
             SolidHeader::try_from_bytes(&header.to_bytes()).unwrap(),
