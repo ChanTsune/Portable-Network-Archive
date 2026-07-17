@@ -36,7 +36,7 @@ const MTIME_2020: i64 = 1_577_836_800; // 2020-01-01T00:00:00Z
 const MTIME_2026: i64 = 1_767_225_600; // 2026-01-01T00:00:00Z
 
 fn is_bsdtar_reference() -> bool {
-    std::env::var_os("BSDTAR_REFERENCE").is_some()
+    std::env::var("BSDTAR_REFERENCE").is_ok_and(|value| value == "1")
 }
 
 fn bsdtar_binary() -> String {
