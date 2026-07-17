@@ -1387,9 +1387,15 @@ bsdtar-like CLI semantics for PNA archives
 * `--store` — No compression
 
   Default value: `false`
-* `--deflate <level>` [alias: `zlib`] — Use deflate for compression [possible level: 1-9, min, max]
-* `--zstd <level>` — Use zstd for compression [possible level: 1-21, min, max]
-* `-J`, `--xz <level>` — Use xz for compression [possible level: 0-9, min, max]
+* `--deflate` [alias: `zlib`] — Use deflate for compression
+
+  Default value: `false`
+* `--zstd` — Use zstd for compression
+
+  Default value: `false`
+* `-J`, `--xz` — Use xz for compression
+
+  Default value: `false`
 * `--aes <cipher mode>` — Use aes for encryption
 
   Possible values: `cbc`, `ctr`
@@ -1694,9 +1700,15 @@ bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` 
 * `--store` — No compression
 
   Default value: `false`
-* `--deflate <level>` [alias: `zlib`] — Use deflate for compression [possible level: 1-9, min, max]
-* `--zstd <level>` — Use zstd for compression [possible level: 1-21, min, max]
-* `-J`, `--xz <level>` — Use xz for compression [possible level: 0-9, min, max]
+* `--deflate` [alias: `zlib`] — Use deflate for compression
+
+  Default value: `false`
+* `--zstd` — Use zstd for compression
+
+  Default value: `false`
+* `-J`, `--xz` — Use xz for compression
+
+  Default value: `false`
 * `--aes <cipher mode>` — Use aes for encryption
 
   Possible values: `cbc`, `ctr`
