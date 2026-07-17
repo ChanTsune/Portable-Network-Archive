@@ -50,15 +50,15 @@ fn prepare_bsdtar_windows_glob_tree(base: &Path) -> std::path::PathBuf {
 }
 
 #[cfg(windows)]
-fn create_stdio_archive(base: &Path, patterns: &[&str]) -> std::path::PathBuf {
+fn create_bsdtar_archive(base: &Path, patterns: &[&str]) -> std::path::PathBuf {
     let input = prepare_bsdtar_windows_glob_tree(base);
     let archive_path = base.join("archive.pna");
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     create_cmd.args([
         "--quiet",
-        "experimental",
-        "stdio",
+        "compat",
+        "bsdtar",
         "--create",
         "--unstable",
         "--overwrite",
@@ -74,13 +74,13 @@ fn create_stdio_archive(base: &Path, patterns: &[&str]) -> std::path::PathBuf {
 }
 
 #[cfg(windows)]
-fn list_stdio_archive_ordered(archive_path: &Path) -> Vec<String> {
+fn list_bsdtar_archive_ordered(archive_path: &Path) -> Vec<String> {
     let mut list_cmd = cargo_bin_cmd!("pna");
     let output = list_cmd
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--list",
             "-f",
             archive_path.to_str().unwrap(),
@@ -99,8 +99,8 @@ fn list_stdio_archive_ordered(archive_path: &Path) -> Vec<String> {
 }
 
 #[cfg(windows)]
-fn list_stdio_archive(archive_path: &Path) -> BTreeSet<String> {
-    list_stdio_archive_ordered(archive_path)
+fn list_bsdtar_archive(archive_path: &Path) -> BTreeSet<String> {
+    list_bsdtar_archive_ordered(archive_path)
         .into_iter()
         .collect()
 }
@@ -109,8 +109,8 @@ fn list_stdio_archive(archive_path: &Path) -> BTreeSet<String> {
 fn assert_windows_glob_archive(base_name: &str, patterns: &[&str], expected: &[&str]) {
     setup();
     let base = Path::new(base_name);
-    let archive_path = create_stdio_archive(base, patterns);
-    let actual = list_stdio_archive(&archive_path);
+    let archive_path = create_bsdtar_archive(base, patterns);
+    let actual = list_bsdtar_archive(&archive_path);
     let expected = expected.iter().map(|entry| entry.to_string()).collect();
     assert_eq!(actual, expected);
 }
@@ -119,8 +119,8 @@ fn assert_windows_glob_archive(base_name: &str, patterns: &[&str], expected: &[&
 fn assert_windows_glob_archive_ordered(base_name: &str, patterns: &[&str], expected: &[&str]) {
     setup();
     let base = Path::new(base_name);
-    let archive_path = create_stdio_archive(base, patterns);
-    let actual = list_stdio_archive_ordered(&archive_path);
+    let archive_path = create_bsdtar_archive(base, patterns);
+    let actual = list_bsdtar_archive_ordered(&archive_path);
     let expected = expected
         .iter()
         .map(|entry| entry.to_string())
@@ -130,10 +130,10 @@ fn assert_windows_glob_archive_ordered(base_name: &str, patterns: &[&str], expec
 
 #[cfg(unix)]
 #[test]
-fn stdio_create_does_not_expand_wildcards_on_unix() {
+fn bsdtar_create_does_not_expand_wildcards_on_unix() {
     setup();
 
-    let base = Path::new("stdio_windows_glob_unix");
+    let base = Path::new("bsdtar_windows_glob_unix");
     let input = base.join("in");
     fs::create_dir_all(input.join("aaa")).unwrap();
     fs::create_dir_all(input.join("aab")).unwrap();
@@ -144,8 +144,8 @@ fn stdio_create_does_not_expand_wildcards_on_unix() {
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
-        "experimental",
-        "stdio",
+        "compat",
+        "bsdtar",
         "--create",
         "--unstable",
         "--overwrite",
@@ -161,9 +161,9 @@ fn stdio_create_does_not_expand_wildcards_on_unix() {
 
 #[cfg(windows)]
 #[test]
-fn stdio_create_expands_wildcards_on_windows() {
+fn bsdtar_create_expands_wildcards_on_windows() {
     assert_windows_glob_archive(
-        "stdio_windows_glob_windows",
+        "bsdtar_windows_glob_windows",
         &["a*"],
         &[
             "aaa/",
@@ -185,9 +185,9 @@ fn stdio_create_expands_wildcards_on_windows() {
 
 #[cfg(windows)]
 #[test]
-fn stdio_create_expands_question_mark_windows_glob() {
+fn bsdtar_create_expands_question_mark_windows_glob() {
     assert_windows_glob_archive(
-        "stdio_windows_glob_question",
+        "bsdtar_windows_glob_question",
         &["??c"],
         &["aac/", "abc/", "bbc/", "bcc/", "ccc/"],
     );
@@ -195,9 +195,9 @@ fn stdio_create_expands_question_mark_windows_glob() {
 
 #[cfg(windows)]
 #[test]
-fn stdio_create_expands_suffix_windows_glob() {
+fn bsdtar_create_expands_suffix_windows_glob() {
     assert_windows_glob_archive(
-        "stdio_windows_glob_suffix",
+        "bsdtar_windows_glob_suffix",
         &["*c"],
         &["aac/", "abc/", "bbc/", "bcc/", "ccc/"],
     );
@@ -205,9 +205,9 @@ fn stdio_create_expands_suffix_windows_glob() {
 
 #[cfg(windows)]
 #[test]
-fn stdio_create_expands_nested_forward_slash_windows_glob() {
+fn bsdtar_create_expands_nested_forward_slash_windows_glob() {
     assert_windows_glob_archive(
-        "stdio_windows_glob_nested_forward",
+        "bsdtar_windows_glob_nested_forward",
         &["fff/a?ca"],
         &["fff/abca", "fff/acca"],
     );
@@ -215,9 +215,9 @@ fn stdio_create_expands_nested_forward_slash_windows_glob() {
 
 #[cfg(windows)]
 #[test]
-fn stdio_create_expands_backslash_directory_glob() {
+fn bsdtar_create_expands_backslash_directory_glob() {
     assert_windows_glob_archive(
-        "stdio_windows_glob_backslash",
+        "bsdtar_windows_glob_backslash",
         &[r"aaa\*"],
         &[
             "aaa/file1",
@@ -233,9 +233,9 @@ fn stdio_create_expands_backslash_directory_glob() {
 
 #[cfg(windows)]
 #[test]
-fn stdio_create_expands_multiple_windows_globs() {
+fn bsdtar_create_expands_multiple_windows_globs() {
     assert_windows_glob_archive_ordered(
-        "stdio_windows_glob_multiple",
+        "bsdtar_windows_glob_multiple",
         &[r"fff\a?ca", r"aaa\xx*"],
         &[
             "fff/abca",
@@ -250,10 +250,10 @@ fn stdio_create_expands_multiple_windows_globs() {
 
 #[cfg(windows)]
 #[test]
-fn stdio_create_backslash_glob_keeps_unmatched_entries_out() {
+fn bsdtar_create_backslash_glob_keeps_unmatched_entries_out() {
     setup();
 
-    let base = Path::new("stdio_windows_glob_backslash_filter");
+    let base = Path::new("bsdtar_windows_glob_backslash_filter");
     let input = base.join("in");
     fs::create_dir_all(input.join("aaa").join("xxa")).unwrap();
     fs::create_dir_all(input.join("aaa").join("xxb")).unwrap();
@@ -266,8 +266,8 @@ fn stdio_create_backslash_glob_keeps_unmatched_entries_out() {
     let mut create_cmd = cargo_bin_cmd!("pna");
     create_cmd.args([
         "--quiet",
-        "experimental",
-        "stdio",
+        "compat",
+        "bsdtar",
         "--create",
         "--unstable",
         "--overwrite",
@@ -282,8 +282,8 @@ fn stdio_create_backslash_glob_keeps_unmatched_entries_out() {
     let mut list_cmd = cargo_bin_cmd!("pna");
     list_cmd.args([
         "--quiet",
-        "experimental",
-        "stdio",
+        "compat",
+        "bsdtar",
         "--list",
         "-f",
         archive_path.to_str().unwrap(),

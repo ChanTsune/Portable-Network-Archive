@@ -4,8 +4,8 @@ use itertools::Itertools;
 
 // Native commands (pna create/extract) require --keep-permission to store permissions
 const FS_KEEP_OPTIONS: &[Option<&str>] = &[Some("--keep-permission"), Some("--keep-xattr")];
-// stdio stores mode+owner by default, no flag needed; still test with --keep-xattr for extended attrs
-const STDIO_KEEP_OPTIONS: &[Option<&str>] = &[None, Some("--keep-xattr")];
+// bsdtar stores mode+owner by default, no flag needed; still test with --keep-xattr for extended attrs
+const BSDTAR_KEEP_OPTIONS: &[Option<&str>] = &[None, Some("--keep-xattr")];
 
 const COMPRESSION_OPTIONS: &[Option<&[&str]>] = &[
     Some(&["--store"]),
@@ -107,9 +107,9 @@ fn combination_fs() {
 }
 
 #[test]
-fn combination_stdio() {
+fn combination_bsdtar() {
     setup();
-    LibSourceCode::extract_all("combination_stdio/in/").unwrap();
+    LibSourceCode::extract_all("combination_bsdtar/in/").unwrap();
     fn inner(options: Vec<&str>) {
         let joined_options = options.iter().join("");
 
@@ -117,10 +117,10 @@ fn combination_stdio() {
         cmd.args(
             [
                 "--quiet",
-                "experimental",
-                "stdio",
+                "compat",
+                "bsdtar",
                 "-c",
-                "combination_stdio/in/",
+                "combination_bsdtar/in/",
                 #[cfg(windows)]
                 "--unstable",
             ]
@@ -133,12 +133,12 @@ fn combination_stdio() {
         cmd.write_stdin(assert.get_output().stdout.as_slice());
         cmd.args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "-x",
             "--overwrite",
             "--out-dir",
-            &format!("combination_stdio/out/{joined_options}/"),
+            &format!("combination_bsdtar/out/{joined_options}/"),
             "--strip-components",
             "2",
             "--password",
@@ -148,11 +148,11 @@ fn combination_stdio() {
         ]);
         cmd.assert().success();
         assert_dirs_equal(
-            "combination_stdio/in/",
-            format!("combination_stdio/out/{joined_options}"),
+            "combination_bsdtar/in/",
+            format!("combination_bsdtar/out/{joined_options}"),
         );
     }
-    for keep in STDIO_KEEP_OPTIONS {
+    for keep in BSDTAR_KEEP_OPTIONS {
         for compress in BSDTAR_COMPRESSION_OPTIONS {
             for encrypt in ENCRYPTION_OPTIONS {
                 for solid in SOLID_OPTIONS {

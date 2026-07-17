@@ -5,14 +5,14 @@ use predicates::prelude::predicate;
 use std::fs;
 
 #[test]
-fn stdio_auto_compress_option() {
+fn bsdtar_auto_compress_option() {
     setup();
-    let file = "stdio_auto_compress_option.txt";
+    let file = "bsdtar_auto_compress_option.txt";
     fs::write(file, "").unwrap();
 
     let mut cmd = cargo_bin_cmd!("pna");
-    cmd.arg("experimental")
-        .arg("stdio")
+    cmd.arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("--auto-compress")
         .arg(file)
@@ -24,14 +24,14 @@ fn stdio_auto_compress_option() {
 }
 
 #[test]
-fn stdio_a_option() {
+fn bsdtar_a_option() {
     setup();
-    let file = "stdio_a_option.txt";
+    let file = "bsdtar_a_option.txt";
     fs::write(file, "").unwrap();
 
     let mut cmd = cargo_bin_cmd!("pna");
-    cmd.arg("experimental")
-        .arg("stdio")
+    cmd.arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("-a")
         .arg(file)

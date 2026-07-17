@@ -31,7 +31,7 @@ const EXPECTED_LINE_ENDING: &[u8] = b"\n";
 ///   separator (CRLF on Windows, LF elsewhere) so the output matches
 ///   the byte stream that the reference bsdtar implementation produces.
 #[test]
-fn stdio_list_simple_uses_platform_line_ending() {
+fn bsdtar_list_simple_uses_platform_line_ending() {
     setup();
     let archive_data = build_two_entry_archive();
 
@@ -74,7 +74,7 @@ fn stdio_list_simple_uses_platform_line_ending() {
 /// Expectation: Each formatted record ends with the platform's
 ///   expected line separator.
 #[test]
-fn stdio_list_verbose_uses_platform_line_ending() {
+fn bsdtar_list_verbose_uses_platform_line_ending() {
     setup();
     let archive_data = build_two_entry_archive();
 

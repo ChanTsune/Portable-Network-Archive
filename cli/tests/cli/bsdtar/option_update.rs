@@ -5,14 +5,14 @@ use predicates::prelude::predicate;
 use std::{fs, thread, time};
 
 /// Precondition: An archive exists with a file.
-/// Action: Modify the file, run stdio update mode.
+/// Action: Modify the file, run bsdtar update mode.
 /// Expectation: The archive is updated with the newer file.
 #[test]
-fn stdio_update_basic() {
+fn bsdtar_update_basic() {
     setup();
-    let archive = "stdio_update_basic/test.pna";
-    let file = "stdio_update_basic/file.txt";
-    fs::create_dir_all("stdio_update_basic").unwrap();
+    let archive = "bsdtar_update_basic/test.pna";
+    let file = "bsdtar_update_basic/file.txt";
+    fs::create_dir_all("bsdtar_update_basic").unwrap();
 
     // Create initial file
     fs::write(file, "original content").unwrap();
@@ -34,10 +34,10 @@ fn stdio_update_basic() {
     // Modify the file
     fs::write(file, "modified content").unwrap();
 
-    // Update using stdio subcommand
+    // Update using bsdtar subcommand
     let mut cmd = cargo_bin_cmd!("pna");
-    cmd.arg("experimental")
-        .arg("stdio")
+    cmd.arg("compat")
+        .arg("bsdtar")
         .arg("--update")
         .arg("-f")
         .arg(archive)
@@ -58,14 +58,14 @@ fn stdio_update_basic() {
 }
 
 /// Precondition: An archive exists with a file.
-/// Action: Run stdio update mode with short flag `-u`.
+/// Action: Run bsdtar update mode with short flag `-u`.
 /// Expectation: The update succeeds with the short flag.
 #[test]
-fn stdio_update_short_flag() {
+fn bsdtar_update_short_flag() {
     setup();
-    let archive = "stdio_update_short_flag/test.pna";
-    let file = "stdio_update_short_flag/file.txt";
-    fs::create_dir_all("stdio_update_short_flag").unwrap();
+    let archive = "bsdtar_update_short_flag/test.pna";
+    let file = "bsdtar_update_short_flag/file.txt";
+    fs::create_dir_all("bsdtar_update_short_flag").unwrap();
 
     // Create initial file
     fs::write(file, "original content").unwrap();
@@ -89,8 +89,8 @@ fn stdio_update_short_flag() {
 
     // Update using short flag
     let mut cmd = cargo_bin_cmd!("pna");
-    cmd.arg("experimental")
-        .arg("stdio")
+    cmd.arg("compat")
+        .arg("bsdtar")
         .arg("-u")
         .arg("-f")
         .arg(archive)
@@ -111,15 +111,15 @@ fn stdio_update_short_flag() {
 }
 
 /// Precondition: None.
-/// Action: Run stdio update mode with stdin (`-f -`).
+/// Action: Run bsdtar update mode with stdin (`-f -`).
 /// Expectation: Error is returned because update requires a file-based archive.
 #[test]
-fn stdio_update_requires_file() {
+fn bsdtar_update_requires_file() {
     setup();
 
     let mut cmd = cargo_bin_cmd!("pna");
-    cmd.arg("experimental")
-        .arg("stdio")
+    cmd.arg("compat")
+        .arg("bsdtar")
         .arg("-u")
         .arg("-f")
         .arg("-")
@@ -131,15 +131,15 @@ fn stdio_update_requires_file() {
 }
 
 /// Precondition: None.
-/// Action: Run stdio update mode without `-f` flag.
+/// Action: Run bsdtar update mode without `-f` flag.
 /// Expectation: Error is returned because update requires a file-based archive.
 #[test]
-fn stdio_update_requires_file_no_flag() {
+fn bsdtar_update_requires_file_no_flag() {
     setup();
 
     let mut cmd = cargo_bin_cmd!("pna");
-    cmd.arg("experimental")
-        .arg("stdio")
+    cmd.arg("compat")
+        .arg("bsdtar")
         .arg("-u")
         .assert()
         .failure()
@@ -149,14 +149,14 @@ fn stdio_update_requires_file_no_flag() {
 }
 
 /// Precondition: An archive contains a file that hasn't been modified.
-/// Action: Run stdio update without modifying the source.
+/// Action: Run bsdtar update without modifying the source.
 /// Expectation: Archive entry is preserved, not re-added.
 #[test]
-fn stdio_update_preserves_unmodified() {
+fn bsdtar_update_preserves_unmodified() {
     setup();
-    let archive = "stdio_update_preserves_unmodified/test.pna";
-    let file = "stdio_update_preserves_unmodified/file.txt";
-    fs::create_dir_all("stdio_update_preserves_unmodified").unwrap();
+    let archive = "bsdtar_update_preserves_unmodified/test.pna";
+    let file = "bsdtar_update_preserves_unmodified/file.txt";
+    fs::create_dir_all("bsdtar_update_preserves_unmodified").unwrap();
 
     // Create initial file
     fs::write(file, "content").unwrap();
@@ -174,8 +174,8 @@ fn stdio_update_preserves_unmodified() {
 
     // Run update without modifying the file
     let mut cmd = cargo_bin_cmd!("pna");
-    cmd.arg("experimental")
-        .arg("stdio")
+    cmd.arg("compat")
+        .arg("bsdtar")
         .arg("-u")
         .arg("-f")
         .arg(archive)

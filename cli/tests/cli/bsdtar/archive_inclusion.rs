@@ -9,10 +9,10 @@ use std::path::PathBuf;
 
 /// Test basic @archive inclusion: create a new archive including entries from an existing archive.
 #[test]
-fn stdio_archive_inclusion_basic() {
+fn bsdtar_archive_inclusion_basic() {
     setup();
 
-    let base = PathBuf::from("stdio_archive_inclusion_basic");
+    let base = PathBuf::from("bsdtar_archive_inclusion_basic");
     fs::create_dir_all(&base).unwrap();
 
     // Create source archive with some files
@@ -35,8 +35,8 @@ fn stdio_archive_inclusion_basic() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -68,10 +68,10 @@ fn stdio_archive_inclusion_basic() {
 
 /// Test multiple @archive inclusions from different source archives.
 #[test]
-fn stdio_archive_inclusion_multiple() {
+fn bsdtar_archive_inclusion_multiple() {
     setup();
 
-    let base = PathBuf::from("stdio_archive_inclusion_multiple");
+    let base = PathBuf::from("bsdtar_archive_inclusion_multiple");
     fs::create_dir_all(&base).unwrap();
 
     // Create first source archive
@@ -91,8 +91,8 @@ fn stdio_archive_inclusion_multiple() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -119,10 +119,10 @@ fn stdio_archive_inclusion_multiple() {
 
 /// Test @archive inclusion with solid mode enabled.
 #[test]
-fn stdio_archive_inclusion_solid() {
+fn bsdtar_archive_inclusion_solid() {
     setup();
 
-    let base = PathBuf::from("stdio_archive_inclusion_solid");
+    let base = PathBuf::from("bsdtar_archive_inclusion_solid");
     fs::create_dir_all(&base).unwrap();
 
     // Create source archive
@@ -141,8 +141,8 @@ fn stdio_archive_inclusion_solid() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -170,8 +170,8 @@ fn stdio_archive_inclusion_solid() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",
@@ -195,10 +195,10 @@ fn stdio_archive_inclusion_solid() {
 
 /// Test @archive inclusion in append mode.
 #[test]
-fn stdio_archive_inclusion_append() {
+fn bsdtar_archive_inclusion_append() {
     setup();
 
-    let base = PathBuf::from("stdio_archive_inclusion_append");
+    let base = PathBuf::from("bsdtar_archive_inclusion_append");
     fs::create_dir_all(&base).unwrap();
 
     // Create initial archive
@@ -213,8 +213,8 @@ fn stdio_archive_inclusion_append() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--append",
             "--unstable",
             "-f",
@@ -235,18 +235,18 @@ fn stdio_archive_inclusion_append() {
 
 /// Test that @archive with non-existent file produces an error.
 #[test]
-fn stdio_archive_inclusion_nonexistent() {
+fn bsdtar_archive_inclusion_nonexistent() {
     setup();
 
-    let base = PathBuf::from("stdio_archive_inclusion_nonexistent");
+    let base = PathBuf::from("bsdtar_archive_inclusion_nonexistent");
     fs::create_dir_all(&base).unwrap();
 
     let output_archive = base.join("output.pna");
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -260,10 +260,10 @@ fn stdio_archive_inclusion_nonexistent() {
 
 /// Test @archive inclusion preserves entry data correctly.
 #[test]
-fn stdio_archive_inclusion_data_integrity() {
+fn bsdtar_archive_inclusion_data_integrity() {
     setup();
 
-    let base = PathBuf::from("stdio_archive_inclusion_data_integrity");
+    let base = PathBuf::from("bsdtar_archive_inclusion_data_integrity");
     fs::create_dir_all(&base).unwrap();
 
     // Create source archive with larger content
@@ -276,8 +276,8 @@ fn stdio_archive_inclusion_data_integrity() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -295,8 +295,8 @@ fn stdio_archive_inclusion_data_integrity() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",
@@ -318,10 +318,10 @@ fn stdio_archive_inclusion_data_integrity() {
 /// Action: Create archive with `--exclude` pattern and `@archive` inclusion.
 /// Expectation: Entries matching the exclude pattern are filtered out from the included archive.
 #[test]
-fn stdio_archive_inclusion_exclude_filter() {
+fn bsdtar_archive_inclusion_exclude_filter() {
     setup();
 
-    let base = PathBuf::from("stdio_archive_inclusion_exclude_filter");
+    let base = PathBuf::from("bsdtar_archive_inclusion_exclude_filter");
     fs::create_dir_all(&base).unwrap();
 
     // Create source archive with various file types
@@ -341,8 +341,8 @@ fn stdio_archive_inclusion_exclude_filter() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -380,10 +380,10 @@ fn stdio_archive_inclusion_exclude_filter() {
 /// Action: Create archive with `--include` pattern and `@archive` inclusion.
 /// Expectation: Only entries matching the include pattern are included from the source archive.
 #[test]
-fn stdio_archive_inclusion_include_filter() {
+fn bsdtar_archive_inclusion_include_filter() {
     setup();
 
-    let base = PathBuf::from("stdio_archive_inclusion_include_filter");
+    let base = PathBuf::from("bsdtar_archive_inclusion_include_filter");
     fs::create_dir_all(&base).unwrap();
 
     // Create source archive with various files
@@ -403,8 +403,8 @@ fn stdio_archive_inclusion_include_filter() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -439,10 +439,10 @@ fn stdio_archive_inclusion_include_filter() {
 /// Action: Create archive with `@archive` as the first argument, followed by filesystem files.
 /// Expectation: Entry order is preserved: archive entries first, then filesystem files.
 #[test]
-fn stdio_archive_inclusion_archive_first() {
+fn bsdtar_archive_inclusion_archive_first() {
     setup();
 
-    let base = PathBuf::from("stdio_archive_inclusion_archive_first");
+    let base = PathBuf::from("bsdtar_archive_inclusion_archive_first");
     fs::create_dir_all(&base).unwrap();
 
     // Create source archive with entries
@@ -458,8 +458,8 @@ fn stdio_archive_inclusion_archive_first() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -490,10 +490,10 @@ fn stdio_archive_inclusion_archive_first() {
 /// Action: Create archive with empty `@archive` inclusion and a filesystem file.
 /// Expectation: Output archive contains only the filesystem file; no error occurs.
 #[test]
-fn stdio_archive_inclusion_empty_archive() {
+fn bsdtar_archive_inclusion_empty_archive() {
     setup();
 
-    let base = PathBuf::from("stdio_archive_inclusion_empty_archive");
+    let base = PathBuf::from("bsdtar_archive_inclusion_empty_archive");
     fs::create_dir_all(&base).unwrap();
 
     // Create empty source archive (no entries)
@@ -509,8 +509,8 @@ fn stdio_archive_inclusion_empty_archive() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -536,10 +536,10 @@ fn stdio_archive_inclusion_empty_archive() {
 /// Action: Create archive with both `--include` and `--exclude` patterns and `@archive` inclusion.
 /// Expectation: Exclude takes precedence; only entries matching include but not exclude are included.
 #[test]
-fn stdio_archive_inclusion_combined_filters() {
+fn bsdtar_archive_inclusion_combined_filters() {
     setup();
 
-    let base = PathBuf::from("stdio_archive_inclusion_combined_filters");
+    let base = PathBuf::from("bsdtar_archive_inclusion_combined_filters");
     fs::create_dir_all(&base).unwrap();
 
     // Create source archive with files that match different filter combinations
@@ -559,8 +559,8 @@ fn stdio_archive_inclusion_combined_filters() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -606,10 +606,10 @@ fn stdio_archive_inclusion_combined_filters() {
 /// Action: Create solid archive with `--exclude` pattern and `@archive` inclusion.
 /// Expectation: Entries matching exclude pattern are filtered before solid repack.
 #[test]
-fn stdio_archive_inclusion_solid_with_filter() {
+fn bsdtar_archive_inclusion_solid_with_filter() {
     setup();
 
-    let base = PathBuf::from("stdio_archive_inclusion_solid_with_filter");
+    let base = PathBuf::from("bsdtar_archive_inclusion_solid_with_filter");
     fs::create_dir_all(&base).unwrap();
 
     // Create source archive with various file types
@@ -628,8 +628,8 @@ fn stdio_archive_inclusion_solid_with_filter() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -664,8 +664,8 @@ fn stdio_archive_inclusion_solid_with_filter() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",
@@ -696,10 +696,10 @@ fn stdio_archive_inclusion_solid_with_filter() {
 /// Expectation: The `@` is NOT interpreted as archive inclusion. The file is added to
 ///   the archive as a regular filesystem entry named `@file`.
 #[test]
-fn stdio_update_treats_at_prefix_as_filesystem_path() {
+fn bsdtar_update_treats_at_prefix_as_filesystem_path() {
     setup();
 
-    let base = PathBuf::from("stdio_update_at_prefix_as_path");
+    let base = PathBuf::from("bsdtar_update_at_prefix_as_path");
     if base.exists() {
         fs::remove_dir_all(&base).unwrap();
     }

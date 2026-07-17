@@ -3,16 +3,16 @@ use assert_cmd::cargo::cargo_bin_cmd;
 use std::path::PathBuf;
 
 /// Precondition: An owner-facet archive is used as an `@archive` transform source.
-/// Action: Run `experimental stdio --create` with a `--uid` ownership override.
+/// Action: Run `compat bsdtar --create` with a `--uid` ownership override.
 /// Expectation: Each transformed entry carries the overridden owner uid as an
 /// owner-facet value while preserving the other owner facets, and the legacy
 /// fPRM chunk is not emitted.
 #[test]
 #[allow(deprecated)]
-fn stdio_archive_source_uid_override_drops_fprm() {
+fn bsdtar_archive_source_uid_override_drops_fprm() {
     setup();
 
-    let base = PathBuf::from("stdio_archive_source_uid_override");
+    let base = PathBuf::from("bsdtar_archive_source_uid_override");
     TestResources::extract_in("zstd_keep_all.pna", &base).unwrap();
 
     let mut pre = Vec::new();
@@ -43,8 +43,8 @@ fn stdio_archive_source_uid_override_drops_fprm() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",

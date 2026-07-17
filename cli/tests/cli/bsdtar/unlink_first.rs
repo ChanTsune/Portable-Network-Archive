@@ -45,7 +45,7 @@ fn build_single_file_archive(path: &PathBuf, name: &str, contents: &str) {
 fn unlink_first_replaces_existing_symlink_file() {
     setup();
 
-    let root = PathBuf::from("stdio_unlink_first_file");
+    let root = PathBuf::from("bsdtar_unlink_first_file");
     let archive_path = root.join("archive.pna");
     build_single_file_archive(&archive_path, "file.txt", "updated");
 
@@ -64,8 +64,8 @@ fn unlink_first_replaces_existing_symlink_file() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",
@@ -98,7 +98,7 @@ fn unlink_first_replaces_existing_symlink_file() {
 fn unlink_first_removes_symlinked_parent_directory() {
     setup();
 
-    let root = PathBuf::from("stdio_unlink_first_parent");
+    let root = PathBuf::from("bsdtar_unlink_first_parent");
     let archive_path = root.join("archive.pna");
     build_single_file_archive(&archive_path, "dir/file.txt", "payload");
 
@@ -117,8 +117,8 @@ fn unlink_first_removes_symlinked_parent_directory() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",
@@ -145,7 +145,7 @@ fn unlink_first_removes_symlinked_parent_directory() {
 fn unlink_first_replaces_existing_regular_file_without_overwrite() {
     setup();
 
-    let root = PathBuf::from("stdio_unlink_first_regular");
+    let root = PathBuf::from("bsdtar_unlink_first_regular");
     let archive_path = root.join("archive.pna");
     build_single_file_archive(&archive_path, "file.txt", "fresh");
 
@@ -156,8 +156,8 @@ fn unlink_first_replaces_existing_regular_file_without_overwrite() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--unlink-first",
@@ -179,7 +179,7 @@ fn unlink_first_replaces_existing_regular_file_without_overwrite() {
 fn unlink_first_with_keep_old_files_replaces_file() {
     setup();
 
-    let root = PathBuf::from("stdio_unlink_first_keep_old");
+    let root = PathBuf::from("bsdtar_unlink_first_keep_old");
     let archive_path = root.join("archive.pna");
     build_single_file_archive(&archive_path, "file.txt", "from_archive");
 
@@ -190,8 +190,8 @@ fn unlink_first_with_keep_old_files_replaces_file() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--unlink-first",
@@ -218,7 +218,7 @@ fn unlink_first_with_keep_old_files_replaces_file() {
 fn unlink_first_with_keep_newer_files_replaces_newer_file() {
     setup();
 
-    let root = PathBuf::from("stdio_unlink_first_keep_newer");
+    let root = PathBuf::from("bsdtar_unlink_first_keep_newer");
     let archive_path = root.join("archive.pna");
     // Archive entry with very old mtime (1 second after epoch)
     build_archive_with_mtime(
@@ -241,8 +241,8 @@ fn unlink_first_with_keep_newer_files_replaces_newer_file() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--unlink-first",
@@ -269,7 +269,7 @@ fn unlink_first_with_keep_newer_files_replaces_newer_file() {
 fn unlink_first_with_follow_symlinks_preserves_symlinked_directory() {
     setup();
 
-    let root = PathBuf::from("stdio_unlink_first_follow_PU");
+    let root = PathBuf::from("bsdtar_unlink_first_follow_PU");
     let archive_path = root.join("archive.pna");
     // Archive with explicit directory entry + file entry (matches bsdtar archive layout)
     {
@@ -307,8 +307,8 @@ fn unlink_first_with_follow_symlinks_preserves_symlinked_directory() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",

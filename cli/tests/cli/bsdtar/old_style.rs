@@ -7,7 +7,7 @@ use std::{collections::HashSet, fs};
 /// Action: Create archive using old-style syntax (cvf).
 /// Expectation: Archive is created with correct entries.
 #[test]
-fn stdio_create_old_style_cvf() {
+fn bsdtar_create_old_style_cvf() {
     setup();
     let dir = "old_style_cvf_dir";
     fs::create_dir_all(dir).unwrap();
@@ -18,8 +18,8 @@ fn stdio_create_old_style_cvf() {
 
     cargo_bin_cmd!("pna")
         .args([
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "cvf",
             archive_path,
             &format!("{dir}/a.txt"),
@@ -41,7 +41,7 @@ fn stdio_create_old_style_cvf() {
 /// Action: Extract using old-style syntax (xf).
 /// Expectation: Files are extracted to disk.
 #[test]
-fn stdio_extract_old_style_xf() {
+fn bsdtar_extract_old_style_xf() {
     setup();
     let src = "old_style_xf_src";
     fs::create_dir_all(src).unwrap();
@@ -51,8 +51,8 @@ fn stdio_extract_old_style_xf() {
 
     cargo_bin_cmd!("pna")
         .args([
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "cf",
             archive_path,
             &format!("{src}/file.txt"),
@@ -64,14 +64,7 @@ fn stdio_extract_old_style_xf() {
 
     let out_dir = "old_style_xf_out";
     cargo_bin_cmd!("pna")
-        .args([
-            "experimental",
-            "stdio",
-            "xf",
-            archive_path,
-            "--out-dir",
-            out_dir,
-        ])
+        .args(["compat", "bsdtar", "xf", archive_path, "--out-dir", out_dir])
         .assert()
         .success();
 
@@ -85,7 +78,7 @@ fn stdio_extract_old_style_xf() {
 /// Action: List contents using old-style syntax (tf).
 /// Expectation: Entry names are shown in output.
 #[test]
-fn stdio_list_old_style_tf() {
+fn bsdtar_list_old_style_tf() {
     setup();
     let file = "old_style_tf_file.txt";
     fs::write(file, "content").unwrap();
@@ -93,12 +86,12 @@ fn stdio_list_old_style_tf() {
     let archive_path = "old_style_tf.pna";
 
     cargo_bin_cmd!("pna")
-        .args(["experimental", "stdio", "cf", archive_path, file])
+        .args(["compat", "bsdtar", "cf", archive_path, file])
         .assert()
         .success();
 
     let output = cargo_bin_cmd!("pna")
-        .args(["experimental", "stdio", "tf", archive_path])
+        .args(["compat", "bsdtar", "tf", archive_path])
         .output()
         .unwrap();
 

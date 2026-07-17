@@ -66,13 +66,13 @@ fn assert_symlink(path: impl AsRef<Path>, target: &str) {
 }
 
 /// Precondition: Directory contains broken symlinks pointing to non-existent targets
-/// Action: Create archive and extract with bsdtar-compatible stdio mode
+/// Action: Create archive and extract with bsdtar-compatible bsdtar mode
 /// Expectation: Broken symlinks are preserved as symlinks with original targets
 #[test]
-fn stdio_broken_symlink_no_follow_roundtrip() {
+fn bsdtar_broken_symlink_no_follow_roundtrip() {
     setup();
 
-    let base = PathBuf::from("stdio_broken_symlink_no_follow");
+    let base = PathBuf::from("bsdtar_broken_symlink_no_follow");
     let source = base.join("source");
     let archive = base.join("archive.pna");
     let out_dir = base.join("out");
@@ -81,8 +81,8 @@ fn stdio_broken_symlink_no_follow_roundtrip() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--overwrite",
             "-f",
@@ -107,8 +107,8 @@ fn stdio_broken_symlink_no_follow_roundtrip() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--overwrite",
             "-f",
@@ -127,10 +127,10 @@ fn stdio_broken_symlink_no_follow_roundtrip() {
 /// Action: Create archive, then extract with --same-permissions
 /// Expectation: Broken symlinks are restored with preserved permissions
 #[test]
-fn stdio_broken_symlink_preserve_permissions() {
+fn bsdtar_broken_symlink_preserve_permissions() {
     setup();
 
-    let base = PathBuf::from("stdio_broken_symlink_preserve_permissions");
+    let base = PathBuf::from("bsdtar_broken_symlink_preserve_permissions");
     let source = base.join("source");
     let archive = base.join("archive.pna");
     let out_dir = base.join("out");
@@ -139,8 +139,8 @@ fn stdio_broken_symlink_preserve_permissions() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--overwrite",
             "-f",
@@ -155,8 +155,8 @@ fn stdio_broken_symlink_preserve_permissions() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--unstable",
             "--extract",
             "--overwrite",

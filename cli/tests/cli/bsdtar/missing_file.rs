@@ -4,21 +4,21 @@ use std::fs;
 use std::path::PathBuf;
 
 /// Precondition: No input paths are provided.
-/// Action: Run `pna experimental stdio -c -f ...` without positional paths.
+/// Action: Run `pna compat bsdtar -c -f ...` without positional paths.
 /// Expectation: Command fails similarly to bsdtar's "missing file" handling.
 #[test]
-fn stdio_create_without_inputs_fails() {
+fn bsdtar_create_without_inputs_fails() {
     setup();
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
-        "experimental",
-        "stdio",
+        "compat",
+        "bsdtar",
         "--unstable",
         "-c",
         "-f",
-        "stdio_create_without_inputs_fails.pna",
+        "bsdtar_create_without_inputs_fails.pna",
     ]);
     cmd.assert().failure();
 }
@@ -28,10 +28,10 @@ fn stdio_create_without_inputs_fails() {
 ///   and zero file operands.
 /// Expectation: Command fails — directory changes alone do not constitute input.
 #[test]
-fn stdio_create_with_only_directory_changes_fails() {
+fn bsdtar_create_with_only_directory_changes_fails() {
     setup();
 
-    let base = PathBuf::from("stdio_create_only_dir_changes");
+    let base = PathBuf::from("bsdtar_create_only_dir_changes");
     if base.exists() {
         fs::remove_dir_all(&base).unwrap();
     }

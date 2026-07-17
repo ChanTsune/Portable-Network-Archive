@@ -4,16 +4,16 @@ use std::fs;
 use std::path::Path;
 
 /// Precondition: An archive contains files in nested directories and a manifest lists a subset.
-/// Action: Create the archive via `pna experimental stdio --create`, then extract it using
-///         `pna experimental stdio --extract --files-from <manifest>`.
+/// Action: Create the archive via `pna compat bsdtar --create`, then extract it using
+///         `pna compat bsdtar --extract --files-from <manifest>`.
 /// Expectation: Only the manifest entries appear in the output tree; other archive members stay
 ///         untouched.
 #[test]
-fn stdio_extract_with_files_from() {
+fn bsdtar_extract_with_files_from() {
     setup();
 
     // Prepare input payload
-    let base = Path::new("stdio_files_from");
+    let base = Path::new("bsdtar_files_from");
     let input = base.join("in");
     fs::create_dir_all(&input).unwrap();
     fs::write(input.join("keep_a.txt"), "keep-a").unwrap();
@@ -22,13 +22,13 @@ fn stdio_extract_with_files_from() {
     fs::create_dir_all(input.join("nested")).unwrap();
     fs::write(input.join("nested").join("keep_nested.txt"), "keep-nested").unwrap();
 
-    // Create archive using stdio mode
+    // Create archive using bsdtar mode
     let archive_path = base.join("archive.pna");
     let mut create_cmd = cargo_bin_cmd!("pna");
     create_cmd.args([
         "--quiet",
-        "experimental",
-        "stdio",
+        "compat",
+        "bsdtar",
         "--create",
         "--unstable",
         "--overwrite",
@@ -50,8 +50,8 @@ fn stdio_extract_with_files_from() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd.args([
         "--quiet",
-        "experimental",
-        "stdio",
+        "compat",
+        "bsdtar",
         "--extract",
         "--unstable",
         "--files-from",

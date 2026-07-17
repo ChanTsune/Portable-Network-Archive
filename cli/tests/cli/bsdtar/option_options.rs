@@ -6,14 +6,14 @@ use std::fs;
 
 /// --options with global compression-level creates archive successfully.
 #[test]
-fn stdio_options_global_compression_level() {
+fn bsdtar_options_global_compression_level() {
     setup();
-    let file = "stdio_options_global.txt";
+    let file = "bsdtar_options_global.txt";
     fs::write(file, "test content").unwrap();
 
     let mut cmd = cargo_bin_cmd!("pna");
-    cmd.arg("experimental")
-        .arg("stdio")
+    cmd.arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("--zstd")
         .arg("--options=compression-level=15")
@@ -25,14 +25,14 @@ fn stdio_options_global_compression_level() {
 
 /// --options with module-specific compression-level creates archive successfully.
 #[test]
-fn stdio_options_module_compression_level() {
+fn bsdtar_options_module_compression_level() {
     setup();
-    let file = "stdio_options_module.txt";
+    let file = "bsdtar_options_module.txt";
     fs::write(file, "test content").unwrap();
 
     let mut cmd = cargo_bin_cmd!("pna");
-    cmd.arg("experimental")
-        .arg("stdio")
+    cmd.arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("--zstd")
         .arg("--options=zstd:compression-level=15")
@@ -44,14 +44,14 @@ fn stdio_options_module_compression_level() {
 
 /// Invalid --options value shows error with context.
 #[test]
-fn stdio_options_invalid_value_shows_context() {
+fn bsdtar_options_invalid_value_shows_context() {
     setup();
-    let file = "stdio_options_invalid.txt";
+    let file = "bsdtar_options_invalid.txt";
     fs::write(file, "test content").unwrap();
 
     let mut cmd = cargo_bin_cmd!("pna");
-    cmd.arg("experimental")
-        .arg("stdio")
+    cmd.arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("--zstd")
         .arg("--options=zstd:compression-level=abc")

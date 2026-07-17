@@ -1,5 +1,5 @@
 #![cfg(not(target_family = "wasm"))]
-//! Tests for `-p, --same-permissions` and related permission flags in stdio mode.
+//! Tests for `-p, --same-permissions` and related permission flags in bsdtar mode.
 //!
 //! Phase 1: Creation defaults (mode+owner stored by default)
 //! Phase 2: Extraction with -p flag (restores mode+ACL+xattr+fflags+mac-meta, NOT owner)
@@ -67,17 +67,17 @@ impl Drop for UmaskGuard {
 // Flag Validation Tests
 // =============================================================================
 
-/// Test: --keep-permission flag is removed from stdio
+/// Test: --keep-permission flag is removed from bsdtar
 /// Expectation: Command fails with "unexpected argument" error
 #[test]
-fn stdio_keep_permission_flag_removed() {
+fn bsdtar_keep_permission_flag_removed() {
     setup();
-    let file = "stdio_keep_permission_removed.txt";
+    let file = "bsdtar_keep_permission_removed.txt";
     fs::write(file, "test content").unwrap();
 
     let mut cmd = cargo_bin_cmd!("pna");
-    cmd.arg("experimental")
-        .arg("stdio")
+    cmd.arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("--keep-permission")
         .arg(file)
@@ -86,17 +86,17 @@ fn stdio_keep_permission_flag_removed() {
         .stderr(predicate::str::contains("unexpected argument"));
 }
 
-/// Test: --no-keep-permission flag is removed from stdio
+/// Test: --no-keep-permission flag is removed from bsdtar
 /// Expectation: Command fails with "unexpected argument" error
 #[test]
-fn stdio_no_keep_permission_flag_removed() {
+fn bsdtar_no_keep_permission_flag_removed() {
     setup();
-    let file = "stdio_no_keep_permission_removed.txt";
+    let file = "bsdtar_no_keep_permission_removed.txt";
     fs::write(file, "test content").unwrap();
 
     let mut cmd = cargo_bin_cmd!("pna");
-    cmd.arg("experimental")
-        .arg("stdio")
+    cmd.arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("--no-keep-permission")
         .arg(file)
@@ -108,16 +108,16 @@ fn stdio_no_keep_permission_flag_removed() {
 /// Test: -p/--same-permissions requires --unstable
 /// Expectation: Command fails without --unstable
 #[test]
-fn stdio_same_permissions_requires_unstable() {
+fn bsdtar_same_permissions_requires_unstable() {
     setup();
-    let file = "stdio_same_permissions_requires_unstable.txt";
+    let file = "bsdtar_same_permissions_requires_unstable.txt";
     fs::write(file, "test content").unwrap();
 
     // Create an archive first
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg(file)
         .assert()
@@ -127,12 +127,12 @@ fn stdio_same_permissions_requires_unstable() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("-p")
         .arg("--out-dir")
-        .arg("stdio_same_permissions_requires_unstable_out/")
+        .arg("bsdtar_same_permissions_requires_unstable_out/")
         .assert()
         .failure()
         .stderr(predicate::str::contains("--unstable"));
@@ -143,15 +143,15 @@ fn stdio_same_permissions_requires_unstable() {
 /// accepted in create mode but is ignored (it only affects extraction semantics).
 /// This matches bsdtar behavior where -p is silently ignored in create mode.
 #[test]
-fn stdio_same_permissions_accepted_in_create_mode_but_ignored() {
+fn bsdtar_same_permissions_accepted_in_create_mode_but_ignored() {
     setup();
-    let file = "stdio_same_permissions_in_create.txt";
+    let file = "bsdtar_same_permissions_in_create.txt";
     fs::write(file, "test content").unwrap();
 
     // -p in create mode is accepted but has no effect (matches bsdtar)
     let mut cmd = cargo_bin_cmd!("pna");
-    cmd.arg("experimental")
-        .arg("stdio")
+    cmd.arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("--unstable")
         .arg("-p")
@@ -163,14 +163,14 @@ fn stdio_same_permissions_accepted_in_create_mode_but_ignored() {
 /// Test: --no-same-permissions is accepted for creation
 /// Expectation: Command succeeds with --no-same-permissions
 #[test]
-fn stdio_no_same_permissions_accepted_for_creation() {
+fn bsdtar_no_same_permissions_accepted_for_creation() {
     setup();
-    let file = "stdio_no_same_permissions_create.txt";
+    let file = "bsdtar_no_same_permissions_create.txt";
     fs::write(file, "test content").unwrap();
 
     let mut cmd = cargo_bin_cmd!("pna");
-    cmd.arg("experimental")
-        .arg("stdio")
+    cmd.arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("--no-same-permissions")
         .arg(file)
@@ -181,14 +181,14 @@ fn stdio_no_same_permissions_accepted_for_creation() {
 /// Test: --no-same-owner is accepted for creation
 /// Expectation: Command succeeds with --no-same-owner
 #[test]
-fn stdio_no_same_owner_accepted_for_creation() {
+fn bsdtar_no_same_owner_accepted_for_creation() {
     setup();
-    let file = "stdio_no_same_owner_create.txt";
+    let file = "bsdtar_no_same_owner_create.txt";
     fs::write(file, "test content").unwrap();
 
     let mut cmd = cargo_bin_cmd!("pna");
-    cmd.arg("experimental")
-        .arg("stdio")
+    cmd.arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("--no-same-owner")
         .arg(file)
@@ -199,14 +199,14 @@ fn stdio_no_same_owner_accepted_for_creation() {
 /// Test: Both --no-same-permissions and --no-same-owner can be used together
 /// Expectation: Command succeeds with both flags
 #[test]
-fn stdio_no_same_permissions_and_no_same_owner_together() {
+fn bsdtar_no_same_permissions_and_no_same_owner_together() {
     setup();
-    let file = "stdio_both_no_flags.txt";
+    let file = "bsdtar_both_no_flags.txt";
     fs::write(file, "test content").unwrap();
 
     let mut cmd = cargo_bin_cmd!("pna");
-    cmd.arg("experimental")
-        .arg("stdio")
+    cmd.arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("--no-same-permissions")
         .arg("--no-same-owner")
@@ -222,17 +222,17 @@ fn stdio_no_same_permissions_and_no_same_owner_together() {
 /// Test: -p flag is accepted with --unstable for extraction
 /// Expectation: Command succeeds
 #[test]
-fn stdio_extract_with_same_permissions_flag() {
+fn bsdtar_extract_with_same_permissions_flag() {
     setup();
-    let file = "stdio_extract_p_flag.txt";
+    let file = "bsdtar_extract_p_flag.txt";
     fs::write(file, "test content").unwrap();
-    fs::create_dir_all("stdio_extract_p_flag_out").unwrap();
+    fs::create_dir_all("bsdtar_extract_p_flag_out").unwrap();
 
     // Create archive
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg(file)
         .assert()
@@ -242,13 +242,13 @@ fn stdio_extract_with_same_permissions_flag() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("--unstable")
         .arg("-p")
         .arg("--out-dir")
-        .arg("stdio_extract_p_flag_out/")
+        .arg("bsdtar_extract_p_flag_out/")
         .assert()
         .success();
 }
@@ -258,9 +258,9 @@ fn stdio_extract_with_same_permissions_flag() {
 /// Expectation: The `--same-owner` option does not prevent `-p` from preserving mode bits.
 #[test]
 #[cfg(unix)]
-fn stdio_extract_with_same_permissions_and_same_owner() {
+fn bsdtar_extract_with_same_permissions_and_same_owner() {
     setup();
-    let base = "stdio_extract_p_same_owner";
+    let base = "bsdtar_extract_p_same_owner";
     fs::create_dir_all(base).unwrap();
 
     let file = format!("{base}/test.txt");
@@ -269,8 +269,8 @@ fn stdio_extract_with_same_permissions_and_same_owner() {
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("-C")
         .arg(base)
@@ -284,8 +284,8 @@ fn stdio_extract_with_same_permissions_and_same_owner() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("--unstable")
         .arg("-p")
@@ -308,16 +308,16 @@ fn stdio_extract_with_same_permissions_and_same_owner() {
 /// Expectation: Command succeeds.
 #[test]
 #[cfg(not(unix))]
-fn stdio_extract_with_same_permissions_and_same_owner() {
+fn bsdtar_extract_with_same_permissions_and_same_owner() {
     setup();
-    let file = "stdio_extract_p_same_owner.txt";
+    let file = "bsdtar_extract_p_same_owner.txt";
     fs::write(file, "test content").unwrap();
-    fs::create_dir_all("stdio_extract_p_same_owner_out").unwrap();
+    fs::create_dir_all("bsdtar_extract_p_same_owner_out").unwrap();
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg(file)
         .assert()
@@ -326,14 +326,14 @@ fn stdio_extract_with_same_permissions_and_same_owner() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("--unstable")
         .arg("-p")
         .arg("--same-owner")
         .arg("--out-dir")
-        .arg("stdio_extract_p_same_owner_out/")
+        .arg("bsdtar_extract_p_same_owner_out/")
         .assert()
         .success();
 }
@@ -343,9 +343,9 @@ fn stdio_extract_with_same_permissions_and_same_owner() {
 /// Expectation: Disabling ACL restoration does not disable mode preservation.
 #[test]
 #[cfg(unix)]
-fn stdio_extract_same_permissions_with_no_acls() {
+fn bsdtar_extract_same_permissions_with_no_acls() {
     setup();
-    let base = "stdio_extract_p_no_acls";
+    let base = "bsdtar_extract_p_no_acls";
     fs::create_dir_all(base).unwrap();
 
     let file = format!("{base}/test.txt");
@@ -354,8 +354,8 @@ fn stdio_extract_same_permissions_with_no_acls() {
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("-C")
         .arg(base)
@@ -369,8 +369,8 @@ fn stdio_extract_same_permissions_with_no_acls() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("--unstable")
         .arg("-p")
@@ -393,16 +393,16 @@ fn stdio_extract_same_permissions_with_no_acls() {
 /// Expectation: Command succeeds.
 #[test]
 #[cfg(not(unix))]
-fn stdio_extract_same_permissions_with_no_acls() {
+fn bsdtar_extract_same_permissions_with_no_acls() {
     setup();
-    let file = "stdio_extract_p_no_acls.txt";
+    let file = "bsdtar_extract_p_no_acls.txt";
     fs::write(file, "test content").unwrap();
-    fs::create_dir_all("stdio_extract_p_no_acls_out").unwrap();
+    fs::create_dir_all("bsdtar_extract_p_no_acls_out").unwrap();
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg(file)
         .assert()
@@ -411,14 +411,14 @@ fn stdio_extract_same_permissions_with_no_acls() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("--unstable")
         .arg("-p")
         .arg("--no-acls")
         .arg("--out-dir")
-        .arg("stdio_extract_p_no_acls_out/")
+        .arg("bsdtar_extract_p_no_acls_out/")
         .assert()
         .success();
 }
@@ -428,9 +428,9 @@ fn stdio_extract_same_permissions_with_no_acls() {
 /// Expectation: Extracted file has 0o755 permission preserved.
 #[test]
 #[cfg(unix)]
-fn stdio_extract_with_long_same_permissions_flag() {
+fn bsdtar_extract_with_long_same_permissions_flag() {
     setup();
-    let base = "stdio_extract_long_p_flag";
+    let base = "bsdtar_extract_long_p_flag";
     fs::create_dir_all(base).unwrap();
 
     let file = format!("{base}/test.txt");
@@ -439,8 +439,8 @@ fn stdio_extract_with_long_same_permissions_flag() {
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("-C")
         .arg(base)
@@ -454,8 +454,8 @@ fn stdio_extract_with_long_same_permissions_flag() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("--unstable")
         .arg("--same-permissions")
@@ -477,16 +477,16 @@ fn stdio_extract_with_long_same_permissions_flag() {
 /// Expectation: Command succeeds.
 #[test]
 #[cfg(not(unix))]
-fn stdio_extract_with_long_same_permissions_flag() {
+fn bsdtar_extract_with_long_same_permissions_flag() {
     setup();
-    let file = "stdio_extract_long_p_flag.txt";
+    let file = "bsdtar_extract_long_p_flag.txt";
     fs::write(file, "test content").unwrap();
-    fs::create_dir_all("stdio_extract_long_p_flag_out").unwrap();
+    fs::create_dir_all("bsdtar_extract_long_p_flag_out").unwrap();
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg(file)
         .assert()
@@ -495,13 +495,13 @@ fn stdio_extract_with_long_same_permissions_flag() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("--unstable")
         .arg("--same-permissions")
         .arg("--out-dir")
-        .arg("stdio_extract_long_p_flag_out/")
+        .arg("bsdtar_extract_long_p_flag_out/")
         .assert()
         .success();
 }
@@ -511,9 +511,9 @@ fn stdio_extract_with_long_same_permissions_flag() {
 /// Expectation: Extracted file has 0o754 permission preserved.
 #[test]
 #[cfg(unix)]
-fn stdio_extract_with_preserve_permissions_alias() {
+fn bsdtar_extract_with_preserve_permissions_alias() {
     setup();
-    let base = "stdio_extract_preserve_p";
+    let base = "bsdtar_extract_preserve_p";
     fs::create_dir_all(base).unwrap();
 
     let file = format!("{base}/test.txt");
@@ -522,8 +522,8 @@ fn stdio_extract_with_preserve_permissions_alias() {
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("-C")
         .arg(base)
@@ -537,8 +537,8 @@ fn stdio_extract_with_preserve_permissions_alias() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("--unstable")
         .arg("--preserve-permissions")
@@ -560,16 +560,16 @@ fn stdio_extract_with_preserve_permissions_alias() {
 /// Expectation: Command succeeds.
 #[test]
 #[cfg(not(unix))]
-fn stdio_extract_with_preserve_permissions_alias() {
+fn bsdtar_extract_with_preserve_permissions_alias() {
     setup();
-    let file = "stdio_extract_preserve_p.txt";
+    let file = "bsdtar_extract_preserve_p.txt";
     fs::write(file, "test content").unwrap();
-    fs::create_dir_all("stdio_extract_preserve_p_out").unwrap();
+    fs::create_dir_all("bsdtar_extract_preserve_p_out").unwrap();
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg(file)
         .assert()
@@ -578,13 +578,13 @@ fn stdio_extract_with_preserve_permissions_alias() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("--unstable")
         .arg("--preserve-permissions")
         .arg("--out-dir")
-        .arg("stdio_extract_preserve_p_out/")
+        .arg("bsdtar_extract_preserve_p_out/")
         .assert()
         .success();
 }
@@ -599,9 +599,9 @@ fn stdio_extract_with_preserve_permissions_alias() {
 #[test]
 #[cfg(unix)]
 #[serial(umask)]
-fn stdio_extract_same_permissions_overridden_by_no_same_permissions() {
+fn bsdtar_extract_same_permissions_overridden_by_no_same_permissions() {
     setup();
-    let base = "stdio_p_no_same_permissions";
+    let base = "bsdtar_p_no_same_permissions";
     fs::create_dir_all(base).unwrap();
 
     let file = format!("{base}/test.txt");
@@ -610,8 +610,8 @@ fn stdio_extract_same_permissions_overridden_by_no_same_permissions() {
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("-C")
         .arg(base)
@@ -626,8 +626,8 @@ fn stdio_extract_same_permissions_overridden_by_no_same_permissions() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("--unstable")
         .arg("-p")
@@ -652,16 +652,16 @@ fn stdio_extract_same_permissions_overridden_by_no_same_permissions() {
 /// Expectation: Command succeeds.
 #[test]
 #[cfg(not(unix))]
-fn stdio_extract_same_permissions_overridden_by_no_same_permissions() {
+fn bsdtar_extract_same_permissions_overridden_by_no_same_permissions() {
     setup();
-    let file = "stdio_p_no_same_permissions.txt";
+    let file = "bsdtar_p_no_same_permissions.txt";
     fs::write(file, "test content").unwrap();
-    fs::create_dir_all("stdio_p_no_same_permissions_out").unwrap();
+    fs::create_dir_all("bsdtar_p_no_same_permissions_out").unwrap();
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg(file)
         .assert()
@@ -670,14 +670,14 @@ fn stdio_extract_same_permissions_overridden_by_no_same_permissions() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("--unstable")
         .arg("-p")
         .arg("--no-same-permissions")
         .arg("--out-dir")
-        .arg("stdio_p_no_same_permissions_out/")
+        .arg("bsdtar_p_no_same_permissions_out/")
         .assert()
         .success();
 }
@@ -687,9 +687,9 @@ fn stdio_extract_same_permissions_overridden_by_no_same_permissions() {
 /// Expectation: --keep-xattr restores the xattr despite --no-same-permissions.
 #[test]
 #[cfg(unix)]
-fn stdio_extract_no_same_permissions_with_keep_xattr() {
+fn bsdtar_extract_no_same_permissions_with_keep_xattr() {
     setup();
-    let base = "stdio_no_same_p_keep_xattr";
+    let base = "bsdtar_no_same_p_keep_xattr";
     fs::create_dir_all(base).unwrap();
 
     if !xattr_supported(base) {
@@ -703,8 +703,8 @@ fn stdio_extract_no_same_permissions_with_keep_xattr() {
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("--keep-xattr")
         .arg("-C")
@@ -719,8 +719,8 @@ fn stdio_extract_no_same_permissions_with_keep_xattr() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("--no-same-permissions")
         .arg("--keep-xattr")
@@ -747,16 +747,16 @@ fn stdio_extract_no_same_permissions_with_keep_xattr() {
 /// Expectation: Command succeeds.
 #[test]
 #[cfg(not(unix))]
-fn stdio_extract_no_same_permissions_with_keep_xattr() {
+fn bsdtar_extract_no_same_permissions_with_keep_xattr() {
     setup();
-    let file = "stdio_no_same_p_keep_xattr.txt";
+    let file = "bsdtar_no_same_p_keep_xattr.txt";
     fs::write(file, "test content").unwrap();
-    fs::create_dir_all("stdio_no_same_p_keep_xattr_out").unwrap();
+    fs::create_dir_all("bsdtar_no_same_p_keep_xattr_out").unwrap();
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("--keep-xattr")
         .arg(file)
@@ -766,13 +766,13 @@ fn stdio_extract_no_same_permissions_with_keep_xattr() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("--no-same-permissions")
         .arg("--keep-xattr")
         .arg("--out-dir")
-        .arg("stdio_no_same_p_keep_xattr_out/")
+        .arg("bsdtar_no_same_p_keep_xattr_out/")
         .assert()
         .success();
 }
@@ -780,17 +780,17 @@ fn stdio_extract_no_same_permissions_with_keep_xattr() {
 /// Test: --no-same-permissions alone in extraction (without -p)
 /// Expectation: Command succeeds (flag is valid in extraction mode)
 #[test]
-fn stdio_extract_no_same_permissions_alone() {
+fn bsdtar_extract_no_same_permissions_alone() {
     setup();
-    let file = "stdio_no_same_p_alone.txt";
+    let file = "bsdtar_no_same_p_alone.txt";
     fs::write(file, "test content").unwrap();
-    fs::create_dir_all("stdio_no_same_p_alone_out").unwrap();
+    fs::create_dir_all("bsdtar_no_same_p_alone_out").unwrap();
 
     // Create archive
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg(file)
         .assert()
@@ -800,12 +800,12 @@ fn stdio_extract_no_same_permissions_alone() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("--no-same-permissions")
         .arg("--out-dir")
-        .arg("stdio_no_same_p_alone_out/")
+        .arg("bsdtar_no_same_p_alone_out/")
         .assert()
         .success();
 }
@@ -820,13 +820,13 @@ fn stdio_extract_no_same_permissions_alone() {
 #[test]
 #[cfg(unix)]
 #[serial(umask)]
-fn stdio_extract_without_p_masks_permissions() {
+fn bsdtar_extract_without_p_masks_permissions() {
     if nix::unistd::Uid::effective().is_root() {
         eprintln!("Skipping: test requires non-root user (root defaults to preserve mode)");
         return;
     }
     setup();
-    let base = "stdio_extract_no_p_perm";
+    let base = "bsdtar_extract_no_p_perm";
     fs::create_dir_all(base).unwrap();
 
     // Create file with executable permission
@@ -842,11 +842,11 @@ fn stdio_extract_without_p_masks_permissions() {
         "source file should have 0o755"
     );
 
-    // Create archive via stdio (stores mode+owner by default)
+    // Create archive via bsdtar (stores mode+owner by default)
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("-C")
         .arg(base)
@@ -862,8 +862,8 @@ fn stdio_extract_without_p_masks_permissions() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("--out-dir")
         .arg(&out_dir)
@@ -887,9 +887,9 @@ fn stdio_extract_without_p_masks_permissions() {
 /// Expectation: Extracted file has 0o755 permission preserved.
 #[test]
 #[cfg(unix)]
-fn stdio_extract_with_p_preserves_permissions() {
+fn bsdtar_extract_with_p_preserves_permissions() {
     setup();
-    let base = "stdio_extract_with_p_perm";
+    let base = "bsdtar_extract_with_p_perm";
     fs::create_dir_all(base).unwrap();
 
     // Create file with executable permission
@@ -897,11 +897,11 @@ fn stdio_extract_with_p_preserves_permissions() {
     fs::write(&file, "test content").unwrap();
     set_permissions_or_skip!(&file, 0o755);
 
-    // Create archive via stdio (stores mode+owner by default)
+    // Create archive via bsdtar (stores mode+owner by default)
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("-C")
         .arg(base)
@@ -916,8 +916,8 @@ fn stdio_extract_with_p_preserves_permissions() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("--unstable")
         .arg("-p")
@@ -937,13 +937,13 @@ fn stdio_extract_with_p_preserves_permissions() {
 }
 
 /// Precondition: File with executable permission (0o755).
-/// Action: Create archive via stdio with default flags (no --no-same-permissions, no --no-same-owner).
+/// Action: Create archive via bsdtar with default flags (no --no-same-permissions, no --no-same-owner).
 /// Expectation: Archive contains mode and owner metadata.
 #[test]
 #[cfg(unix)]
-fn stdio_create_stores_permissions_by_default() {
+fn bsdtar_create_stores_permissions_by_default() {
     setup();
-    let base = "stdio_create_stores_perm";
+    let base = "bsdtar_create_stores_perm";
     fs::create_dir_all(base).unwrap();
 
     // Create file with executable permission
@@ -951,12 +951,12 @@ fn stdio_create_stores_permissions_by_default() {
     fs::write(&file, "test content").unwrap();
     set_permissions_or_skip!(&file, 0o755);
 
-    // Create archive via stdio and write to file
+    // Create archive via bsdtar and write to file
     let archive_path = format!("{}/archive.pna", base);
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("-C")
         .arg(base)
@@ -998,16 +998,16 @@ fn stdio_create_stores_permissions_by_default() {
 }
 
 /// Precondition: File with specific permissions exists.
-/// Action: Create archive via stdio with --no-same-owner flag.
+/// Action: Create archive via bsdtar with --no-same-owner flag.
 /// Expectation: Archive entry has NO permission metadata (current implementation couples mode/owner).
 /// Note: In the current implementation, --no-same-owner prevents ALL permission metadata from
 /// being stored, including mode. This is because the entry builder only adds permission when
 /// OwnerStrategy::Preserve is set.
 #[test]
 #[cfg(unix)]
-fn stdio_create_with_no_same_owner_omits_permission() {
+fn bsdtar_create_with_no_same_owner_omits_permission() {
     setup();
-    let base = "stdio_create_no_same_owner";
+    let base = "bsdtar_create_no_same_owner";
     fs::create_dir_all(base).unwrap();
 
     // Create file
@@ -1019,8 +1019,8 @@ fn stdio_create_with_no_same_owner_omits_permission() {
     let archive_path = format!("{}/archive.pna", base);
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("--no-same-owner")
         .arg("-C")
@@ -1085,9 +1085,9 @@ fn xattr_supported(test_dir: &str) -> bool {
 /// Expectation: xattr is restored because -p implicitly enables xattr preservation.
 #[test]
 #[cfg(unix)]
-fn stdio_extract_with_p_restores_xattr() {
+fn bsdtar_extract_with_p_restores_xattr() {
     setup();
-    let base = "stdio_extract_p_xattr";
+    let base = "bsdtar_extract_p_xattr";
     fs::create_dir_all(base).unwrap();
 
     if !xattr_supported(base) {
@@ -1104,8 +1104,8 @@ fn stdio_extract_with_p_restores_xattr() {
     let archive_path = format!("{}/archive.pna", base);
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("--keep-xattr")
         .arg("-C")
@@ -1133,8 +1133,8 @@ fn stdio_extract_with_p_restores_xattr() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(fs::read(&archive_path).unwrap())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("--unstable")
         .arg("-p")
@@ -1159,13 +1159,13 @@ fn stdio_extract_with_p_restores_xattr() {
 #[test]
 #[cfg(unix)]
 #[serial(umask)]
-fn stdio_extract_no_same_permissions_applies_mask() {
+fn bsdtar_extract_no_same_permissions_applies_mask() {
     if nix::unistd::Uid::effective().is_root() {
         eprintln!("Skipping: test requires non-root user");
         return;
     }
     setup();
-    let base = "stdio_extract_no_same_p_applies_mask";
+    let base = "bsdtar_extract_no_same_p_applies_mask";
     fs::create_dir_all(base).unwrap();
 
     let file = format!("{}/test.txt", base);
@@ -1174,8 +1174,8 @@ fn stdio_extract_no_same_permissions_applies_mask() {
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("-C")
         .arg(base)
@@ -1191,8 +1191,8 @@ fn stdio_extract_no_same_permissions_applies_mask() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("--no-same-permissions")
         .arg("--out-dir")
@@ -1217,9 +1217,9 @@ fn stdio_extract_no_same_permissions_applies_mask() {
 /// Expectation: Setuid bit is PRESERVED (full preserve mode).
 #[test]
 #[cfg(unix)]
-fn stdio_extract_with_p_preserves_special_bits() {
+fn bsdtar_extract_with_p_preserves_special_bits() {
     setup();
-    let base = "stdio_extract_p_preserves_special";
+    let base = "bsdtar_extract_p_preserves_special";
     fs::create_dir_all(base).unwrap();
 
     let file = format!("{}/setuid_file.txt", base);
@@ -1234,8 +1234,8 @@ fn stdio_extract_with_p_preserves_special_bits() {
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("-C")
         .arg(base)
@@ -1249,8 +1249,8 @@ fn stdio_extract_with_p_preserves_special_bits() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("--unstable")
         .arg("-p")
@@ -1275,13 +1275,13 @@ fn stdio_extract_with_p_preserves_special_bits() {
 #[test]
 #[cfg(unix)]
 #[serial(umask)]
-fn stdio_extract_root_default_preserves_permissions() {
+fn bsdtar_extract_root_default_preserves_permissions() {
     if !nix::unistd::Uid::effective().is_root() {
         eprintln!("Skipping: test requires root user");
         return;
     }
     setup();
-    let base = "stdio_extract_root_default";
+    let base = "bsdtar_extract_root_default";
     fs::create_dir_all(base).unwrap();
 
     let file = format!("{}/test.txt", base);
@@ -1290,8 +1290,8 @@ fn stdio_extract_root_default_preserves_permissions() {
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("-C")
         .arg(base)
@@ -1307,8 +1307,8 @@ fn stdio_extract_root_default_preserves_permissions() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("--out-dir")
         .arg(&out_dir)
@@ -1331,13 +1331,13 @@ fn stdio_extract_root_default_preserves_permissions() {
 #[test]
 #[cfg(unix)]
 #[serial(umask)]
-fn stdio_extract_root_with_no_same_permissions_masks() {
+fn bsdtar_extract_root_with_no_same_permissions_masks() {
     if !nix::unistd::Uid::effective().is_root() {
         eprintln!("Skipping: test requires root user");
         return;
     }
     setup();
-    let base = "stdio_extract_root_no_same_p";
+    let base = "bsdtar_extract_root_no_same_p";
     fs::create_dir_all(base).unwrap();
 
     let file = format!("{}/test.txt", base);
@@ -1346,8 +1346,8 @@ fn stdio_extract_root_with_no_same_permissions_masks() {
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("-C")
         .arg(base)
@@ -1362,8 +1362,8 @@ fn stdio_extract_root_with_no_same_permissions_masks() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("--no-same-permissions")
         .arg("--out-dir")
@@ -1387,9 +1387,9 @@ fn stdio_extract_root_with_no_same_permissions_masks() {
 /// Expectation: xattr is NOT restored (default behavior).
 #[test]
 #[cfg(unix)]
-fn stdio_extract_without_p_does_not_restore_xattr() {
+fn bsdtar_extract_without_p_does_not_restore_xattr() {
     setup();
-    let base = "stdio_extract_no_p_xattr";
+    let base = "bsdtar_extract_no_p_xattr";
     fs::create_dir_all(base).unwrap();
 
     if !xattr_supported(base) {
@@ -1406,8 +1406,8 @@ fn stdio_extract_without_p_does_not_restore_xattr() {
     let archive_path = format!("{}/archive.pna", base);
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("--keep-xattr")
         .arg("-C")
@@ -1425,8 +1425,8 @@ fn stdio_extract_without_p_does_not_restore_xattr() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(fs::read(&archive_path).unwrap())
-        .arg("experimental")
-        .arg("stdio")
+        .arg("compat")
+        .arg("bsdtar")
         .arg("-x")
         .arg("--out-dir")
         .arg(&out_dir)

@@ -1,14 +1,11 @@
 use crate::utils::{list_lines, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use pna::{Archive, EntryBuilder, ReadOptions, WriteOptions};
-use predicates::prelude::*;
 use std::{
     fs,
     io::{Cursor, Read, Write},
     path::{Path, PathBuf},
 };
-
-const STDIO_DEPRECATION_WARNING: &str = "experimental stdio` was stabilized as";
 
 fn build_archive(entries: &[(&str, &[u8])]) -> Vec<u8> {
     let mut archive = Archive::write_header(Vec::new()).unwrap();
@@ -113,43 +110,35 @@ fn read_all_archive_entries(path: impl AsRef<Path>) -> Vec<(String, String)> {
 }
 
 #[test]
-fn stdio_list_ignore_zeros_controls_concatenated_archive_handling() {
+fn bsdtar_list_ignore_zeros_controls_concatenated_archive_handling() {
     setup();
     let archive_data = build_concatenated_archives();
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.write_stdin(archive_data.clone())
-        .args(["experimental", "stdio", "--list"])
+        .args(["compat", "bsdtar", "--list"])
         .assert()
         .success()
-        .stdout(list_lines(&["a.txt"]))
-        .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
+        .stdout(list_lines(&["a.txt"]));
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.write_stdin(archive_data)
-        .args([
-            "experimental",
-            "stdio",
-            "--unstable",
-            "--list",
-            "--ignore-zeros",
-        ])
+        .args(["compat", "bsdtar", "--unstable", "--list", "--ignore-zeros"])
         .assert()
         .success()
-        .stdout(list_lines(&["a.txt", "b.txt"]))
-        .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
+        .stdout(list_lines(&["a.txt", "b.txt"]));
 }
 
 #[test]
-fn stdio_list_ignore_zeros_with_fast_read_continues_into_next_archive() {
+fn bsdtar_list_ignore_zeros_with_fast_read_continues_into_next_archive() {
     setup();
     let archive_data = build_concatenated_archives();
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.write_stdin(archive_data)
         .args([
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--unstable",
             "--list",
             "--ignore-zeros",
@@ -158,29 +147,27 @@ fn stdio_list_ignore_zeros_with_fast_read_continues_into_next_archive() {
         ])
         .assert()
         .success()
-        .stdout(list_lines(&["b.txt"]))
-        .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
+        .stdout(list_lines(&["b.txt"]));
 }
 
 #[test]
-fn stdio_extract_ignore_zeros_controls_concatenated_archive_handling() {
+fn bsdtar_extract_ignore_zeros_controls_concatenated_archive_handling() {
     setup();
     let archive_data = build_concatenated_archives();
-    let out_without = PathBuf::from("stdio_extract_ignore_zeros_without_flag/out");
-    let out_with = PathBuf::from("stdio_extract_ignore_zeros_with_flag/out");
+    let out_without = PathBuf::from("bsdtar_extract_ignore_zeros_without_flag/out");
+    let out_with = PathBuf::from("bsdtar_extract_ignore_zeros_with_flag/out");
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.write_stdin(archive_data.clone())
         .args([
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--out-dir",
             out_without.to_str().unwrap(),
         ])
         .assert()
-        .success()
-        .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
+        .success();
 
     assert_eq!(
         "first",
@@ -191,8 +178,8 @@ fn stdio_extract_ignore_zeros_controls_concatenated_archive_handling() {
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.write_stdin(archive_data)
         .args([
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--unstable",
             "--extract",
             "--ignore-zeros",
@@ -200,8 +187,7 @@ fn stdio_extract_ignore_zeros_controls_concatenated_archive_handling() {
             out_with.to_str().unwrap(),
         ])
         .assert()
-        .success()
-        .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
+        .success();
 
     assert_eq!("first", fs::read_to_string(out_with.join("a.txt")).unwrap());
     assert_eq!(
@@ -211,16 +197,16 @@ fn stdio_extract_ignore_zeros_controls_concatenated_archive_handling() {
 }
 
 #[test]
-fn stdio_extract_ignore_zeros_with_fast_read_continues_into_next_archive() {
+fn bsdtar_extract_ignore_zeros_with_fast_read_continues_into_next_archive() {
     setup();
     let archive_data = build_concatenated_archives();
-    let out_dir = PathBuf::from("stdio_extract_ignore_zeros_fast_read/out");
+    let out_dir = PathBuf::from("bsdtar_extract_ignore_zeros_fast_read/out");
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.write_stdin(archive_data)
         .args([
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--unstable",
             "--extract",
             "--ignore-zeros",
@@ -230,17 +216,16 @@ fn stdio_extract_ignore_zeros_with_fast_read_continues_into_next_archive() {
             "b.txt",
         ])
         .assert()
-        .success()
-        .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
+        .success();
 
     assert!(!out_dir.join("a.txt").exists());
     assert_eq!("second", fs::read_to_string(out_dir.join("b.txt")).unwrap());
 }
 
 #[test]
-fn stdio_update_ignore_zeros_controls_concatenated_archive_handling() {
+fn bsdtar_update_ignore_zeros_controls_concatenated_archive_handling() {
     setup();
-    let base = PathBuf::from("stdio_update_ignore_zeros");
+    let base = PathBuf::from("bsdtar_update_ignore_zeros");
     let in_dir = base.join("in");
     let archive_without = base.join("without_ignore.pna");
     let archive_with = base.join("with_ignore.pna");
@@ -252,8 +237,8 @@ fn stdio_update_ignore_zeros_controls_concatenated_archive_handling() {
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
-        "experimental",
-        "stdio",
+        "compat",
+        "bsdtar",
         "--no-xattrs",
         "--update",
         "--file",
@@ -263,8 +248,7 @@ fn stdio_update_ignore_zeros_controls_concatenated_archive_handling() {
         "c.txt",
     ])
     .assert()
-    .success()
-    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
+    .success();
 
     assert_eq!(
         read_archive_entries(&archive_without),
@@ -276,8 +260,8 @@ fn stdio_update_ignore_zeros_controls_concatenated_archive_handling() {
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
-        "experimental",
-        "stdio",
+        "compat",
+        "bsdtar",
         "--no-xattrs",
         "--unstable",
         "--update",
@@ -289,8 +273,7 @@ fn stdio_update_ignore_zeros_controls_concatenated_archive_handling() {
         "c.txt",
     ])
     .assert()
-    .success()
-    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
+    .success();
 
     assert_eq!(
         read_archive_entries(&archive_with),
@@ -303,9 +286,9 @@ fn stdio_update_ignore_zeros_controls_concatenated_archive_handling() {
 }
 
 #[test]
-fn stdio_create_ignore_zeros_controls_archive_inclusion_handling() {
+fn bsdtar_create_ignore_zeros_controls_archive_inclusion_handling() {
     setup();
-    let base = PathBuf::from("stdio_create_ignore_zeros");
+    let base = PathBuf::from("bsdtar_create_ignore_zeros");
     let archive_source = base.join("ab-cat.pna");
     let archive_without = base.join("without_ignore.pna");
     let archive_with = base.join("with_ignore.pna");
@@ -316,8 +299,8 @@ fn stdio_create_ignore_zeros_controls_archive_inclusion_handling() {
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
-        "experimental",
-        "stdio",
+        "compat",
+        "bsdtar",
         "--no-xattrs",
         "--create",
         "--file",
@@ -328,8 +311,7 @@ fn stdio_create_ignore_zeros_controls_archive_inclusion_handling() {
         "c.txt",
     ])
     .assert()
-    .success()
-    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
+    .success();
 
     assert_eq!(
         read_archive_entries(&archive_without),
@@ -341,8 +323,8 @@ fn stdio_create_ignore_zeros_controls_archive_inclusion_handling() {
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
-        "experimental",
-        "stdio",
+        "compat",
+        "bsdtar",
         "--no-xattrs",
         "--unstable",
         "--create",
@@ -355,8 +337,7 @@ fn stdio_create_ignore_zeros_controls_archive_inclusion_handling() {
         "c.txt",
     ])
     .assert()
-    .success()
-    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
+    .success();
 
     assert_eq!(
         read_archive_entries(&archive_with),
@@ -369,9 +350,9 @@ fn stdio_create_ignore_zeros_controls_archive_inclusion_handling() {
 }
 
 #[test]
-fn stdio_create_ignore_zeros_controls_stdin_archive_inclusion_handling() {
+fn bsdtar_create_ignore_zeros_controls_stdin_archive_inclusion_handling() {
     setup();
-    let base = PathBuf::from("stdio_create_ignore_zeros_stdin_inclusion");
+    let base = PathBuf::from("bsdtar_create_ignore_zeros_stdin_inclusion");
     let archive_without = base.join("without_ignore.pna");
     let archive_with = base.join("with_ignore.pna");
 
@@ -381,8 +362,8 @@ fn stdio_create_ignore_zeros_controls_stdin_archive_inclusion_handling() {
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.write_stdin(build_concatenated_archives())
         .args([
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--no-xattrs",
             "--create",
             "--file",
@@ -393,8 +374,7 @@ fn stdio_create_ignore_zeros_controls_stdin_archive_inclusion_handling() {
             "c.txt",
         ])
         .assert()
-        .success()
-        .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
+        .success();
 
     assert_eq!(
         read_archive_entries(&archive_without),
@@ -407,8 +387,8 @@ fn stdio_create_ignore_zeros_controls_stdin_archive_inclusion_handling() {
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.write_stdin(build_concatenated_archives())
         .args([
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--no-xattrs",
             "--unstable",
             "--create",
@@ -421,8 +401,7 @@ fn stdio_create_ignore_zeros_controls_stdin_archive_inclusion_handling() {
             "c.txt",
         ])
         .assert()
-        .success()
-        .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
+        .success();
 
     assert_eq!(
         read_archive_entries(&archive_with),
@@ -435,9 +414,9 @@ fn stdio_create_ignore_zeros_controls_stdin_archive_inclusion_handling() {
 }
 
 #[test]
-fn stdio_append_ignore_zeros_controls_existing_concatenated_archive_handling() {
+fn bsdtar_append_ignore_zeros_controls_existing_concatenated_archive_handling() {
     setup();
-    let base = PathBuf::from("stdio_append_ignore_zeros_existing");
+    let base = PathBuf::from("bsdtar_append_ignore_zeros_existing");
     let in_dir = base.join("in");
     let archive_without = base.join("without_ignore.pna");
     let archive_with = base.join("with_ignore.pna");
@@ -449,8 +428,8 @@ fn stdio_append_ignore_zeros_controls_existing_concatenated_archive_handling() {
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
-        "experimental",
-        "stdio",
+        "compat",
+        "bsdtar",
         "--no-xattrs",
         "--append",
         "--file",
@@ -460,8 +439,7 @@ fn stdio_append_ignore_zeros_controls_existing_concatenated_archive_handling() {
         "c.txt",
     ])
     .assert()
-    .success()
-    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
+    .success();
 
     assert_eq!(
         read_all_archive_entries(&archive_without),
@@ -473,8 +451,8 @@ fn stdio_append_ignore_zeros_controls_existing_concatenated_archive_handling() {
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
-        "experimental",
-        "stdio",
+        "compat",
+        "bsdtar",
         "--no-xattrs",
         "--unstable",
         "--append",
@@ -486,8 +464,7 @@ fn stdio_append_ignore_zeros_controls_existing_concatenated_archive_handling() {
         "c.txt",
     ])
     .assert()
-    .success()
-    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
+    .success();
 
     assert_eq!(
         read_all_archive_entries(&archive_with),
@@ -500,9 +477,9 @@ fn stdio_append_ignore_zeros_controls_existing_concatenated_archive_handling() {
 }
 
 #[test]
-fn stdio_update_ignore_zeros_handles_concatenated_archive_before_split_archive() {
+fn bsdtar_update_ignore_zeros_handles_concatenated_archive_before_split_archive() {
     setup();
-    let base = PathBuf::from("stdio_update_ignore_zeros_mixed_split");
+    let base = PathBuf::from("bsdtar_update_ignore_zeros_mixed_split");
     let without_base = base.join("without");
     let with_base = base.join("with");
     let archive_without = build_concatenated_then_split_archive(&without_base);
@@ -516,8 +493,8 @@ fn stdio_update_ignore_zeros_handles_concatenated_archive_before_split_archive()
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
-        "experimental",
-        "stdio",
+        "compat",
+        "bsdtar",
         "--no-xattrs",
         "--update",
         "--file",
@@ -527,8 +504,7 @@ fn stdio_update_ignore_zeros_handles_concatenated_archive_before_split_archive()
         "c.txt",
     ])
     .assert()
-    .success()
-    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
+    .success();
 
     assert_eq!(
         read_archive_entries(&consolidated_without),
@@ -540,8 +516,8 @@ fn stdio_update_ignore_zeros_handles_concatenated_archive_before_split_archive()
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
-        "experimental",
-        "stdio",
+        "compat",
+        "bsdtar",
         "--no-xattrs",
         "--unstable",
         "--update",
@@ -553,8 +529,7 @@ fn stdio_update_ignore_zeros_handles_concatenated_archive_before_split_archive()
         "c.txt",
     ])
     .assert()
-    .success()
-    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
+    .success();
 
     assert_eq!(
         read_archive_entries(&consolidated_with),
@@ -567,9 +542,9 @@ fn stdio_update_ignore_zeros_handles_concatenated_archive_before_split_archive()
 }
 
 #[test]
-fn stdio_append_ignore_zeros_controls_stdin_base_archive_handling() {
+fn bsdtar_append_ignore_zeros_controls_stdin_base_archive_handling() {
     setup();
-    let base = PathBuf::from("stdio_append_ignore_zeros_stdin");
+    let base = PathBuf::from("bsdtar_append_ignore_zeros_stdin");
     let in_dir = base.join("in");
 
     fs::create_dir_all(&in_dir).unwrap();
@@ -579,8 +554,8 @@ fn stdio_append_ignore_zeros_controls_stdin_base_archive_handling() {
     let output_without = cmd
         .write_stdin(build_concatenated_archives())
         .args([
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--no-xattrs",
             "--append",
             "--cd",
@@ -589,7 +564,6 @@ fn stdio_append_ignore_zeros_controls_stdin_base_archive_handling() {
         ])
         .assert()
         .success()
-        .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING))
         .get_output()
         .stdout
         .clone();
@@ -606,8 +580,8 @@ fn stdio_append_ignore_zeros_controls_stdin_base_archive_handling() {
     let output_with = cmd
         .write_stdin(build_concatenated_archives())
         .args([
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--no-xattrs",
             "--unstable",
             "--append",
@@ -618,7 +592,6 @@ fn stdio_append_ignore_zeros_controls_stdin_base_archive_handling() {
         ])
         .assert()
         .success()
-        .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING))
         .get_output()
         .stdout
         .clone();
@@ -634,17 +607,17 @@ fn stdio_append_ignore_zeros_controls_stdin_base_archive_handling() {
 }
 
 #[test]
-fn stdio_append_ignore_zeros_handles_concatenated_archive_before_split_archive() {
+fn bsdtar_append_ignore_zeros_handles_concatenated_archive_before_split_archive() {
     setup();
-    let base = PathBuf::from("stdio_append_ignore_zeros_mixed_split");
+    let base = PathBuf::from("bsdtar_append_ignore_zeros_mixed_split");
     let archive = build_concatenated_then_split_archive(&base);
 
     fs::write(base.join("c.txt"), "third").unwrap();
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
-        "experimental",
-        "stdio",
+        "compat",
+        "bsdtar",
         "--no-xattrs",
         "--unstable",
         "--append",
@@ -656,13 +629,12 @@ fn stdio_append_ignore_zeros_handles_concatenated_archive_before_split_archive()
         "c.txt",
     ])
     .assert()
-    .success()
-    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
+    .success();
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
-        "experimental",
-        "stdio",
+        "compat",
+        "bsdtar",
         "--unstable",
         "--list",
         "--ignore-zeros",
@@ -671,14 +643,13 @@ fn stdio_append_ignore_zeros_handles_concatenated_archive_before_split_archive()
     ])
     .assert()
     .success()
-    .stdout(list_lines(&["a.txt", "split.txt", "c.txt"]))
-    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
+    .stdout(list_lines(&["a.txt", "split.txt", "c.txt"]));
 }
 
 #[test]
-fn stdio_append_ignore_zeros_controls_archive_inclusion_handling() {
+fn bsdtar_append_ignore_zeros_controls_archive_inclusion_handling() {
     setup();
-    let base = PathBuf::from("stdio_append_ignore_zeros_inclusion");
+    let base = PathBuf::from("bsdtar_append_ignore_zeros_inclusion");
     let archive_source = base.join("ab-cat.pna");
     let archive_without = base.join("without_ignore.pna");
     let archive_with = base.join("with_ignore.pna");
@@ -694,8 +665,8 @@ fn stdio_append_ignore_zeros_controls_archive_inclusion_handling() {
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
-        "experimental",
-        "stdio",
+        "compat",
+        "bsdtar",
         "--append",
         "--file",
         archive_without.to_str().unwrap(),
@@ -704,8 +675,7 @@ fn stdio_append_ignore_zeros_controls_archive_inclusion_handling() {
         "@ab-cat.pna",
     ])
     .assert()
-    .success()
-    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
+    .success();
 
     assert_eq!(
         read_archive_entries(&archive_without),
@@ -717,8 +687,8 @@ fn stdio_append_ignore_zeros_controls_archive_inclusion_handling() {
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
-        "experimental",
-        "stdio",
+        "compat",
+        "bsdtar",
         "--unstable",
         "--append",
         "--ignore-zeros",
@@ -729,8 +699,7 @@ fn stdio_append_ignore_zeros_controls_archive_inclusion_handling() {
         "@ab-cat.pna",
     ])
     .assert()
-    .success()
-    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
+    .success();
 
     assert_eq!(
         read_archive_entries(&archive_with),

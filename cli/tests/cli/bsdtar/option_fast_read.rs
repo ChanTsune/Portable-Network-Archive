@@ -34,13 +34,13 @@ fn build_duplicate_archive(path: impl AsRef<Path>) -> Vec<u8> {
 /// Action: List with `--fast-read` and multiple operands.
 /// Expectation: All matching entries are listed until every operand has been seen at least once.
 #[test]
-fn stdio_list_with_fast_read() {
+fn bsdtar_list_with_fast_read() {
     setup();
-    let archive_data = build_duplicate_archive("stdio_fast_read_list/archive.pna");
+    let archive_data = build_duplicate_archive("bsdtar_fast_read_list/archive.pna");
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.write_stdin(archive_data)
-        .args(["experimental", "stdio", "--list", "-q", "a.txt", "b.txt"])
+        .args(["compat", "bsdtar", "--list", "-q", "a.txt", "b.txt"])
         .assert()
         .success()
         .stdout(list_lines(&["a.txt", "a.txt", "b.txt"]));
@@ -50,13 +50,13 @@ fn stdio_list_with_fast_read() {
 /// Action: List with `--fast-read` but no operands.
 /// Expectation: All entries are listed (fast-read without operands has no stop condition).
 #[test]
-fn stdio_list_with_fast_read_without_operands() {
+fn bsdtar_list_with_fast_read_without_operands() {
     setup();
-    let archive_data = build_duplicate_archive("stdio_fast_read_list_no_operands/archive.pna");
+    let archive_data = build_duplicate_archive("bsdtar_fast_read_list_no_operands/archive.pna");
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.write_stdin(archive_data)
-        .args(["experimental", "stdio", "--list", "--fast-read"])
+        .args(["compat", "bsdtar", "--list", "--fast-read"])
         .assert()
         .success()
         .stdout(list_lines(&["a.txt", "a.txt", "b.txt", "b.txt"]));
@@ -67,16 +67,16 @@ fn stdio_list_with_fast_read_without_operands() {
 /// Expectation: Matching entries are extracted (overwriting previous) until every operand
 ///   has been seen; the last version before stopping is kept.
 #[test]
-fn stdio_extract_with_fast_read() {
+fn bsdtar_extract_with_fast_read() {
     setup();
-    let archive_data = build_duplicate_archive("stdio_fast_read_extract/archive.pna");
-    let out_dir = PathBuf::from("stdio_fast_read_extract/out_fast");
+    let archive_data = build_duplicate_archive("bsdtar_fast_read_extract/archive.pna");
+    let out_dir = PathBuf::from("bsdtar_fast_read_extract/out_fast");
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.write_stdin(archive_data)
         .args([
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--fast-read",
             "--overwrite",
@@ -102,16 +102,16 @@ fn stdio_extract_with_fast_read() {
 /// Action: Extract without `--fast-read`.
 /// Expectation: All entries are processed; the last version of each file wins.
 #[test]
-fn stdio_extract_without_fast_read() {
+fn bsdtar_extract_without_fast_read() {
     setup();
-    let archive_data = build_duplicate_archive("stdio_fast_read_extract_default/archive.pna");
-    let out_dir = PathBuf::from("stdio_fast_read_extract_default/out_default");
+    let archive_data = build_duplicate_archive("bsdtar_fast_read_extract_default/archive.pna");
+    let out_dir = PathBuf::from("bsdtar_fast_read_extract_default/out_default");
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.write_stdin(archive_data)
         .args([
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--overwrite",
             "--out-dir",

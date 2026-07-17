@@ -56,7 +56,7 @@ fn build_large_archive(content_size: usize) -> Vec<u8> {
 /// Action: Extract to stdout from stdin.
 /// Expectation: Only File entry contents appear on stdout.
 #[test]
-fn stdio_extract_with_to_stdout_skips_non_file_entries() {
+fn bsdtar_extract_with_to_stdout_skips_non_file_entries() {
     setup();
     let archive_data = build_mixed_kind_archive();
 
@@ -75,7 +75,7 @@ fn stdio_extract_with_to_stdout_skips_non_file_entries() {
 /// Expectation: The process exits successfully because the broken pipe is
 ///   treated as a clean termination signal.
 #[test]
-fn stdio_extract_with_to_stdout_handles_broken_pipe() {
+fn bsdtar_extract_with_to_stdout_handles_broken_pipe() {
     setup();
     let archive_data = build_large_archive(1 << 20);
 
