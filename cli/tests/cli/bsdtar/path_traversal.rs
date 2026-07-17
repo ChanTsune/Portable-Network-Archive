@@ -117,17 +117,17 @@ fn build_archive_with_file_and_hardlink(
 }
 
 // --- Symlink target defense ---
-// Note: stdio mode defaults to allow_unsafe_links=true (bsdtar-compatible).
+// Note: bsdtar mode defaults to allow_unsafe_links=true (bsdtar-compatible).
 // Use --no-allow-unsafe-links to enable blocking.
 
 /// Precondition: Archive contains a symlink whose target uses parent directory traversal (..)
-/// Action: Extract with stdio -x and --no-allow-unsafe-links
+/// Action: Extract with bsdtar -x and --no-allow-unsafe-links
 /// Expectation: Symlink is not created (blocked by unsafe link check)
 #[test]
-fn stdio_extract_blocks_symlink_with_parent_dir_target() {
+fn bsdtar_extract_blocks_symlink_with_parent_dir_target() {
     setup();
 
-    let root = PathBuf::from("stdio_extract_blocks_symlink_parent");
+    let root = PathBuf::from("bsdtar_extract_blocks_symlink_parent");
     let archive_path = root.join("archive.pna");
     let out_dir = root.join("out");
 
@@ -142,8 +142,8 @@ fn stdio_extract_blocks_symlink_with_parent_dir_target() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",
@@ -167,13 +167,13 @@ fn stdio_extract_blocks_symlink_with_parent_dir_target() {
 }
 
 /// Precondition: Archive contains a symlink whose target uses parent directory traversal (..)
-/// Action: Extract with stdio -x (default: unsafe links allowed, bsdtar-compatible)
+/// Action: Extract with bsdtar -x (default: unsafe links allowed, bsdtar-compatible)
 /// Expectation: Symlink is created with the original target preserved
 #[test]
-fn stdio_extract_allows_symlink_with_parent_dir_target_by_default() {
+fn bsdtar_extract_allows_symlink_with_parent_dir_target_by_default() {
     setup();
 
-    let root = PathBuf::from("stdio_extract_allows_symlink_parent_default");
+    let root = PathBuf::from("bsdtar_extract_allows_symlink_parent_default");
     let archive_path = root.join("archive.pna");
     let out_dir = root.join("out");
 
@@ -188,8 +188,8 @@ fn stdio_extract_allows_symlink_with_parent_dir_target_by_default() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",
@@ -214,13 +214,13 @@ fn stdio_extract_allows_symlink_with_parent_dir_target_by_default() {
 }
 
 /// Precondition: Archive contains a symlink with an absolute target path
-/// Action: Extract with stdio -x (default: unsafe links allowed)
+/// Action: Extract with bsdtar -x (default: unsafe links allowed)
 /// Expectation: Symlink is created with absolute target preserved (bsdtar passes verbatim)
 #[test]
-fn stdio_extract_symlink_with_absolute_target_preserved() {
+fn bsdtar_extract_symlink_with_absolute_target_preserved() {
     setup();
 
-    let root = PathBuf::from("stdio_extract_symlink_abs_preserved_default");
+    let root = PathBuf::from("bsdtar_extract_symlink_abs_preserved_default");
     let archive_path = root.join("archive.pna");
     let out_dir = root.join("out");
 
@@ -232,12 +232,12 @@ fn stdio_extract_symlink_with_absolute_target_preserved() {
         "/etc/hostname",
     );
 
-    // Default stdio: allow_unsafe_links=true, symlink targets passed verbatim (bsdtar-compat)
+    // Default bsdtar: allow_unsafe_links=true, symlink targets passed verbatim (bsdtar-compat)
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",
@@ -262,13 +262,13 @@ fn stdio_extract_symlink_with_absolute_target_preserved() {
 }
 
 /// Precondition: Archive contains a symlink with an absolute target path
-/// Action: Extract with stdio -x and --absolute-paths (-P)
+/// Action: Extract with bsdtar -x and --absolute-paths (-P)
 /// Expectation: Symlink is created with the absolute target preserved
 #[test]
-fn stdio_extract_symlink_with_absolute_target_preserved_with_absolute_paths() {
+fn bsdtar_extract_symlink_with_absolute_target_preserved_with_absolute_paths() {
     setup();
 
-    let root = PathBuf::from("stdio_extract_symlink_abs_preserved");
+    let root = PathBuf::from("bsdtar_extract_symlink_abs_preserved");
     let archive_path = root.join("archive.pna");
     let out_dir = root.join("out");
 
@@ -283,8 +283,8 @@ fn stdio_extract_symlink_with_absolute_target_preserved_with_absolute_paths() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",
@@ -312,13 +312,13 @@ fn stdio_extract_symlink_with_absolute_target_preserved_with_absolute_paths() {
 // --- Hardlink target defense ---
 
 /// Precondition: Archive contains a hardlink whose target has .. that resolves within out_dir
-/// Action: Extract with stdio -x and --no-allow-unsafe-links
+/// Action: Extract with bsdtar -x and --no-allow-unsafe-links
 /// Expectation: Hardlink is not created (blocked by unsafe link check)
 #[test]
-fn stdio_extract_blocks_hardlink_with_parent_dir_target() {
+fn bsdtar_extract_blocks_hardlink_with_parent_dir_target() {
     setup();
 
-    let root = PathBuf::from("stdio_extract_blocks_hardlink_parent");
+    let root = PathBuf::from("bsdtar_extract_blocks_hardlink_parent");
     let archive_path = root.join("archive.pna");
     let out_dir = root.join("out");
 
@@ -334,8 +334,8 @@ fn stdio_extract_blocks_hardlink_with_parent_dir_target() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",
@@ -359,13 +359,13 @@ fn stdio_extract_blocks_hardlink_with_parent_dir_target() {
 }
 
 /// Precondition: Archive contains a hardlink whose target has .. traversal
-/// Action: Extract with stdio -x (default: SECURE_NODOTDOT enabled)
+/// Action: Extract with bsdtar -x (default: SECURE_NODOTDOT enabled)
 /// Expectation: Hardlink is not created (rejected by NODOTDOT)
 #[test]
-fn stdio_extract_rejects_hardlink_with_dotdot_by_default() {
+fn bsdtar_extract_rejects_hardlink_with_dotdot_by_default() {
     setup();
 
-    let root = PathBuf::from("stdio_extract_rejects_hardlink_dotdot_default");
+    let root = PathBuf::from("bsdtar_extract_rejects_hardlink_dotdot_default");
     let archive_path = root.join("archive.pna");
     let out_dir = root.join("out");
 
@@ -380,8 +380,8 @@ fn stdio_extract_rejects_hardlink_with_dotdot_by_default() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",
@@ -404,13 +404,13 @@ fn stdio_extract_rejects_hardlink_with_dotdot_by_default() {
 }
 
 /// Precondition: Archive contains a hardlink whose target has .. traversal
-/// Action: Extract with stdio -x and --absolute-paths (-P disables NODOTDOT)
+/// Action: Extract with bsdtar -x and --absolute-paths (-P disables NODOTDOT)
 /// Expectation: Hardlink is created (.. resolves at filesystem level)
 #[test]
-fn stdio_extract_allows_hardlink_with_dotdot_with_absolute_paths() {
+fn bsdtar_extract_allows_hardlink_with_dotdot_with_absolute_paths() {
     setup();
 
-    let root = PathBuf::from("stdio_extract_allows_hardlink_dotdot_abs");
+    let root = PathBuf::from("bsdtar_extract_allows_hardlink_dotdot_abs");
     let archive_path = root.join("archive.pna");
     let out_dir = root.join("out");
 
@@ -425,8 +425,8 @@ fn stdio_extract_allows_hardlink_with_dotdot_with_absolute_paths() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",
@@ -452,13 +452,13 @@ fn stdio_extract_allows_hardlink_with_dotdot_with_absolute_paths() {
 // --- Safe links work normally ---
 
 /// Precondition: Archive contains a symlink with a safe relative target (no ..)
-/// Action: Extract with stdio -x (default settings)
+/// Action: Extract with bsdtar -x (default settings)
 /// Expectation: Symlink is created normally
 #[test]
-fn stdio_extract_symlink_with_safe_relative_target() {
+fn bsdtar_extract_symlink_with_safe_relative_target() {
     setup();
 
-    let root = PathBuf::from("stdio_extract_symlink_safe");
+    let root = PathBuf::from("bsdtar_extract_symlink_safe");
     let archive_path = root.join("archive.pna");
     let out_dir = root.join("out");
 
@@ -473,8 +473,8 @@ fn stdio_extract_symlink_with_safe_relative_target() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",
@@ -498,13 +498,13 @@ fn stdio_extract_symlink_with_safe_relative_target() {
 }
 
 /// Precondition: Archive contains a hardlink with a safe target (no .., no /)
-/// Action: Extract with stdio -x (default settings)
+/// Action: Extract with bsdtar -x (default settings)
 /// Expectation: Hardlink is created and shares inode with the target
 #[test]
-fn stdio_extract_hardlink_with_safe_target() {
+fn bsdtar_extract_hardlink_with_safe_target() {
     setup();
 
-    let root = PathBuf::from("stdio_extract_hardlink_safe");
+    let root = PathBuf::from("bsdtar_extract_hardlink_safe");
     let archive_path = root.join("archive.pna");
     let out_dir = root.join("out");
 
@@ -519,8 +519,8 @@ fn stdio_extract_hardlink_with_safe_target() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",
@@ -546,13 +546,13 @@ fn stdio_extract_hardlink_with_safe_target() {
 // --- Windows-style entry name handling ---
 
 /// Precondition: Archive contains a file whose entry name starts with a Windows drive prefix.
-/// Action: Extract with stdio -x.
+/// Action: Extract with bsdtar -x.
 /// Expectation: The drive prefix is stripped and the file is extracted relative to out_dir.
 #[test]
-fn stdio_extract_rewrites_windows_drive_prefixed_entry_name() {
+fn bsdtar_extract_rewrites_windows_drive_prefixed_entry_name() {
     setup();
 
-    let root = PathBuf::from("stdio_extract_windows_drive_entry");
+    let root = PathBuf::from("bsdtar_extract_windows_drive_entry");
     let archive_path = root.join("archive.pna");
     let out_dir = root.join("out");
 
@@ -561,8 +561,8 @@ fn stdio_extract_rewrites_windows_drive_prefixed_entry_name() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",
@@ -579,13 +579,13 @@ fn stdio_extract_rewrites_windows_drive_prefixed_entry_name() {
 }
 
 /// Precondition: Archive contains a file whose entry name uses a Windows UNC API prefix.
-/// Action: Extract with stdio -x.
+/// Action: Extract with bsdtar -x.
 /// Expectation: The UNC API prefix is stripped while the server/share prefix remains part of the extracted path.
 #[test]
-fn stdio_extract_rewrites_windows_unc_prefixed_entry_name() {
+fn bsdtar_extract_rewrites_windows_unc_prefixed_entry_name() {
     setup();
 
-    let root = PathBuf::from("stdio_extract_windows_unc_entry");
+    let root = PathBuf::from("bsdtar_extract_windows_unc_entry");
     let archive_path = root.join("archive.pna");
     let out_dir = root.join("out");
 
@@ -594,8 +594,8 @@ fn stdio_extract_rewrites_windows_unc_prefixed_entry_name() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",
@@ -612,13 +612,13 @@ fn stdio_extract_rewrites_windows_unc_prefixed_entry_name() {
 }
 
 /// Precondition: Archive contains a file whose entry name uses a backslash UNC API prefix.
-/// Action: Extract with stdio -x on POSIX.
+/// Action: Extract with bsdtar -x on POSIX.
 /// Expectation: The API prefix is stripped but the remaining backslashes are preserved literally.
 #[test]
-fn stdio_extract_preserves_backslashes_after_windows_unc_prefix() {
+fn bsdtar_extract_preserves_backslashes_after_windows_unc_prefix() {
     setup();
 
-    let root = PathBuf::from("stdio_extract_windows_unc_backslash_entry");
+    let root = PathBuf::from("bsdtar_extract_windows_unc_backslash_entry");
     let archive_path = root.join("archive.pna");
     let out_dir = root.join("out");
 
@@ -631,8 +631,8 @@ fn stdio_extract_preserves_backslashes_after_windows_unc_prefix() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",
@@ -655,13 +655,13 @@ fn stdio_extract_preserves_backslashes_after_windows_unc_prefix() {
 }
 
 /// Precondition: Archive contains a file whose entry name becomes `..` traversal after removing a Windows prefix.
-/// Action: Extract with stdio -x.
+/// Action: Extract with bsdtar -x.
 /// Expectation: The entry is skipped by the SECURE_NODOTDOT-compatible check.
 #[test]
-fn stdio_extract_skips_windows_style_parent_dir_entry_name() {
+fn bsdtar_extract_skips_windows_style_parent_dir_entry_name() {
     setup();
 
-    let root = PathBuf::from("stdio_extract_windows_parent_dir_entry");
+    let root = PathBuf::from("bsdtar_extract_windows_parent_dir_entry");
     let archive_path = root.join("archive.pna");
     let out_dir = root.join("out");
 
@@ -670,8 +670,8 @@ fn stdio_extract_skips_windows_style_parent_dir_entry_name() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",
@@ -693,13 +693,13 @@ fn stdio_extract_skips_windows_style_parent_dir_entry_name() {
 // --- SECURE_NODOTDOT: entry names with ".." ---
 
 /// Precondition: Archive contains a file whose entry name includes ".." traversal
-/// Action: Extract with stdio -x (default: SECURE_NODOTDOT enabled)
+/// Action: Extract with bsdtar -x (default: SECURE_NODOTDOT enabled)
 /// Expectation: Entry is skipped (rejected by NODOTDOT check)
 #[test]
-fn stdio_extract_rejects_entry_with_dotdot() {
+fn bsdtar_extract_rejects_entry_with_dotdot() {
     setup();
 
-    let root = PathBuf::from("stdio_extract_rejects_entry_dotdot");
+    let root = PathBuf::from("bsdtar_extract_rejects_entry_dotdot");
     let archive_path = root.join("archive.pna");
     let out_dir = root.join("out");
 
@@ -708,8 +708,8 @@ fn stdio_extract_rejects_entry_with_dotdot() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",
@@ -732,13 +732,13 @@ fn stdio_extract_rejects_entry_with_dotdot() {
 }
 
 /// Precondition: Archive contains a file whose entry name includes ".." traversal
-/// Action: Extract with stdio -x and --absolute-paths (-P disables NODOTDOT)
+/// Action: Extract with bsdtar -x and --absolute-paths (-P disables NODOTDOT)
 /// Expectation: Entry is extracted (.. resolves at filesystem level)
 #[test]
-fn stdio_extract_allows_entry_with_dotdot_with_absolute_paths() {
+fn bsdtar_extract_allows_entry_with_dotdot_with_absolute_paths() {
     setup();
 
-    let root = PathBuf::from("stdio_extract_allows_entry_dotdot_abs");
+    let root = PathBuf::from("bsdtar_extract_allows_entry_dotdot_abs");
     let archive_path = root.join("archive.pna");
     let out_dir = root.join("out");
 
@@ -747,8 +747,8 @@ fn stdio_extract_allows_entry_with_dotdot_with_absolute_paths() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",
@@ -768,13 +768,13 @@ fn stdio_extract_allows_entry_with_dotdot_with_absolute_paths() {
 }
 
 /// Precondition: Archive contains a symlink whose target uses Windows-style backslash parent traversal
-/// Action: Extract with stdio -x and --no-allow-unsafe-links
+/// Action: Extract with bsdtar -x and --no-allow-unsafe-links
 /// Expectation: Symlink is not created (blocked by cross-platform unsafe link detection)
 #[test]
-fn stdio_extract_blocks_symlink_with_windows_style_parent_dir_target() {
+fn bsdtar_extract_blocks_symlink_with_windows_style_parent_dir_target() {
     setup();
 
-    let root = PathBuf::from("stdio_extract_blocks_symlink_win_parent");
+    let root = PathBuf::from("bsdtar_extract_blocks_symlink_win_parent");
     let archive_path = root.join("archive.pna");
     let out_dir = root.join("out");
 
@@ -789,8 +789,8 @@ fn stdio_extract_blocks_symlink_with_windows_style_parent_dir_target() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",
@@ -814,13 +814,13 @@ fn stdio_extract_blocks_symlink_with_windows_style_parent_dir_target() {
 }
 
 /// Precondition: Archive contains a hardlink whose target uses Windows-style backslash parent traversal
-/// Action: Extract with stdio -x and --no-allow-unsafe-links
+/// Action: Extract with bsdtar -x and --no-allow-unsafe-links
 /// Expectation: Hardlink is not created (blocked by cross-platform unsafe link detection)
 #[test]
-fn stdio_extract_blocks_hardlink_with_windows_style_parent_dir_target() {
+fn bsdtar_extract_blocks_hardlink_with_windows_style_parent_dir_target() {
     setup();
 
-    let root = PathBuf::from("stdio_extract_blocks_hardlink_win_parent");
+    let root = PathBuf::from("bsdtar_extract_blocks_hardlink_win_parent");
     let archive_path = root.join("archive.pna");
     let out_dir = root.join("out");
 
@@ -835,8 +835,8 @@ fn stdio_extract_blocks_hardlink_with_windows_style_parent_dir_target() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",

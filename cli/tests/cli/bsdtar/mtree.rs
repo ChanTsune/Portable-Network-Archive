@@ -1,4 +1,4 @@
-//! Integration tests for mtree format support in stdio commands.
+//! Integration tests for mtree format support in bsdtar commands.
 //!
 //! Tests verify that `@manifest.mtree` syntax works correctly for creating
 //! archives from mtree manifest files.
@@ -16,10 +16,10 @@ use std::path::PathBuf;
 /// Action: Create archive from the mtree manifest.
 /// Expectation: The archive contains exactly the entry specified in the manifest.
 #[test]
-fn stdio_mtree_basic_inclusion() {
+fn bsdtar_mtree_basic_inclusion() {
     setup();
 
-    let base = PathBuf::from("stdio_mtree_basic_inclusion");
+    let base = PathBuf::from("bsdtar_mtree_basic_inclusion");
     fs::create_dir_all(&base).unwrap();
 
     // Create source file
@@ -32,13 +32,13 @@ fn stdio_mtree_basic_inclusion() {
     )
     .unwrap();
 
-    // Create archive via stdio
+    // Create archive via bsdtar
     let output_archive = base.join("output.pna");
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -63,10 +63,10 @@ fn stdio_mtree_basic_inclusion() {
 /// Action: Create archive from the mtree manifest.
 /// Expectation: The archive contains all entries with correct metadata applied.
 #[test]
-fn stdio_mtree_with_set_directive() {
+fn bsdtar_mtree_with_set_directive() {
     setup();
 
-    let base = PathBuf::from("stdio_mtree_with_set_directive");
+    let base = PathBuf::from("bsdtar_mtree_with_set_directive");
     fs::create_dir_all(&base).unwrap();
 
     fs::write(base.join("app.txt"), "application").unwrap();
@@ -83,8 +83,8 @@ fn stdio_mtree_with_set_directive() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -109,10 +109,10 @@ fn stdio_mtree_with_set_directive() {
 /// Action: Create archive from the mtree manifest.
 /// Expectation: The entry path is from manifest, content is from the referenced file.
 #[test]
-fn stdio_mtree_contents_keyword() {
+fn bsdtar_mtree_contents_keyword() {
     setup();
 
-    let base = PathBuf::from("stdio_mtree_contents_keyword");
+    let base = PathBuf::from("bsdtar_mtree_contents_keyword");
     fs::create_dir_all(base.join("build")).unwrap();
 
     // Create source file in different location
@@ -129,8 +129,8 @@ fn stdio_mtree_contents_keyword() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -155,10 +155,10 @@ fn stdio_mtree_contents_keyword() {
 /// Action: Create and extract archive from the mtree manifest.
 /// Expectation: Parsing succeeds and entries are created with expected payloads.
 #[test]
-fn stdio_mtree_crlf_wrapped_and_content_alias() {
+fn bsdtar_mtree_crlf_wrapped_and_content_alias() {
     setup();
 
-    let base = PathBuf::from("stdio_mtree_crlf_wrapped_and_content_alias");
+    let base = PathBuf::from("bsdtar_mtree_crlf_wrapped_and_content_alias");
     fs::create_dir_all(base.join("bar")).unwrap();
     fs::write(base.join("bar/foo"), "abc").unwrap();
     fs::write(base.join("bar/goo"), "xyz").unwrap();
@@ -173,8 +173,8 @@ fn stdio_mtree_crlf_wrapped_and_content_alias() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -199,8 +199,8 @@ fn stdio_mtree_crlf_wrapped_and_content_alias() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "--overwrite",
@@ -220,10 +220,10 @@ fn stdio_mtree_crlf_wrapped_and_content_alias() {
 /// Action: Create archive from the mtree manifest.
 /// Expectation: The archive contains both directory and file entries.
 #[test]
-fn stdio_mtree_directory_entry() {
+fn bsdtar_mtree_directory_entry() {
     setup();
 
-    let base = PathBuf::from("stdio_mtree_directory_entry");
+    let base = PathBuf::from("bsdtar_mtree_directory_entry");
     fs::create_dir_all(base.join("subdir")).unwrap();
     fs::write(base.join("subdir/file.txt"), "nested file").unwrap();
 
@@ -238,8 +238,8 @@ fn stdio_mtree_directory_entry() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -266,10 +266,10 @@ fn stdio_mtree_directory_entry() {
 /// target — fLTP would otherwise describe a different path than what is archived.
 #[cfg(unix)]
 #[test]
-fn stdio_mtree_symlink_entry() {
+fn bsdtar_mtree_symlink_entry() {
     setup();
 
-    let base = PathBuf::from("stdio_mtree_symlink_entry");
+    let base = PathBuf::from("bsdtar_mtree_symlink_entry");
     // Clean up from previous runs (symlinks cause AlreadyExists errors)
     let _ = fs::remove_dir_all(&base);
     fs::create_dir_all(&base).unwrap();
@@ -289,8 +289,8 @@ fn stdio_mtree_symlink_entry() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -329,10 +329,10 @@ fn stdio_mtree_symlink_entry() {
 /// compatibility, so PNA-specific fLTP metadata is intentionally not emitted.
 #[cfg(unix)]
 #[test]
-fn stdio_mtree_symlink_entry_has_no_fltp() {
+fn bsdtar_mtree_symlink_entry_has_no_fltp() {
     setup();
 
-    let base = PathBuf::from("stdio_mtree_symlink_entry_has_no_fltp");
+    let base = PathBuf::from("bsdtar_mtree_symlink_entry_has_no_fltp");
     // Clean up from previous runs (symlinks cause AlreadyExists errors)
     let _ = fs::remove_dir_all(&base);
     fs::create_dir_all(base.join("dir")).unwrap();
@@ -361,8 +361,8 @@ fn stdio_mtree_symlink_entry_has_no_fltp() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -399,10 +399,10 @@ fn stdio_mtree_symlink_entry_has_no_fltp() {
 /// Action: Create archive including both @manifest.mtree and regular files.
 /// Expectation: The archive contains entries from both sources.
 #[test]
-fn stdio_mtree_with_filesystem_files() {
+fn bsdtar_mtree_with_filesystem_files() {
     setup();
 
-    let base = PathBuf::from("stdio_mtree_with_filesystem_files");
+    let base = PathBuf::from("bsdtar_mtree_with_filesystem_files");
     fs::create_dir_all(&base).unwrap();
 
     // Create files for mtree
@@ -418,8 +418,8 @@ fn stdio_mtree_with_filesystem_files() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -446,10 +446,10 @@ fn stdio_mtree_with_filesystem_files() {
 /// Action: Attempt to create archive from the mtree manifest.
 /// Expectation: The command fails with an error.
 #[test]
-fn stdio_mtree_missing_required_file_fails() {
+fn bsdtar_mtree_missing_required_file_fails() {
     setup();
 
-    let base = PathBuf::from("stdio_mtree_missing_required_file_fails");
+    let base = PathBuf::from("bsdtar_mtree_missing_required_file_fails");
     fs::create_dir_all(&base).unwrap();
 
     // Create mtree referencing nonexistent file (not optional)
@@ -459,8 +459,8 @@ fn stdio_mtree_missing_required_file_fails() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -478,10 +478,10 @@ fn stdio_mtree_missing_required_file_fails() {
 /// Action: Create archive from the mtree manifest.
 /// Expectation: Command succeeds, missing optional entry is skipped.
 #[test]
-fn stdio_mtree_optional_file_skipped() {
+fn bsdtar_mtree_optional_file_skipped() {
     setup();
 
-    let base = PathBuf::from("stdio_mtree_optional_file_skipped");
+    let base = PathBuf::from("bsdtar_mtree_optional_file_skipped");
     fs::create_dir_all(&base).unwrap();
 
     // Create only the required file, not the optional one
@@ -498,8 +498,8 @@ fn stdio_mtree_optional_file_skipped() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -525,10 +525,10 @@ fn stdio_mtree_optional_file_skipped() {
 /// Action: Create archive including both @pna_archive and @manifest.mtree.
 /// Expectation: Format detection correctly distinguishes PNA from mtree.
 #[test]
-fn stdio_format_detection_pna_vs_mtree() {
+fn bsdtar_format_detection_pna_vs_mtree() {
     setup();
 
-    let base = PathBuf::from("stdio_format_detection_pna_vs_mtree");
+    let base = PathBuf::from("bsdtar_format_detection_pna_vs_mtree");
     fs::create_dir_all(&base).unwrap();
 
     // Create source files
@@ -540,8 +540,8 @@ fn stdio_format_detection_pna_vs_mtree() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -562,8 +562,8 @@ fn stdio_format_detection_pna_vs_mtree() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -596,10 +596,10 @@ fn stdio_format_detection_pna_vs_mtree() {
 /// Action: Attempt to create archive from the invalid mtree.
 /// Expectation: Command fails with an error.
 #[test]
-fn stdio_mtree_parse_error_invalid_syntax() {
+fn bsdtar_mtree_parse_error_invalid_syntax() {
     setup();
 
-    let base = PathBuf::from("stdio_mtree_parse_error_invalid_syntax");
+    let base = PathBuf::from("bsdtar_mtree_parse_error_invalid_syntax");
     fs::create_dir_all(&base).unwrap();
 
     // Create mtree with invalid syntax (unbalanced quotes, invalid keywords)
@@ -613,8 +613,8 @@ fn stdio_mtree_parse_error_invalid_syntax() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -629,16 +629,16 @@ fn stdio_mtree_parse_error_invalid_syntax() {
 }
 
 /// Precondition: mtree specifies mode=0755 with nochange keyword, file has mode 0644.
-/// Action: Create archive (stdio stores permissions by default).
+/// Action: Create archive (bsdtar stores permissions by default).
 /// Expectation: Archived entry has filesystem mode (0644), not mtree value.
 #[test]
 #[cfg(unix)]
-fn stdio_mtree_nochange_uses_filesystem_metadata() {
+fn bsdtar_mtree_nochange_uses_filesystem_metadata() {
     use std::os::unix::fs::PermissionsExt;
 
     setup();
 
-    let base = PathBuf::from("stdio_mtree_nochange_uses_filesystem_metadata");
+    let base = PathBuf::from("bsdtar_mtree_nochange_uses_filesystem_metadata");
     fs::create_dir_all(&base).unwrap();
 
     // Create file with specific mode (0644)
@@ -658,8 +658,8 @@ fn stdio_mtree_nochange_uses_filesystem_metadata() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -697,10 +697,10 @@ fn stdio_mtree_nochange_uses_filesystem_metadata() {
 /// Action: Create archive from the mtree.
 /// Expectation: Command fails with error indicating type mismatch.
 #[test]
-fn stdio_mtree_type_mismatch_file_is_dir() {
+fn bsdtar_mtree_type_mismatch_file_is_dir() {
     setup();
 
-    let base = PathBuf::from("stdio_mtree_type_mismatch_file_is_dir");
+    let base = PathBuf::from("bsdtar_mtree_type_mismatch_file_is_dir");
     fs::create_dir_all(base.join("actually_a_dir")).unwrap();
 
     // Create mtree claiming the directory is a file
@@ -714,8 +714,8 @@ fn stdio_mtree_type_mismatch_file_is_dir() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -733,10 +733,10 @@ fn stdio_mtree_type_mismatch_file_is_dir() {
 /// Action: Create archive from the mtree.
 /// Expectation: Command fails with error indicating type mismatch.
 #[test]
-fn stdio_mtree_type_mismatch_dir_is_file() {
+fn bsdtar_mtree_type_mismatch_dir_is_file() {
     setup();
 
-    let base = PathBuf::from("stdio_mtree_type_mismatch_dir_is_file");
+    let base = PathBuf::from("bsdtar_mtree_type_mismatch_dir_is_file");
     fs::create_dir_all(&base).unwrap();
 
     // Create a regular file
@@ -753,8 +753,8 @@ fn stdio_mtree_type_mismatch_dir_is_file() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -772,10 +772,10 @@ fn stdio_mtree_type_mismatch_dir_is_file() {
 /// Action: Create archive from the mtree.
 /// Expectation: Command fails with error indicating type mismatch.
 #[test]
-fn stdio_mtree_type_mismatch_link_is_file() {
+fn bsdtar_mtree_type_mismatch_link_is_file() {
     setup();
 
-    let base = PathBuf::from("stdio_mtree_type_mismatch_link_is_file");
+    let base = PathBuf::from("bsdtar_mtree_type_mismatch_link_is_file");
     fs::create_dir_all(&base).unwrap();
 
     // Create a regular file
@@ -792,8 +792,8 @@ fn stdio_mtree_type_mismatch_link_is_file() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",

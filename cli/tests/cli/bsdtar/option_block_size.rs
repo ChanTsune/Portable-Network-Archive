@@ -5,14 +5,14 @@ use predicates::prelude::predicate;
 use std::fs;
 
 #[test]
-fn stdio_block_size_option() {
+fn bsdtar_block_size_option() {
     setup();
-    let file = "stdio_block_size_option.txt";
+    let file = "bsdtar_block_size_option.txt";
     fs::write(file, "").unwrap();
 
     let mut cmd = cargo_bin_cmd!("pna");
-    cmd.arg("experimental")
-        .arg("stdio")
+    cmd.arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("--block-size")
         .arg("20")
@@ -25,14 +25,14 @@ fn stdio_block_size_option() {
 }
 
 #[test]
-fn stdio_b_option() {
+fn bsdtar_b_option() {
     setup();
-    let file = "stdio_b_option.txt";
+    let file = "bsdtar_b_option.txt";
     fs::write(file, "").unwrap();
 
     let mut cmd = cargo_bin_cmd!("pna");
-    cmd.arg("experimental")
-        .arg("stdio")
+    cmd.arg("compat")
+        .arg("bsdtar")
         .arg("-c")
         .arg("-b")
         .arg("20")

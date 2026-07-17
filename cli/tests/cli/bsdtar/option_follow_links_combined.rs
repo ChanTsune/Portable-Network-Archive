@@ -39,10 +39,10 @@ fn list_archive(archive: &str) -> String {
 ///   last-wins, so the effective mode is -H (follow only command-line symlinks).
 /// Expectation: nested symlinks (chain_b, target) are preserved as symlinks in the archive.
 #[test]
-fn stdio_create_with_L_then_H_uses_H_semantics() {
+fn bsdtar_create_with_L_then_H_uses_H_semantics() {
     setup();
-    let src = "stdio_LH_then/src";
-    let archive = "stdio_LH_then/out.tar";
+    let src = "bsdtar_LH_then/src";
+    let archive = "bsdtar_LH_then/out.tar";
     make_chain_fixture(src);
 
     cargo_bin_cmd!("pna")
@@ -75,10 +75,10 @@ fn stdio_create_with_L_then_H_uses_H_semantics() {
 ///   mode -L (follow all symlinks).
 /// Expectation: all symlinks are dereferenced; archive contains regular files only.
 #[test]
-fn stdio_create_with_H_then_L_uses_L_semantics() {
+fn bsdtar_create_with_H_then_L_uses_L_semantics() {
     setup();
-    let src = "stdio_HL_then/src";
-    let archive = "stdio_HL_then/out.tar";
+    let src = "bsdtar_HL_then/src";
+    let archive = "bsdtar_HL_then/out.tar";
     make_chain_fixture(src);
 
     cargo_bin_cmd!("pna")
@@ -106,10 +106,10 @@ fn stdio_create_with_H_then_L_uses_L_semantics() {
 /// Action: pna compat bsdtar -cLf (only -L specified).
 /// Expectation: all symlinks are dereferenced.
 #[test]
-fn stdio_create_with_L_only_dereferences_all_symlinks() {
+fn bsdtar_create_with_L_only_dereferences_all_symlinks() {
     setup();
-    let src = "stdio_L_only/src";
-    let archive = "stdio_L_only/out.tar";
+    let src = "bsdtar_L_only/src";
+    let archive = "bsdtar_L_only/out.tar";
     make_chain_fixture(src);
 
     cargo_bin_cmd!("pna")
@@ -138,10 +138,10 @@ fn stdio_create_with_L_only_dereferences_all_symlinks() {
 /// Expectation: nested symlinks under "." are preserved (the operand "." is not a symlink itself,
 ///   so -H does not dereference any chain entry).
 #[test]
-fn stdio_create_with_H_only_preserves_nested_symlinks() {
+fn bsdtar_create_with_H_only_preserves_nested_symlinks() {
     setup();
-    let src = "stdio_H_only/src";
-    let archive = "stdio_H_only/out.tar";
+    let src = "bsdtar_H_only/src";
+    let archive = "bsdtar_H_only/out.tar";
     make_chain_fixture(src);
 
     cargo_bin_cmd!("pna")
@@ -174,10 +174,10 @@ fn stdio_create_with_H_only_preserves_nested_symlinks() {
 ///   without -H or -L.
 /// Expectation: matches bsdtar by archiving the symlink itself, despite the trailing slash.
 #[test]
-fn stdio_create_trailing_slash_symlink_to_dir_without_follow_preserves_symlink() {
+fn bsdtar_create_trailing_slash_symlink_to_dir_without_follow_preserves_symlink() {
     setup();
-    let src = "stdio_trailing_symlink_no_follow/src";
-    let archive = "stdio_trailing_symlink_no_follow/out.tar";
+    let src = "bsdtar_trailing_symlink_no_follow/src";
+    let archive = "bsdtar_trailing_symlink_no_follow/out.tar";
     make_symlink_dir_fixture(src);
 
     cargo_bin_cmd!("pna")
@@ -210,10 +210,10 @@ fn stdio_create_trailing_slash_symlink_to_dir_without_follow_preserves_symlink()
 ///   with -H.
 /// Expectation: -H follows the command-line symlink and archives the target directory.
 #[test]
-fn stdio_create_trailing_slash_symlink_to_dir_with_H_follows() {
+fn bsdtar_create_trailing_slash_symlink_to_dir_with_H_follows() {
     setup();
-    let src = "stdio_trailing_symlink_H/src";
-    let archive = "stdio_trailing_symlink_H/out.tar";
+    let src = "bsdtar_trailing_symlink_H/src";
+    let archive = "bsdtar_trailing_symlink_H/out.tar";
     make_symlink_dir_fixture(src);
 
     cargo_bin_cmd!("pna")
@@ -246,10 +246,10 @@ fn stdio_create_trailing_slash_symlink_to_dir_with_H_follows() {
 ///   with -L.
 /// Expectation: -L follows the symlink and archives the target directory.
 #[test]
-fn stdio_create_trailing_slash_symlink_to_dir_with_L_follows() {
+fn bsdtar_create_trailing_slash_symlink_to_dir_with_L_follows() {
     setup();
-    let src = "stdio_trailing_symlink_L/src";
-    let archive = "stdio_trailing_symlink_L/out.tar";
+    let src = "bsdtar_trailing_symlink_L/src";
+    let archive = "bsdtar_trailing_symlink_L/out.tar";
     make_symlink_dir_fixture(src);
 
     cargo_bin_cmd!("pna")

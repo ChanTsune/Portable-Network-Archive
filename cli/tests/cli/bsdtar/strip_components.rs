@@ -5,16 +5,16 @@ use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 use std::path::Path;
 
-/// Precondition: Source tree contains `a/b/file.txt` to be archived via stdio mode.
-/// Action: Run `pna experimental stdio --create --strip-components 1 -f <archive> -C <input> a/b/file.txt`,
-///         then extract with `pna experimental stdio --extract --overwrite --out-dir <out> -f <archive>`.
+/// Precondition: Source tree contains `a/b/file.txt` to be archived via bsdtar mode.
+/// Action: Run `pna compat bsdtar --create --strip-components 1 -f <archive> -C <input> a/b/file.txt`,
+///         then extract with `pna compat bsdtar --extract --overwrite --out-dir <out> -f <archive>`.
 /// Expectation: The first path component is dropped in the archive, yielding `b/file.txt` on
 ///         extract and no recreated `a/` directory.
 #[test]
-fn stdio_create_respects_strip_components_on_store() {
+fn bsdtar_create_respects_strip_components_on_store() {
     setup();
 
-    let base = Path::new("stdio_strip_components");
+    let base = Path::new("bsdtar_strip_components");
     let input = base.join("in");
     fs::create_dir_all(input.join("a/b")).unwrap();
     fs::write(input.join("a/b/file.txt"), b"payload").unwrap();
@@ -24,8 +24,8 @@ fn stdio_create_respects_strip_components_on_store() {
     let mut create_cmd = cargo_bin_cmd!("pna");
     create_cmd.args([
         "--quiet",
-        "experimental",
-        "stdio",
+        "compat",
+        "bsdtar",
         "--create",
         "--strip-components",
         "1",
@@ -41,8 +41,8 @@ fn stdio_create_respects_strip_components_on_store() {
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd.args([
         "--quiet",
-        "experimental",
-        "stdio",
+        "compat",
+        "bsdtar",
         "--extract",
         "--overwrite",
         "--out-dir",

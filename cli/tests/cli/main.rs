@@ -2,6 +2,8 @@
 mod acl;
 mod append;
 #[cfg(not(target_family = "wasm"))]
+mod bsdtar;
+#[cfg(not(target_family = "wasm"))]
 mod bugreport;
 mod chmod;
 mod chown;
@@ -30,8 +32,6 @@ mod restore_acl_0_19_1;
 mod solid_mode;
 mod sort;
 mod split;
-#[cfg(not(target_family = "wasm"))]
-mod stdio;
 mod strip;
 mod update;
 pub mod utils;

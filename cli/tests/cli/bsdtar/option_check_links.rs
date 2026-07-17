@@ -12,25 +12,25 @@ use std::fs;
 /// Expectation: Warning is emitted about incomplete hardlink set.
 #[test]
 #[cfg(unix)]
-fn stdio_with_check_links_incomplete_hardlinks() {
+fn bsdtar_with_check_links_incomplete_hardlinks() {
     setup();
-    let _ = fs::remove_dir_all("stdio_check_links_warns");
-    fs::create_dir_all("stdio_check_links_warns").unwrap();
+    let _ = fs::remove_dir_all("bsdtar_check_links_warns");
+    fs::create_dir_all("bsdtar_check_links_warns").unwrap();
 
-    fs::write("stdio_check_links_warns/origin.txt", b"content").unwrap();
+    fs::write("bsdtar_check_links_warns/origin.txt", b"content").unwrap();
     fs::hard_link(
-        "stdio_check_links_warns/origin.txt",
-        "stdio_check_links_warns/link.txt",
+        "bsdtar_check_links_warns/origin.txt",
+        "bsdtar_check_links_warns/link.txt",
     )
     .unwrap();
 
     cargo_bin_cmd!("pna")
         .args([
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "-l",
-            "stdio_check_links_warns/origin.txt",
+            "bsdtar_check_links_warns/origin.txt",
         ])
         .assert()
         .success()
@@ -44,26 +44,26 @@ fn stdio_with_check_links_incomplete_hardlinks() {
 /// Expectation: No warning is emitted since all links are archived.
 #[test]
 #[cfg(unix)]
-fn stdio_with_check_links_complete_hardlinks() {
+fn bsdtar_with_check_links_complete_hardlinks() {
     setup();
-    let _ = fs::remove_dir_all("stdio_check_links_complete");
-    fs::create_dir_all("stdio_check_links_complete").unwrap();
+    let _ = fs::remove_dir_all("bsdtar_check_links_complete");
+    fs::create_dir_all("bsdtar_check_links_complete").unwrap();
 
-    fs::write("stdio_check_links_complete/origin.txt", b"content").unwrap();
+    fs::write("bsdtar_check_links_complete/origin.txt", b"content").unwrap();
     fs::hard_link(
-        "stdio_check_links_complete/origin.txt",
-        "stdio_check_links_complete/link.txt",
+        "bsdtar_check_links_complete/origin.txt",
+        "bsdtar_check_links_complete/link.txt",
     )
     .unwrap();
 
     cargo_bin_cmd!("pna")
         .args([
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "-l",
-            "stdio_check_links_complete/origin.txt",
-            "stdio_check_links_complete/link.txt",
+            "bsdtar_check_links_complete/origin.txt",
+            "bsdtar_check_links_complete/link.txt",
         ])
         .assert()
         .success()
@@ -75,20 +75,20 @@ fn stdio_with_check_links_complete_hardlinks() {
 /// Expectation: No warning is emitted since the file has only one link.
 #[test]
 #[cfg(unix)]
-fn stdio_with_check_links_single_link_file() {
+fn bsdtar_with_check_links_single_link_file() {
     setup();
-    let _ = fs::remove_dir_all("stdio_check_links_single");
-    fs::create_dir_all("stdio_check_links_single").unwrap();
+    let _ = fs::remove_dir_all("bsdtar_check_links_single");
+    fs::create_dir_all("bsdtar_check_links_single").unwrap();
 
-    fs::write("stdio_check_links_single/single.txt", b"content").unwrap();
+    fs::write("bsdtar_check_links_single/single.txt", b"content").unwrap();
 
     cargo_bin_cmd!("pna")
         .args([
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "-l",
-            "stdio_check_links_single/single.txt",
+            "bsdtar_check_links_single/single.txt",
         ])
         .assert()
         .success()
