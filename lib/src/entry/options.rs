@@ -579,53 +579,99 @@ impl TryFrom<u8> for Encryption {
 }
 
 /// Cipher mode of encryption algorithm.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum CipherMode {
-    /// Cipher Block Chaining mode.
-    CBC,
-    /// Counter mode.
-    CTR,
-    /// Value reserved for future PNA specification (raw value < 128).
-    Reserved(u8),
-    /// Application-specific private value (raw value >= 128).
-    Private(u8),
-}
+///
+/// Values without an associated constant are either reserved for future
+/// PNA specification (raw value < 128) or application-specific private
+/// values (raw value >= 128).
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct CipherMode(u8);
 
 impl CipherMode {
-    /// Serialize this cipher mode to its u8 representation.
+    /// Cipher Block Chaining mode.
+    pub const CBC: Self = Self(0);
+    /// Counter mode.
+    pub const CTR: Self = Self(1);
+
+    /// Deserializes a cipher mode from its u8 representation.
+    ///
+    /// Every byte value is a valid cipher mode value, so this conversion
+    /// never fails.
+    #[inline]
+    pub const fn from_byte(value: u8) -> Self {
+        Self(value)
+    }
+
+    /// Serializes this cipher mode to its u8 representation.
     #[inline]
     pub const fn to_byte(self) -> u8 {
-        match self {
-            Self::CBC => 0,
-            Self::CTR => 1,
-            Self::Reserved(v) | Self::Private(v) => v,
+        self.0
+    }
+
+    /// Creates an application-specific private value.
+    ///
+    /// Returns `Some` if `value` is in the private range (`128..=255`),
+    /// otherwise `None`.
+    #[inline]
+    pub const fn new_private(value: u8) -> Option<Self> {
+        if value >= 128 {
+            Some(Self(value))
+        } else {
+            None
         }
     }
 
-    /// Returns `true` if this is a reserved value.
+    /// Converts a `u8` into a [`CipherMode`]. Never fails.
+    ///
+    /// Shadows `<CipherMode as TryFrom<u8>>::try_from` so existing
+    /// `CipherMode::try_from(..)` call sites receive a deprecation warning;
+    /// both will be removed together in a future release.
+    ///
+    /// # Errors
+    ///
+    /// Never returns `Err`; every byte value is a valid cipher mode.
+    #[deprecated(since = "0.36.0", note = "use `CipherMode::from_byte`")]
+    #[allow(clippy::should_implement_trait)]
     #[inline]
-    pub const fn is_reserved(self) -> bool {
-        matches!(self, Self::Reserved(_))
+    pub const fn try_from(value: u8) -> Result<Self, UnknownValueError> {
+        Ok(Self::from_byte(value))
     }
 
-    /// Returns `true` if this is a private value.
+    /// Returns `true` if this value is reserved for future PNA specification
+    /// (unassigned and raw value < 128).
+    #[inline]
+    pub const fn is_reserved(self) -> bool {
+        !matches!(self.0, 0..=1) && self.0 < 128
+    }
+
+    /// Returns `true` if this is an application-specific private value
+    /// (raw value >= 128).
     #[inline]
     pub const fn is_private(self) -> bool {
-        matches!(self, Self::Private(_))
+        self.0 >= 128
     }
 }
 
+impl fmt::Debug for CipherMode {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::CBC => f.write_str("CBC"),
+            Self::CTR => f.write_str("CTR"),
+            Self(v) if v < 128 => f.debug_tuple("Reserved").field(&v).finish(),
+            Self(v) => f.debug_tuple("Private").field(&v).finish(),
+        }
+    }
+}
+
+/// Infallible; kept for backward compatibility with the former enum-based
+/// API and scheduled for removal in a future release. Use
+/// [`CipherMode::from_byte`] instead.
 impl TryFrom<u8> for CipherMode {
     type Error = UnknownValueError;
 
     #[inline]
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(Self::CBC),
-            1 => Ok(Self::CTR),
-            v if v < 128 => Ok(Self::Reserved(v)),
-            v => Ok(Self::Private(v)),
-        }
+        Ok(Self::from_byte(value))
     }
 }
 
@@ -1664,5 +1710,65 @@ mod tests {
             .try_build()
             .unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::Unsupported);
+    }
+
+    #[test]
+    fn cipher_mode_round_trips_all_byte_values() {
+        for v in 0..=u8::MAX {
+            assert_eq!(CipherMode::from_byte(v).to_byte(), v);
+        }
+    }
+
+    #[test]
+    fn cipher_mode_known_constants_map_to_spec_bytes() {
+        assert_eq!(CipherMode::CBC.to_byte(), 0);
+        assert_eq!(CipherMode::CTR.to_byte(), 1);
+    }
+
+    #[test]
+    fn cipher_mode_new_private_boundary() {
+        assert_eq!(CipherMode::new_private(0), None);
+        assert_eq!(CipherMode::new_private(127), None);
+        assert_eq!(
+            CipherMode::new_private(128),
+            Some(CipherMode::from_byte(128))
+        );
+        assert_eq!(
+            CipherMode::new_private(255),
+            Some(CipherMode::from_byte(255))
+        );
+    }
+
+    #[test]
+    fn cipher_mode_predicates() {
+        assert!(!CipherMode::CBC.is_reserved());
+        assert!(!CipherMode::CTR.is_reserved());
+        assert!(!CipherMode::CTR.is_private());
+        assert!(CipherMode::from_byte(2).is_reserved());
+        assert!(CipherMode::from_byte(127).is_reserved());
+        assert!(!CipherMode::from_byte(127).is_private());
+        assert!(!CipherMode::from_byte(128).is_reserved());
+        assert!(CipherMode::from_byte(128).is_private());
+        assert!(CipherMode::from_byte(255).is_private());
+    }
+
+    #[test]
+    fn cipher_mode_debug_matches_former_enum_output() {
+        assert_eq!(format!("{:?}", CipherMode::CBC), "CBC");
+        assert_eq!(format!("{:?}", CipherMode::CTR), "CTR");
+        assert_eq!(format!("{:?}", CipherMode::from_byte(2)), "Reserved(2)");
+        assert_eq!(format!("{:?}", CipherMode::from_byte(200)), "Private(200)");
+    }
+
+    #[allow(deprecated)]
+    #[test]
+    fn cipher_mode_try_from_is_infallible_and_matches_from_byte() {
+        for v in 0..=u8::MAX {
+            assert_eq!(CipherMode::try_from(v).unwrap(), CipherMode::from_byte(v));
+            assert_eq!(
+                <CipherMode as TryFrom<u8>>::try_from(v).unwrap(),
+                CipherMode::from_byte(v)
+            );
+        }
     }
 }
