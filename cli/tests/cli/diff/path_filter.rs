@@ -38,12 +38,14 @@ fn diff_filters_by_path_argument() {
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.args(["experimental", "diff", "-f", &archive_path])
         .assert()
+        .code(1)
         .stdout(predicate::str::contains("Size differs"));
 
     // With filter for file_b only: no difference
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.args(["experimental", "diff", "-f", &archive_path, &file_b])
         .assert()
+        .success()
         .stdout("");
 }
 
@@ -75,7 +77,7 @@ fn diff_reports_path_not_in_archive() {
         "nonexistent.txt",
     ])
     .assert()
-    .failure()
+    .code(2)
     .stderr(predicate::str::contains("not found in archive"));
 }
 
@@ -119,6 +121,7 @@ fn diff_filters_by_directory_prefix() {
         .assert();
 
     assert
+        .code(1)
         .stdout(predicate::str::contains("subdir/b.txt: Size differs"))
         .stdout(predicate::str::contains("a.txt: Size differs").not());
 }

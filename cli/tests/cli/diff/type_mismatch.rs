@@ -33,7 +33,7 @@ fn diff_detects_symlink_to_file_mismatch() {
     cargo_bin_cmd!("pna")
         .args(["experimental", "diff", "-f", &archive_path])
         .assert()
-        .success()
+        .code(1)
         .stdout(predicate::str::contains(format!(
             "{link}: File type mismatch"
         )));
@@ -64,7 +64,7 @@ fn diff_detects_file_to_directory_mismatch() {
     cargo_bin_cmd!("pna")
         .args(["experimental", "diff", "-f", &archive_path])
         .assert()
-        .success()
+        .code(1)
         .stdout(predicate::str::contains(format!(
             "{file_path}: File type mismatch"
         )));
@@ -102,7 +102,7 @@ fn diff_detects_directory_to_file_mismatch() {
     cargo_bin_cmd!("pna")
         .args(["experimental", "diff", "-f", &archive_path])
         .assert()
-        .success()
+        .code(1)
         .stdout(predicate::str::contains(format!(
             "{subdir}: File type mismatch"
         )));

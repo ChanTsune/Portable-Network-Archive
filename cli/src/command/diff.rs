@@ -1,7 +1,7 @@
 use crate::{
     cli::{FileArgs, PasswordArgs},
     command::{
-        Command, ask_password,
+        Command, ExitCodeError, ask_password,
         core::{SplitArchiveReader, collect_split_archives},
     },
     utils::{BsdGlobMatcher, io::streams_equal},
@@ -36,12 +36,16 @@ pub(crate) struct DiffCommand {
 impl Command for DiffCommand {
     #[inline]
     fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
-        diff_archive(self)
+        match diff_archive(self) {
+            Ok(0) => Ok(()),
+            Ok(_) => Err(ExitCodeError::silent(1).into()),
+            Err(err) => Err(ExitCodeError::with_source(2, err).into()),
+        }
     }
 }
 
 #[hooq::hooq(anyhow)]
-fn diff_archive(args: DiffCommand) -> anyhow::Result<()> {
+fn diff_archive(args: DiffCommand) -> anyhow::Result<usize> {
     let password = ask_password(args.password)?;
     let archives = collect_split_archives(&args.file.archive)?;
     let options = CompareOptions {
@@ -53,6 +57,7 @@ fn diff_archive(args: DiffCommand) -> anyhow::Result<()> {
 
     let read_options = ReadOptions::with_password(password.as_deref());
     let mut source = SplitArchiveReader::new(archives)?;
+    let mut diff_count = 0usize;
     source.for_each_entry(
         &read_options,
         #[hooq::skip_all]
@@ -64,13 +69,14 @@ fn diff_archive(args: DiffCommand) -> anyhow::Result<()> {
                 return Ok(());
             }
 
-            compare_entry(entry, &read_options, &options)
+            diff_count += compare_entry(entry, &read_options, &options)?;
+            Ok(())
         },
     )?;
 
     globs.ensure_all_matched()?;
 
-    Ok(())
+    Ok(diff_count)
 }
 
 /// Difference types detected during archive-filesystem comparison.
@@ -268,7 +274,7 @@ fn compare_entry<T: AsRef<[u8]>>(
     entry: NormalEntry<T>,
     read_options: &ReadOptions,
     options: &CompareOptions,
-) -> io::Result<()> {
+) -> io::Result<usize> {
     let data_kind = entry.header().data_kind();
     let path = entry.header().path();
     let path_str = path.as_str();
@@ -276,14 +282,16 @@ fn compare_entry<T: AsRef<[u8]>>(
         Ok(meta) => meta,
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
             println!("{}", DiffKind::Missing.display(path_str));
-            return Ok(());
+            return Ok(1);
         }
         Err(e) => return Err(e),
     };
+    let mut diff_count = 0usize;
     match data_kind {
         DataKind::File if meta.is_file() => {
             // Compare metadata first
             let meta_diffs = compare_file_metadata(&entry, &meta, options);
+            diff_count += meta_diffs.len();
             for diff in meta_diffs {
                 println!("{}", diff.display(path_str));
             }
@@ -293,16 +301,19 @@ fn compare_entry<T: AsRef<[u8]>>(
             let archive_size = entry.metadata().raw_file_size();
             if archive_size.is_some_and(|s| s != fs_size as u128) {
                 println!("{}", DiffKind::SizeDiffers.display(path_str));
+                diff_count += 1;
             } else {
                 let fs_file = fs::File::open(path)?;
                 let archive_reader = entry.reader(read_options)?;
                 if !streams_equal(fs_file, archive_reader)? {
                     println!("{}", DiffKind::ContentsDiffer.display(path_str));
+                    diff_count += 1;
                 }
             }
         }
         DataKind::Directory if meta.is_dir() => {
             let diffs = compare_directory_metadata(&entry, &meta, options);
+            diff_count += diffs.len();
             for diff in diffs {
                 println!("{}", diff.display(path_str));
             }
@@ -314,10 +325,12 @@ fn compare_entry<T: AsRef<[u8]>>(
             };
             if link.as_path() != Path::new(stored.as_str()) {
                 println!("{}", DiffKind::SymlinkDiffers.display(path_str));
+                diff_count += 1;
             }
         }
         DataKind::File | DataKind::Directory | DataKind::SymbolicLink => {
             println!("{}", DiffKind::TypeMismatch.display(path_str));
+            diff_count += 1;
         }
         DataKind::HardLink if meta.is_file() => {
             let EntryContent::HardLink(stored) = entry.content(read_options)? else {
@@ -330,19 +343,23 @@ fn compare_entry<T: AsRef<[u8]>>(
                         "{}",
                         DiffKind::NotLinked(stored.to_string()).display(path_str)
                     );
+                    diff_count += 1;
                 }
                 Err(e) if e.kind() == io::ErrorKind::NotFound => {
                     println!("{}", DiffKind::Missing.display(path_str));
+                    diff_count += 1;
                 }
                 Err(e) => return Err(e),
             }
         }
         DataKind::HardLink => {
             println!("{}", DiffKind::TypeMismatch.display(path_str));
+            diff_count += 1;
         }
         _ => {
             println!("{}", DiffKind::TypeMismatch.display(path_str));
+            diff_count += 1;
         }
     }
-    Ok(())
+    Ok(diff_count)
 }

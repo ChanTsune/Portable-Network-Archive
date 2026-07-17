@@ -24,7 +24,56 @@ pub(crate) mod verify;
 pub mod xattr;
 
 use crate::cli::{Cli, Commands, GlobalContext, PasswordArgs};
-use std::{fs, io};
+use std::{fmt, fs, io};
+
+/// Error that maps to a specific process exit code in `main`.
+#[derive(Debug)]
+pub struct ExitCodeError {
+    code: u8,
+    source: Option<anyhow::Error>,
+}
+
+impl ExitCodeError {
+    /// Exit with `code` without printing anything.
+    pub(crate) fn silent(code: u8) -> Self {
+        Self { code, source: None }
+    }
+
+    /// Exit with `code` after `main` prints `source`.
+    pub(crate) fn with_source(code: u8, source: anyhow::Error) -> Self {
+        Self {
+            code,
+            source: Some(source),
+        }
+    }
+
+    /// Process exit code to terminate with.
+    pub fn code(&self) -> u8 {
+        self.code
+    }
+
+    /// Consumes self and returns the wrapped error to print, if any.
+    pub fn into_source(self) -> Option<anyhow::Error> {
+        self.source
+    }
+}
+
+impl fmt::Display for ExitCodeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.source {
+            Some(err) => fmt::Display::fmt(err, f),
+            None => write!(f, "process exited with code {}", self.code),
+        }
+    }
+}
+
+impl std::error::Error for ExitCodeError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.source
+            .as_ref()
+            .map(|err| -> &(dyn std::error::Error + 'static) { err.as_ref() })
+    }
+}
 
 fn ask_password(args: PasswordArgs) -> io::Result<Option<Vec<u8>>> {
     if let Some(path) = args.password_file {
