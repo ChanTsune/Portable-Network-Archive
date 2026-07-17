@@ -137,6 +137,46 @@ fn verify_with_fast_on_stream_corruption() {
         .stdout(contains("failed: 0"));
 }
 
+/// Precondition: An archive whose first data chunk's bytes were altered
+/// without updating the stored CRC.
+/// Action: Run verify with --fast.
+/// Expectation: Exit failure with the corrupted entry reported as FAILED —
+/// fast mode still validates chunk CRC32.
+#[test]
+fn verify_with_fast_on_crc_mismatch() {
+    setup();
+    TestResources::extract_in("raw/", "verify_fast_crc/in/").unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "verify_fast_crc/verify_fast_crc.pna",
+        "--overwrite",
+        "verify_fast_crc/in/",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+    assert!(corrupt_first_chunk("verify_fast_crc/verify_fast_crc.pna", *b"FDAT", false).unwrap());
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "experimental",
+            "verify",
+            "-f",
+            "verify_fast_crc/verify_fast_crc.pna",
+            "--fast",
+        ])
+        .assert()
+        .failure()
+        .stdout(
+            contains("FAILED")
+                .and(contains("failed: 1,"))
+                .and(contains("ok: 0,").not()),
+        );
+}
+
 /// Precondition: An encrypted archive exists and no password is supplied.
 /// Action: Run verify without a password.
 /// Expectation: Exit success; encrypted entries are counted as skipped.
