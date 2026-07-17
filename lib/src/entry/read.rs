@@ -138,7 +138,7 @@ mod tests {
         let result = decrypt_reader(
             io::Cursor::new(Vec::<u8>::new()),
             Encryption::CAMELLIA,
-            CipherMode::Reserved(3),
+            CipherMode::from_byte(3),
             Some(phsf),
             Some(b"password"),
             None,

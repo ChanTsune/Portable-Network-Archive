@@ -148,8 +148,7 @@ impl EntryHeader {
             data_kind: DataKind::from_byte(bytes[2]),
             compression: Compression::from_byte(bytes[3]),
             encryption: Encryption::from_byte(bytes[4]),
-            cipher_mode: CipherMode::try_from(bytes[5])
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+            cipher_mode: CipherMode::from_byte(bytes[5]),
             sanitized_path: OnceLock::new(),
             name: path,
         };
@@ -284,8 +283,7 @@ impl SolidHeader {
             minor: bytes[1],
             compression: Compression::from_byte(bytes[2]),
             encryption: Encryption::from_byte(bytes[3]),
-            cipher_mode: CipherMode::try_from(bytes[4])
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+            cipher_mode: CipherMode::from_byte(bytes[4]),
         })
     }
 }
