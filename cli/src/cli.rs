@@ -311,11 +311,11 @@ pub(crate) struct CipherAlgorithmArgs {
 impl CipherAlgorithmArgs {
     pub(crate) const fn algorithm(&self) -> pna::Encryption {
         if self.aes.is_some() {
-            pna::Encryption::Aes
+            pna::Encryption::AES
         } else if self.camellia.is_some() {
-            pna::Encryption::Camellia
+            pna::Encryption::CAMELLIA
         } else {
-            pna::Encryption::Aes
+            pna::Encryption::AES
         }
     }
 

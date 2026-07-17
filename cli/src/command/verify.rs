@@ -81,7 +81,7 @@ fn verify_archive(args: VerifyCommand) -> anyhow::Result<()> {
                     match read_entry {
                         ReadEntry::Solid(solid) => {
                             solid_blocks += 1;
-                            if solid.encryption() != Encryption::No && password.is_none() {
+                            if solid.encryption() != Encryption::NO && password.is_none() {
                                 println!("<solid block #{solid_blocks}>: skipped (encrypted)");
                                 report.skipped += 1;
                                 return Ok(());
@@ -91,7 +91,7 @@ fn verify_archive(args: VerifyCommand) -> anyhow::Result<()> {
                             {
                                 println!("<solid block #{solid_blocks}>: FAILED ({err})");
                                 report.failed += 1;
-                                report.encrypted_failure |= solid.encryption() != Encryption::No;
+                                report.encrypted_failure |= solid.encryption() != Encryption::NO;
                             }
                         }
                         ReadEntry::Normal(entry) => {
@@ -145,7 +145,7 @@ fn verify_entry(
         report.ok += 1;
         return;
     }
-    let encrypted = entry.header().encryption() != Encryption::No;
+    let encrypted = entry.header().encryption() != Encryption::NO;
     if encrypted && password.is_none() {
         // Decoding is impossible without the password.
         report.skipped += 1;

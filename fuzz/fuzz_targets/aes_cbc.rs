@@ -7,7 +7,7 @@ use std::io::prelude::*;
 fuzz_target!(|data: &[u8]| {
     let write_option = WriteOptions::builder()
         .password(Some("password"))
-        .encryption(Encryption::Aes)
+        .encryption(Encryption::AES)
         .cipher_mode(CipherMode::CBC)
         .compression(Compression::NO)
         .build();
