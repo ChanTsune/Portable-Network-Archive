@@ -37,7 +37,8 @@ fn bsdtar_with_exclude_vcs() {
     for file in regular_files.iter() {
         fs::write(file, "regular file content").unwrap();
     }
-    // Create archive to stdout via bsdtar (with --exclude-vcs)
+    // Create archive to stdout via bsdtar (with --exclude-vcs), archiving the
+    // containing directory so VCS entries are candidates for the archive.
     let mut create_cmd = cargo_bin_cmd!("pna");
     create_cmd.args([
         "--quiet",
@@ -47,9 +48,7 @@ fn bsdtar_with_exclude_vcs() {
         "--overwrite",
         "--unstable",
         "--exclude-vcs",
-        "bsdtar_with_exclude_vcs/in/raw/regular.txt",
-        "bsdtar_with_exclude_vcs/in/raw/data.csv",
-        "bsdtar_with_exclude_vcs/in/raw/document.pdf",
+        "bsdtar_with_exclude_vcs/in/raw",
     ]);
     let archive_data = create_cmd.assert().get_output().stdout.clone();
     // Extract archive from stdin via bsdtar (with --exclude-vcs)
@@ -77,9 +76,24 @@ fn bsdtar_with_exclude_vcs() {
             "content mismatch for {file}"
         );
     }
-    // Verify VCS directories are not extracted
-    assert!(!fs::exists(format!("{out_dir}bsdtar_with_exclude_vcs/in/raw/.git")).unwrap());
-    assert!(!fs::exists(format!("{out_dir}bsdtar_with_exclude_vcs/in/raw/.svn")).unwrap());
+    // Verify VCS entries are not extracted
+    for vcs in [
+        ".git",
+        ".gitignore",
+        ".gitmodules",
+        ".gitattributes",
+        ".svn",
+        ".hg",
+        ".hgignore",
+        ".bzr",
+        ".bzrignore",
+        "CVS",
+    ] {
+        assert!(
+            !fs::exists(format!("{out_dir}bsdtar_with_exclude_vcs/in/raw/{vcs}")).unwrap(),
+            "VCS entry should be excluded: {vcs}"
+        );
+    }
 }
 
 #[test]
@@ -116,7 +130,8 @@ fn bsdtar_without_exclude_vcs() {
     for file in regular_files.iter() {
         fs::write(file, "regular file content").unwrap();
     }
-    // Create archive to stdout via bsdtar (without --exclude-vcs)
+    // Create archive to stdout via bsdtar (without --exclude-vcs), archiving the
+    // containing directory so VCS entries are candidates for the archive.
     let mut create_cmd = cargo_bin_cmd!("pna");
     create_cmd.args([
         "--quiet",
@@ -125,9 +140,7 @@ fn bsdtar_without_exclude_vcs() {
         "--create",
         "--overwrite",
         "--unstable",
-        "bsdtar_without_exclude_vcs/in/raw/regular.txt",
-        "bsdtar_without_exclude_vcs/in/raw/data.csv",
-        "bsdtar_without_exclude_vcs/in/raw/document.pdf",
+        "bsdtar_without_exclude_vcs/in/raw",
     ]);
     let archive_data = create_cmd.assert().get_output().stdout.clone();
     // Extract archive from stdin via bsdtar (without --exclude-vcs)
@@ -145,9 +158,6 @@ fn bsdtar_without_exclude_vcs() {
     ]);
     extract_cmd.assert().success();
     // Verify extracted regular files have correct content
-    // Note: VCS files are not passed as archive arguments, so they are not
-    // in the archive regardless of --exclude-vcs. This test verifies that
-    // the absence of --exclude-vcs does not interfere with normal file archiving.
     for file in ["regular.txt", "data.csv", "document.pdf"] {
         let in_path = format!("bsdtar_without_exclude_vcs/in/raw/{file}");
         let out_path = format!("{out_dir}bsdtar_without_exclude_vcs/in/raw/{file}");
@@ -155,6 +165,25 @@ fn bsdtar_without_exclude_vcs() {
             fs::read(&in_path).unwrap(),
             fs::read(&out_path).unwrap(),
             "content mismatch for {file}"
+        );
+    }
+    // Without --exclude-vcs, VCS entries ARE included; this control case proves
+    // the "with" test's absence assertion is caused by the flag, not by omission.
+    for vcs in [
+        ".git/HEAD",
+        ".gitignore",
+        ".gitmodules",
+        ".gitattributes",
+        ".svn/entries",
+        ".hg/hgrc",
+        ".hgignore",
+        ".bzr/branch-format",
+        ".bzrignore",
+        "CVS/Root",
+    ] {
+        assert!(
+            fs::exists(format!("{out_dir}bsdtar_without_exclude_vcs/in/raw/{vcs}")).unwrap(),
+            "VCS entry should be included: {vcs}"
         );
     }
 }
