@@ -1,4 +1,5 @@
 mod content;
+mod exit_code;
 mod hardlink;
 mod metadata;
 mod missing;

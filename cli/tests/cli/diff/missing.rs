@@ -35,7 +35,7 @@ fn diff_missing_in_archive() {
         ])
         .assert();
 
-    assert.stdout("");
+    assert.success().stdout("");
 }
 
 /// Precondition: The source tree contains files and directories.
@@ -69,7 +69,7 @@ fn diff_missing_in_disk() {
         ])
         .assert();
 
-    assert.stdout(
+    assert.code(1).stdout(
         "diff_missing_in_disk/in/raw/images/icon.svg: Warning: Cannot stat: No such file or directory\n",
     );
 }

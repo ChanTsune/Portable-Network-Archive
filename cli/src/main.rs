@@ -1,5 +1,6 @@
 use clap::Parser;
 use portable_network_archive::cli;
+use portable_network_archive::command::ExitCodeError;
 use std::io;
 
 #[hooq::hooq(anyhow)]
@@ -12,10 +13,23 @@ fn run() -> anyhow::Result<()> {
     cli.execute()
 }
 
-fn main() -> anyhow::Result<()> {
+fn main() -> std::process::ExitCode {
     match run() {
-        Err(err) if is_broken_pipe(&err) => Ok(()),
-        other => other,
+        Ok(()) => std::process::ExitCode::SUCCESS,
+        Err(err) if is_broken_pipe(&err) => std::process::ExitCode::SUCCESS,
+        Err(err) => match err.downcast::<ExitCodeError>() {
+            Ok(exit_err) => {
+                let code = exit_err.code();
+                if let Some(source) = exit_err.into_source() {
+                    eprintln!("Error: {source:?}");
+                }
+                std::process::ExitCode::from(code)
+            }
+            Err(err) => {
+                eprintln!("Error: {err:?}");
+                std::process::ExitCode::FAILURE
+            }
+        },
     }
 }
 

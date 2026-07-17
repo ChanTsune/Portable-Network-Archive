@@ -27,7 +27,7 @@ fn diff_detects_content_change_same_size() {
     cargo_bin_cmd!("pna")
         .args(["experimental", "diff", "-f", &archive_path])
         .assert()
-        .success()
+        .code(1)
         .stdout(predicate::str::contains("Contents differ"));
 }
 
@@ -55,6 +55,6 @@ fn diff_detects_size_change() {
     cargo_bin_cmd!("pna")
         .args(["experimental", "diff", "-f", &archive_path])
         .assert()
-        .success()
+        .code(1)
         .stdout(predicate::str::contains("Size differs"));
 }

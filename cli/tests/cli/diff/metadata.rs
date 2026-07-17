@@ -44,6 +44,7 @@ fn diff_detects_file_mode_change() {
     cargo_bin_cmd!("pna")
         .args(["experimental", "diff", "-f", &archive_path])
         .assert()
+        .code(1)
         .stdout(predicate::str::contains("Mode differs"));
 }
 
@@ -79,6 +80,7 @@ fn diff_detects_directory_mode_change() {
     cargo_bin_cmd!("pna")
         .args(["experimental", "diff", "-f", &archive_path])
         .assert()
+        .code(1)
         .stdout(predicate::str::contains("Mode differs"));
 }
 
@@ -163,6 +165,6 @@ fn diff_detects_directory_mtime_with_full_compare() {
             "--full-compare",
         ])
         .assert()
-        .success()
+        .code(1)
         .stdout(predicate::str::contains("Mod time differs"));
 }

@@ -35,7 +35,7 @@ fn diff_detects_hardlink_to_directory_mismatch() {
     cargo_bin_cmd!("pna")
         .args(["experimental", "diff", "-f", &archive_path])
         .assert()
-        .success()
+        .code(1)
         .stdout(predicate::str::contains(format!(
             "{link}: File type mismatch"
         )));
@@ -71,5 +71,7 @@ fn diff_detects_broken_hardlink() {
         .args(["experimental", "diff", "-f", &archive_path])
         .assert();
 
-    assert.stdout(predicate::str::contains("Not linked to"));
+    assert
+        .code(1)
+        .stdout(predicate::str::contains("Not linked to"));
 }

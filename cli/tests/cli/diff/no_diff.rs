@@ -26,5 +26,5 @@ fn diff_to_current_dir() {
         .args(["experimental", "diff", "-f", "diff/diff.pna"])
         .assert();
 
-    assert.stdout("");
+    assert.success().stdout("");
 }
