@@ -1,7 +1,7 @@
 use crate::{
     cli::{
-        CipherAlgorithmArgs, ColorChoice, DateTime, DeflateLevel, GlobalContext, HashAlgorithmArgs,
-        MissingTimePolicy, NameIdPair, PasswordArgs, XzLevel, ZstdLevel,
+        CipherAlgorithmArgs, ColorChoice, DateTime, GlobalContext, HashAlgorithmArgs,
+        MissingTimePolicy, NameIdPair, PasswordArgs,
     },
     command::{
         Command,
@@ -41,26 +41,12 @@ use std::{
 struct CompressionAlgorithmArgs {
     #[arg(long, help = "No compression")]
     store: bool,
-    #[arg(
-        long,
-        visible_alias = "zlib",
-        value_name = "level",
-        help = "Use deflate for compression [possible level: 1-9, min, max]"
-    )]
-    deflate: Option<Option<DeflateLevel>>,
-    #[arg(
-        long,
-        value_name = "level",
-        help = "Use zstd for compression [possible level: 1-21, min, max]"
-    )]
-    zstd: Option<Option<ZstdLevel>>,
-    #[arg(
-        short = 'J',
-        long,
-        value_name = "level",
-        help = "Use xz for compression [possible level: 0-9, min, max]"
-    )]
-    xz: Option<Option<XzLevel>>,
+    #[arg(long, visible_alias = "zlib", help = "Use deflate for compression")]
+    deflate: bool,
+    #[arg(long, help = "Use zstd for compression")]
+    zstd: bool,
+    #[arg(short = 'J', long, help = "Use xz for compression")]
+    xz: bool,
 }
 
 impl CompressionAlgorithmArgs {
@@ -68,38 +54,29 @@ impl CompressionAlgorithmArgs {
         &self,
         options: Option<&crate::cli::ArchiveOptions>,
     ) -> (pna::Compression, Option<pna::CompressionLevel>) {
-        let (compression, flag_level, module_level) = if self.store {
-            (pna::Compression::No, None, None)
-        } else if let Some(level) = self.xz {
+        let (compression, module_level) = if self.store {
+            (pna::Compression::No, None)
+        } else if self.xz {
             (
                 pna::Compression::XZ,
-                level.map(Into::into),
                 options.and_then(|o| o.xz_compression_level.map(Into::into)),
             )
-        } else if let Some(level) = self.zstd {
+        } else if self.zstd {
             (
                 pna::Compression::ZStandard,
-                level.map(Into::into),
                 options.and_then(|o| o.zstd_compression_level.map(Into::into)),
             )
-        } else if let Some(level) = self.deflate {
+        } else if self.deflate {
             (
                 pna::Compression::Deflate,
-                level.map(Into::into),
                 options.and_then(|o| o.deflate_compression_level.map(Into::into)),
             )
         } else {
-            (pna::Compression::ZStandard, None, None)
+            (pna::Compression::ZStandard, None)
         };
 
-        if flag_level.is_some() {
-            log::warn!(
-                "compression level in flags is deprecated, use `--options='compression-level=N'` instead"
-            );
-        }
-
         let global_level = options.and_then(|o| o.compression_level);
-        let level = module_level.or(global_level).or(flag_level);
+        let level = module_level.or(global_level);
 
         (compression, level)
     }

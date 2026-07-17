@@ -14,6 +14,15 @@ const COMPRESSION_OPTIONS: &[Option<&[&str]>] = &[
     Some(&["--xz", "1"]),
 ];
 
+// bsdtar's compression flags select an algorithm only; the level is set via
+// `--options='compression-level=N'`, not a value on the flag itself.
+const BSDTAR_COMPRESSION_OPTIONS: &[Option<&[&str]>] = &[
+    Some(&["--store"]),
+    Some(&["--deflate"]),
+    Some(&["--zstd"]),
+    Some(&["--xz"]),
+];
+
 const ENCRYPTION_OPTIONS: &[Option<[&str; 2]>] = &[
     None,
     Some(["--aes", "ctr"]),
@@ -144,7 +153,7 @@ fn combination_stdio() {
         );
     }
     for keep in STDIO_KEEP_OPTIONS {
-        for compress in COMPRESSION_OPTIONS {
+        for compress in BSDTAR_COMPRESSION_OPTIONS {
             for encrypt in ENCRYPTION_OPTIONS {
                 for solid in SOLID_OPTIONS {
                     let mut options = [*keep, *solid]
