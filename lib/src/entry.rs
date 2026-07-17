@@ -1551,7 +1551,7 @@ mod tests {
         let mut builder = EntryBuilder::new_file(
             "encoded".into(),
             WriteOptions::builder()
-                .compression(Compression::Deflate)
+                .compression(Compression::DEFLATE)
                 .build(),
         )
         .unwrap();
@@ -1575,7 +1575,7 @@ mod tests {
     #[test]
     fn solid_entry_encoded_reader_concatenates_sdat_bodies() {
         let solid = SolidEntry {
-            header: SolidHeader::new(Compression::No, Encryption::No, CipherMode::CBC),
+            header: SolidHeader::new(Compression::NO, Encryption::No, CipherMode::CBC),
             phsf: None,
             data: vec![b"abc".to_vec(), b"def".to_vec()],
             extra: Vec::new(),

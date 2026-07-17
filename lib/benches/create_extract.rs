@@ -105,7 +105,7 @@ fn bench_write_zstd_archive(c: &mut Criterion) {
     c.bench_function("write_zstd_archive", |b| {
         bench_write_archive(b, {
             let mut builder = WriteOptions::builder();
-            builder.compression(Compression::ZStandard);
+            builder.compression(Compression::ZSTANDARD);
             builder
         });
     });
@@ -115,7 +115,7 @@ fn bench_read_zstd_archive(c: &mut Criterion) {
     c.bench_function("read_zstd_archive", |b| {
         bench_read_archive(b, {
             let mut builder = WriteOptions::builder();
-            builder.compression(Compression::ZStandard);
+            builder.compression(Compression::ZSTANDARD);
             builder
         });
     });
@@ -125,7 +125,7 @@ fn bench_read_zstd_archive_from_slice(c: &mut Criterion) {
     c.bench_function("read_zstd_archive_from_slice", |b| {
         bench_read_archive_from_slice(b, {
             let mut builder = WriteOptions::builder();
-            builder.compression(Compression::ZStandard);
+            builder.compression(Compression::ZSTANDARD);
             builder
         });
     });
@@ -135,7 +135,7 @@ fn bench_write_deflate_archive(c: &mut Criterion) {
     c.bench_function("write_deflate_archive", |b| {
         bench_write_archive(b, {
             let mut builder = WriteOptions::builder();
-            builder.compression(Compression::Deflate);
+            builder.compression(Compression::DEFLATE);
             builder
         });
     });
@@ -145,7 +145,7 @@ fn bench_read_deflate_archive(c: &mut Criterion) {
     c.bench_function("read_deflate_archive", |b| {
         bench_read_archive(b, {
             let mut builder = WriteOptions::builder();
-            builder.compression(Compression::Deflate);
+            builder.compression(Compression::DEFLATE);
             builder
         });
     });
@@ -155,7 +155,7 @@ fn bench_read_deflate_archive_from_slice(c: &mut Criterion) {
     c.bench_function("read_deflate_archive_from_slice", |b| {
         bench_read_archive_from_slice(b, {
             let mut builder = WriteOptions::builder();
-            builder.compression(Compression::Deflate);
+            builder.compression(Compression::DEFLATE);
             builder
         });
     });

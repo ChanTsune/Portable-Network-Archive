@@ -29,6 +29,6 @@ fn main() -> io::Result<()> {
     change_compression_method(
         include_bytes!("../../resources/test/deflate.pna").as_slice(),
         &mut dist,
-        Compression::Deflate,
+        Compression::DEFLATE,
     )
 }

@@ -68,12 +68,12 @@
 //!
 //! // Compressed entry (Zstandard)
 //! let compressed = WriteOptions::builder()
-//!     .compression(Compression::ZStandard)
+//!     .compression(Compression::ZSTANDARD)
 //!     .build();
 //!
 //! // Encrypted entry (AES-256-CTR with Argon2id key derivation)
 //! let encrypted = WriteOptions::builder()
-//!     .compression(Compression::ZStandard)
+//!     .compression(Compression::ZSTANDARD)
 //!     .encryption(Encryption::Aes)
 //!     .cipher_mode(CipherMode::CTR)
 //!     .hash_algorithm(HashAlgorithm::argon2id())

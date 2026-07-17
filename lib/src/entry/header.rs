@@ -44,7 +44,7 @@ impl EntryHeader {
     pub(crate) const fn new(data_kind: DataKind, path: EntryName) -> Self {
         Self::new_with_options(
             data_kind,
-            Compression::No,
+            Compression::NO,
             Encryption::No,
             CipherMode::CBC,
             path,
@@ -146,8 +146,7 @@ impl EntryHeader {
             major: bytes[0],
             minor: bytes[1],
             data_kind: DataKind::from_byte(bytes[2]),
-            compression: Compression::try_from(bytes[3])
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+            compression: Compression::from_byte(bytes[3]),
             encryption: Encryption::try_from(bytes[4])
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
             cipher_mode: CipherMode::try_from(bytes[5])
@@ -284,8 +283,7 @@ impl SolidHeader {
         Ok(Self {
             major: bytes[0],
             minor: bytes[1],
-            compression: Compression::try_from(bytes[2])
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+            compression: Compression::from_byte(bytes[2]),
             encryption: Encryption::try_from(bytes[3])
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
             cipher_mode: CipherMode::try_from(bytes[4])
@@ -317,7 +315,7 @@ mod tests {
     #[test]
     fn entry_header_to_from_bytes() {
         let header = EntryHeader::for_file(
-            Compression::ZStandard,
+            Compression::ZSTANDARD,
             Encryption::Camellia,
             CipherMode::CTR,
             "file".into(),
@@ -336,7 +334,7 @@ mod tests {
 
     #[test]
     fn solid_header_to_from_bytes() {
-        let header = SolidHeader::new(Compression::ZStandard, Encryption::Aes, CipherMode::CBC);
+        let header = SolidHeader::new(Compression::ZSTANDARD, Encryption::Aes, CipherMode::CBC);
         assert_eq!(
             header,
             SolidHeader::try_from_bytes(&header.to_bytes()).unwrap(),

@@ -286,15 +286,15 @@ pub(crate) struct CompressionAlgorithmArgs {
 impl CompressionAlgorithmArgs {
     pub(crate) fn algorithm(&self) -> (pna::Compression, Option<pna::CompressionLevel>) {
         if self.store {
-            (pna::Compression::No, None)
+            (pna::Compression::NO, None)
         } else if let Some(level) = self.xz {
             (pna::Compression::XZ, level.map(Into::into))
         } else if let Some(level) = self.zstd {
-            (pna::Compression::ZStandard, level.map(Into::into))
+            (pna::Compression::ZSTANDARD, level.map(Into::into))
         } else if let Some(level) = self.deflate {
-            (pna::Compression::Deflate, level.map(Into::into))
+            (pna::Compression::DEFLATE, level.map(Into::into))
         } else {
-            (pna::Compression::ZStandard, None)
+            (pna::Compression::ZSTANDARD, None)
         }
     }
 }

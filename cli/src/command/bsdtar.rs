@@ -55,7 +55,7 @@ impl CompressionAlgorithmArgs {
         options: Option<&crate::cli::ArchiveOptions>,
     ) -> (pna::Compression, Option<pna::CompressionLevel>) {
         let (compression, module_level) = if self.store {
-            (pna::Compression::No, None)
+            (pna::Compression::NO, None)
         } else if self.xz {
             (
                 pna::Compression::XZ,
@@ -63,16 +63,16 @@ impl CompressionAlgorithmArgs {
             )
         } else if self.zstd {
             (
-                pna::Compression::ZStandard,
+                pna::Compression::ZSTANDARD,
                 options.and_then(|o| o.zstd_compression_level.map(Into::into)),
             )
         } else if self.deflate {
             (
-                pna::Compression::Deflate,
+                pna::Compression::DEFLATE,
                 options.and_then(|o| o.deflate_compression_level.map(Into::into)),
             )
         } else {
-            (pna::Compression::ZStandard, None)
+            (pna::Compression::ZSTANDARD, None)
         };
 
         let global_level = options.and_then(|o| o.compression_level);

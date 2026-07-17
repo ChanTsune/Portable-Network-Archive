@@ -102,11 +102,11 @@ pub(crate) fn decompress_reader<R: Read>(
 ) -> io::Result<DecompressReader<R>> {
     let reader = io::BufReader::with_capacity(DECOMPRESS_BUFFER_SIZE, reader);
     Ok(match compression {
-        Compression::No => DecompressReader::No(reader),
-        Compression::Deflate => {
+        Compression::NO => DecompressReader::No(reader),
+        Compression::DEFLATE => {
             DecompressReader::Deflate(flate2::bufread::ZlibDecoder::new(reader))
         }
-        Compression::ZStandard => DecompressReader::ZStd(zstd::Decoder::with_buffer(reader)?),
+        Compression::ZSTANDARD => DecompressReader::ZStd(zstd::Decoder::with_buffer(reader)?),
         Compression::XZ => DecompressReader::Xz(liblzma::bufread::XzDecoder::new(reader)),
         _ => {
             return Err(io::Error::new(

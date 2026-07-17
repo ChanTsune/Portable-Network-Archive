@@ -9,7 +9,7 @@ fuzz_target!(|data: &[u8]| {
         .password(Some("password"))
         .encryption(Encryption::Aes)
         .cipher_mode(CipherMode::CTR)
-        .compression(Compression::No)
+        .compression(Compression::NO)
         .build();
     let mut builder = EntryBuilder::new_file("fuzz".into(), write_option).unwrap();
     builder.write_all(data).unwrap();

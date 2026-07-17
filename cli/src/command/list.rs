@@ -404,8 +404,8 @@ impl TableRow {
                 solid.map_or(entry.compression(), |s| s.compression()),
                 solid,
             ) {
-                (Compression::No, None) => "-".into(),
-                (Compression::No, Some(_)) => "-(solid)".into(),
+                (Compression::NO, None) => "-".into(),
+                (Compression::NO, Some(_)) => "-(solid)".into(),
                 (method, None) => format!("{method:?}").to_ascii_lowercase(),
                 (method, Some(_)) => format!("{method:?}(solid)").to_ascii_lowercase(),
             },
