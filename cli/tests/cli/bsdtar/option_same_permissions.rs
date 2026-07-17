@@ -9,8 +9,6 @@ use crate::utils::archive;
 use crate::utils::setup;
 use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::prelude::predicate;
-#[cfg(unix)]
-use serial_test::serial;
 use std::fs;
 #[cfg(unix)]
 use std::io::ErrorKind;
@@ -31,36 +29,26 @@ macro_rules! set_permissions_or_skip {
     };
 }
 
-/// RAII guard for temporarily modifying the process umask.
-///
-/// # Thread Safety
-/// Umask is a process-global setting. Tests using this guard are protected
-/// by `#[serial(umask)]` to ensure they run serially.
-///
-/// The guard is safe for its primary use case: spawning a child process that
-/// inherits the modified umask. Each spawned `pna` process caches its own
-/// umask value via OnceLock at startup.
+/// Spawns the `pna` binary under `mask` without touching this test process's
+/// own umask, which `libc::umask` would otherwise change process-wide (it is
+/// not thread-local) and race with unrelated tests running concurrently in
+/// this binary.
 #[cfg(unix)]
-struct UmaskGuard(libc::mode_t);
+fn pna_cmd_with_umask(mask: u16) -> assert_cmd::Command {
+    use assert_cmd::cargo::CommandCargoExt as _;
+    use std::os::unix::process::CommandExt as _;
 
-#[cfg(unix)]
-impl UmaskGuard {
-    fn set(mask: u16) -> Self {
-        // SAFETY: libc::umask is always safe to call with any mode_t value.
-        // It atomically sets the new umask and returns the previous value.
-        unsafe { Self(libc::umask(mask as libc::mode_t)) }
+    let mut cmd = std::process::Command::cargo_bin("pna").expect("pna binary not found");
+    // SAFETY: umask() only runs in the forked child, after fork() and before
+    // exec(), so it affects only that child process and never the parent
+    // test runner or its other threads.
+    unsafe {
+        cmd.pre_exec(move || {
+            libc::umask(mask as libc::mode_t);
+            Ok(())
+        });
     }
-}
-
-#[cfg(unix)]
-impl Drop for UmaskGuard {
-    fn drop(&mut self) {
-        // SAFETY: Restoring the original umask value that was returned by
-        // the previous umask() call. This is always valid.
-        unsafe {
-            libc::umask(self.0);
-        }
-    }
+    assert_cmd::Command::from_std(cmd)
 }
 
 // =============================================================================
@@ -598,7 +586,6 @@ fn bsdtar_extract_with_preserve_permissions_alias() {
 /// Expectation: `--no-same-permissions` overrides `-p`, so permissions are masked.
 #[test]
 #[cfg(unix)]
-#[serial(umask)]
 fn bsdtar_extract_same_permissions_overridden_by_no_same_permissions() {
     setup();
     let base = "bsdtar_p_no_same_permissions";
@@ -622,8 +609,7 @@ fn bsdtar_extract_same_permissions_overridden_by_no_same_permissions() {
     let out_dir = format!("{base}/out");
     fs::create_dir_all(&out_dir).unwrap();
 
-    let _umask = UmaskGuard::set(0o027);
-    let mut extract_cmd = cargo_bin_cmd!("pna");
+    let mut extract_cmd = pna_cmd_with_umask(0o027);
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
         .arg("compat")
@@ -819,7 +805,6 @@ fn bsdtar_extract_no_same_permissions_alone() {
 /// Expectation: Extracted file has mode masked by umask.
 #[test]
 #[cfg(unix)]
-#[serial(umask)]
 fn bsdtar_extract_without_p_masks_permissions() {
     if nix::unistd::Uid::effective().is_root() {
         eprintln!("Skipping: test requires non-root user (root defaults to preserve mode)");
@@ -858,8 +843,7 @@ fn bsdtar_extract_without_p_masks_permissions() {
     let out_dir = format!("{}/out", base);
     fs::create_dir_all(&out_dir).unwrap();
 
-    let _umask = UmaskGuard::set(0o077);
-    let mut extract_cmd = cargo_bin_cmd!("pna");
+    let mut extract_cmd = pna_cmd_with_umask(0o077);
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
         .arg("compat")
@@ -1158,7 +1142,6 @@ fn bsdtar_extract_with_p_restores_xattr() {
 /// Expectation: Permissions are masked (umask applied, special bits cleared).
 #[test]
 #[cfg(unix)]
-#[serial(umask)]
 fn bsdtar_extract_no_same_permissions_applies_mask() {
     if nix::unistd::Uid::effective().is_root() {
         eprintln!("Skipping: test requires non-root user");
@@ -1187,8 +1170,7 @@ fn bsdtar_extract_no_same_permissions_applies_mask() {
     fs::create_dir_all(&out_dir).unwrap();
 
     // Set specific umask to verify masking behavior
-    let _umask = UmaskGuard::set(0o027);
-    let mut extract_cmd = cargo_bin_cmd!("pna");
+    let mut extract_cmd = pna_cmd_with_umask(0o027);
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
         .arg("compat")
@@ -1274,7 +1256,6 @@ fn bsdtar_extract_with_p_preserves_special_bits() {
 /// Expectation: Permissions are PRESERVED exactly (root defaults to Preserve mode).
 #[test]
 #[cfg(unix)]
-#[serial(umask)]
 fn bsdtar_extract_root_default_preserves_permissions() {
     if !nix::unistd::Uid::effective().is_root() {
         eprintln!("Skipping: test requires root user");
@@ -1303,8 +1284,7 @@ fn bsdtar_extract_root_default_preserves_permissions() {
     fs::create_dir_all(&out_dir).unwrap();
 
     // Even with restrictive umask, root should preserve exact permissions
-    let _umask = UmaskGuard::set(0o077);
-    let mut extract_cmd = cargo_bin_cmd!("pna");
+    let mut extract_cmd = pna_cmd_with_umask(0o077);
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
         .arg("compat")
@@ -1330,7 +1310,6 @@ fn bsdtar_extract_root_default_preserves_permissions() {
 /// Expectation: Permissions are MASKED (--no-same-permissions overrides root default).
 #[test]
 #[cfg(unix)]
-#[serial(umask)]
 fn bsdtar_extract_root_with_no_same_permissions_masks() {
     if !nix::unistd::Uid::effective().is_root() {
         eprintln!("Skipping: test requires root user");
@@ -1358,8 +1337,7 @@ fn bsdtar_extract_root_with_no_same_permissions_masks() {
     let out_dir = format!("{}/out", base);
     fs::create_dir_all(&out_dir).unwrap();
 
-    let _umask = UmaskGuard::set(0o027);
-    let mut extract_cmd = cargo_bin_cmd!("pna");
+    let mut extract_cmd = pna_cmd_with_umask(0o027);
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
         .arg("compat")
