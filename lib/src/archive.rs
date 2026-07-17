@@ -209,7 +209,7 @@ mod tests {
     fn store_archive() {
         archive(
             b"src data bytes",
-            WriteOptions::builder().compression(Compression::No).build(),
+            WriteOptions::builder().compression(Compression::NO).build(),
         )
         .unwrap()
     }
@@ -219,7 +219,7 @@ mod tests {
         archive(
             b"src data bytes",
             WriteOptions::builder()
-                .compression(Compression::Deflate)
+                .compression(Compression::DEFLATE)
                 .build(),
         )
         .unwrap()
@@ -230,7 +230,7 @@ mod tests {
         archive(
             b"src data bytes",
             WriteOptions::builder()
-                .compression(Compression::ZStandard)
+                .compression(Compression::ZSTANDARD)
                 .build(),
         )
         .unwrap()
@@ -250,7 +250,7 @@ mod tests {
         archive(
             b"plain text",
             WriteOptions::builder()
-                .compression(Compression::No)
+                .compression(Compression::NO)
                 .encryption(Encryption::Aes)
                 .cipher_mode(CipherMode::CBC)
                 .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
@@ -265,7 +265,7 @@ mod tests {
         archive(
             b"plain text",
             WriteOptions::builder()
-                .compression(Compression::ZStandard)
+                .compression(Compression::ZSTANDARD)
                 .encryption(Encryption::Aes)
                 .cipher_mode(CipherMode::CTR)
                 .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
@@ -280,7 +280,7 @@ mod tests {
         archive(
             b"plain text",
             WriteOptions::builder()
-                .compression(Compression::ZStandard)
+                .compression(Compression::ZSTANDARD)
                 .encryption(Encryption::Aes)
                 .cipher_mode(CipherMode::CBC)
                 .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
@@ -295,7 +295,7 @@ mod tests {
         archive(
             b"plain text",
             WriteOptions::builder()
-                .compression(Compression::ZStandard)
+                .compression(Compression::ZSTANDARD)
                 .encryption(Encryption::Camellia)
                 .cipher_mode(CipherMode::CTR)
                 .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
@@ -310,7 +310,7 @@ mod tests {
         archive(
             b"plain text",
             WriteOptions::builder()
-                .compression(Compression::ZStandard)
+                .compression(Compression::ZSTANDARD)
                 .encryption(Encryption::Camellia)
                 .cipher_mode(CipherMode::CBC)
                 .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
@@ -592,7 +592,7 @@ mod tests {
     fn solid_store_camellia_cbc() {
         solid_archive(
             WriteOptions::builder()
-                .compression(Compression::No)
+                .compression(Compression::NO)
                 .encryption(Encryption::Camellia)
                 .cipher_mode(CipherMode::CBC)
                 .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))

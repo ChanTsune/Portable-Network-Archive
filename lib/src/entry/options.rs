@@ -128,9 +128,9 @@ mod private {
         #[inline]
         fn compression(&self) -> Compression {
             match self.compress() {
-                Compress::No => Compression::No,
-                Compress::Deflate(_) => Compression::Deflate,
-                Compress::ZStandard(_) => Compression::ZStandard,
+                Compress::No => Compression::NO,
+                Compress::Deflate(_) => Compression::DEFLATE,
+                Compress::ZStandard(_) => Compression::ZSTANDARD,
                 Compress::XZ(_) => Compression::XZ,
             }
         }
@@ -220,61 +220,118 @@ mod private {
 }
 
 /// Compression method.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum Compression {
-    /// Do not apply any compression.
-    No,
-    /// Zlib format.
-    Deflate,
-    /// ZStandard format.
-    ZStandard,
-    /// Xz format.
-    XZ,
-    /// Value reserved for future PNA specification (raw value < 128).
-    Reserved(u8),
-    /// Application-specific private value (raw value >= 128).
-    Private(u8),
-}
+///
+/// Values without an associated constant are either reserved for future
+/// PNA specification (raw value < 128) or application-specific private
+/// values (raw value >= 128).
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct Compression(u8);
 
 impl Compression {
-    /// Serialize this compression method to its u8 representation.
+    /// Do not apply any compression.
+    pub const NO: Self = Self(0);
+    /// Zlib format.
+    pub const DEFLATE: Self = Self(1);
+    /// ZStandard format.
+    pub const ZSTANDARD: Self = Self(2);
+    /// Xz format.
+    pub const XZ: Self = Self(4);
+
+    /// Deprecated alias of [`Compression::NO`].
+    #[deprecated(since = "0.36.0", note = "renamed to `Compression::NO`")]
+    #[allow(non_upper_case_globals)]
+    pub const No: Self = Self::NO;
+    /// Deprecated alias of [`Compression::DEFLATE`].
+    #[deprecated(since = "0.36.0", note = "renamed to `Compression::DEFLATE`")]
+    #[allow(non_upper_case_globals)]
+    pub const Deflate: Self = Self::DEFLATE;
+    /// Deprecated alias of [`Compression::ZSTANDARD`].
+    #[deprecated(since = "0.36.0", note = "renamed to `Compression::ZSTANDARD`")]
+    #[allow(non_upper_case_globals)]
+    pub const ZStandard: Self = Self::ZSTANDARD;
+
+    /// Deserializes a compression method from its u8 representation.
+    ///
+    /// Every byte value is a valid compression method, so this conversion
+    /// never fails.
+    #[inline]
+    pub const fn from_byte(value: u8) -> Self {
+        Self(value)
+    }
+
+    /// Serializes this compression method to its u8 representation.
     #[inline]
     pub const fn to_byte(self) -> u8 {
-        match self {
-            Self::No => 0,
-            Self::Deflate => 1,
-            Self::ZStandard => 2,
-            Self::XZ => 4,
-            Self::Reserved(v) | Self::Private(v) => v,
+        self.0
+    }
+
+    /// Creates an application-specific private value.
+    ///
+    /// Returns `Some` if `value` is in the private range (`128..=255`),
+    /// otherwise `None`.
+    #[inline]
+    pub const fn new_private(value: u8) -> Option<Self> {
+        if value >= 128 {
+            Some(Self(value))
+        } else {
+            None
         }
     }
 
-    /// Returns `true` if this is a reserved value.
+    /// Converts a `u8` into a [`Compression`]. Never fails.
+    ///
+    /// Shadows `<Compression as TryFrom<u8>>::try_from` so existing
+    /// `Compression::try_from(..)` call sites receive a deprecation warning;
+    /// both will be removed together in a future release.
+    ///
+    /// # Errors
+    ///
+    /// Never returns `Err`; every byte value is a valid compression method.
+    #[deprecated(since = "0.36.0", note = "use `Compression::from_byte`")]
+    #[allow(clippy::should_implement_trait)]
     #[inline]
-    pub const fn is_reserved(self) -> bool {
-        matches!(self, Self::Reserved(_))
+    pub const fn try_from(value: u8) -> Result<Self, UnknownValueError> {
+        Ok(Self::from_byte(value))
     }
 
-    /// Returns `true` if this is a private value.
+    /// Returns `true` if this value is reserved for future PNA specification
+    /// (unassigned and raw value < 128).
+    #[inline]
+    pub const fn is_reserved(self) -> bool {
+        !matches!(self.0, 0..=2 | 4) && self.0 < 128
+    }
+
+    /// Returns `true` if this is an application-specific private value
+    /// (raw value >= 128).
     #[inline]
     pub const fn is_private(self) -> bool {
-        matches!(self, Self::Private(_))
+        self.0 >= 128
     }
 }
 
+impl fmt::Debug for Compression {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::NO => f.write_str("No"),
+            Self::DEFLATE => f.write_str("Deflate"),
+            Self::ZSTANDARD => f.write_str("ZStandard"),
+            Self::XZ => f.write_str("XZ"),
+            Self(v) if v < 128 => f.debug_tuple("Reserved").field(&v).finish(),
+            Self(v) => f.debug_tuple("Private").field(&v).finish(),
+        }
+    }
+}
+
+/// Infallible; kept for backward compatibility with the former enum-based
+/// API and scheduled for removal in a future release. Use
+/// [`Compression::from_byte`] instead.
 impl TryFrom<u8> for Compression {
     type Error = UnknownValueError;
 
     #[inline]
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(Self::No),
-            1 => Ok(Self::Deflate),
-            2 => Ok(Self::ZStandard),
-            4 => Ok(Self::XZ),
-            v if v < 128 => Ok(Self::Reserved(v)),
-            v => Ok(Self::Private(v)),
-        }
+        Ok(Self::from_byte(value))
     }
 }
 
@@ -810,7 +867,7 @@ impl TryFrom<u8> for DataKind {
 /// use libpna::{WriteOptions, Compression, CompressionLevel};
 ///
 /// let opts = WriteOptions::builder()
-///     .compression(Compression::ZStandard)
+///     .compression(Compression::ZSTANDARD)
 ///     .compression_level(CompressionLevel::max())
 ///     .build();
 /// ```
@@ -832,7 +889,7 @@ impl TryFrom<u8> for DataKind {
 /// use libpna::{WriteOptions, Compression, Encryption, CipherMode, HashAlgorithm};
 ///
 /// let opts = WriteOptions::builder()
-///     .compression(Compression::ZStandard)
+///     .compression(Compression::ZSTANDARD)
 ///     .encryption(Encryption::Aes)
 ///     .cipher_mode(CipherMode::CTR)
 ///     .hash_algorithm(HashAlgorithm::argon2id())
@@ -922,9 +979,9 @@ impl From<WriteOptions> for WriteOptionsBuilder {
     #[inline]
     fn from(value: WriteOptions) -> Self {
         let (compression, compression_level) = match value.compress {
-            Compress::No => (Compression::No, CompressionLevel::DEFAULT),
-            Compress::Deflate(level) => (Compression::Deflate, level.into()),
-            Compress::ZStandard(level) => (Compression::ZStandard, level.into()),
+            Compress::No => (Compression::NO, CompressionLevel::DEFAULT),
+            Compress::Deflate(level) => (Compression::DEFLATE, level.into()),
+            Compress::ZStandard(level) => (Compression::ZSTANDARD, level.into()),
             Compress::XZ(level) => (Compression::XZ, level.into()),
         };
         Self {
@@ -941,7 +998,7 @@ impl From<WriteOptions> for WriteOptionsBuilder {
 impl WriteOptionsBuilder {
     const fn new() -> Self {
         Self {
-            compression: Compression::No,
+            compression: Compression::NO,
             compression_level: CompressionLevel::DEFAULT,
             encryption: Encryption::No,
             cipher_mode: CipherMode::CTR,
@@ -1065,9 +1122,9 @@ impl WriteOptionsBuilder {
         };
         Ok(WriteOptions {
             compress: match self.compression {
-                Compression::No => Compress::No,
-                Compression::Deflate => Compress::Deflate(self.compression_level.into()),
-                Compression::ZStandard => Compress::ZStandard(self.compression_level.into()),
+                Compression::NO => Compress::No,
+                Compression::DEFLATE => Compress::Deflate(self.compression_level.into()),
+                Compression::ZSTANDARD => Compress::ZStandard(self.compression_level.into()),
                 Compression::XZ => Compress::XZ(self.compression_level.into()),
                 other => {
                     return Err(io::Error::new(
@@ -1388,5 +1445,86 @@ mod tests {
                 DataKind::from_byte(v)
             );
         }
+    }
+
+    #[test]
+    fn compression_round_trips_all_byte_values() {
+        for v in 0..=u8::MAX {
+            assert_eq!(Compression::from_byte(v).to_byte(), v);
+        }
+    }
+
+    #[test]
+    fn compression_known_constants_map_to_spec_bytes() {
+        assert_eq!(Compression::NO.to_byte(), 0);
+        assert_eq!(Compression::DEFLATE.to_byte(), 1);
+        assert_eq!(Compression::ZSTANDARD.to_byte(), 2);
+        assert_eq!(Compression::XZ.to_byte(), 4);
+    }
+
+    #[test]
+    fn compression_new_private_boundary() {
+        assert_eq!(Compression::new_private(0), None);
+        assert_eq!(Compression::new_private(127), None);
+        assert_eq!(
+            Compression::new_private(128),
+            Some(Compression::from_byte(128))
+        );
+        assert_eq!(
+            Compression::new_private(255),
+            Some(Compression::from_byte(255))
+        );
+    }
+
+    #[test]
+    fn compression_predicates() {
+        assert!(!Compression::NO.is_reserved());
+        assert!(!Compression::XZ.is_reserved());
+        assert!(!Compression::XZ.is_private());
+        assert!(Compression::from_byte(3).is_reserved());
+        assert!(Compression::from_byte(127).is_reserved());
+        assert!(!Compression::from_byte(127).is_private());
+        assert!(!Compression::from_byte(128).is_reserved());
+        assert!(Compression::from_byte(128).is_private());
+        assert!(Compression::from_byte(255).is_private());
+    }
+
+    #[test]
+    fn compression_debug_matches_former_enum_output() {
+        assert_eq!(format!("{:?}", Compression::NO), "No");
+        assert_eq!(format!("{:?}", Compression::DEFLATE), "Deflate");
+        assert_eq!(format!("{:?}", Compression::ZSTANDARD), "ZStandard");
+        assert_eq!(format!("{:?}", Compression::XZ), "XZ");
+        assert_eq!(format!("{:?}", Compression::from_byte(3)), "Reserved(3)");
+        assert_eq!(format!("{:?}", Compression::from_byte(200)), "Private(200)");
+    }
+
+    #[allow(deprecated)]
+    #[test]
+    fn compression_deprecated_aliases_equal_new_constants() {
+        assert_eq!(Compression::No, Compression::NO);
+        assert_eq!(Compression::Deflate, Compression::DEFLATE);
+        assert_eq!(Compression::ZStandard, Compression::ZSTANDARD);
+    }
+
+    #[allow(deprecated)]
+    #[test]
+    fn compression_try_from_is_infallible_and_matches_from_byte() {
+        for v in 0..=u8::MAX {
+            assert_eq!(Compression::try_from(v).unwrap(), Compression::from_byte(v));
+            assert_eq!(
+                <Compression as TryFrom<u8>>::try_from(v).unwrap(),
+                Compression::from_byte(v)
+            );
+        }
+    }
+
+    #[test]
+    fn try_build_with_unknown_compression_returns_unsupported() {
+        let err = WriteOptions::builder()
+            .compression(Compression::from_byte(5))
+            .try_build()
+            .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::Unsupported);
     }
 }

@@ -260,9 +260,9 @@ fn tar_stem(path: &Path) -> String {
 
 fn build_write_options(method: CompressionMethod, password: Option<&str>) -> libpna::WriteOptions {
     let compression = match method {
-        CompressionMethod::None | CompressionMethod::Store => libpna::Compression::No,
-        CompressionMethod::Zlib => libpna::Compression::Deflate,
-        CompressionMethod::Zstd => libpna::Compression::ZStandard,
+        CompressionMethod::None | CompressionMethod::Store => libpna::Compression::NO,
+        CompressionMethod::Zlib => libpna::Compression::DEFLATE,
+        CompressionMethod::Zstd => libpna::Compression::ZSTANDARD,
         CompressionMethod::Xz => libpna::Compression::XZ,
     };
     if let Some(pw) = password {
@@ -272,7 +272,7 @@ fn build_write_options(method: CompressionMethod, password: Option<&str>) -> lib
             .cipher_mode(libpna::CipherMode::CTR)
             .password(Some(pw))
             .build()
-    } else if matches!(compression, libpna::Compression::No) {
+    } else if matches!(compression, libpna::Compression::NO) {
         libpna::WriteOptions::store()
     } else {
         libpna::WriteOptions::builder()
