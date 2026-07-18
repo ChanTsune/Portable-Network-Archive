@@ -1312,10 +1312,12 @@ where
     pna::RawChunk<T>: Chunk,
 {
     if item.header().data_kind() != DataKind::FILE {
-        unreachable!(
-            "extract_file_entry called with {:?}",
-            item.header().data_kind()
+        log::warn!(
+            "Skipped extracting an entry with unsupported data kind {:?}: {}",
+            item.header().data_kind(),
+            item_path
         );
+        return Ok(());
     }
     let Some((path, remove_existing)) = prepare_extraction(
         &item,
