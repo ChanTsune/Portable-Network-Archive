@@ -12,18 +12,6 @@ impl Command for ExperimentalCommand {
     #[inline]
     fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
         match self.command {
-            ExperimentalCommands::Stdio(cmd) => {
-                log::warn!(
-                    "`{0} experimental stdio` was stabilized as `{0} compat bsdtar`. \
-                     Use `{0} compat bsdtar` instead.",
-                    std::env::current_exe()
-                        .ok()
-                        .and_then(|it| it.file_name().map(|n| n.to_os_string()))
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                );
-                cmd.execute(ctx)
-            }
             ExperimentalCommands::Update(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Chown(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Chmod(cmd) => cmd.execute(ctx),
@@ -47,11 +35,8 @@ impl Command for ExperimentalCommand {
 }
 
 #[derive(Subcommand, Clone, Debug)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum ExperimentalCommands {
-    #[command(
-        about = "bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` instead)"
-    )]
-    Stdio(command::bsdtar::BsdtarCommand),
     #[command(about = "Update entries in archive")]
     Update(command::update::UpdateCommand),
     #[command(about = "Change owner")]
