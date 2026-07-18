@@ -365,6 +365,47 @@ mod tests {
     use super::*;
 
     #[test]
+    fn camellia_flag_maps_to_camellia_algorithm() {
+        let args = CipherAlgorithmArgs {
+            aes: None,
+            camellia: Some(Some(CipherMode::Cbc)),
+        };
+        assert_eq!(args.algorithm(), pna::Encryption::Camellia);
+    }
+
+    #[test]
+    fn aes_flag_maps_to_aes_algorithm() {
+        let args = CipherAlgorithmArgs {
+            aes: Some(Some(CipherMode::Cbc)),
+            camellia: None,
+        };
+        assert_eq!(args.algorithm(), pna::Encryption::Aes);
+    }
+
+    #[test]
+    fn no_cipher_flag_defaults_to_aes_algorithm() {
+        let args = CipherAlgorithmArgs {
+            aes: None,
+            camellia: None,
+        };
+        assert_eq!(args.algorithm(), pna::Encryption::Aes);
+    }
+
+    #[test]
+    fn cipher_mode_reflects_selected_flag_value() {
+        let cbc = CipherAlgorithmArgs {
+            aes: None,
+            camellia: Some(Some(CipherMode::Cbc)),
+        };
+        assert_eq!(cbc.mode(), pna::CipherMode::CBC);
+        let ctr = CipherAlgorithmArgs {
+            aes: Some(Some(CipherMode::Ctr)),
+            camellia: None,
+        };
+        assert_eq!(ctr.mode(), pna::CipherMode::CTR);
+    }
+
+    #[test]
     fn context_captures_umask() {
         let args = GlobalArgs::default();
         let ctx = GlobalContext::new(args);

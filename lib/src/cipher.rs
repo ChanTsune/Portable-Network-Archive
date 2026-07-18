@@ -220,4 +220,60 @@ mod tests {
 
         assert_eq!(plain_text.as_slice(), decrypted_text.as_slice())
     }
+
+    const KAT_KEY: [u8; 32] = [0x11; 32];
+    const KAT_IV: [u8; 16] = [0x22; 16];
+    const KAT_PLAINTEXT: &[u8; 16] = b"PNA test vector!";
+
+    #[test]
+    fn aes256_cbc_matches_openssl_known_answer() {
+        // openssl enc -aes-256-cbc -K <0x11 x32> -iv <0x22 x16>
+        const EXPECTED: [u8; 32] = [
+            0xb4, 0xea, 0x96, 0xc2, 0xfc, 0x15, 0x82, 0x5c, 0xe8, 0x56, 0x90, 0x38, 0x5d, 0x8b,
+            0x6c, 0x5f, 0x92, 0xbf, 0x89, 0x6b, 0x07, 0xe1, 0xeb, 0xee, 0xe0, 0xf6, 0x84, 0x38,
+            0xae, 0xd6, 0xb6, 0x3e,
+        ];
+        let ct = encrypt_aes256_cbc(&KAT_KEY, &KAT_IV, KAT_PLAINTEXT).unwrap();
+        assert_eq!(&ct[..16], &KAT_IV[..]);
+        assert_eq!(&ct[16..], &EXPECTED[..]);
+        assert_eq!(
+            decrypt_aes256_cbc(&KAT_KEY, &ct).unwrap().as_slice(),
+            KAT_PLAINTEXT.as_slice()
+        );
+    }
+
+    #[test]
+    fn camellia256_cbc_matches_openssl_known_answer() {
+        // openssl enc -camellia-256-cbc -K <0x11 x32> -iv <0x22 x16>
+        const EXPECTED: [u8; 32] = [
+            0x47, 0xd8, 0x90, 0x0a, 0xce, 0x45, 0x56, 0xef, 0xf9, 0xff, 0x32, 0xa5, 0xb9, 0x60,
+            0x53, 0x29, 0xfe, 0xab, 0xcb, 0x55, 0x93, 0x91, 0x0c, 0xb9, 0xac, 0xfc, 0x2f, 0xcb,
+            0x86, 0xc8, 0xa7, 0x8b,
+        ];
+        let ct = encrypt_camellia256_cbc(&KAT_KEY, &KAT_IV, KAT_PLAINTEXT).unwrap();
+        assert_eq!(&ct[..16], &KAT_IV[..]);
+        assert_eq!(&ct[16..], &EXPECTED[..]);
+        assert_eq!(
+            decrypt_camellia256_cbc(&KAT_KEY, &ct).unwrap().as_slice(),
+            KAT_PLAINTEXT.as_slice()
+        );
+    }
+
+    #[test]
+    fn aes256_cbc_wrong_key_does_not_recover_plaintext() {
+        let ct = encrypt_aes256_cbc(&KAT_KEY, &KAT_IV, KAT_PLAINTEXT).unwrap();
+        let wrong_key = [0x99u8; 32];
+        if let Ok(recovered) = decrypt_aes256_cbc(&wrong_key, &ct) {
+            assert_ne!(recovered.as_slice(), KAT_PLAINTEXT.as_slice())
+        }
+    }
+
+    #[test]
+    fn camellia256_cbc_wrong_key_does_not_recover_plaintext() {
+        let ct = encrypt_camellia256_cbc(&KAT_KEY, &KAT_IV, KAT_PLAINTEXT).unwrap();
+        let wrong_key = [0x99u8; 32];
+        if let Ok(recovered) = decrypt_camellia256_cbc(&wrong_key, &ct) {
+            assert_ne!(recovered.as_slice(), KAT_PLAINTEXT.as_slice())
+        }
+    }
 }
