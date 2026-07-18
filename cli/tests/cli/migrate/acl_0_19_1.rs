@@ -7,6 +7,7 @@
 //! dump and separately assert the chunk-level re-encoding actually happened.
 
 use crate::utils::{EmbedExt, TestResources, archive, setup};
+#[cfg(not(target_family = "wasm"))]
 use assert_cmd::cargo::cargo_bin_cmd;
 use clap::Parser;
 use pna::prelude::*;
@@ -27,6 +28,7 @@ struct MigrateAclCase {
     acl_entries: &'static [&'static str],
 }
 
+#[cfg(not(target_family = "wasm"))]
 fn expected_acl_dump(case: &MigrateAclCase) -> String {
     format!(
         "# file: {}\n# owner: \n# group: \n# platform: {}\n{}\n\n",
@@ -54,6 +56,9 @@ fn assert_migrated_acl(case: &MigrateAclCase) {
     .unwrap();
 
     // The migrated archive must dump exactly the ACL recorded in the 0.19.1 fixture.
+    // Subprocess spawning is unavailable on wasm; the chunk-level assertions below
+    // still run there.
+    #[cfg(not(target_family = "wasm"))]
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
