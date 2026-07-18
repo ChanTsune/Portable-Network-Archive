@@ -328,10 +328,6 @@ fn compare_entry<T: AsRef<[u8]>>(
                 diff_count += 1;
             }
         }
-        DataKind::FILE | DataKind::DIRECTORY | DataKind::SYMBOLIC_LINK => {
-            println!("{}", DiffKind::TypeMismatch.display(path_str));
-            diff_count += 1;
-        }
         DataKind::HARD_LINK if meta.is_file() => {
             let EntryContent::HardLink(stored) = entry.content(read_options)? else {
                 unreachable!("data_kind() returned HardLink");
@@ -351,10 +347,6 @@ fn compare_entry<T: AsRef<[u8]>>(
                 }
                 Err(e) => return Err(e),
             }
-        }
-        DataKind::HARD_LINK => {
-            println!("{}", DiffKind::TypeMismatch.display(path_str));
-            diff_count += 1;
         }
         _ => {
             println!("{}", DiffKind::TypeMismatch.display(path_str));
