@@ -1,4 +1,4 @@
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 
 /// `-J` is excluded from `SHORT_OPTIONS_WITH_ARG` because in bsdtar old-style syntax
 /// it never takes an argument. (In new-style mode, clap handles the optional
@@ -72,7 +72,8 @@ pub fn expand_bsdtar_old_style_args(args: Vec<OsString>) -> Vec<OsString> {
 /// Expands bsdtar `-W <long_option>` syntax for the `compat bsdtar` subcommand.
 ///
 /// In bsdtar, `-W <name>` is equivalent to `--<name>`, and `-W <name>=<value>` is
-/// equivalent to `--<name>=<value>`.
+/// equivalent to `--<name>=<value>`. The argument may also be run-in (`-W<name>`),
+/// and `W` may terminate a short-option group (`-xW<name>`, `-xW <name>`).
 pub fn expand_bsdtar_w_option(args: Vec<OsString>) -> Vec<OsString> {
     let Some(after_subcommand) = find_bsdtar_subcommand(&args) else {
         return args;
@@ -85,19 +86,58 @@ pub fn expand_bsdtar_w_option(args: Vec<OsString>) -> Vec<OsString> {
         if !past_double_dash && arg == "--" {
             past_double_dash = true;
             result.push(arg.clone());
-        } else if !past_double_dash && arg == "-W" {
-            if let Some(next) = iter.next() {
-                let mut long_form = OsString::from("--");
-                long_form.push(next);
-                result.push(long_form);
-            } else {
-                result.push(arg.clone());
+        } else if !past_double_dash && let Some((leading, run_in)) = split_w_option(arg) {
+            match run_in.or_else(|| iter.next().map(OsString::as_os_str)) {
+                Some(value) => {
+                    result.extend(leading.map(OsString::from));
+                    let mut long_form = OsString::from("--");
+                    long_form.push(value);
+                    result.push(long_form);
+                }
+                // `-W` without an argument; keep it for clap to report.
+                None => result.push(arg.clone()),
             }
         } else {
             result.push(arg.clone());
         }
     }
     result
+}
+
+/// Splits a short-option token at a `W` acting as the `-W` option, following
+/// bsdtar's parsing: short options are scanned left to right and the first
+/// value-taking option consumes the rest of the token as its run-in argument,
+/// so only a `W` reached before any other value-taking option is the `-W` option.
+///
+/// Returns the leading option group (if any) and `W`'s run-in argument (if any):
+/// `-W` → `(None, None)`, `-Whelp` → `(None, "help")`, `-xW` → `("-x", None)`,
+/// `-xWhelp` → `("-x", "help")`. Returns `None` for tokens without a `-W` option.
+///
+/// The token is scanned as raw OS-string bytes, so the run-in argument need
+/// not be valid UTF-8 (e.g. `-Wexclude=<non-UTF-8 pattern>`).
+fn split_w_option(arg: &OsStr) -> Option<(Option<&OsStr>, Option<&OsStr>)> {
+    let bytes = arg.as_encoded_bytes();
+    if !bytes.starts_with(b"-") || bytes.starts_with(b"--") {
+        return None;
+    }
+    for (i, &b) in bytes.iter().enumerate().skip(1) {
+        if b == b'W' {
+            // SAFETY: each slice is split immediately before or after the
+            // ASCII byte `W` at `i`, a valid non-empty UTF-8 substring.
+            let (leading, run_in) = unsafe {
+                (
+                    (i > 1).then(|| OsStr::from_encoded_bytes_unchecked(&bytes[..i])),
+                    (i + 1 < bytes.len())
+                        .then(|| OsStr::from_encoded_bytes_unchecked(&bytes[i + 1..])),
+                )
+            };
+            return Some((leading, run_in));
+        }
+        if SHORT_OPTIONS_WITH_ARG.contains(&(b as char)) {
+            return None;
+        }
+    }
+    None
 }
 
 /// Skips leading flags (consuming values for known global options like
@@ -631,8 +671,89 @@ mod tests {
     }
 
     #[test]
-    fn w_option_single_token_not_matched() {
+    fn w_option_run_in() {
         let args = s(&["pna", "compat", "bsdtar", "-Whelp"]);
+        assert_eq!(
+            expand_bsdtar_w_option(args),
+            s(&["pna", "compat", "bsdtar", "--help"]),
+        );
+    }
+
+    #[test]
+    fn w_option_run_in_with_value() {
+        let args = s(&["pna", "compat", "bsdtar", "-x", "-Wstrip-components=3"]);
+        assert_eq!(
+            expand_bsdtar_w_option(args),
+            s(&["pna", "compat", "bsdtar", "-x", "--strip-components=3"]),
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn w_option_run_in_non_utf8_value() {
+        use std::os::unix::ffi::OsStringExt;
+        let mut args = s(&["pna", "compat", "bsdtar", "-x"]);
+        args.push(OsString::from_vec(b"-Wexclude=\xff".to_vec()));
+        let mut expected = s(&["pna", "compat", "bsdtar", "-x"]);
+        expected.push(OsString::from_vec(b"--exclude=\xff".to_vec()));
+        assert_eq!(expand_bsdtar_w_option(args), expected);
+    }
+
+    #[test]
+    fn w_option_group_run_in() {
+        let args = s(&["pna", "compat", "bsdtar", "-tWversion", "-f", "a.pna"]);
+        assert_eq!(
+            expand_bsdtar_w_option(args),
+            s(&["pna", "compat", "bsdtar", "-t", "--version", "-f", "a.pna"]),
+        );
+    }
+
+    #[test]
+    fn w_option_group_next_word() {
+        let args = s(&[
+            "pna",
+            "compat",
+            "bsdtar",
+            "-xW",
+            "same-owner",
+            "-f",
+            "a.pna",
+        ]);
+        assert_eq!(
+            expand_bsdtar_w_option(args),
+            s(&[
+                "pna",
+                "compat",
+                "bsdtar",
+                "-x",
+                "--same-owner",
+                "-f",
+                "a.pna"
+            ]),
+        );
+    }
+
+    #[test]
+    fn w_option_after_value_taking_short_is_run_in_value() {
+        let args = s(&["pna", "compat", "bsdtar", "-t", "-fWx", "a.pna"]);
+        assert_eq!(expand_bsdtar_w_option(args.clone()), args);
+    }
+
+    #[test]
+    fn w_option_after_mid_group_value_taking_short_is_run_in_value() {
+        let args = s(&["pna", "compat", "bsdtar", "-xfWhelp"]);
+        assert_eq!(expand_bsdtar_w_option(args.clone()), args);
+    }
+
+    #[test]
+    fn w_option_group_run_in_after_double_dash_passthrough() {
+        let args = s(&["pna", "compat", "bsdtar", "-x", "--", "-Whelp"]);
+        assert_eq!(expand_bsdtar_w_option(args.clone()), args);
+    }
+
+    #[test]
+    fn w_option_group_trailing_no_arg() {
+        let args = s(&["pna", "compat", "bsdtar", "-xW"]);
         assert_eq!(expand_bsdtar_w_option(args.clone()), args);
     }
 
