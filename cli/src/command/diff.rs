@@ -7,7 +7,7 @@ use crate::{
     utils::{BsdGlobMatcher, io::streams_equal},
 };
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 #[cfg(unix)]
 use pna::prelude::MetadataTimeExt;
 use pna::{DataKind, EntryContent, NormalEntry, ReadOptions};
@@ -31,6 +31,20 @@ pub(crate) struct DiffCommand {
         help = "Compare directory mtime and ownership (by default, only mode is compared for directories)"
     )]
     full_compare: bool,
+    #[arg(
+        long,
+        help = "Output format",
+        long_help = "Output format. plain: tar-style text (default). jsonl: one JSON object per difference per line with fields `path`, `kind` (one of: missing, size, content, mode, mtime, uid, gid, type, symlink, hardlink) and, for kind=hardlink only, `target` (the stored link target). mode/mtime/uid/gid comparisons only occur on Unix."
+    )]
+    format: Option<Format>,
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, ValueEnum)]
+#[value(rename_all = "lower")]
+enum Format {
+    #[default]
+    Plain,
+    JsonL,
 }
 
 impl Command for DiffCommand {
@@ -50,6 +64,7 @@ fn diff_archive(args: DiffCommand) -> anyhow::Result<usize> {
     let archives = collect_split_archives(&args.file.archive)?;
     let options = CompareOptions {
         full_compare: args.full_compare,
+        format: args.format.unwrap_or(Format::Plain),
     };
 
     let mut globs = BsdGlobMatcher::new(args.file.files.iter().map(|s| s.as_str()));
@@ -114,6 +129,54 @@ impl DiffKind {
     fn display<'a>(&'a self, path: &'a str) -> DiffMessage<'a> {
         DiffMessage { kind: self, path }
     }
+
+    /// Returns the stable `kind` field value used by the `jsonl` output format.
+    fn wire_name(&self) -> &'static str {
+        match self {
+            Self::Missing => "missing",
+            Self::SizeDiffers => "size",
+            Self::ContentsDiffer => "content",
+            #[cfg(unix)]
+            Self::ModeDiffers => "mode",
+            #[cfg(unix)]
+            Self::MtimeDiffers => "mtime",
+            #[cfg(unix)]
+            Self::UidDiffers => "uid",
+            #[cfg(unix)]
+            Self::GidDiffers => "gid",
+            Self::TypeMismatch => "type",
+            Self::SymlinkDiffers => "symlink",
+            Self::NotLinked(_) => "hardlink",
+        }
+    }
+}
+
+/// A single JSON Lines record for the `jsonl` output format.
+#[derive(serde::Serialize)]
+struct DiffRecord<'a> {
+    path: &'a str,
+    kind: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    target: Option<&'a str>,
+}
+
+/// Prints a single difference in the requested output format.
+fn report(kind: &DiffKind, path: &str, format: Format) {
+    match format {
+        Format::Plain => println!("{}", kind.display(path)),
+        Format::JsonL => {
+            let target = match kind {
+                DiffKind::NotLinked(target) => Some(target.as_str()),
+                _ => None,
+            };
+            let record = DiffRecord {
+                path,
+                kind: kind.wire_name(),
+                target,
+            };
+            println!("{}", serde_json::to_string(&record).unwrap());
+        }
+    }
 }
 
 /// A tar-compatible difference message that implements `Display`.
@@ -155,6 +218,8 @@ struct CompareOptions {
     /// Compare directory mtime and ownership (not just mode)
     #[cfg_attr(not(unix), allow(dead_code))]
     full_compare: bool,
+    /// Output format for reported differences
+    format: Format,
 }
 
 /// Compare two SystemTime values with 1-second tolerance for filesystem precision.
@@ -281,7 +346,7 @@ fn compare_entry<T: AsRef<[u8]>>(
     let meta = match fs::symlink_metadata(path) {
         Ok(meta) => meta,
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            println!("{}", DiffKind::Missing.display(path_str));
+            report(&DiffKind::Missing, path_str, options.format);
             return Ok(1);
         }
         Err(e) => return Err(e),
@@ -292,21 +357,21 @@ fn compare_entry<T: AsRef<[u8]>>(
             // Compare metadata first
             let meta_diffs = compare_file_metadata(&entry, &meta, options);
             diff_count += meta_diffs.len();
-            for diff in meta_diffs {
-                println!("{}", diff.display(path_str));
+            for diff in &meta_diffs {
+                report(diff, path_str, options.format);
             }
 
             // Compare size first, then content
             let fs_size = meta.len();
             let archive_size = entry.metadata().raw_file_size();
             if archive_size.is_some_and(|s| s != fs_size as u128) {
-                println!("{}", DiffKind::SizeDiffers.display(path_str));
+                report(&DiffKind::SizeDiffers, path_str, options.format);
                 diff_count += 1;
             } else {
                 let fs_file = fs::File::open(path)?;
                 let archive_reader = entry.reader(read_options)?;
                 if !streams_equal(fs_file, archive_reader)? {
-                    println!("{}", DiffKind::ContentsDiffer.display(path_str));
+                    report(&DiffKind::ContentsDiffer, path_str, options.format);
                     diff_count += 1;
                 }
             }
@@ -314,8 +379,8 @@ fn compare_entry<T: AsRef<[u8]>>(
         DataKind::DIRECTORY if meta.is_dir() => {
             let diffs = compare_directory_metadata(&entry, &meta, options);
             diff_count += diffs.len();
-            for diff in diffs {
-                println!("{}", diff.display(path_str));
+            for diff in &diffs {
+                report(diff, path_str, options.format);
             }
         }
         DataKind::SYMBOLIC_LINK if meta.is_symlink() => {
@@ -324,12 +389,12 @@ fn compare_entry<T: AsRef<[u8]>>(
                 unreachable!("data_kind() returned SymbolicLink");
             };
             if link.as_path() != Path::new(stored.as_str()) {
-                println!("{}", DiffKind::SymlinkDiffers.display(path_str));
+                report(&DiffKind::SymlinkDiffers, path_str, options.format);
                 diff_count += 1;
             }
         }
         DataKind::FILE | DataKind::DIRECTORY | DataKind::SYMBOLIC_LINK => {
-            println!("{}", DiffKind::TypeMismatch.display(path_str));
+            report(&DiffKind::TypeMismatch, path_str, options.format);
             diff_count += 1;
         }
         DataKind::HARD_LINK if meta.is_file() => {
@@ -339,25 +404,26 @@ fn compare_entry<T: AsRef<[u8]>>(
             match is_same_file(path, stored.as_str()) {
                 Ok(true) => (),
                 Ok(false) => {
-                    println!(
-                        "{}",
-                        DiffKind::NotLinked(stored.to_string()).display(path_str)
+                    report(
+                        &DiffKind::NotLinked(stored.to_string()),
+                        path_str,
+                        options.format,
                     );
                     diff_count += 1;
                 }
                 Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                    println!("{}", DiffKind::Missing.display(path_str));
+                    report(&DiffKind::Missing, path_str, options.format);
                     diff_count += 1;
                 }
                 Err(e) => return Err(e),
             }
         }
         DataKind::HARD_LINK => {
-            println!("{}", DiffKind::TypeMismatch.display(path_str));
+            report(&DiffKind::TypeMismatch, path_str, options.format);
             diff_count += 1;
         }
         _ => {
-            println!("{}", DiffKind::TypeMismatch.display(path_str));
+            report(&DiffKind::TypeMismatch, path_str, options.format);
             diff_count += 1;
         }
     }

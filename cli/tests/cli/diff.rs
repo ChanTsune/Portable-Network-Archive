@@ -4,6 +4,7 @@ mod hardlink;
 mod metadata;
 mod missing;
 mod no_diff;
+mod option_format;
 mod path_filter;
 mod symlink;
 mod type_mismatch;
