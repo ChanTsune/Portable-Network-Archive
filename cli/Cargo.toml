@@ -77,6 +77,7 @@ maplit = "1.0.2"
 path-slash = "0.2.1"
 rust-embed = { version = "8.11.0", features = ["debug-embed"] }
 scopeguard = "1.2.0"
+serde_json = "1.0.150"
 walkdir = "2.5.0"
 criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support", "plotters"] }
 
