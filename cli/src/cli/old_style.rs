@@ -16,25 +16,13 @@ const GLOBAL_LONG_OPTIONS_WITH_ARG: &[&str] = &["--color", "--log-level"];
 /// Kept in sync with `Cli` clap definition via unit test.
 const GLOBAL_LONG_OPTIONS_WITHOUT_ARG: &[&str] = &["--quiet", "--unstable", "--verbose"];
 
-/// Finds the position after either `compat bsdtar` or `experimental stdio` keyword sequences.
+/// Finds the position after the `compat bsdtar` keyword sequence.
 fn find_bsdtar_subcommand(args: &[OsString]) -> Option<usize> {
-    // Try "compat" -> "bsdtar" (primary path)
-    if let Some(i) = skip_to_keyword(args, 1, "compat")
-        && let Some(after) = skip_to_keyword(args, i, "bsdtar")
-    {
-        return Some(after);
-    }
-    // Fall back to "experimental" -> "stdio" (deprecated path)
-    if let Some(i) = skip_to_keyword(args, 1, "experimental")
-        && let Some(after) = skip_to_keyword(args, i, "stdio")
-    {
-        return Some(after);
-    }
-    None
+    let i = skip_to_keyword(args, 1, "compat")?;
+    skip_to_keyword(args, i, "bsdtar")
 }
 
-/// Expands bsdtar old-style (dashless) arguments for the `compat bsdtar` subcommand
-/// (and the deprecated `experimental stdio` subcommand).
+/// Expands bsdtar old-style (dashless) arguments for the `compat bsdtar` subcommand.
 ///
 /// In old-style syntax the first word after the subcommand is a bundle of single-character
 /// options without a leading dash. Options that take values consume subsequent
@@ -81,8 +69,7 @@ pub fn expand_bsdtar_old_style_args(args: Vec<OsString>) -> Vec<OsString> {
     result
 }
 
-/// Expands bsdtar `-W <long_option>` syntax for the `compat bsdtar` subcommand
-/// (and the deprecated `experimental stdio` subcommand).
+/// Expands bsdtar `-W <long_option>` syntax for the `compat bsdtar` subcommand.
 ///
 /// In bsdtar, `-W <name>` is equivalent to `--<name>`, and `-W <name>=<value>` is
 /// equivalent to `--<name>=<value>`.
@@ -190,38 +177,20 @@ mod tests {
     }
 
     #[test]
-    fn single_char_action() {
-        let args = s(&["pna", "experimental", "stdio", "c"]);
-        assert_eq!(
-            expand_bsdtar_old_style_args(args),
-            s(&["pna", "experimental", "stdio", "-c"]),
-        );
+    fn experimental_stdio_passthrough() {
+        // The removed `experimental stdio` sequence is not a bsdtar subcommand;
+        // both helpers leave it untouched so clap rejects it as unknown.
+        let args = s(&["pna", "experimental", "stdio", "cvf", "archive.pna"]);
+        assert_eq!(expand_bsdtar_old_style_args(args.clone()), args);
+        assert_eq!(expand_bsdtar_w_option(args.clone()), args);
     }
 
     #[test]
     fn flags_only() {
-        let args = s(&["pna", "experimental", "stdio", "cv"]);
+        let args = s(&["pna", "compat", "bsdtar", "cv"]);
         assert_eq!(
             expand_bsdtar_old_style_args(args),
-            s(&["pna", "experimental", "stdio", "-c", "-v"]),
-        );
-    }
-
-    #[test]
-    fn flags_with_arg() {
-        let args = s(&["pna", "experimental", "stdio", "cvf", "archive.pna", "dir"]);
-        assert_eq!(
-            expand_bsdtar_old_style_args(args),
-            s(&[
-                "pna",
-                "experimental",
-                "stdio",
-                "-c",
-                "-v",
-                "-f",
-                "archive.pna",
-                "dir",
-            ]),
+            s(&["pna", "compat", "bsdtar", "-c", "-v"]),
         );
     }
 
@@ -229,8 +198,8 @@ mod tests {
     fn multiple_arg_options() {
         let args = s(&[
             "pna",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "cfC",
             "archive.pna",
             "/tmp",
@@ -240,8 +209,8 @@ mod tests {
             expand_bsdtar_old_style_args(args),
             s(&[
                 "pna",
-                "experimental",
-                "stdio",
+                "compat",
+                "bsdtar",
                 "-c",
                 "-f",
                 "archive.pna",
@@ -254,13 +223,13 @@ mod tests {
 
     #[test]
     fn j_treated_as_flag() {
-        let args = s(&["pna", "experimental", "stdio", "cJvf", "archive.pna", "dir"]);
+        let args = s(&["pna", "compat", "bsdtar", "cJvf", "archive.pna", "dir"]);
         assert_eq!(
             expand_bsdtar_old_style_args(args),
             s(&[
                 "pna",
-                "experimental",
-                "stdio",
+                "compat",
+                "bsdtar",
                 "-c",
                 "-J",
                 "-v",
@@ -272,161 +241,72 @@ mod tests {
     }
 
     #[test]
-    fn no_action_flag_passthrough() {
-        let args = s(&["pna", "experimental", "stdio", "vf", "archive.pna"]);
-        assert_eq!(expand_bsdtar_old_style_args(args.clone()), args);
-    }
-
-    #[test]
     fn unknown_flag_expanded_for_clap_to_reject() {
         // Unknown flags like `Q` are still expanded; clap rejects `-Q` with a clear error.
-        let args = s(&["pna", "experimental", "stdio", "cQf", "archive.pna"]);
+        let args = s(&["pna", "compat", "bsdtar", "cQf", "archive.pna"]);
         assert_eq!(
             expand_bsdtar_old_style_args(args),
-            s(&[
-                "pna",
-                "experimental",
-                "stdio",
-                "-c",
-                "-Q",
-                "-f",
-                "archive.pna",
-            ]),
+            s(&["pna", "compat", "bsdtar", "-c", "-Q", "-f", "archive.pna"]),
         );
     }
 
     #[test]
     fn non_alpha_char_passthrough() {
-        let args = s(&["pna", "experimental", "stdio", "c2f", "archive.pna"]);
+        let args = s(&["pna", "compat", "bsdtar", "c2f", "archive.pna"]);
         assert_eq!(expand_bsdtar_old_style_args(args.clone()), args);
     }
 
     #[test]
     fn empty_candidate_passthrough() {
-        let args = s(&["pna", "experimental", "stdio", ""]);
+        let args = s(&["pna", "compat", "bsdtar", ""]);
         assert_eq!(expand_bsdtar_old_style_args(args.clone()), args);
     }
 
     #[test]
     fn dash_prefix_passthrough() {
-        let args = s(&["pna", "experimental", "stdio", "-cvf", "archive.pna", "dir"]);
+        let args = s(&["pna", "compat", "bsdtar", "-cvf", "archive.pna", "dir"]);
         assert_eq!(expand_bsdtar_old_style_args(args.clone()), args);
     }
 
     #[test]
     fn at_prefix_passthrough() {
-        let args = s(&["pna", "experimental", "stdio", "@archive.pna"]);
+        let args = s(&["pna", "compat", "bsdtar", "@archive.pna"]);
         assert_eq!(expand_bsdtar_old_style_args(args.clone()), args);
     }
 
     #[test]
     fn append_old_style() {
-        let args = s(&["pna", "experimental", "stdio", "rf", "archive.pna", "dir"]);
+        let args = s(&["pna", "compat", "bsdtar", "rf", "archive.pna", "dir"]);
         assert_eq!(
             expand_bsdtar_old_style_args(args),
-            s(&[
-                "pna",
-                "experimental",
-                "stdio",
-                "-r",
-                "-f",
-                "archive.pna",
-                "dir",
-            ]),
+            s(&["pna", "compat", "bsdtar", "-r", "-f", "archive.pna", "dir"]),
         );
     }
 
     #[test]
     fn update_old_style() {
-        let args = s(&["pna", "experimental", "stdio", "uf", "archive.pna", "dir"]);
+        let args = s(&["pna", "compat", "bsdtar", "uf", "archive.pna", "dir"]);
         assert_eq!(
             expand_bsdtar_old_style_args(args),
-            s(&[
-                "pna",
-                "experimental",
-                "stdio",
-                "-u",
-                "-f",
-                "archive.pna",
-                "dir",
-            ]),
+            s(&["pna", "compat", "bsdtar", "-u", "-f", "archive.pna", "dir"]),
         );
     }
 
     #[test]
     fn missing_arg_word() {
-        let args = s(&["pna", "experimental", "stdio", "cf"]);
+        let args = s(&["pna", "compat", "bsdtar", "cf"]);
         assert_eq!(
             expand_bsdtar_old_style_args(args),
-            s(&["pna", "experimental", "stdio", "-c", "-f"]),
+            s(&["pna", "compat", "bsdtar", "-c", "-f"]),
         );
     }
 
     #[test]
     fn multiple_arg_options_insufficient_trailing() {
-        let args = s(&["pna", "experimental", "stdio", "cfC", "archive.pna"]);
+        let args = s(&["pna", "compat", "bsdtar", "cfC", "archive.pna"]);
         assert_eq!(
             expand_bsdtar_old_style_args(args),
-            s(&[
-                "pna",
-                "experimental",
-                "stdio",
-                "-c",
-                "-f",
-                "archive.pna",
-                "-C",
-            ]),
-        );
-    }
-
-    #[test]
-    fn interleaved_global_flags() {
-        let args = s(&[
-            "pna",
-            "--quiet",
-            "experimental",
-            "stdio",
-            "cvf",
-            "archive.pna",
-            "dir",
-        ]);
-        assert_eq!(
-            expand_bsdtar_old_style_args(args),
-            s(&[
-                "pna",
-                "--quiet",
-                "experimental",
-                "stdio",
-                "-c",
-                "-v",
-                "-f",
-                "archive.pna",
-                "dir",
-            ]),
-        );
-    }
-
-    #[test]
-    fn global_flag_between_experimental_and_stdio() {
-        let args = s(&[
-            "pna",
-            "experimental",
-            "--unstable",
-            "stdio",
-            "tf",
-            "archive.pna",
-        ]);
-        assert_eq!(
-            expand_bsdtar_old_style_args(args),
-            s(&[
-                "pna",
-                "experimental",
-                "--unstable",
-                "stdio",
-                "-t",
-                "-f",
-                "archive.pna",
-            ]),
+            s(&["pna", "compat", "bsdtar", "-c", "-f", "archive.pna", "-C",]),
         );
     }
 
@@ -434,8 +314,8 @@ mod tests {
     fn old_style_followed_by_new_style() {
         let args = s(&[
             "pna",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "cvf",
             "archive.pna",
             "--xz",
@@ -445,8 +325,8 @@ mod tests {
             expand_bsdtar_old_style_args(args),
             s(&[
                 "pna",
-                "experimental",
-                "stdio",
+                "compat",
+                "bsdtar",
                 "-c",
                 "-v",
                 "-f",
@@ -458,91 +338,32 @@ mod tests {
     }
 
     #[test]
-    fn extract_old_style() {
-        let args = s(&["pna", "experimental", "stdio", "xvf", "archive.pna"]);
-        assert_eq!(
-            expand_bsdtar_old_style_args(args),
-            s(&[
-                "pna",
-                "experimental",
-                "stdio",
-                "-x",
-                "-v",
-                "-f",
-                "archive.pna",
-            ]),
-        );
-    }
-
-    #[test]
     fn list_old_style() {
-        let args = s(&["pna", "experimental", "stdio", "tf", "archive.pna"]);
+        let args = s(&["pna", "compat", "bsdtar", "tf", "archive.pna"]);
         assert_eq!(
             expand_bsdtar_old_style_args(args),
-            s(&["pna", "experimental", "stdio", "-t", "-f", "archive.pna",]),
-        );
-    }
-
-    #[test]
-    fn unstable_between_stdio_and_candidate() {
-        let args = s(&[
-            "pna",
-            "experimental",
-            "stdio",
-            "--unstable",
-            "cvf",
-            "archive.pna",
-            "dir",
-        ]);
-        assert_eq!(
-            expand_bsdtar_old_style_args(args),
-            s(&[
-                "pna",
-                "experimental",
-                "stdio",
-                "--unstable",
-                "-c",
-                "-v",
-                "-f",
-                "archive.pna",
-                "dir",
-            ]),
+            s(&["pna", "compat", "bsdtar", "-t", "-f", "archive.pna"]),
         );
     }
 
     #[test]
     fn tvf_verbose_list() {
-        let args = s(&["pna", "experimental", "stdio", "tvf", "archive.pna"]);
+        let args = s(&["pna", "compat", "bsdtar", "tvf", "archive.pna"]);
         assert_eq!(
             expand_bsdtar_old_style_args(args),
-            s(&[
-                "pna",
-                "experimental",
-                "stdio",
-                "-t",
-                "-v",
-                "-f",
-                "archive.pna"
-            ]),
+            s(&["pna", "compat", "bsdtar", "-t", "-v", "-f", "archive.pna"]),
         );
     }
 
     #[test]
     fn extract_with_directory_change_in_bundle() {
-        let args = s(&[
-            "pna",
-            "experimental",
-            "stdio",
-            "xvfC",
-            "archive.pna",
-            "/tmp",
-        ]);
+        let args = s(&["pna", "compat", "bsdtar", "xvfC", "archive.pna", "/tmp"]);
         assert_eq!(
             expand_bsdtar_old_style_args(args),
             s(&[
                 "pna",
-                "experimental",
-                "stdio",
+                "compat",
+                "bsdtar",
                 "-x",
                 "-v",
                 "-f",
@@ -566,26 +387,8 @@ mod tests {
     }
 
     #[test]
-    fn no_candidate_after_stdio() {
-        let args = s(&["pna", "experimental", "stdio"]);
-        assert_eq!(expand_bsdtar_old_style_args(args.clone()), args);
-    }
-
-    #[test]
-    fn non_stdio_experimental_subcommand_passthrough() {
-        let args = s(&["pna", "experimental", "chown", "cvf"]);
-        assert_eq!(expand_bsdtar_old_style_args(args.clone()), args);
-    }
-
-    #[test]
-    fn all_flags_no_positional() {
-        let args = s(&["pna", "--quiet", "--verbose"]);
-        assert_eq!(expand_bsdtar_old_style_args(args.clone()), args);
-    }
-
-    #[test]
-    fn all_flags_after_experimental() {
-        let args = s(&["pna", "experimental", "--flag1", "--flag2"]);
+    fn no_candidate_after_bsdtar() {
+        let args = s(&["pna", "compat", "bsdtar"]);
         assert_eq!(expand_bsdtar_old_style_args(args.clone()), args);
     }
 
@@ -593,7 +396,7 @@ mod tests {
     #[test]
     fn non_utf8_candidate_passthrough() {
         use std::os::unix::ffi::OsStringExt;
-        let mut args = s(&["pna", "experimental", "stdio"]);
+        let mut args = s(&["pna", "compat", "bsdtar"]);
         args.push(OsString::from_vec(vec![0xFF, 0xFE]));
         assert_eq!(expand_bsdtar_old_style_args(args.clone()), args);
     }
@@ -603,8 +406,8 @@ mod tests {
         // `-x -C target ...` is new-style; must NOT expand `target` as old-style.
         let args = s(&[
             "pna",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--unstable",
             "-x",
             "-C",
@@ -622,8 +425,8 @@ mod tests {
         // `--extract` is a bsdtar option, not a global flag — must be new-style.
         let args = s(&[
             "pna",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--unstable",
             "--extract",
             "--file",
@@ -633,14 +436,14 @@ mod tests {
     }
 
     #[test]
-    fn double_dash_before_experimental() {
-        let args = s(&["pna", "--", "experimental", "stdio", "cvf", "archive.pna"]);
+    fn double_dash_before_compat() {
+        let args = s(&["pna", "--", "compat", "bsdtar", "cvf", "archive.pna"]);
         assert_eq!(expand_bsdtar_old_style_args(args.clone()), args);
     }
 
     #[test]
-    fn double_dash_between_experimental_and_stdio() {
-        let args = s(&["pna", "experimental", "--", "stdio", "cvf", "archive.pna"]);
+    fn double_dash_between_compat_and_bsdtar() {
+        let args = s(&["pna", "compat", "--", "bsdtar", "cvf", "archive.pna"]);
         assert_eq!(expand_bsdtar_old_style_args(args.clone()), args);
     }
 
@@ -727,156 +530,11 @@ mod tests {
     }
 
     #[test]
-    fn global_flag_with_space_value_before_experimental() {
-        let args = s(&[
-            "pna",
-            "--color",
-            "always",
-            "experimental",
-            "stdio",
-            "cvf",
-            "archive.pna",
-            "dir",
-        ]);
-        assert_eq!(
-            expand_bsdtar_old_style_args(args),
-            s(&[
-                "pna",
-                "--color",
-                "always",
-                "experimental",
-                "stdio",
-                "-c",
-                "-v",
-                "-f",
-                "archive.pna",
-                "dir",
-            ]),
-        );
-    }
-
-    #[test]
-    fn global_flag_with_eq_value_before_experimental() {
-        let args = s(&[
-            "pna",
-            "--color=always",
-            "experimental",
-            "stdio",
-            "cvf",
-            "archive.pna",
-            "dir",
-        ]);
-        assert_eq!(
-            expand_bsdtar_old_style_args(args),
-            s(&[
-                "pna",
-                "--color=always",
-                "experimental",
-                "stdio",
-                "-c",
-                "-v",
-                "-f",
-                "archive.pna",
-                "dir",
-            ]),
-        );
-    }
-
-    #[test]
-    fn global_flag_with_space_value_between_experimental_and_stdio() {
-        let args = s(&[
-            "pna",
-            "experimental",
-            "--color",
-            "always",
-            "stdio",
-            "tf",
-            "archive.pna",
-        ]);
-        assert_eq!(
-            expand_bsdtar_old_style_args(args),
-            s(&[
-                "pna",
-                "experimental",
-                "--color",
-                "always",
-                "stdio",
-                "-t",
-                "-f",
-                "archive.pna",
-            ]),
-        );
-    }
-
-    #[test]
-    fn multiple_global_flags_with_value() {
-        let args = s(&[
-            "pna",
-            "--quiet",
-            "--color",
-            "never",
-            "experimental",
-            "stdio",
-            "xf",
-            "archive.pna",
-        ]);
-        assert_eq!(
-            expand_bsdtar_old_style_args(args),
-            s(&[
-                "pna",
-                "--quiet",
-                "--color",
-                "never",
-                "experimental",
-                "stdio",
-                "-x",
-                "-f",
-                "archive.pna",
-            ]),
-        );
-    }
-
-    #[test]
-    fn w_option_help() {
-        let args = s(&["pna", "experimental", "stdio", "-W", "help"]);
-        assert_eq!(
-            expand_bsdtar_w_option(args),
-            s(&["pna", "experimental", "stdio", "--help"]),
-        );
-    }
-
-    #[test]
     fn w_option_version() {
-        let args = s(&["pna", "experimental", "stdio", "-W", "version"]);
+        let args = s(&["pna", "compat", "bsdtar", "-W", "version"]);
         assert_eq!(
             expand_bsdtar_w_option(args),
-            s(&["pna", "experimental", "stdio", "--version"]),
-        );
-    }
-
-    #[test]
-    fn w_option_with_equals_value() {
-        let args = s(&[
-            "pna",
-            "experimental",
-            "stdio",
-            "-x",
-            "-W",
-            "strip-components=3",
-            "-f",
-            "a.pna",
-        ]);
-        assert_eq!(
-            expand_bsdtar_w_option(args),
-            s(&[
-                "pna",
-                "experimental",
-                "stdio",
-                "-x",
-                "--strip-components=3",
-                "-f",
-                "a.pna",
-            ]),
+            s(&["pna", "compat", "bsdtar", "--version"]),
         );
     }
 
@@ -884,8 +542,8 @@ mod tests {
     fn w_option_multiple() {
         let args = s(&[
             "pna",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "-x",
             "-W",
             "same-owner",
@@ -898,8 +556,8 @@ mod tests {
             expand_bsdtar_w_option(args),
             s(&[
                 "pna",
-                "experimental",
-                "stdio",
+                "compat",
+                "bsdtar",
                 "-x",
                 "--same-owner",
                 "--keep-old-files",
@@ -911,58 +569,46 @@ mod tests {
 
     #[test]
     fn w_option_trailing_no_arg() {
-        let args = s(&["pna", "experimental", "stdio", "-x", "-W"]);
+        let args = s(&["pna", "compat", "bsdtar", "-x", "-W"]);
         assert_eq!(
             expand_bsdtar_w_option(args),
-            s(&["pna", "experimental", "stdio", "-x", "-W"]),
+            s(&["pna", "compat", "bsdtar", "-x", "-W"]),
         );
     }
 
     #[test]
-    fn w_option_no_stdio_passthrough() {
+    fn w_option_no_compat_passthrough() {
         let args = s(&["pna", "create", "-W", "help"]);
         assert_eq!(expand_bsdtar_w_option(args.clone()), args);
     }
 
     #[test]
     fn w_option_with_unstable() {
-        let args = s(&["pna", "experimental", "stdio", "--unstable", "-W", "help"]);
+        let args = s(&["pna", "compat", "bsdtar", "--unstable", "-W", "help"]);
         assert_eq!(
             expand_bsdtar_w_option(args),
-            s(&["pna", "experimental", "stdio", "--unstable", "--help"]),
+            s(&["pna", "compat", "bsdtar", "--unstable", "--help"]),
         );
     }
 
     #[test]
     fn w_option_after_old_style_expansion() {
-        let args = s(&["pna", "experimental", "stdio", "-x", "-W", "help"]);
+        let args = s(&["pna", "compat", "bsdtar", "-x", "-W", "help"]);
         assert_eq!(
             expand_bsdtar_w_option(args),
-            s(&["pna", "experimental", "stdio", "-x", "--help"]),
+            s(&["pna", "compat", "bsdtar", "-x", "--help"]),
         );
     }
 
     #[test]
-    fn w_option_after_double_dash_passthrough() {
-        let args = s(&["pna", "experimental", "stdio", "-x", "--", "-W", "file"]);
+    fn w_option_double_dash_before_compat_passthrough() {
+        let args = s(&["pna", "--", "compat", "bsdtar", "-W", "help"]);
         assert_eq!(expand_bsdtar_w_option(args.clone()), args);
     }
 
     #[test]
-    fn w_option_double_dash_before_experimental_passthrough() {
-        let args = s(&["pna", "--", "experimental", "stdio", "-W", "help"]);
-        assert_eq!(expand_bsdtar_w_option(args.clone()), args);
-    }
-
-    #[test]
-    fn w_option_double_dash_between_experimental_and_stdio() {
-        let args = s(&["pna", "experimental", "--", "stdio", "-W", "help"]);
-        assert_eq!(expand_bsdtar_w_option(args.clone()), args);
-    }
-
-    #[test]
-    fn w_option_non_stdio_experimental_subcommand_passthrough() {
-        let args = s(&["pna", "experimental", "chown", "-W", "help"]);
+    fn w_option_double_dash_between_compat_and_bsdtar() {
+        let args = s(&["pna", "compat", "--", "bsdtar", "-W", "help"]);
         assert_eq!(expand_bsdtar_w_option(args.clone()), args);
     }
 
@@ -979,62 +625,32 @@ mod tests {
     }
 
     #[test]
-    fn w_option_no_args_after_stdio() {
-        let args = s(&["pna", "experimental", "stdio"]);
+    fn w_option_no_args_after_bsdtar() {
+        let args = s(&["pna", "compat", "bsdtar"]);
         assert_eq!(expand_bsdtar_w_option(args.clone()), args);
     }
 
     #[test]
     fn w_option_single_token_not_matched() {
-        let args = s(&["pna", "experimental", "stdio", "-Whelp"]);
+        let args = s(&["pna", "compat", "bsdtar", "-Whelp"]);
         assert_eq!(expand_bsdtar_w_option(args.clone()), args);
     }
 
     #[test]
-    fn w_option_global_flag_with_value_before_experimental() {
-        let args = s(&[
-            "pna",
-            "--color",
-            "always",
-            "experimental",
-            "stdio",
-            "-W",
-            "help",
-        ]);
+    fn w_option_global_flag_with_value_before_compat() {
+        let args = s(&["pna", "--color", "always", "compat", "bsdtar", "-W", "help"]);
         assert_eq!(
             expand_bsdtar_w_option(args),
-            s(&[
-                "pna",
-                "--color",
-                "always",
-                "experimental",
-                "stdio",
-                "--help",
-            ]),
+            s(&["pna", "--color", "always", "compat", "bsdtar", "--help"]),
         );
     }
 
     #[test]
-    fn w_option_global_flag_between_experimental_and_stdio() {
-        let args = s(&[
-            "pna",
-            "experimental",
-            "--color",
-            "always",
-            "stdio",
-            "-W",
-            "help",
-        ]);
+    fn w_option_global_flag_between_compat_and_bsdtar() {
+        let args = s(&["pna", "compat", "--color", "always", "bsdtar", "-W", "help"]);
         assert_eq!(
             expand_bsdtar_w_option(args),
-            s(&[
-                "pna",
-                "experimental",
-                "--color",
-                "always",
-                "stdio",
-                "--help",
-            ]),
+            s(&["pna", "compat", "--color", "always", "bsdtar", "--help"]),
         );
     }
 
@@ -1042,41 +658,14 @@ mod tests {
     #[test]
     fn w_option_non_utf8_value() {
         use std::os::unix::ffi::OsStringExt;
-        let mut args = s(&["pna", "experimental", "stdio", "-W"]);
+        let mut args = s(&["pna", "compat", "bsdtar", "-W"]);
         args.push(OsString::from_vec(vec![0xFF, 0xFE]));
         let result = expand_bsdtar_w_option(args);
         let mut expected_long = OsString::from("--");
         expected_long.push(OsString::from_vec(vec![0xFF, 0xFE]));
-        let mut expected = s(&["pna", "experimental", "stdio"]);
+        let mut expected = s(&["pna", "compat", "bsdtar"]);
         expected.push(expected_long);
         assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn pipeline_old_style_with_w_and_value() {
-        let args = s(&[
-            "pna",
-            "experimental",
-            "stdio",
-            "xW",
-            "same-owner",
-            "-f",
-            "a.pna",
-        ]);
-        let args = expand_bsdtar_old_style_args(args);
-        let args = expand_bsdtar_w_option(args);
-        assert_eq!(
-            args,
-            s(&[
-                "pna",
-                "experimental",
-                "stdio",
-                "-x",
-                "--same-owner",
-                "-f",
-                "a.pna"
-            ]),
-        );
     }
 
     #[test]
@@ -1193,6 +782,18 @@ mod tests {
     }
 
     #[test]
+    fn all_flags_no_positional() {
+        let args = s(&["pna", "--quiet", "--verbose"]);
+        assert_eq!(expand_bsdtar_old_style_args(args.clone()), args);
+    }
+
+    #[test]
+    fn all_flags_after_compat() {
+        let args = s(&["pna", "compat", "--flag1", "--flag2"]);
+        assert_eq!(expand_bsdtar_old_style_args(args.clone()), args);
+    }
+
+    #[test]
     fn compat_wrong_sub_keyword_passthrough() {
         let args = s(&["pna", "compat", "stdio", "cvf", "archive.pna"]);
         assert_eq!(expand_bsdtar_old_style_args(args.clone()), args);
@@ -1227,6 +828,116 @@ mod tests {
                 "-f",
                 "archive.pna",
                 "dir",
+            ]),
+        );
+    }
+
+    #[test]
+    fn global_flag_with_space_value_before_compat() {
+        let args = s(&[
+            "pna",
+            "--color",
+            "always",
+            "compat",
+            "bsdtar",
+            "cvf",
+            "archive.pna",
+            "dir",
+        ]);
+        assert_eq!(
+            expand_bsdtar_old_style_args(args),
+            s(&[
+                "pna",
+                "--color",
+                "always",
+                "compat",
+                "bsdtar",
+                "-c",
+                "-v",
+                "-f",
+                "archive.pna",
+                "dir",
+            ]),
+        );
+    }
+
+    #[test]
+    fn global_flag_with_eq_value_before_compat() {
+        let args = s(&[
+            "pna",
+            "--color=always",
+            "compat",
+            "bsdtar",
+            "cvf",
+            "archive.pna",
+            "dir",
+        ]);
+        assert_eq!(
+            expand_bsdtar_old_style_args(args),
+            s(&[
+                "pna",
+                "--color=always",
+                "compat",
+                "bsdtar",
+                "-c",
+                "-v",
+                "-f",
+                "archive.pna",
+                "dir",
+            ]),
+        );
+    }
+
+    #[test]
+    fn global_flag_with_space_value_between_compat_and_bsdtar() {
+        let args = s(&[
+            "pna",
+            "compat",
+            "--color",
+            "always",
+            "bsdtar",
+            "tf",
+            "archive.pna",
+        ]);
+        assert_eq!(
+            expand_bsdtar_old_style_args(args),
+            s(&[
+                "pna",
+                "compat",
+                "--color",
+                "always",
+                "bsdtar",
+                "-t",
+                "-f",
+                "archive.pna",
+            ]),
+        );
+    }
+
+    #[test]
+    fn multiple_global_flags_with_value() {
+        let args = s(&[
+            "pna",
+            "--quiet",
+            "--color",
+            "never",
+            "compat",
+            "bsdtar",
+            "xf",
+            "archive.pna",
+        ]);
+        assert_eq!(
+            expand_bsdtar_old_style_args(args),
+            s(&[
+                "pna",
+                "--quiet",
+                "--color",
+                "never",
+                "compat",
+                "bsdtar",
+                "-x",
+                "-f",
+                "archive.pna",
             ]),
         );
     }
