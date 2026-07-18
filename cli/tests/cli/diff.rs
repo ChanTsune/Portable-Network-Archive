@@ -1,9 +1,12 @@
 mod content;
+mod encryption;
 mod exit_code;
 mod hardlink;
 mod metadata;
 mod missing;
+mod multipart;
 mod no_diff;
 mod path_filter;
+mod solid_archive;
 mod symlink;
 mod type_mismatch;
