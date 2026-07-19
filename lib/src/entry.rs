@@ -839,12 +839,6 @@ where
                 .write_chunk_in(writer)?;
         }
 
-        if let Some(p) = &self.phsf {
-            total += (ChunkType::PHSF, p.as_bytes()).write_chunk_in(writer)?;
-        }
-        for data_chunk in &self.data {
-            total += (ChunkType::FDAT, data_chunk).write_chunk_in(writer)?;
-        }
         if let Some(c) = created {
             total += (ChunkType::cTIM, c.whole_seconds().to_be_bytes()).write_chunk_in(writer)?;
             if c.subsec_nanoseconds() != 0 {
@@ -896,6 +890,12 @@ where
         for xattr in xattrs {
             total += (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(writer)?;
         }
+        if let Some(p) = &self.phsf {
+            total += (ChunkType::PHSF, p.as_bytes()).write_chunk_in(writer)?;
+        }
+        for data_chunk in &self.data {
+            total += (ChunkType::FDAT, data_chunk).write_chunk_in(writer)?;
+        }
         total += (ChunkType::FEND, []).write_chunk_in(writer)?;
         Ok(total)
     }
@@ -935,12 +935,6 @@ where
             ));
         }
 
-        if let Some(p) = self.phsf {
-            vec.push(RawChunk::from_data(ChunkType::PHSF, p.into_bytes()));
-        }
-        for data_chunk in self.data {
-            vec.push(RawChunk::from((ChunkType::FDAT, data_chunk)).into());
-        }
         if let Some(c) = created {
             vec.push(RawChunk::from_data(
                 ChunkType::cTIM,
@@ -1006,6 +1000,12 @@ where
         }
         for xattr in xattrs {
             vec.push(RawChunk::from_data(ChunkType::xATR, xattr.to_bytes()));
+        }
+        if let Some(p) = self.phsf {
+            vec.push(RawChunk::from_data(ChunkType::PHSF, p.into_bytes()));
+        }
+        for data_chunk in self.data {
+            vec.push(RawChunk::from((ChunkType::FDAT, data_chunk)).into());
         }
         vec.push(RawChunk::from_data(ChunkType::FEND, Vec::new()));
         vec
@@ -1738,5 +1738,23 @@ mod tests {
         let entry = builder.build().unwrap();
         assert_eq!(entry.xattrs(), entry.metadata().xattrs());
         assert!(!entry.xattrs().is_empty());
+    }
+
+    #[test]
+    fn ancillary_chunks_are_written_before_fdat() {
+        let mut builder = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
+        builder
+            .created(Duration::seconds(1))
+            .permission_mode(PermissionMode::from(0o755))
+            .add_xattr(sample_xattr());
+        builder.write_all(b"data").unwrap();
+        let entry = builder.build().unwrap();
+        let chunks = entry.into_chunks();
+
+        let fdat_pos = chunks.iter().position(|c| c.ty == ChunkType::FDAT).unwrap();
+        for ty in [ChunkType::cTIM, ChunkType::fMOd, ChunkType::xATR] {
+            let pos = chunks.iter().position(|c| c.ty == ty).unwrap();
+            assert!(pos < fdat_pos, "{ty:?} must appear before FDAT");
+        }
     }
 }
