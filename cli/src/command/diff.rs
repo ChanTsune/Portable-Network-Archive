@@ -8,9 +8,7 @@ use crate::{
 };
 
 use clap::{Parser, ValueEnum};
-#[cfg(unix)]
-use pna::prelude::MetadataTimeExt;
-use pna::{DataKind, EntryContent, NormalEntry, ReadOptions};
+use pna::{DataKind, Duration, EntryContent, NormalEntry, ReadOptions};
 use same_file::is_same_file;
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
@@ -222,12 +220,21 @@ struct CompareOptions {
     format: Format,
 }
 
-/// Compare two SystemTime values with 1-second tolerance for filesystem precision.
+/// Compare an archived mtime against a filesystem mtime at the archive's stored precision:
+/// whole-second storage compares by whole seconds, sub-second storage requires exact equality.
 #[cfg(unix)]
-fn times_equal(a: SystemTime, b: SystemTime) -> bool {
-    match a.duration_since(b) {
-        Ok(d) => d.as_secs() == 0,
-        Err(e) => e.duration().as_secs() == 0,
+fn mtime_matches(archived: Duration, fs: SystemTime) -> bool {
+    let fs = match fs.duration_since(SystemTime::UNIX_EPOCH) {
+        Ok(d) => Duration::try_from(d),
+        Err(e) => Duration::try_from(e.duration()).map(|d| -d),
+    };
+    let Ok(fs) = fs else {
+        return false;
+    };
+    if archived.subsec_nanoseconds() == 0 {
+        fs.whole_seconds() == archived.whole_seconds()
+    } else {
+        fs == archived
     }
 }
 
@@ -251,9 +258,9 @@ fn compare_file_metadata<T: AsRef<[u8]>>(
     }
 
     // Compare mtime
-    if let Some(archive_mtime) = entry.metadata().saturating_modified_time()
+    if let Some(archive_mtime) = entry.metadata().modified()
         && let Ok(fs_mtime) = fs_meta.modified()
-        && !times_equal(archive_mtime, fs_mtime)
+        && !mtime_matches(archive_mtime, fs_mtime)
     {
         diffs.push(DiffKind::MtimeDiffers);
     }
@@ -304,9 +311,9 @@ fn compare_directory_metadata<T: AsRef<[u8]>>(
 
     // Only compare mtime and ownership with --full-compare
     if options.full_compare {
-        if let Some(archive_mtime) = entry.metadata().saturating_modified_time()
+        if let Some(archive_mtime) = entry.metadata().modified()
             && let Ok(fs_mtime) = fs_meta.modified()
-            && !times_equal(archive_mtime, fs_mtime)
+            && !mtime_matches(archive_mtime, fs_mtime)
         {
             diffs.push(DiffKind::MtimeDiffers);
         }

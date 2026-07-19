@@ -168,3 +168,278 @@ fn diff_detects_directory_mtime_with_full_compare() {
         .code(1)
         .stdout(predicate::str::contains("Mod time differs"));
 }
+
+/// Precondition: Archive stores a file mtime with zero sub-second precision.
+/// Action: Filesystem mtime is set to the same whole second with nonzero nanoseconds.
+/// Expectation: No "Mod time differs" is reported; whole-second storage compares by whole seconds.
+/// Returns early on filesystems without nanosecond timestamp support.
+#[cfg(unix)]
+#[test]
+fn diff_ignores_subsecond_when_archive_has_whole_second_mtime() {
+    setup();
+    let dir = "diff_mtime_ignores_subsecond_test";
+    let _ = fs::remove_dir_all(dir);
+    fs::create_dir_all(dir).unwrap();
+
+    let file_path = format!("{dir}/file.txt");
+    fs::write(&file_path, "content").unwrap();
+
+    let whole_second = SystemTime::UNIX_EPOCH + Duration::from_secs(86400);
+    filetime::set_file_mtime(
+        &file_path,
+        filetime::FileTime::from_system_time(whole_second),
+    )
+    .unwrap();
+
+    let archive_path = format!("{dir}/test.pna");
+    cargo_bin_cmd!("pna")
+        .args([
+            "create",
+            "-f",
+            &archive_path,
+            "--overwrite",
+            "--keep-timestamp",
+            &file_path,
+        ])
+        .assert()
+        .success();
+
+    let with_nanos = whole_second + Duration::from_nanos(123_456_789);
+    filetime::set_file_mtime(&file_path, filetime::FileTime::from_system_time(with_nanos)).unwrap();
+    if fs::symlink_metadata(&file_path)
+        .unwrap()
+        .modified()
+        .unwrap()
+        != with_nanos
+    {
+        return;
+    }
+
+    cargo_bin_cmd!("pna")
+        .args(["experimental", "diff", "-f", &archive_path])
+        .assert()
+        .success()
+        .stdout("");
+}
+
+/// Precondition: Archive stores a file mtime with nonzero sub-second precision.
+/// Action: Filesystem mtime is the same whole second but with different nanoseconds.
+/// Expectation: Reports "Mod time differs"; sub-second storage requires exact equality.
+/// Returns early on filesystems without nanosecond timestamp support.
+#[cfg(unix)]
+#[test]
+fn diff_detects_subsecond_difference_when_archive_stores_nanoseconds() {
+    setup();
+    let dir = "diff_mtime_detects_subsecond_diff_test";
+    let _ = fs::remove_dir_all(dir);
+    fs::create_dir_all(dir).unwrap();
+
+    let file_path = format!("{dir}/file.txt");
+    fs::write(&file_path, "content").unwrap();
+
+    let whole_second = SystemTime::UNIX_EPOCH + Duration::from_secs(86400);
+    let archived_time = whole_second + Duration::from_nanos(123_456_789);
+    filetime::set_file_mtime(
+        &file_path,
+        filetime::FileTime::from_system_time(archived_time),
+    )
+    .unwrap();
+    if fs::symlink_metadata(&file_path)
+        .unwrap()
+        .modified()
+        .unwrap()
+        != archived_time
+    {
+        return;
+    }
+
+    let archive_path = format!("{dir}/test.pna");
+    cargo_bin_cmd!("pna")
+        .args([
+            "create",
+            "-f",
+            &archive_path,
+            "--overwrite",
+            "--keep-timestamp",
+            &file_path,
+        ])
+        .assert()
+        .success();
+
+    let different_nanos = whole_second + Duration::from_nanos(987_654_321);
+    filetime::set_file_mtime(
+        &file_path,
+        filetime::FileTime::from_system_time(different_nanos),
+    )
+    .unwrap();
+    if fs::symlink_metadata(&file_path)
+        .unwrap()
+        .modified()
+        .unwrap()
+        != different_nanos
+    {
+        return;
+    }
+
+    cargo_bin_cmd!("pna")
+        .args(["experimental", "diff", "-f", &archive_path])
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains("Mod time differs"));
+}
+
+/// Precondition: Archive stores a file mtime with nonzero sub-second precision.
+/// Action: Filesystem mtime is left unchanged (exact nanosecond roundtrip).
+/// Expectation: No "Mod time differs" is reported.
+/// Returns early on filesystems without nanosecond timestamp support.
+#[cfg(unix)]
+#[test]
+fn diff_accepts_exact_nanosecond_roundtrip() {
+    setup();
+    let dir = "diff_mtime_exact_roundtrip_test";
+    let _ = fs::remove_dir_all(dir);
+    fs::create_dir_all(dir).unwrap();
+
+    let file_path = format!("{dir}/file.txt");
+    fs::write(&file_path, "content").unwrap();
+
+    let archived_time =
+        SystemTime::UNIX_EPOCH + Duration::from_secs(86400) + Duration::from_nanos(123_456_789);
+    filetime::set_file_mtime(
+        &file_path,
+        filetime::FileTime::from_system_time(archived_time),
+    )
+    .unwrap();
+    if fs::symlink_metadata(&file_path)
+        .unwrap()
+        .modified()
+        .unwrap()
+        != archived_time
+    {
+        return;
+    }
+
+    let archive_path = format!("{dir}/test.pna");
+    cargo_bin_cmd!("pna")
+        .args([
+            "create",
+            "-f",
+            &archive_path,
+            "--overwrite",
+            "--keep-timestamp",
+            &file_path,
+        ])
+        .assert()
+        .success();
+
+    cargo_bin_cmd!("pna")
+        .args(["experimental", "diff", "-f", &archive_path])
+        .assert()
+        .success()
+        .stdout("");
+}
+
+/// Precondition: Archive stores a file mtime with zero sub-second precision.
+/// Action: Filesystem mtime is set to the same whole second, at its last nanosecond.
+/// Expectation: No "Mod time differs" is reported (boundary: still within the same whole second).
+/// Returns early on filesystems without nanosecond timestamp support.
+#[cfg(unix)]
+#[test]
+fn diff_ignores_end_of_second_when_archive_has_whole_second_mtime() {
+    setup();
+    let dir = "diff_mtime_boundary_end_of_second_test";
+    let _ = fs::remove_dir_all(dir);
+    fs::create_dir_all(dir).unwrap();
+
+    let file_path = format!("{dir}/file.txt");
+    fs::write(&file_path, "content").unwrap();
+
+    let whole_second = SystemTime::UNIX_EPOCH + Duration::from_secs(86400);
+    filetime::set_file_mtime(
+        &file_path,
+        filetime::FileTime::from_system_time(whole_second),
+    )
+    .unwrap();
+
+    let archive_path = format!("{dir}/test.pna");
+    cargo_bin_cmd!("pna")
+        .args([
+            "create",
+            "-f",
+            &archive_path,
+            "--overwrite",
+            "--keep-timestamp",
+            &file_path,
+        ])
+        .assert()
+        .success();
+
+    let end_of_second = whole_second + Duration::from_nanos(999_999_999);
+    filetime::set_file_mtime(
+        &file_path,
+        filetime::FileTime::from_system_time(end_of_second),
+    )
+    .unwrap();
+    if fs::symlink_metadata(&file_path)
+        .unwrap()
+        .modified()
+        .unwrap()
+        != end_of_second
+    {
+        return;
+    }
+
+    cargo_bin_cmd!("pna")
+        .args(["experimental", "diff", "-f", &archive_path])
+        .assert()
+        .success()
+        .stdout("");
+}
+
+/// Precondition: Archive stores a file mtime with zero sub-second precision.
+/// Action: Filesystem mtime is set to exactly one whole second later.
+/// Expectation: Reports "Mod time differs" (boundary: crosses into the next whole second).
+#[cfg(unix)]
+#[test]
+fn diff_detects_next_second_when_archive_has_whole_second_mtime() {
+    setup();
+    let dir = "diff_mtime_boundary_next_second_test";
+    let _ = fs::remove_dir_all(dir);
+    fs::create_dir_all(dir).unwrap();
+
+    let file_path = format!("{dir}/file.txt");
+    fs::write(&file_path, "content").unwrap();
+
+    let whole_second = SystemTime::UNIX_EPOCH + Duration::from_secs(86400);
+    filetime::set_file_mtime(
+        &file_path,
+        filetime::FileTime::from_system_time(whole_second),
+    )
+    .unwrap();
+
+    let archive_path = format!("{dir}/test.pna");
+    cargo_bin_cmd!("pna")
+        .args([
+            "create",
+            "-f",
+            &archive_path,
+            "--overwrite",
+            "--keep-timestamp",
+            &file_path,
+        ])
+        .assert()
+        .success();
+
+    let next_second = whole_second + Duration::from_secs(1);
+    filetime::set_file_mtime(
+        &file_path,
+        filetime::FileTime::from_system_time(next_second),
+    )
+    .unwrap();
+
+    cargo_bin_cmd!("pna")
+        .args(["experimental", "diff", "-f", &archive_path])
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains("Mod time differs"));
+}
