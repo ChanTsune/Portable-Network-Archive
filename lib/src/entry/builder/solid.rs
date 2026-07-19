@@ -45,17 +45,17 @@ impl Write for SolidEntryDataWriter<'_> {
 ///
 /// ```
 /// # use std::io::{self, Write};
-/// use libpna::{EntryBuilder, SolidEntryBuilder, WriteOptions};
+/// use libpna::{DirEntryBuilder, FileEntryBuilder, SolidEntryBuilder, WriteOptions};
 ///
 /// # fn main() -> io::Result<()> {
 /// let mut solid_builder = SolidEntryBuilder::new(WriteOptions::store())?;
 ///
 /// // Add a directory to the solid entry
-/// let dir_entry = EntryBuilder::new_dir("my_dir/".into()).build()?;
+/// let dir_entry = DirEntryBuilder::new("my_dir/".into()).build()?;
 /// solid_builder.add_entry(dir_entry)?;
 ///
 /// // Add a file to the solid entry
-/// let mut file_builder = EntryBuilder::new_file("my_dir/file.txt".into(), WriteOptions::store())?;
+/// let mut file_builder = FileEntryBuilder::new("my_dir/file.txt".into())?;
 /// file_builder.write_all(b"This is a file inside a solid entry.")?;
 /// solid_builder.add_entry(file_builder.build()?)?;
 ///
@@ -110,16 +110,15 @@ impl SolidEntryBuilder {
     /// # Examples
     ///
     /// ```no_run
-    /// use libpna::{EntryBuilder, SolidEntryBuilder, WriteOptions};
+    /// use libpna::{DirEntryBuilder, FileEntryBuilder, SolidEntryBuilder, WriteOptions};
     /// use std::io;
     /// use std::io::Write;
     ///
     /// # fn main() -> io::Result<()> {
     /// let mut builder = SolidEntryBuilder::new(WriteOptions::builder().build())?;
-    /// let dir_entry = EntryBuilder::new_dir("example".into()).build()?;
+    /// let dir_entry = DirEntryBuilder::new("example".into()).build()?;
     /// builder.add_entry(dir_entry)?;
-    /// let mut entry_builder =
-    ///     EntryBuilder::new_file("example/text.txt".into(), WriteOptions::store())?;
+    /// let mut entry_builder = FileEntryBuilder::new("example/text.txt".into())?;
     /// entry_builder.write_all(b"content")?;
     /// let file_entry = entry_builder.build()?;
     /// builder.add_entry(file_entry)?;
@@ -194,13 +193,13 @@ impl SolidEntryBuilder {
     /// ```rust
     /// # use std::io::{self, Write};
     /// use std::num::NonZeroU32;
-    /// use libpna::{EntryBuilder, SolidEntryBuilder, WriteOptions};
+    /// use libpna::{FileEntryBuilder, SolidEntryBuilder, WriteOptions};
     ///
     /// # fn main() -> io::Result<()> {
     /// let mut solid_builder = SolidEntryBuilder::new(WriteOptions::store())?;
     /// solid_builder.max_chunk_size(NonZeroU32::new(1024 * 1024).unwrap()); // 1MB chunks
     ///
-    /// let file_entry = EntryBuilder::new_file("file.txt".into(), WriteOptions::store())?;
+    /// let file_entry = FileEntryBuilder::new("file.txt".into())?;
     /// solid_builder.add_entry(file_entry.build()?)?;
     ///
     /// let solid_entry = solid_builder.build()?;

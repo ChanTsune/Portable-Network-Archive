@@ -219,69 +219,6 @@ impl EntryBuilderCore {
 /// - The [`build()`](Self::build) method finalizes compression/encryption streams
 /// - Building a directory or file without calling write methods is valid
 ///
-/// # Examples
-///
-/// ## Creating a file entry
-///
-/// ```
-/// # use std::io::{self, Write};
-/// use libpna::{EntryBuilder, WriteOptions};
-///
-/// # fn main() -> io::Result<()> {
-/// let mut builder = EntryBuilder::new_file("my_file.txt".into(), WriteOptions::store())?;
-/// builder.write_all(b"This is the file content.")?;
-/// let entry = builder.build()?;
-/// # Ok(())
-/// # }
-/// ```
-///
-/// ## Creating a file entry with extended attributes
-///
-/// ```
-/// # use std::io::{self, Write};
-/// use libpna::{EntryBuilder, WriteOptions, ExtendedAttribute, XattrName, XattrValue};
-///
-/// # fn main() -> io::Result<()> {
-/// let mut builder = EntryBuilder::new_file("data.txt".into(), WriteOptions::store())?;
-/// builder.write_all(b"file content")?;
-/// builder.add_xattr(ExtendedAttribute::new(
-///     XattrName::try_from("user.comment").unwrap(),
-///     XattrValue::try_from(b"important".as_slice()).unwrap(),
-/// ));
-/// let entry = builder.build()?;
-/// # Ok(())
-/// # }
-/// ```
-///
-/// ## Creating a directory entry
-///
-/// ```
-/// # use std::io;
-/// use libpna::EntryBuilder;
-///
-/// # fn main() -> io::Result<()> {
-/// let builder = EntryBuilder::new_dir("my_dir/".into());
-/// let entry = builder.build()?;
-/// # Ok(())
-/// # }
-/// ```
-///
-/// ## Creating a symbolic link entry
-///
-/// ```
-/// # use std::io;
-/// use libpna::EntryBuilder;
-///
-/// # fn main() -> io::Result<()> {
-/// let builder = EntryBuilder::new_symlink(
-///     "link_name".into(),
-///     "target/file.txt".into()
-/// )?;
-/// let entry = builder.build()?;
-/// # Ok(())
-/// # }
-/// ```
-///
 /// Prefer the kind-specific builders ([`FileEntryBuilder`], [`DirEntryBuilder`],
 /// [`SymlinkEntryBuilder`], [`HardLinkEntryBuilder`]) for new code; this type
 /// remains for constructing entries of arbitrary [`DataKind`]s.

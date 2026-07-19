@@ -154,7 +154,7 @@ impl<W: Write> Archive<W> {
     /// # Examples
     ///
     /// ```no_run
-    /// use libpna::{Archive, EntryBuilder, WriteOptions};
+    /// use libpna::{Archive, FileEntryBuilder, WriteOptions};
     /// use std::fs;
     /// # use std::io;
     ///
@@ -162,7 +162,8 @@ impl<W: Write> Archive<W> {
     /// let file = fs::File::create("example.pna")?;
     /// let mut archive = Archive::write_header(file)?;
     /// archive.add_entry(
-    ///     EntryBuilder::new_file("example.txt".into(), WriteOptions::builder().build())?.build()?,
+    ///     FileEntryBuilder::new_with_options("example.txt".into(), WriteOptions::builder().build())?
+    ///         .build()?,
     /// )?;
     /// archive.finalize()?;
     /// #     Ok(())
@@ -182,7 +183,7 @@ impl<W: Write> Archive<W> {
     /// # Examples
     ///
     /// ```no_run
-    /// # use libpna::{Archive, EntryBuilder, EntryPart, WriteOptions};
+    /// # use libpna::{Archive, EntryPart, FileEntryBuilder, WriteOptions};
     /// # use std::fs::File;
     /// # use std::io;
     ///
@@ -190,7 +191,8 @@ impl<W: Write> Archive<W> {
     /// let part1_file = File::create("example.part1.pna")?;
     /// let mut archive_part1 = Archive::write_header(part1_file)?;
     /// let entry =
-    ///     EntryBuilder::new_file("example.txt".into(), WriteOptions::builder().build())?.build()?;
+    ///     FileEntryBuilder::new_with_options("example.txt".into(), WriteOptions::builder().build())?
+    ///         .build()?;
     /// archive_part1.add_entry_part(EntryPart::from(entry))?;
     ///
     /// let part2_file = File::create("example.part2.pna")?;
@@ -224,7 +226,7 @@ impl<W: Write> Archive<W> {
     ///
     /// # Examples
     /// ```no_run
-    /// # use libpna::{Archive, EntryBuilder, EntryPart, WriteOptions};
+    /// # use libpna::{Archive, EntryPart, FileEntryBuilder, WriteOptions};
     /// # use std::fs::File;
     /// # use std::io;
     ///
@@ -232,7 +234,8 @@ impl<W: Write> Archive<W> {
     /// let part1_file = File::create("example.part1.pna")?;
     /// let mut archive_part1 = Archive::write_header(part1_file)?;
     /// let entry =
-    ///     EntryBuilder::new_file("example.txt".into(), WriteOptions::builder().build())?.build()?;
+    ///     FileEntryBuilder::new_with_options("example.txt".into(), WriteOptions::builder().build())?
+    ///         .build()?;
     /// archive_part1.add_entry_part(EntryPart::from(entry))?;
     ///
     /// let part2_file = File::create("example.part2.pna")?;
@@ -406,7 +409,7 @@ impl<W: Write> SolidArchive<W> {
     /// # Examples
     ///
     /// ```no_run
-    /// use libpna::{Archive, EntryBuilder, WriteOptions};
+    /// use libpna::{Archive, FileEntryBuilder, WriteOptions};
     /// use std::fs::File;
     /// # use std::io;
     ///
@@ -414,8 +417,7 @@ impl<W: Write> SolidArchive<W> {
     /// let option = WriteOptions::builder().build();
     /// let file = File::create("example.pna")?;
     /// let mut archive = Archive::write_solid_header(file, option)?;
-    /// archive
-    ///     .add_entry(EntryBuilder::new_file("example.txt".into(), WriteOptions::store())?.build()?)?;
+    /// archive.add_entry(FileEntryBuilder::new("example.txt".into())?.build()?)?;
     /// archive.finalize()?;
     /// #     Ok(())
     /// # }

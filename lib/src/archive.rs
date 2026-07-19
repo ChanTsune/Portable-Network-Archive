@@ -31,7 +31,7 @@ pub(crate) use {read::*, write::*};
 /// # Examples
 /// Creates a new PNA file and adds an entry to it.
 /// ```no_run
-/// # use libpna::{Archive, EntryBuilder, WriteOptions};
+/// # use libpna::{Archive, FileEntryBuilder, WriteOptions};
 /// # use std::fs::File;
 /// # use std::io::{self, prelude::*};
 ///
@@ -39,7 +39,7 @@ pub(crate) use {read::*, write::*};
 /// let file = File::create("foo.pna")?;
 /// let mut archive = Archive::write_header(file)?;
 /// let mut entry_builder =
-///     EntryBuilder::new_file("bar.txt".into(), WriteOptions::builder().build())?;
+///     FileEntryBuilder::new_with_options("bar.txt".into(), WriteOptions::builder().build())?;
 /// entry_builder.write_all(b"content")?;
 /// let entry = entry_builder.build()?;
 /// archive.add_entry(entry)?;
@@ -175,7 +175,7 @@ impl<T> Archive<T> {
 /// # Examples
 /// Creates a new solid mode PNA file and adds an entry to it.
 /// ```no_run
-/// use libpna::{Archive, EntryBuilder, WriteOptions};
+/// use libpna::{Archive, FileEntryBuilder, WriteOptions};
 /// use std::fs::File;
 /// # use std::io::{self, prelude::*};
 ///
@@ -183,7 +183,7 @@ impl<T> Archive<T> {
 /// let option = WriteOptions::builder().build();
 /// let file = File::create("foo.pna")?;
 /// let mut archive = Archive::write_solid_header(file, option)?;
-/// let mut entry_builder = EntryBuilder::new_file("bar.txt".into(), WriteOptions::store())?;
+/// let mut entry_builder = FileEntryBuilder::new("bar.txt".into())?;
 /// entry_builder.write_all(b"content")?;
 /// let entry = entry_builder.build()?;
 /// archive.add_entry(entry)?;
@@ -364,7 +364,8 @@ mod tests {
         for name in ["test/first", "test/second"] {
             writer
                 .add_entry({
-                    let mut builder = EntryBuilder::new_file(name.into(), &options).unwrap();
+                    let mut builder =
+                        FileEntryBuilder::new_with_options(name.into(), &options).unwrap();
                     builder.write_all(b"same plaintext").unwrap();
                     builder.build().unwrap()
                 })
@@ -408,7 +409,8 @@ mod tests {
         for name in ["test/first", "test/second", "test/third"] {
             writer
                 .add_entry({
-                    let mut builder = EntryBuilder::new_file(name.into(), &options).unwrap();
+                    let mut builder =
+                        FileEntryBuilder::new_with_options(name.into(), &options).unwrap();
                     builder.write_all(b"some text").unwrap();
                     builder.build().unwrap()
                 })
@@ -450,7 +452,8 @@ mod tests {
             let options = options_builder.try_build().unwrap();
             writer
                 .add_entry({
-                    let mut builder = EntryBuilder::new_file(name.into(), &options).unwrap();
+                    let mut builder =
+                        FileEntryBuilder::new_with_options(name.into(), &options).unwrap();
                     builder.write_all(b"some text").unwrap();
                     builder.build().unwrap()
                 })
@@ -532,7 +535,7 @@ mod tests {
     fn create_archive(src: &[u8], options: WriteOptions) -> io::Result<Vec<u8>> {
         let mut writer = Archive::write_header(Vec::with_capacity(src.len()))?;
         writer.add_entry({
-            let mut builder = EntryBuilder::new_file("test/text".into(), options)?;
+            let mut builder = FileEntryBuilder::new_with_options("test/text".into(), options)?;
             builder.write_all(src)?;
             builder.build()?
         })?;
@@ -557,11 +560,8 @@ mod tests {
         for i in 0..200 {
             archive
                 .add_entry({
-                    let mut builder = EntryBuilder::new_file(
-                        format!("test/text{i}").into(),
-                        WriteOptions::store(),
-                    )
-                    .unwrap();
+                    let mut builder =
+                        FileEntryBuilder::new(format!("test/text{i}").into()).unwrap();
                     builder
                         .write_all(format!("text{i}").repeat(i).as_bytes())
                         .unwrap();
@@ -606,12 +606,13 @@ mod tests {
         let archive = {
             let mut writer = Archive::write_header(Vec::new()).unwrap();
             let dir_entry = {
-                let builder = EntryBuilder::new_dir("test".into());
+                let builder = DirEntryBuilder::new("test".into());
                 builder.build().unwrap()
             };
             let file_entry = {
                 let options = WriteOptions::store();
-                let mut builder = EntryBuilder::new_file("test/text".into(), options).unwrap();
+                let mut builder =
+                    FileEntryBuilder::new_with_options("test/text".into(), options).unwrap();
                 builder.write_all(b"text").unwrap();
                 builder.build().unwrap()
             };
@@ -659,9 +660,11 @@ mod tests {
         let mut writer = Archive::write_header(Vec::new()).unwrap();
         writer
             .add_entry({
-                let builder =
-                    EntryBuilder::new_file("text1.txt".into(), WriteOptions::builder().build())
-                        .unwrap();
+                let builder = FileEntryBuilder::new_with_options(
+                    "text1.txt".into(),
+                    WriteOptions::builder().build(),
+                )
+                .unwrap();
                 builder.build().unwrap()
             })
             .unwrap();
@@ -671,9 +674,11 @@ mod tests {
         appender.seek_to_end().unwrap();
         appender
             .add_entry({
-                let builder =
-                    EntryBuilder::new_file("text2.txt".into(), WriteOptions::builder().build())
-                        .unwrap();
+                let builder = FileEntryBuilder::new_with_options(
+                    "text2.txt".into(),
+                    WriteOptions::builder().build(),
+                )
+                .unwrap();
                 builder.build().unwrap()
             })
             .unwrap();
@@ -692,11 +697,21 @@ mod tests {
     fn metadata() {
         let original_entry = {
             let mut builder =
-                EntryBuilder::new_file("name".into(), WriteOptions::builder().build()).unwrap();
-            builder.created(Duration::seconds(31));
-            builder.modified(Duration::seconds(32));
-            builder.accessed(Duration::seconds(33));
-            builder.permission(Permission::new(1, "uname".into(), 2, "gname".into(), 0o775));
+                FileEntryBuilder::new_with_options("name".into(), WriteOptions::builder().build())
+                    .unwrap();
+            builder.metadata(
+                Metadata::new()
+                    .with_created(Some(Duration::seconds(31)))
+                    .with_modified(Some(Duration::seconds(32)))
+                    .with_accessed(Some(Duration::seconds(33)))
+                    .with_permission(Some(Permission::new(
+                        1,
+                        "uname".into(),
+                        2,
+                        "gname".into(),
+                        0o775,
+                    ))),
+            );
             builder.write_all(b"entry data").unwrap();
             builder.build().unwrap()
         };

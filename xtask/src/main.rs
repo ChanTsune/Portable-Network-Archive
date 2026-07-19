@@ -298,9 +298,8 @@ fn convert_entry<R: Read, W: Write>(
     let entry_name = libpna::EntryName::from_utf8_preserve_root(&path);
 
     if entry_type.is_dir() {
-        let mut builder = libpna::EntryBuilder::new_dir(entry_name);
-        builder.modified(mtime_duration);
-        owner.apply(&mut builder);
+        let mut builder = libpna::DirEntryBuilder::new(entry_name);
+        builder.metadata(owner.metadata(mtime_duration));
         archive.add_entry(builder.build()?)?;
     } else if entry_type.is_symlink() {
         let link = entry
@@ -308,12 +307,11 @@ fn convert_entry<R: Read, W: Write>(
             .ok_or("symlink missing link name")?
             .to_string_lossy()
             .to_string();
-        let mut builder = libpna::EntryBuilder::new_symlink(
+        let mut builder = libpna::SymlinkEntryBuilder::new(
             entry_name,
             libpna::EntryReference::from_utf8_preserve_root(&link),
         )?;
-        builder.modified(mtime_duration);
-        owner.apply(&mut builder);
+        builder.metadata(owner.metadata(mtime_duration));
         archive.add_entry(builder.build()?)?;
     } else if entry_type.is_hard_link() {
         let link = entry
@@ -321,18 +319,16 @@ fn convert_entry<R: Read, W: Write>(
             .ok_or("hardlink missing link name")?
             .to_string_lossy()
             .to_string();
-        let mut builder = libpna::EntryBuilder::new_hard_link(
+        let mut builder = libpna::HardLinkEntryBuilder::new(
             entry_name,
             libpna::EntryReference::from_utf8_preserve_root(&link),
         )?;
-        builder.modified(mtime_duration);
-        owner.apply(&mut builder);
+        builder.metadata(owner.metadata(mtime_duration));
         archive.add_entry(builder.build()?)?;
     } else if entry_type.is_file() {
-        let mut builder = libpna::EntryBuilder::new_file(entry_name, write_options)?;
+        let mut builder = libpna::FileEntryBuilder::new_with_options(entry_name, write_options)?;
         io::copy(entry, &mut builder)?;
-        builder.modified(mtime_duration);
-        owner.apply(&mut builder);
+        builder.metadata(owner.metadata(mtime_duration));
         archive.add_entry(builder.build()?)?;
     } else {
         eprintln!(
@@ -417,12 +413,14 @@ impl TarOwner {
         }
     }
 
-    fn apply(&self, builder: &mut libpna::EntryBuilder) {
-        builder.owner_uid(libpna::OwnerUid::from(self.uid));
-        builder.owner_gid(libpna::OwnerGid::from(self.gid));
-        builder.permission_mode(libpna::PermissionMode::from(self.mode));
-        builder.owner_user_name(owner_name_opt(&self.uname));
-        builder.owner_group_name(owner_group_name_opt(&self.gname));
+    fn metadata(&self, modified: libpna::Duration) -> libpna::Metadata {
+        libpna::Metadata::new()
+            .with_modified(Some(modified))
+            .with_owner_uid(Some(libpna::OwnerUid::from(self.uid)))
+            .with_owner_gid(Some(libpna::OwnerGid::from(self.gid)))
+            .with_permission_mode(Some(libpna::PermissionMode::from(self.mode)))
+            .with_owner_user_name(owner_name_opt(&self.uname))
+            .with_owner_group_name(owner_group_name_opt(&self.gname))
     }
 }
 
@@ -467,25 +465,22 @@ fn convert_zip_entry<R: Read + io::Seek, W: Write>(
     let entry_name = libpna::EntryName::from_utf8_preserve_root(&path);
 
     if entry.is_dir() {
-        let mut builder = libpna::EntryBuilder::new_dir(entry_name);
-        builder.modified(mtime);
-        apply_zip_owner(&mut builder, entry);
+        let mut builder = libpna::DirEntryBuilder::new(entry_name);
+        builder.metadata(zip_entry_metadata(entry, mtime));
         archive.add_entry(builder.build()?)?;
     } else if entry.is_symlink() {
         let mut target = String::new();
         entry.read_to_string(&mut target)?;
-        let mut builder = libpna::EntryBuilder::new_symlink(
+        let mut builder = libpna::SymlinkEntryBuilder::new(
             entry_name,
             libpna::EntryReference::from_utf8_preserve_root(&target),
         )?;
-        builder.modified(mtime);
-        apply_zip_owner(&mut builder, entry);
+        builder.metadata(zip_entry_metadata(entry, mtime));
         archive.add_entry(builder.build()?)?;
     } else if entry.is_file() {
-        let mut builder = libpna::EntryBuilder::new_file(entry_name, write_options)?;
+        let mut builder = libpna::FileEntryBuilder::new_with_options(entry_name, write_options)?;
         io::copy(entry, &mut builder)?;
-        builder.modified(mtime);
-        apply_zip_owner(&mut builder, entry);
+        builder.metadata(zip_entry_metadata(entry, mtime));
         archive.add_entry(builder.build()?)?;
     } else {
         eprintln!("warning: skipping unsupported entry: {path}");
@@ -519,12 +514,14 @@ fn zip_last_modified<R: Read + io::Seek>(
     }
 }
 
-fn apply_zip_owner<R: Read + io::Seek>(
-    builder: &mut libpna::EntryBuilder,
+fn zip_entry_metadata<R: Read + io::Seek>(
     entry: &zip::read::ZipFile<'_, R>,
-) {
-    if let Some(mode) = entry.unix_mode() {
-        let mode_bits = (mode & 0o7777) as u16;
-        builder.permission_mode(libpna::PermissionMode::from(mode_bits));
-    }
+    modified: libpna::Duration,
+) -> libpna::Metadata {
+    let permission_mode = entry
+        .unix_mode()
+        .map(|mode| libpna::PermissionMode::from((mode & 0o7777) as u16));
+    libpna::Metadata::new()
+        .with_modified(Some(modified))
+        .with_permission_mode(permission_mode)
 }

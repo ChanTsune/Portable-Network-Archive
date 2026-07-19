@@ -1018,9 +1018,9 @@ impl WriteOptions {
     /// # Examples
     ///
     /// ```rust
-    /// use libpna::{EntryBuilder, WriteOptions};
+    /// use libpna::{FileEntryBuilder, WriteOptions};
     ///
-    /// EntryBuilder::new_file("example.txt".into(), WriteOptions::store()).unwrap();
+    /// FileEntryBuilder::new_with_options("example.txt".into(), WriteOptions::store()).unwrap();
     /// ```
     ///
     /// [Entry]: crate::Entry

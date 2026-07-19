@@ -1,7 +1,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use libpna::{CipherMode, Compression, Encryption, EntryBuilder, ReadOptions, WriteOptions};
+use libpna::{CipherMode, Compression, Encryption, FileEntryBuilder, ReadOptions, WriteOptions};
 use std::io::prelude::*;
 
 fuzz_target!(|data: &[u8]| {
@@ -11,7 +11,7 @@ fuzz_target!(|data: &[u8]| {
         .cipher_mode(CipherMode::CTR)
         .compression(Compression::NO)
         .build();
-    let mut builder = EntryBuilder::new_file("fuzz".into(), write_option).unwrap();
+    let mut builder = FileEntryBuilder::new_with_options("fuzz".into(), write_option).unwrap();
     builder.write_all(data).unwrap();
     let entry = builder.build().unwrap();
     let read_option = ReadOptions::with_password(Some("password"));
