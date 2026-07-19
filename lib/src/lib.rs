@@ -112,7 +112,8 @@
 //! # Key Types
 //!
 //! - [`Archive`] - Main entry point for reading and writing archives
-//! - [`EntryBuilder`] - Builder for creating file, directory, and link entries
+//! - [`FileEntryBuilder`] / [`DirEntryBuilder`] / [`SymlinkEntryBuilder`] / [`HardLinkEntryBuilder`] - Kind-specific entry builders
+//! - [`OpaqueEntryBuilder`] - Escape-hatch builder for entry kinds without a dedicated builder
 //! - [`SolidEntryBuilder`] - Builder for creating solid (multi-file) entries
 //! - [`WriteOptions`] - Configuration for compression and encryption when writing
 //! - [`ReadOptions`] - Configuration (password) for reading encrypted entries

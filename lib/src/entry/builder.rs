@@ -241,6 +241,10 @@ pub struct OpaqueEntryBuilder {
 }
 
 /// Alias of [`OpaqueEntryBuilder`].
+#[deprecated(
+    since = "0.36.0",
+    note = "renamed to `OpaqueEntryBuilder`; prefer the kind-specific builders"
+)]
 pub type EntryBuilder = OpaqueEntryBuilder;
 
 impl OpaqueEntryBuilder {
@@ -291,6 +295,7 @@ impl OpaqueEntryBuilder {
     }
 
     /// Creates a new [`OpaqueEntryBuilder`] for a directory entry.
+    #[deprecated(since = "0.36.0", note = "use `DirEntryBuilder::new`")]
     #[inline]
     pub const fn new_dir(name: EntryName) -> Self {
         Self {
@@ -306,6 +311,7 @@ impl OpaqueEntryBuilder {
     /// # Errors
     ///
     /// Returns an error if initialization fails.
+    #[deprecated(since = "0.36.0", note = "use `FileEntryBuilder::new_with_options`")]
     #[inline]
     pub fn new_file(name: EntryName, option: impl WriteOption) -> io::Result<Self> {
         Self::new_with_options(name, DataKind::FILE, option)
@@ -334,15 +340,16 @@ impl OpaqueEntryBuilder {
     ///
     /// # Examples
     /// ```
-    /// use libpna::{OpaqueEntryBuilder, EntryName, EntryReference};
+    /// use libpna::{SymlinkEntryBuilder, EntryName, EntryReference};
     ///
-    /// let builder = OpaqueEntryBuilder::new_symlink(
+    /// let builder = SymlinkEntryBuilder::new(
     ///     EntryName::try_from("path/of/link").unwrap(),
     ///     EntryReference::try_from("path/of/target").unwrap(),
     /// )
     /// .unwrap();
     /// let entry = builder.build().unwrap();
     /// ```
+    #[deprecated(since = "0.36.0", note = "use `SymlinkEntryBuilder::new`")]
     #[inline]
     pub fn new_symlink(name: EntryName, source: EntryReference) -> io::Result<Self> {
         Self::new_link(EntryHeader::for_symlink(name), source)
@@ -356,15 +363,16 @@ impl OpaqueEntryBuilder {
     ///
     /// # Examples
     /// ```
-    /// use libpna::{OpaqueEntryBuilder, EntryName, EntryReference};
+    /// use libpna::{HardLinkEntryBuilder, EntryName, EntryReference};
     ///
-    /// let builder = OpaqueEntryBuilder::new_hard_link(
+    /// let builder = HardLinkEntryBuilder::new(
     ///     EntryName::try_from("path/of/link").unwrap(),
     ///     EntryReference::try_from("path/of/target").unwrap(),
     /// )
     /// .unwrap();
     /// let entry = builder.build().unwrap();
     /// ```
+    #[deprecated(since = "0.36.0", note = "use `HardLinkEntryBuilder::new`")]
     #[inline]
     pub fn new_hard_link(name: EntryName, source: EntryReference) -> io::Result<Self> {
         Self::new_link(EntryHeader::for_hard_link(name), source)
@@ -381,6 +389,10 @@ impl OpaqueEntryBuilder {
     }
 
     /// Sets the creation timestamp of the entry.
+    #[deprecated(
+        since = "0.36.0",
+        note = "use `OpaqueEntryBuilder::metadata` with `Metadata::with_*`"
+    )]
     #[inline]
     pub fn created(&mut self, since_unix_epoch: impl Into<Option<Duration>>) -> &mut Self {
         self.core.metadata.created = since_unix_epoch.into();
@@ -388,6 +400,10 @@ impl OpaqueEntryBuilder {
     }
 
     /// Sets the last modified timestamp of the entry.
+    #[deprecated(
+        since = "0.36.0",
+        note = "use `OpaqueEntryBuilder::metadata` with `Metadata::with_*`"
+    )]
     #[inline]
     pub fn modified(&mut self, since_unix_epoch: impl Into<Option<Duration>>) -> &mut Self {
         self.core.metadata.modified = since_unix_epoch.into();
@@ -395,6 +411,10 @@ impl OpaqueEntryBuilder {
     }
 
     /// Sets the last accessed timestamp of the entry.
+    #[deprecated(
+        since = "0.36.0",
+        note = "use `OpaqueEntryBuilder::metadata` with `Metadata::with_*`"
+    )]
     #[inline]
     pub fn accessed(&mut self, since_unix_epoch: impl Into<Option<Duration>>) -> &mut Self {
         self.core.metadata.accessed = since_unix_epoch.into();
@@ -404,7 +424,7 @@ impl OpaqueEntryBuilder {
     /// Sets the permission of the entry to the given owner, group, and permissions.
     #[deprecated(
         since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks; use OpaqueEntryBuilder::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode"
+        note = "the fPRM chunk is superseded by the owner facet chunks; use `OpaqueEntryBuilder::metadata` with `Metadata::with_owner_uid`/`with_owner_gid`/`with_owner_user_name`/`with_owner_group_name`/`with_permission_mode`"
     )]
     #[allow(deprecated)]
     #[inline]
@@ -414,42 +434,70 @@ impl OpaqueEntryBuilder {
     }
 
     /// Sets the owner user id facet (`fUId`).
+    #[deprecated(
+        since = "0.36.0",
+        note = "use `OpaqueEntryBuilder::metadata` with `Metadata::with_*`"
+    )]
     #[inline]
     pub fn owner_uid(&mut self, value: impl Into<Option<OwnerUid>>) -> &mut Self {
         self.core.metadata.owner_uid = value.into();
         self
     }
     /// Sets the owner group id facet (`fGId`).
+    #[deprecated(
+        since = "0.36.0",
+        note = "use `OpaqueEntryBuilder::metadata` with `Metadata::with_*`"
+    )]
     #[inline]
     pub fn owner_gid(&mut self, value: impl Into<Option<OwnerGid>>) -> &mut Self {
         self.core.metadata.owner_gid = value.into();
         self
     }
     /// Sets the owner user name facet (`fONm`).
+    #[deprecated(
+        since = "0.36.0",
+        note = "use `OpaqueEntryBuilder::metadata` with `Metadata::with_*`"
+    )]
     #[inline]
     pub fn owner_user_name(&mut self, value: impl Into<Option<OwnerUserName>>) -> &mut Self {
         self.core.metadata.owner_user_name = value.into();
         self
     }
     /// Sets the owner group name facet (`fGNm`).
+    #[deprecated(
+        since = "0.36.0",
+        note = "use `OpaqueEntryBuilder::metadata` with `Metadata::with_*`"
+    )]
     #[inline]
     pub fn owner_group_name(&mut self, value: impl Into<Option<OwnerGroupName>>) -> &mut Self {
         self.core.metadata.owner_group_name = value.into();
         self
     }
     /// Sets the owner user SID facet (`fOSi`).
+    #[deprecated(
+        since = "0.36.0",
+        note = "use `OpaqueEntryBuilder::metadata` with `Metadata::with_*`"
+    )]
     #[inline]
     pub fn owner_user_sid(&mut self, value: impl Into<Option<OwnerUserSid>>) -> &mut Self {
         self.core.metadata.owner_user_sid = value.into();
         self
     }
     /// Sets the owner group SID facet (`fGSi`).
+    #[deprecated(
+        since = "0.36.0",
+        note = "use `OpaqueEntryBuilder::metadata` with `Metadata::with_*`"
+    )]
     #[inline]
     pub fn owner_group_sid(&mut self, value: impl Into<Option<OwnerGroupSid>>) -> &mut Self {
         self.core.metadata.owner_group_sid = value.into();
         self
     }
     /// Sets the POSIX permission mode facet (`fMOd`).
+    #[deprecated(
+        since = "0.36.0",
+        note = "use `OpaqueEntryBuilder::metadata` with `Metadata::with_*`"
+    )]
     #[inline]
     pub fn permission_mode(&mut self, value: impl Into<Option<PermissionMode>>) -> &mut Self {
         self.core.metadata.permission_mode = value.into();
@@ -463,6 +511,10 @@ impl OpaqueEntryBuilder {
     /// - `SymbolicLink` + `Directory` → directory symlink
     /// - `HardLink` + `File` → file hard link
     /// - `HardLink` + `Directory` → directory hard link
+    #[deprecated(
+        since = "0.36.0",
+        note = "use `OpaqueEntryBuilder::metadata` with `Metadata::with_*`"
+    )]
     #[inline]
     pub fn link_target_type(
         &mut self,
@@ -475,6 +527,7 @@ impl OpaqueEntryBuilder {
     /// Sets whether to store the raw file size in the entry metadata.
     ///
     /// When `true`, the raw file size is recorded; when `false`, it is omitted.
+    #[deprecated(since = "0.36.0", note = "renamed to `store_file_size`")]
     #[inline]
     pub fn file_size(&mut self, store: bool) -> &mut Self {
         self.store_file_size = store;
@@ -493,6 +546,10 @@ impl OpaqueEntryBuilder {
     }
 
     /// Adds an [`ExtendedAttribute`] to the entry.
+    #[deprecated(
+        since = "0.36.0",
+        note = "use `OpaqueEntryBuilder::metadata` with `Metadata::with_xattrs`"
+    )]
     #[inline]
     pub fn add_xattr(&mut self, xattr: ExtendedAttribute) -> &mut Self {
         self.core.metadata.xattrs.push(xattr);
@@ -515,10 +572,11 @@ impl OpaqueEntryBuilder {
     /// ```rust
     /// # use std::io::{self, Write};
     /// use std::num::NonZeroU32;
-    /// use libpna::{OpaqueEntryBuilder, WriteOptions};
+    /// use libpna::{OpaqueEntryBuilder, DataKind, WriteOptions};
     ///
     /// # fn main() -> io::Result<()> {
-    /// let mut builder = OpaqueEntryBuilder::new_file("data.bin".into(), WriteOptions::store())?;
+    /// let mut builder =
+    ///     OpaqueEntryBuilder::new_with_options("data.bin".into(), DataKind::FILE, WriteOptions::store())?;
     /// builder.max_chunk_size(NonZeroU32::new(1024 * 1024).unwrap()); // 1MB chunks
     /// builder.write_all(b"file content")?;
     /// let entry = builder.build()?;
@@ -611,7 +669,7 @@ mod tests {
 
     #[test]
     fn entry_extra_chunk() {
-        let mut builder = OpaqueEntryBuilder::new_dir("dir".into());
+        let mut builder = DirEntryBuilder::new("dir".into());
         builder.add_extra_chunk(RawChunk::from_data(
             ChunkType::private(*b"abCd").unwrap(),
             [],
@@ -627,8 +685,8 @@ mod tests {
     #[test]
     fn fltp_symlink_roundtrip() {
         let mut builder =
-            OpaqueEntryBuilder::new_symlink("link_name".into(), "target_dir".into()).unwrap();
-        builder.link_target_type(LinkTargetType::Directory);
+            SymlinkEntryBuilder::new("link_name".into(), "target_dir".into()).unwrap();
+        builder.metadata(Metadata::new().with_link_target_type(Some(LinkTargetType::Directory)));
         let entry = builder.build().unwrap();
         let chunks = entry.into_chunks();
         let raw = RawEntry(chunks);
@@ -642,8 +700,8 @@ mod tests {
     #[test]
     fn fltp_hardlink_roundtrip() {
         let mut builder =
-            OpaqueEntryBuilder::new_hard_link("dir_hardlink".into(), "target_dir".into()).unwrap();
-        builder.link_target_type(LinkTargetType::Directory);
+            HardLinkEntryBuilder::new("dir_hardlink".into(), "target_dir".into()).unwrap();
+        builder.metadata(Metadata::new().with_link_target_type(Some(LinkTargetType::Directory)));
         let entry = builder.build().unwrap();
         let chunks = entry.into_chunks();
         let raw = RawEntry(chunks);
@@ -656,7 +714,7 @@ mod tests {
 
     #[test]
     fn fltp_absent_returns_none() {
-        let builder = OpaqueEntryBuilder::new_symlink("link_name".into(), "target".into()).unwrap();
+        let builder = SymlinkEntryBuilder::new("link_name".into(), "target".into()).unwrap();
         let entry = builder.build().unwrap();
         let chunks = entry.into_chunks();
         let raw = RawEntry(chunks);
@@ -666,9 +724,8 @@ mod tests {
 
     #[test]
     fn fltp_on_regular_file_is_preserved() {
-        let mut builder =
-            OpaqueEntryBuilder::new_file("regular.txt".into(), WriteOptions::store()).unwrap();
-        builder.link_target_type(LinkTargetType::File);
+        let mut builder = FileEntryBuilder::new("regular.txt".into()).unwrap();
+        builder.metadata(Metadata::new().with_link_target_type(Some(LinkTargetType::File)));
         let entry = builder.build().unwrap();
         let chunks = entry.into_chunks();
         let raw = RawEntry(chunks);
@@ -1023,5 +1080,65 @@ mod tests {
         assert_eq!(uname.chars().count(), 127);
         assert!(uname.chars().all(|c| c == big_char));
         assert_eq!(m.owner_uid().map(|v| v.get()), Some(7));
+    }
+
+    #[allow(deprecated)]
+    #[test]
+    fn deprecated_builder_paths_match_new_builders() {
+        let mut old = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
+        old.created(Some(crate::Duration::seconds(1)));
+        old.write_all(b"data").unwrap();
+        let old = old.build().unwrap();
+
+        let mut new = FileEntryBuilder::new("f".into()).unwrap();
+        new.metadata(Metadata::new().with_created(Some(crate::Duration::seconds(1))));
+        new.write_all(b"data").unwrap();
+        let new = new.build().unwrap();
+
+        assert_eq!(old.into_chunks(), new.into_chunks());
+    }
+
+    #[allow(deprecated)]
+    #[test]
+    fn deprecated_new_symlink_matches_symlink_entry_builder_wire() {
+        let old = EntryBuilder::new_symlink("link".into(), "target".into())
+            .unwrap()
+            .build()
+            .unwrap();
+        let new = SymlinkEntryBuilder::new("link".into(), "target".into())
+            .unwrap()
+            .build()
+            .unwrap();
+        assert_eq!(old.into_chunks(), new.into_chunks());
+    }
+
+    #[allow(deprecated)]
+    #[test]
+    fn deprecated_new_hard_link_matches_hard_link_entry_builder_wire() {
+        let old = EntryBuilder::new_hard_link("link".into(), "target".into())
+            .unwrap()
+            .build()
+            .unwrap();
+        let new = HardLinkEntryBuilder::new("link".into(), "target".into())
+            .unwrap()
+            .build()
+            .unwrap();
+        assert_eq!(old.into_chunks(), new.into_chunks());
+    }
+
+    #[allow(deprecated)]
+    #[test]
+    fn deprecated_new_dir_matches_dir_entry_builder_wire() {
+        let mut old = EntryBuilder::new_dir("dir".into());
+        old.permission_mode(Some(crate::PermissionMode::from(0o755)));
+        let old = old.build().unwrap();
+
+        let mut new = DirEntryBuilder::new("dir".into());
+        new.metadata(
+            Metadata::new().with_permission_mode(Some(crate::PermissionMode::from(0o755))),
+        );
+        let new = new.build().unwrap();
+
+        assert_eq!(old.into_chunks(), new.into_chunks());
     }
 }
