@@ -79,6 +79,10 @@ impl EntryBuilderCore {
         self.phsf = phsf;
     }
 
+    pub(crate) fn header(&self) -> &EntryHeader {
+        &self.header
+    }
+
     pub(crate) fn metadata(&mut self, metadata: Metadata) {
         self.metadata = metadata;
     }
@@ -220,61 +224,73 @@ impl EntryBuilderCore {
 /// # Ok(())
 /// # }
 /// ```
+///
+/// Prefer the kind-specific builders ([`FileEntryBuilder`], [`DirEntryBuilder`],
+/// [`SymlinkEntryBuilder`], [`HardLinkEntryBuilder`]) for new code; this type
+/// remains for constructing entries of arbitrary [`DataKind`]s.
 pub struct EntryBuilder {
-    header: EntryHeader,
-    phsf: Option<String>,
-    iv: Option<Vec<u8>>,
+    core: EntryBuilderCore,
     data: Option<CompressionWriter<CipherWriter<FlattenWriter>>>,
-    created: Option<Duration>,
-    last_modified: Option<Duration>,
-    accessed: Option<Duration>,
-    #[allow(deprecated)]
-    permission: Option<Permission>,
-    owner_uid: Option<OwnerUid>,
-    owner_gid: Option<OwnerGid>,
-    owner_user_name: Option<OwnerUserName>,
-    owner_group_name: Option<OwnerGroupName>,
-    owner_user_sid: Option<OwnerUserSid>,
-    owner_group_sid: Option<OwnerGroupSid>,
-    permission_mode: Option<PermissionMode>,
-    link_target_type: Option<LinkTargetType>,
     store_file_size: bool,
     file_size: u128,
-    xattrs: Vec<ExtendedAttribute>,
-    extra_chunks: Vec<RawChunk>,
 }
 
 impl EntryBuilder {
-    #[allow(deprecated)]
-    const fn new(header: EntryHeader) -> Self {
-        Self {
-            header,
-            phsf: None,
-            iv: None,
-            data: None,
-            created: None,
-            last_modified: None,
-            accessed: None,
-            permission: None,
-            owner_uid: None,
-            owner_gid: None,
-            owner_user_name: None,
-            owner_group_name: None,
-            owner_user_sid: None,
-            owner_group_sid: None,
-            permission_mode: None,
-            link_target_type: None,
+    /// Creates a builder for an entry of the given kind that stores its
+    /// data without compression or encryption.
+    ///
+    /// The entry data is written via the [`Write`] trait as an opaque byte
+    /// stream; its interpretation is left to the application. Prefer the
+    /// kind-specific builders for the kinds defined by the PNA
+    /// specification.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if initialization fails.
+    #[inline]
+    pub fn new(name: EntryName, kind: DataKind) -> io::Result<Self> {
+        Self::new_with_options(name, kind, WriteOptions::store())
+    }
+
+    /// Creates a builder for an entry of the given kind with the given
+    /// write options.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if initialization fails.
+    #[inline]
+    pub fn new_with_options(
+        name: EntryName,
+        kind: DataKind,
+        option: impl WriteOption,
+    ) -> io::Result<Self> {
+        let header = EntryHeader::new_with_options(
+            kind,
+            option.compression(),
+            option.encryption(),
+            option.cipher_mode(),
+            name,
+        );
+        let (writer, iv, phsf) = data_writer(option)?;
+        let mut core = EntryBuilderCore::new(header);
+        core.set_cipher(iv, phsf);
+        Ok(Self {
+            core,
+            data: Some(writer),
             store_file_size: true,
             file_size: 0,
-            xattrs: Vec::new(),
-            extra_chunks: Vec::new(),
-        }
+        })
     }
 
     /// Creates a new [`EntryBuilder`] for a directory entry.
     #[inline]
     pub const fn new_dir(name: EntryName) -> Self {
-        Self::new(EntryHeader::for_dir(name))
+        Self {
+            core: EntryBuilderCore::new(EntryHeader::for_dir(name)),
+            data: None,
+            store_file_size: true,
+            file_size: 0,
+        }
     }
 
     /// Creates a new [`EntryBuilder`] for a file entry with the given write options.
@@ -284,41 +300,21 @@ impl EntryBuilder {
     /// Returns an error if initialization fails.
     #[inline]
     pub fn new_file(name: EntryName, option: impl WriteOption) -> io::Result<Self> {
-        let header = EntryHeader::for_file(
-            option.compression(),
-            option.encryption(),
-            option.cipher_mode(),
-            name,
-        );
-        let context = get_writer_context(option)?;
-        let writer = get_writer(FlattenWriter::new(), &context)?;
-        let (iv, phsf) = match context.cipher {
-            None => (None, None),
-            Some(WriteCipher { context: c, .. }) => (Some(c.iv), Some(c.phsf)),
-        };
-        Ok(Self {
-            data: Some(writer),
-            iv,
-            phsf,
-            ..Self::new(header)
-        })
+        Self::new_with_options(name, DataKind::FILE, option)
     }
 
     /// Internal helper for creating link entries (symlink or hard link).
     fn new_link(header: EntryHeader, source: EntryReference) -> io::Result<Self> {
         let option = WriteOptions::store();
-        let context = get_writer_context(option)?;
-        let mut writer = get_writer(FlattenWriter::new(), &context)?;
+        let (mut writer, iv, phsf) = data_writer(option)?;
         writer.write_all(source.as_bytes())?;
-        let (iv, phsf) = match context.cipher {
-            None => (None, None),
-            Some(WriteCipher { context: c, .. }) => (Some(c.iv), Some(c.phsf)),
-        };
+        let mut core = EntryBuilderCore::new(header);
+        core.set_cipher(iv, phsf);
         Ok(Self {
+            core,
             data: Some(writer),
-            iv,
-            phsf,
-            ..Self::new(header)
+            store_file_size: true,
+            file_size: 0,
         })
     }
 
@@ -366,24 +362,34 @@ impl EntryBuilder {
         Self::new_link(EntryHeader::for_hard_link(name), source)
     }
 
+    /// Sets the metadata of the entry, replacing any previously set metadata.
+    ///
+    /// The raw file size and compressed size recorded in the given metadata
+    /// are ignored; [`build()`](Self::build) computes them.
+    #[inline]
+    pub fn metadata(&mut self, metadata: Metadata) -> &mut Self {
+        self.core.metadata(metadata);
+        self
+    }
+
     /// Sets the creation timestamp of the entry.
     #[inline]
     pub fn created(&mut self, since_unix_epoch: impl Into<Option<Duration>>) -> &mut Self {
-        self.created = since_unix_epoch.into();
+        self.core.metadata.created = since_unix_epoch.into();
         self
     }
 
     /// Sets the last modified timestamp of the entry.
     #[inline]
     pub fn modified(&mut self, since_unix_epoch: impl Into<Option<Duration>>) -> &mut Self {
-        self.last_modified = since_unix_epoch.into();
+        self.core.metadata.modified = since_unix_epoch.into();
         self
     }
 
     /// Sets the last accessed timestamp of the entry.
     #[inline]
     pub fn accessed(&mut self, since_unix_epoch: impl Into<Option<Duration>>) -> &mut Self {
-        self.accessed = since_unix_epoch.into();
+        self.core.metadata.accessed = since_unix_epoch.into();
         self
     }
 
@@ -395,50 +401,50 @@ impl EntryBuilder {
     #[allow(deprecated)]
     #[inline]
     pub fn permission(&mut self, permission: impl Into<Option<Permission>>) -> &mut Self {
-        self.permission = permission.into();
+        self.core.metadata.permission = permission.into();
         self
     }
 
     /// Sets the owner user id facet (`fUId`).
     #[inline]
     pub fn owner_uid(&mut self, value: impl Into<Option<OwnerUid>>) -> &mut Self {
-        self.owner_uid = value.into();
+        self.core.metadata.owner_uid = value.into();
         self
     }
     /// Sets the owner group id facet (`fGId`).
     #[inline]
     pub fn owner_gid(&mut self, value: impl Into<Option<OwnerGid>>) -> &mut Self {
-        self.owner_gid = value.into();
+        self.core.metadata.owner_gid = value.into();
         self
     }
     /// Sets the owner user name facet (`fONm`).
     #[inline]
     pub fn owner_user_name(&mut self, value: impl Into<Option<OwnerUserName>>) -> &mut Self {
-        self.owner_user_name = value.into();
+        self.core.metadata.owner_user_name = value.into();
         self
     }
     /// Sets the owner group name facet (`fGNm`).
     #[inline]
     pub fn owner_group_name(&mut self, value: impl Into<Option<OwnerGroupName>>) -> &mut Self {
-        self.owner_group_name = value.into();
+        self.core.metadata.owner_group_name = value.into();
         self
     }
     /// Sets the owner user SID facet (`fOSi`).
     #[inline]
     pub fn owner_user_sid(&mut self, value: impl Into<Option<OwnerUserSid>>) -> &mut Self {
-        self.owner_user_sid = value.into();
+        self.core.metadata.owner_user_sid = value.into();
         self
     }
     /// Sets the owner group SID facet (`fGSi`).
     #[inline]
     pub fn owner_group_sid(&mut self, value: impl Into<Option<OwnerGroupSid>>) -> &mut Self {
-        self.owner_group_sid = value.into();
+        self.core.metadata.owner_group_sid = value.into();
         self
     }
     /// Sets the POSIX permission mode facet (`fMOd`).
     #[inline]
     pub fn permission_mode(&mut self, value: impl Into<Option<PermissionMode>>) -> &mut Self {
-        self.permission_mode = value.into();
+        self.core.metadata.permission_mode = value.into();
         self
     }
 
@@ -454,7 +460,7 @@ impl EntryBuilder {
         &mut self,
         link_target_type: impl Into<Option<LinkTargetType>>,
     ) -> &mut Self {
-        self.link_target_type = link_target_type.into();
+        self.core.metadata.link_target_type = link_target_type.into();
         self
     }
 
@@ -467,17 +473,28 @@ impl EntryBuilder {
         self
     }
 
+    /// Sets whether to store the raw file size in the entry metadata.
+    ///
+    /// The size is recorded only for entries whose data kind is
+    /// [`DataKind::FILE`]. When `true` (the default), the raw file size is
+    /// recorded for such entries; when `false`, it is omitted.
+    #[inline]
+    pub fn store_file_size(&mut self, store: bool) -> &mut Self {
+        self.store_file_size = store;
+        self
+    }
+
     /// Adds an [`ExtendedAttribute`] to the entry.
     #[inline]
     pub fn add_xattr(&mut self, xattr: ExtendedAttribute) -> &mut Self {
-        self.xattrs.push(xattr);
+        self.core.metadata.xattrs.push(xattr);
         self
     }
 
     /// Adds extra chunk to the entry.
     #[inline]
     pub fn add_extra_chunk<T: Into<RawChunk>>(&mut self, chunk: T) -> &mut Self {
-        self.extra_chunks.push(chunk.into());
+        self.core.add_extra_chunk(chunk);
         self
     }
 
@@ -515,45 +532,18 @@ impl EntryBuilder {
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while building entry into buffer.
-    #[allow(deprecated)]
     #[inline]
     #[must_use = "building an entry without using it is wasteful"]
     pub fn build(self) -> io::Result<NormalEntry> {
-        let mut data = if let Some(data) = self.data {
+        let data = if let Some(data) = self.data {
             data.try_into_inner()?.try_into_inner()?.inner
         } else {
             Vec::new()
         };
-        if let Some(iv) = self.iv {
-            data.insert(0, iv);
-        }
-        let metadata = Metadata {
-            raw_file_size: match (self.store_file_size, self.header.data_kind) {
-                (true, DataKind::FILE) => Some(self.file_size),
-                _ => None,
-            },
-            compressed_size: data.iter().map(|d| d.len()).sum(),
-            created: self.created,
-            modified: self.last_modified,
-            accessed: self.accessed,
-            permission: self.permission,
-            link_target_type: self.link_target_type,
-            owner_uid: self.owner_uid,
-            owner_gid: self.owner_gid,
-            owner_user_name: self.owner_user_name,
-            owner_group_name: self.owner_group_name,
-            owner_user_sid: self.owner_user_sid,
-            owner_group_sid: self.owner_group_sid,
-            permission_mode: self.permission_mode,
-            xattrs: self.xattrs,
-        };
-        Ok(NormalEntry {
-            header: self.header,
-            phsf: self.phsf,
-            extra: self.extra_chunks,
-            data,
-            metadata,
-        })
+        let raw_file_size = (self.store_file_size
+            && self.core.header().data_kind() == DataKind::FILE)
+            .then_some(self.file_size);
+        Ok(self.core.build(data, raw_file_size))
     }
 }
 
@@ -847,5 +837,57 @@ mod tests {
             crate::EntryContent::HardLink(r) => assert_eq!(r.as_str(), "secret"),
             other => panic!("unexpected content: {other:?}"),
         }
+    }
+
+    #[test]
+    fn opaque_builder_round_trips_private_kind() {
+        let kind = crate::DataKind::new_private(200).unwrap();
+        let mut b = EntryBuilder::new("custom".into(), kind).unwrap();
+        b.write_all(b"opaque bytes").unwrap();
+        let entry = b.build().unwrap();
+        let raw = RawEntry(entry.into_chunks());
+        let restored = NormalEntry::try_from(raw).unwrap();
+        assert_eq!(restored.header().data_kind(), kind);
+        match restored.content(ReadOptions::builder().build()).unwrap() {
+            crate::EntryContent::Unknown(k, mut r) => {
+                assert_eq!(k, kind);
+                let mut buf = Vec::new();
+                r.read_to_end(&mut buf).unwrap();
+                assert_eq!(&buf[..], b"opaque bytes");
+            }
+            other => panic!("unexpected content: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn opaque_builder_with_file_kind_matches_file_entry_builder_wire() {
+        let mut a = EntryBuilder::new("f".into(), crate::DataKind::FILE).unwrap();
+        a.write_all(b"data").unwrap();
+        let mut b = FileEntryBuilder::new("f".into()).unwrap();
+        b.write_all(b"data").unwrap();
+        let ac: Vec<_> = a.build().unwrap().into_chunks();
+        let bc: Vec<_> = b.build().unwrap().into_chunks();
+        assert_eq!(ac, bc);
+    }
+
+    #[test]
+    fn opaque_builder_private_kind_omits_file_size() {
+        let kind = crate::DataKind::new_private(200).unwrap();
+        let mut b = EntryBuilder::new("custom".into(), kind).unwrap();
+        b.write_all(b"x").unwrap();
+        let entry = b.build().unwrap();
+        assert_eq!(entry.metadata().raw_file_size(), None);
+    }
+
+    #[test]
+    fn opaque_builder_metadata_replaces_previous() {
+        let mut b = EntryBuilder::new("f".into(), crate::DataKind::FILE).unwrap();
+        b.metadata(Metadata::new().with_modified(Some(crate::Duration::seconds(1))));
+        b.metadata(Metadata::new().with_modified(Some(crate::Duration::seconds(2))));
+        let entry = b.build().unwrap();
+        assert_eq!(
+            entry.metadata().modified(),
+            Some(crate::Duration::seconds(2))
+        );
     }
 }
