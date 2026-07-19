@@ -9,6 +9,10 @@ use std::time::SystemTime;
 ///
 /// Provides convenience methods for setting entry metadata using [`SystemTime`]
 /// instead of the lower-level [`Duration`](libpna::Duration) representation.
+#[deprecated(
+    since = "0.36.0",
+    note = "use `Metadata` with `MetadataTimeExt::with_*_time`; the kind-specific builders' `metadata()` setter rescues deprecated `fPRM` permission data automatically"
+)]
 pub trait EntryBuilderExt: private::Sealed {
     /// Sets metadata from a [`Metadata`] instance.
     ///
@@ -51,21 +55,22 @@ fn owner_name_bounded(s: &str) -> &str {
     &s[..end]
 }
 
+#[allow(deprecated)]
 impl EntryBuilderExt for OpaqueEntryBuilder {
     /// Sets metadata from a [`Metadata`] instance.
     ///
     /// # Examples
     ///
     /// ```rust,no_run
-    /// use pna::{EntryBuilder, Metadata, WriteOptions, prelude::*};
+    /// use pna::{FileEntryBuilder, Metadata, prelude::*};
     /// use std::fs;
     ///
     /// # fn main() -> std::io::Result<()> {
     /// let fs_meta = fs::metadata("some_file.txt")?;
     /// let metadata = Metadata::from_metadata(&fs_meta)?;
     ///
-    /// let mut builder = EntryBuilder::new_file("some_file.txt".try_into().unwrap(), WriteOptions::store())?;
-    /// builder.add_metadata(&metadata);
+    /// let mut builder = FileEntryBuilder::new("some_file.txt".try_into().unwrap())?;
+    /// builder.metadata(metadata);
     /// # Ok(())
     /// # }
     /// ```
@@ -115,15 +120,16 @@ impl EntryBuilderExt for OpaqueEntryBuilder {
     /// # Examples
     ///
     /// ```rust
-    /// use pna::{EntryBuilder, WriteOptions, prelude::*};
+    /// use pna::{FileEntryBuilder, Metadata, prelude::*};
     /// use std::time::SystemTime;
     ///
     /// # fn main() -> std::io::Result<()> {
-    /// let mut builder = EntryBuilder::new_file("file.txt".try_into().unwrap(), WriteOptions::store())?;
-    /// builder.created_time(SystemTime::now());
+    /// let mut builder = FileEntryBuilder::new("file.txt".try_into().unwrap())?;
+    /// builder.metadata(Metadata::new().with_created_time(Some(SystemTime::now())));
     /// # Ok(())
     /// # }
     /// ```
+    #[allow(deprecated)]
     #[inline]
     fn created_time(&mut self, time: impl Into<Option<SystemTime>>) -> &mut Self {
         self.created(opt_system_time_to_duration(time.into()))
@@ -134,15 +140,16 @@ impl EntryBuilderExt for OpaqueEntryBuilder {
     /// # Examples
     ///
     /// ```rust
-    /// use pna::{EntryBuilder, WriteOptions, prelude::*};
+    /// use pna::{FileEntryBuilder, Metadata, prelude::*};
     /// use std::time::SystemTime;
     ///
     /// # fn main() -> std::io::Result<()> {
-    /// let mut builder = EntryBuilder::new_file("file.txt".try_into().unwrap(), WriteOptions::store())?;
-    /// builder.modified_time(SystemTime::now());
+    /// let mut builder = FileEntryBuilder::new("file.txt".try_into().unwrap())?;
+    /// builder.metadata(Metadata::new().with_modified_time(Some(SystemTime::now())));
     /// # Ok(())
     /// # }
     /// ```
+    #[allow(deprecated)]
     #[inline]
     fn modified_time(&mut self, time: impl Into<Option<SystemTime>>) -> &mut Self {
         self.modified(opt_system_time_to_duration(time.into()))
@@ -153,15 +160,16 @@ impl EntryBuilderExt for OpaqueEntryBuilder {
     /// # Examples
     ///
     /// ```rust
-    /// use pna::{EntryBuilder, WriteOptions, prelude::*};
+    /// use pna::{FileEntryBuilder, Metadata, prelude::*};
     /// use std::time::SystemTime;
     ///
     /// # fn main() -> std::io::Result<()> {
-    /// let mut builder = EntryBuilder::new_file("file.txt".try_into().unwrap(), WriteOptions::store())?;
-    /// builder.accessed_time(SystemTime::now());
+    /// let mut builder = FileEntryBuilder::new("file.txt".try_into().unwrap())?;
+    /// builder.metadata(Metadata::new().with_accessed_time(Some(SystemTime::now())));
     /// # Ok(())
     /// # }
     /// ```
+    #[allow(deprecated)]
     #[inline]
     fn accessed_time(&mut self, time: impl Into<Option<SystemTime>>) -> &mut Self {
         self.accessed(opt_system_time_to_duration(time.into()))
@@ -204,11 +212,12 @@ mod tests {
     use libpna::Permission;
     use libpna::{Archive, OwnerGroupSid, OwnerUserSid, WriteOptions};
 
+    #[allow(deprecated)]
     fn roundtrip(src: &Metadata) -> Metadata {
         let mut buf = Vec::new();
         {
             let mut a = Archive::write_header(&mut buf).unwrap();
-            let mut b = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
+            let mut b = OpaqueEntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
             b.add_metadata(src);
             a.add_entry(b.build().unwrap()).unwrap();
             a.finalize().unwrap();

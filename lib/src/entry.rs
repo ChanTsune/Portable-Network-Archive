@@ -11,6 +11,7 @@ mod read;
 mod reference;
 mod write;
 
+#[allow(deprecated)]
 pub use self::{
     attr::*,
     builder::{
@@ -1742,11 +1743,13 @@ mod tests {
 
     #[test]
     fn ancillary_chunks_are_written_before_fdat() {
-        let mut builder = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
-        builder
-            .created(Duration::seconds(1))
-            .permission_mode(PermissionMode::from(0o755))
-            .add_xattr(sample_xattr());
+        let mut builder = FileEntryBuilder::new("f".into()).unwrap();
+        builder.metadata(
+            Metadata::new()
+                .with_created(Some(Duration::seconds(1)))
+                .with_permission_mode(Some(PermissionMode::from(0o755)))
+                .with_xattrs(vec![sample_xattr()]),
+        );
         builder.write_all(b"data").unwrap();
         let entry = builder.build().unwrap();
         let chunks = entry.into_chunks();
