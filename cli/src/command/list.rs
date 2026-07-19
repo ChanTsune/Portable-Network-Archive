@@ -446,7 +446,7 @@ impl TableRow {
             },
             // Only collect xattrs if needed
             xattrs: if collect.xattrs {
-                entry.xattrs().to_vec()
+                entry.metadata().xattrs().to_vec()
             } else {
                 Vec::new()
             },

@@ -602,6 +602,9 @@ where
         writer.flush()?;
         writer.try_into_inner()?.try_into_inner()?.into_inner()
     };
+    for xattr in metadata.xattrs {
+        (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(inner)?;
+    }
     (ChunkType::FEND, Vec::<u8>::new()).write_chunk_in(inner)?;
     Ok(())
 }

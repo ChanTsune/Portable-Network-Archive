@@ -32,17 +32,17 @@ fn xattr_set_with_password() {
 
     archive::for_each_entry_with_password("xattr_password/zstd_aes_ctr.pna", "password", |entry| {
         if entry.name() == "raw/empty.txt" {
-            let xattrs = entry.xattrs();
+            let xattrs = entry.metadata().xattrs();
             assert_eq!(xattrs.len(), 1, "entry should have exactly one xattr");
             assert_eq!(xattrs[0].name(), "user.author");
             assert_eq!(xattrs[0].value(), b"pna developers");
         } else {
             // Non-target entries should remain unaffected (no xattrs)
             assert!(
-                entry.xattrs().is_empty(),
+                entry.metadata().xattrs().is_empty(),
                 "Entry {} should have no xattrs but has {:?}",
                 entry.name(),
-                entry.xattrs()
+                entry.metadata().xattrs()
             );
         }
     })
@@ -85,17 +85,17 @@ fn xattr_set_with_password_file() {
         password,
         |entry| {
             if entry.name() == "raw/empty.txt" {
-                let xattrs = entry.xattrs();
+                let xattrs = entry.metadata().xattrs();
                 assert_eq!(xattrs.len(), 1, "entry should have exactly one xattr");
                 assert_eq!(xattrs[0].name(), "user.version");
                 assert_eq!(xattrs[0].value(), b"1.0.0");
             } else {
                 // Non-target entries should remain unaffected (no xattrs)
                 assert!(
-                    entry.xattrs().is_empty(),
+                    entry.metadata().xattrs().is_empty(),
                     "Entry {} should have no xattrs but has {:?}",
                     entry.name(),
-                    entry.xattrs()
+                    entry.metadata().xattrs()
                 );
             }
         },
@@ -158,7 +158,7 @@ fn xattr_set_wrong_password_no_effect() {
         "password",
         |entry| {
             if entry.name() == "raw/empty.txt" {
-                let xattrs = entry.xattrs();
+                let xattrs = entry.metadata().xattrs();
                 // Original xattr should exist
                 assert!(
                     xattrs
@@ -169,10 +169,10 @@ fn xattr_set_wrong_password_no_effect() {
             } else {
                 // Non-target entries should remain unaffected (no xattrs)
                 assert!(
-                    entry.xattrs().is_empty(),
+                    entry.metadata().xattrs().is_empty(),
                     "Entry {} should have no xattrs but has {:?}",
                     entry.name(),
-                    entry.xattrs()
+                    entry.metadata().xattrs()
                 );
             }
         },

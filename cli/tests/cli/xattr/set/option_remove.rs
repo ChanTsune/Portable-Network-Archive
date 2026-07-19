@@ -44,14 +44,17 @@ fn archive_xattr_remove() {
 
     for_each_entry("xattr_remove/xattr_remove.pna", |entry| {
         if entry.name() == "xattr_remove/in/raw/empty.txt" {
-            assert_eq!(entry.xattrs(), &[xattr("user.name", b"pna developers!")],);
+            assert_eq!(
+                entry.metadata().xattrs(),
+                &[xattr("user.name", b"pna developers!")],
+            );
         } else {
             // Non-target entries should have no xattrs
             assert!(
-                entry.xattrs().is_empty(),
+                entry.metadata().xattrs().is_empty(),
                 "Entry {} should have no xattrs but has {:?}",
                 entry.name(),
-                entry.xattrs()
+                entry.metadata().xattrs()
             );
         }
     })
@@ -75,10 +78,10 @@ fn archive_xattr_remove() {
     for_each_entry("xattr_remove/xattr_remove.pna", |entry| {
         // After removal, all entries should have no xattrs
         assert!(
-            entry.xattrs().is_empty(),
+            entry.metadata().xattrs().is_empty(),
             "Entry {} should have no xattrs after removal but has {:?}",
             entry.name(),
-            entry.xattrs()
+            entry.metadata().xattrs()
         );
     })
     .unwrap();

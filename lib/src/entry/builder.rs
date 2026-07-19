@@ -467,6 +467,7 @@ impl EntryBuilder {
             owner_user_sid: self.owner_user_sid,
             owner_group_sid: self.owner_group_sid,
             permission_mode: self.permission_mode,
+            xattrs: self.xattrs,
         };
         Ok(NormalEntry {
             header: self.header,
@@ -474,7 +475,6 @@ impl EntryBuilder {
             extra: self.extra_chunks,
             data,
             metadata,
-            xattrs: self.xattrs,
         })
     }
 }
@@ -852,6 +852,27 @@ mod tests {
         reader.read_to_end(&mut buf).unwrap();
 
         assert_eq!("テストデータ".as_bytes(), &buf[..]);
+    }
+
+    #[test]
+    fn solid_write_file_with_xattrs_metadata_round_trips() {
+        use crate::entry::{XattrName, XattrValue};
+        let xattr = ExtendedAttribute::new(
+            XattrName::try_from("user.k").unwrap(),
+            XattrValue::try_from(b"v".as_slice()).unwrap(),
+        );
+        let mut builder = SolidEntryBuilder::new(WriteOptions::store()).unwrap();
+        builder
+            .write_file(
+                "entry".into(),
+                Metadata::new().with_xattrs(vec![xattr.clone()]),
+                |w| w.write_all(b"data"),
+            )
+            .unwrap();
+        let solid_entry = builder.build_as_entry().unwrap();
+        let mut entries = solid_entry.entries(ReadOptions::builder().build()).unwrap();
+        let entry = entries.next().unwrap().unwrap();
+        assert_eq!(entry.metadata().xattrs(), &[xattr]);
     }
 
     #[test]
