@@ -1,6 +1,6 @@
 use crate::utils::setup;
 use assert_cmd::cargo::cargo_bin_cmd;
-use pna::{Archive, Duration, EntryBuilder, EntryName, WriteOptions};
+use pna::{Archive, DirEntryBuilder, Duration, EntryName, FileEntryBuilder, Metadata};
 use std::{fs, io::Write, path::Path};
 
 fn create_archive_with_trailing_slash_dir(path: &str) {
@@ -11,26 +11,29 @@ fn create_archive_with_trailing_slash_dir(path: &str) {
     // Jan 26 2025 00:00:00 UTC — deterministic timestamp for exact output matching
     let mtime = Duration::new(1737849600, 0);
 
-    let mut dir_builder = EntryBuilder::new_dir(EntryName::from_utf8_preserve_root("dir/"));
-    dir_builder.modified(mtime);
-    dir_builder.owner_uid(pna::OwnerUid::from(0));
-    dir_builder.owner_gid(pna::OwnerGid::from(0));
-    dir_builder.owner_user_name(pna::OwnerUserName::new("root").unwrap());
-    dir_builder.owner_group_name(pna::OwnerGroupName::new("root").unwrap());
-    dir_builder.permission_mode(pna::PermissionMode::from(0o755));
+    let mut dir_builder = DirEntryBuilder::new(EntryName::from_utf8_preserve_root("dir/"));
+    dir_builder.metadata(
+        Metadata::new()
+            .with_modified(Some(mtime))
+            .with_owner_uid(Some(pna::OwnerUid::from(0)))
+            .with_owner_gid(Some(pna::OwnerGid::from(0)))
+            .with_owner_user_name(Some(pna::OwnerUserName::new("root").unwrap()))
+            .with_owner_group_name(Some(pna::OwnerGroupName::new("root").unwrap()))
+            .with_permission_mode(Some(pna::PermissionMode::from(0o755))),
+    );
     archive.add_entry(dir_builder.build().unwrap()).unwrap();
 
-    let mut file_builder = EntryBuilder::new_file(
-        EntryName::from_utf8_preserve_root("dir/file.txt"),
-        WriteOptions::store(),
-    )
-    .unwrap();
-    file_builder.modified(mtime);
-    file_builder.owner_uid(pna::OwnerUid::from(0));
-    file_builder.owner_gid(pna::OwnerGid::from(0));
-    file_builder.owner_user_name(pna::OwnerUserName::new("root").unwrap());
-    file_builder.owner_group_name(pna::OwnerGroupName::new("root").unwrap());
-    file_builder.permission_mode(pna::PermissionMode::from(0o644));
+    let mut file_builder =
+        FileEntryBuilder::new(EntryName::from_utf8_preserve_root("dir/file.txt")).unwrap();
+    file_builder.metadata(
+        Metadata::new()
+            .with_modified(Some(mtime))
+            .with_owner_uid(Some(pna::OwnerUid::from(0)))
+            .with_owner_gid(Some(pna::OwnerGid::from(0)))
+            .with_owner_user_name(Some(pna::OwnerUserName::new("root").unwrap()))
+            .with_owner_group_name(Some(pna::OwnerGroupName::new("root").unwrap()))
+            .with_permission_mode(Some(pna::PermissionMode::from(0o644))),
+    );
     file_builder.write_all(b"hello").unwrap();
     archive.add_entry(file_builder.build().unwrap()).unwrap();
 

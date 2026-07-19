@@ -1,6 +1,6 @@
 use crate::utils::setup;
 use clap::Parser;
-use pna::{Archive, Duration, EntryBuilder, WriteOptions};
+use pna::{Archive, Duration, FileEntryBuilder, Metadata, WriteOptions};
 use portable_network_archive::cli;
 use std::{
     fs,
@@ -17,9 +17,10 @@ fn init_file_archive<P: AsRef<Path>>(path: P, modified: Option<Duration>) {
     let file = fs::File::create(path).unwrap();
     let mut archive = Archive::write_header(file).unwrap();
     let mut builder =
-        EntryBuilder::new_file("file.txt".into(), WriteOptions::builder().build()).unwrap();
+        FileEntryBuilder::new_with_options("file.txt".into(), WriteOptions::builder().build())
+            .unwrap();
     if let Some(mtime) = modified {
-        builder.modified(mtime);
+        builder.metadata(Metadata::new().with_modified(Some(mtime)));
     }
     builder.write_all(b"from archive").unwrap();
     let entry = builder.build().unwrap();

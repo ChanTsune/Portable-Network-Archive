@@ -1,6 +1,6 @@
 use crate::utils::setup;
 use clap::Parser;
-use pna::{Archive, EntryBuilder, WriteOptions, fs as pna_fs};
+use pna::{Archive, FileEntryBuilder, SymlinkEntryBuilder, WriteOptions, fs as pna_fs};
 use portable_network_archive::cli;
 use std::{
     fs,
@@ -19,17 +19,18 @@ fn init_symlink_archive<P: AsRef<Path>>(path: P) {
 
     writer
         .add_entry({
-            let builder =
-                EntryBuilder::new_symlink("link".into(), "new_target.txt".into()).unwrap();
+            let builder = SymlinkEntryBuilder::new("link".into(), "new_target.txt".into()).unwrap();
             builder.build().unwrap()
         })
         .unwrap();
 
     writer
         .add_entry({
-            let mut builder =
-                EntryBuilder::new_file("new_target.txt".into(), WriteOptions::builder().build())
-                    .unwrap();
+            let mut builder = FileEntryBuilder::new_with_options(
+                "new_target.txt".into(),
+                WriteOptions::builder().build(),
+            )
+            .unwrap();
             builder.write_all(b"updated").unwrap();
             builder.build().unwrap()
         })

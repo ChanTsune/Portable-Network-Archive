@@ -27,8 +27,9 @@ pub(crate) use path_filter::PathFilter;
 use path_slash::*;
 pub(crate) use path_transformer::PathTransformers;
 use pna::{
-    Archive, EntryBuilder, EntryPart, LinkTargetType, MIN_CHUNK_BYTES_SIZE, NormalEntry,
-    PNA_HEADER, ReadEntry, ReadOptions, SolidEntryBuilder, WriteOptions, prelude::*,
+    Archive, DirEntryBuilder, EntryPart, FileEntryBuilder, HardLinkEntryBuilder, LinkTargetType,
+    MIN_CHUNK_BYTES_SIZE, Metadata, NormalEntry, PNA_HEADER, ReadEntry, ReadOptions,
+    SolidEntryBuilder, SymlinkEntryBuilder, WriteOptions, prelude::*,
 };
 use std::{
     borrow::Cow,
@@ -961,24 +962,42 @@ pub(crate) fn create_entry(
                 log::debug!("Skip: {}", path.display());
                 return Ok(None);
             };
-            let entry = EntryBuilder::new_hard_link(entry_name, reference)?;
-            apply_metadata(entry, path, keep_options, metadata)?.build()
+            let mut entry = HardLinkEntryBuilder::new(entry_name, reference)?;
+            entry.metadata(build_entry_metadata(path, keep_options, metadata)?);
+            for chunk in collect_extra_chunks(path, keep_options, metadata)? {
+                entry.add_extra_chunk(chunk);
+            }
+            entry.build()
         }
         StoreAs::Symlink(link_target_type) => {
             let source = fs::read_link(path)?;
             let reference = pathname_editor.edit_symlink(&source);
-            let mut entry = EntryBuilder::new_symlink(entry_name, reference)?;
-            entry.link_target_type(*link_target_type);
-            apply_metadata(entry, path, keep_options, metadata)?.build()
+            let mut entry = SymlinkEntryBuilder::new(entry_name, reference)?;
+            entry.metadata(
+                build_entry_metadata(path, keep_options, metadata)?
+                    .with_link_target_type(Some(*link_target_type)),
+            );
+            for chunk in collect_extra_chunks(path, keep_options, metadata)? {
+                entry.add_extra_chunk(chunk);
+            }
+            entry.build()
         }
         StoreAs::File => {
-            let mut entry = EntryBuilder::new_file(entry_name, option)?;
+            let mut entry = FileEntryBuilder::new_with_options(entry_name, option)?;
             write_from_path(&mut entry, path)?;
-            apply_metadata(entry, path, keep_options, metadata)?.build()
+            entry.metadata(build_entry_metadata(path, keep_options, metadata)?);
+            for chunk in collect_extra_chunks(path, keep_options, metadata)? {
+                entry.add_extra_chunk(chunk);
+            }
+            entry.build()
         }
         StoreAs::Dir => {
-            let entry = EntryBuilder::new_dir(entry_name);
-            apply_metadata(entry, path, keep_options, metadata)?.build()
+            let mut entry = DirEntryBuilder::new(entry_name);
+            entry.metadata(build_entry_metadata(path, keep_options, metadata)?);
+            for chunk in collect_extra_chunks(path, keep_options, metadata)? {
+                entry.add_extra_chunk(chunk);
+            }
+            entry.build()
         }
     }
     .map(Some)
@@ -1006,13 +1025,19 @@ pub(crate) fn entry_option(
     option_builder.build()
 }
 
+/// Builds the [`Metadata`] for an entry from filesystem metadata, according to `keep_options`.
+///
+/// This covers the metadata facets that are representable in [`Metadata`] itself
+/// (timestamps, owner, permission mode, extended attributes). ACL, file flags, and
+/// macOS AppleDouble data are not part of `Metadata` and are collected separately by
+/// [`collect_extra_chunks`].
 #[cfg_attr(target_os = "wasi", allow(unused_variables))]
-pub(crate) fn apply_metadata(
-    mut entry: EntryBuilder,
+pub(crate) fn build_entry_metadata(
     path: &Path,
     keep_options: &KeepOptions,
     meta: &fs::Metadata,
-) -> io::Result<EntryBuilder> {
+) -> io::Result<Metadata> {
+    let mut metadata = Metadata::new();
     if let TimestampStrategy::Preserve {
         mtime,
         ctime,
@@ -1020,13 +1045,13 @@ pub(crate) fn apply_metadata(
     } = keep_options.timestamp_strategy
     {
         if let Some(c) = ctime.resolve(meta.created().ok()) {
-            entry.created_time(c);
+            metadata = metadata.with_created_time(c);
         }
         if let Some(m) = mtime.resolve(meta.modified().ok()) {
-            entry.modified_time(m);
+            metadata = metadata.with_modified_time(m);
         }
         if let Some(a) = atime.resolve(meta.accessed().ok()) {
-            entry.accessed_time(a);
+            metadata = metadata.with_accessed_time(a);
         }
     }
     #[cfg(unix)]
@@ -1052,13 +1077,14 @@ pub(crate) fn apply_metadata(
                 .into(),
             Some(gname) => gname.clone(),
         };
-        entry.owner_uid(pna::OwnerUid::from(u64::from(uid)));
-        entry.owner_gid(pna::OwnerGid::from(u64::from(gid)));
-        entry.owner_user_name(crate::command::core::permission::owner_name_opt(&uname));
-        entry.owner_group_name(crate::command::core::permission::owner_group_name_opt(
-            &gname,
-        ));
-        entry.permission_mode(pna::PermissionMode::from(mode));
+        metadata = metadata
+            .with_owner_uid(Some(pna::OwnerUid::from(u64::from(uid))))
+            .with_owner_gid(Some(pna::OwnerGid::from(u64::from(gid))))
+            .with_owner_user_name(crate::command::core::permission::owner_name_opt(&uname))
+            .with_owner_group_name(crate::command::core::permission::owner_group_name_opt(
+                &gname,
+            ))
+            .with_permission_mode(Some(pna::PermissionMode::from(mode)));
     }
     #[cfg(windows)]
     if let OwnerStrategy::Preserve { options } = &keep_options.owner_strategy {
@@ -1078,13 +1104,14 @@ pub(crate) fn apply_metadata(
         let gid = options.gid.map_or(u64::MAX, Into::into);
         let uname = options.uname.clone().unwrap_or(user.name);
         let gname = options.gname.clone().unwrap_or(group.name);
-        entry.owner_uid(pna::OwnerUid::from(uid));
-        entry.owner_gid(pna::OwnerGid::from(gid));
-        entry.owner_user_name(crate::command::core::permission::owner_name_opt(&uname));
-        entry.owner_group_name(crate::command::core::permission::owner_group_name_opt(
-            &gname,
-        ));
-        entry.permission_mode(pna::PermissionMode::from(mode));
+        metadata = metadata
+            .with_owner_uid(Some(pna::OwnerUid::from(uid)))
+            .with_owner_gid(Some(pna::OwnerGid::from(gid)))
+            .with_owner_user_name(crate::command::core::permission::owner_name_opt(&uname))
+            .with_owner_group_name(crate::command::core::permission::owner_group_name_opt(
+                &gname,
+            ))
+            .with_permission_mode(Some(pna::PermissionMode::from(mode)));
     }
     // On macOS, when mac_metadata_strategy is Always, AppleDouble packing via copyfile()
     // already includes xattrs and ACLs. Skip separate handling to avoid duplication.
@@ -1096,8 +1123,58 @@ pub(crate) fn apply_metadata(
     #[cfg(not(target_os = "macos"))]
     let skip_xattr_acl = false;
 
+    #[cfg(unix)]
+    if !skip_xattr_acl && matches!(keep_options.xattr_strategy, XattrStrategy::Always) {
+        match utils::os::unix::fs::xattrs::get_xattrs(path) {
+            Ok(xattrs) => {
+                metadata = metadata.with_xattrs(xattrs);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
+                log::warn!(
+                    "Extended attributes are not supported on filesystem for '{}': {}",
+                    path.display(),
+                    e
+                );
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    #[cfg(not(unix))]
+    if let XattrStrategy::Always = keep_options.xattr_strategy {
+        log::warn!("Currently extended attribute is not supported on this platform.");
+    }
+    Ok(metadata)
+}
+
+/// Collects the extra chunks (ACL, file flags, macOS AppleDouble metadata) for an
+/// entry, according to `keep_options`.
+///
+/// These facets are not representable in [`Metadata`] and must be attached to the
+/// entry builder directly via `add_extra_chunk`.
+#[cfg_attr(target_os = "wasi", allow(unused_variables))]
+#[cfg_attr(not(feature = "acl"), allow(unused_variables))]
+pub(crate) fn collect_extra_chunks(
+    path: &Path,
+    keep_options: &KeepOptions,
+    meta: &fs::Metadata,
+) -> io::Result<Vec<pna::RawChunk>> {
+    #[cfg_attr(not(any(feature = "acl", target_os = "macos")), allow(unused_imports))]
+    use pna::RawChunk;
+
+    let mut chunks = Vec::new();
+
+    // On macOS, when mac_metadata_strategy is Always, AppleDouble packing via copyfile()
+    // already includes xattrs and ACLs. Skip separate handling to avoid duplication.
+    #[cfg(target_os = "macos")]
+    let skip_acl = matches!(
+        keep_options.mac_metadata_strategy,
+        MacMetadataStrategy::Always
+    );
+    #[cfg(not(target_os = "macos"))]
+    let skip_acl = false;
+
     #[cfg(feature = "acl")]
-    if !skip_xattr_acl {
+    if !skip_acl {
         #[cfg(any(
             target_os = "linux",
             target_os = "freebsd",
@@ -1106,15 +1183,13 @@ pub(crate) fn apply_metadata(
         ))]
         if let AclStrategy::Always = keep_options.acl_strategy {
             use crate::chunk;
-            use pna::RawChunk;
             let follow_links = !meta.file_type().is_symlink();
             let acl_result = utils::acl::get_facl(path, follow_links);
             match acl_result {
                 Ok(acl) => {
-                    entry
-                        .add_extra_chunk(RawChunk::from_data(chunk::faCl, acl.platform.to_bytes()));
+                    chunks.push(RawChunk::from_data(chunk::faCl, acl.platform.to_bytes()));
                     for ace in acl.entries {
-                        entry.add_extra_chunk(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
+                        chunks.push(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
                     }
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
@@ -1141,33 +1216,11 @@ pub(crate) fn apply_metadata(
     if let AclStrategy::Always = keep_options.acl_strategy {
         log::warn!("Please enable `acl` feature and rebuild and install pna.");
     }
-    #[cfg(unix)]
-    if !skip_xattr_acl && matches!(keep_options.xattr_strategy, XattrStrategy::Always) {
-        match utils::os::unix::fs::xattrs::get_xattrs(path) {
-            Ok(xattrs) => {
-                for attr in xattrs {
-                    entry.add_xattr(attr);
-                }
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
-                log::warn!(
-                    "Extended attributes are not supported on filesystem for '{}': {}",
-                    path.display(),
-                    e
-                );
-            }
-            Err(e) => return Err(e),
-        }
-    }
-    #[cfg(not(unix))]
-    if let XattrStrategy::Always = keep_options.xattr_strategy {
-        log::warn!("Currently extended attribute is not supported on this platform.");
-    }
     if let FflagsStrategy::Always = keep_options.fflags_strategy {
         match utils::fs::get_flags(path) {
             Ok(flags) => {
                 for flag in flags {
-                    entry.add_extra_chunk(crate::chunk::fflag_chunk(&flag));
+                    chunks.push(crate::chunk::fflag_chunk(&flag));
                 }
             }
             Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
@@ -1183,15 +1236,11 @@ pub(crate) fn apply_metadata(
     // macOS metadata (AppleDouble) - packs xattrs, ACLs, resource forks via copyfile()
     #[cfg(target_os = "macos")]
     if let MacMetadataStrategy::Always = keep_options.mac_metadata_strategy {
-        use pna::RawChunk;
         match utils::os::unix::fs::copyfile::pack_apple_double(path) {
             Ok(apple_double_data) => {
                 if !apple_double_data.is_empty() {
                     let len = apple_double_data.len();
-                    entry.add_extra_chunk(RawChunk::from_data(
-                        crate::chunk::maMd,
-                        apple_double_data,
-                    ));
+                    chunks.push(RawChunk::from_data(crate::chunk::maMd, apple_double_data));
                     log::debug!(
                         "Packed macOS metadata for '{}' ({len} bytes)",
                         path.display(),
@@ -1214,7 +1263,7 @@ pub(crate) fn apply_metadata(
     if let MacMetadataStrategy::Always = keep_options.mac_metadata_strategy {
         log::warn!("macOS metadata (--mac-metadata) is only supported on macOS.");
     }
-    Ok(entry)
+    Ok(chunks)
 }
 
 pub(crate) fn split_to_parts(

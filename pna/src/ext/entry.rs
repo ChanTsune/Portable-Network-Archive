@@ -1,6 +1,8 @@
 //! Provides extension traits for [`NormalEntry`].
 use super::private;
-use libpna::{EntryBuilder, NormalEntry, WriteOptions};
+use libpna::{
+    DirEntryBuilder, FileEntryBuilder, Metadata, NormalEntry, SymlinkEntryBuilder, WriteOptions,
+};
 use std::{fs, io, path::Path};
 
 /// [`NormalEntry`] filesystem extension methods.
@@ -51,7 +53,7 @@ impl EntryFsExt for NormalEntry {
     /// `WriteOptions::builder().build()`). For directories, an empty directory
     /// entry is created. Symlinks are followed (uses [`std::fs::metadata`]). If
     /// the intention is to archive a symbolic link itself, use
-    /// [`EntryBuilder::new_symlink`].
+    /// [`SymlinkEntryBuilder::new`].
     ///
     /// # Examples
     ///
@@ -103,11 +105,11 @@ impl EntryFsExt for NormalEntry {
         let name = path.try_into().map_err(io::Error::other)?;
         if meta.is_file() {
             let mut file = fs::File::open(path)?;
-            let mut builder = EntryBuilder::new_file(name, options)?;
+            let mut builder = FileEntryBuilder::new_with_options(name, options)?;
             io::copy(&mut file, &mut builder)?;
             builder.build()
         } else {
-            let builder = EntryBuilder::new_dir(name);
+            let builder = DirEntryBuilder::new(name);
             builder.build()
         }
     }
@@ -117,7 +119,7 @@ impl EntryFsExt for NormalEntry {
     /// This behaves like [`EntryFsExt::from_path`], but uses
     /// [`std::fs::symlink_metadata`] to avoid following symbolic links.
     /// When `path` is a symbolic link, a symbolic-link entry is created using
-    /// [`EntryBuilder::new_symlink`], with the link target captured via
+    /// [`SymlinkEntryBuilder::new`], with the link target captured via
     /// [`std::fs::read_link`]. For regular files and directories, behavior is
     /// identical to [`EntryFsExt::from_path`].
     ///
@@ -176,7 +178,7 @@ impl EntryFsExt for NormalEntry {
         if meta.file_type().is_symlink() {
             let target = fs::read_link(path)?;
             let reference = target.as_path().try_into().map_err(io::Error::other)?;
-            let mut builder = EntryBuilder::new_symlink(name, reference)?;
+            let mut builder = SymlinkEntryBuilder::new(name, reference)?;
             #[cfg(windows)]
             let ltp = {
                 use std::os::windows::fs::FileTypeExt;
@@ -197,15 +199,15 @@ impl EntryFsExt for NormalEntry {
                 Err(e) if e.kind() == io::ErrorKind::NotFound => libpna::LinkTargetType::Unknown,
                 Err(e) => return Err(e),
             };
-            builder.link_target_type(ltp);
+            builder.metadata(Metadata::new().with_link_target_type(Some(ltp)));
             builder.build()
         } else if meta.is_file() {
             let mut file = fs::File::open(path)?;
-            let mut builder = EntryBuilder::new_file(name, options)?;
+            let mut builder = FileEntryBuilder::new_with_options(name, options)?;
             io::copy(&mut file, &mut builder)?;
             builder.build()
         } else {
-            let builder = EntryBuilder::new_dir(name);
+            let builder = DirEntryBuilder::new(name);
             builder.build()
         }
     }

@@ -1,6 +1,6 @@
 use crate::utils::setup;
 use clap::Parser;
-use pna::{Archive, EntryBuilder, WriteOptions};
+use pna::{Archive, FileEntryBuilder, HardLinkEntryBuilder, WriteOptions};
 use portable_network_archive::cli;
 use std::{fs, io::Write, path::Path};
 
@@ -14,9 +14,11 @@ fn init_resource<P: AsRef<Path>>(path: P) {
 
     writer
         .add_entry({
-            let mut builder =
-                EntryBuilder::new_file("origin1.txt".into(), WriteOptions::builder().build())
-                    .unwrap();
+            let mut builder = FileEntryBuilder::new_with_options(
+                "origin1.txt".into(),
+                WriteOptions::builder().build(),
+            )
+            .unwrap();
             builder.write_all(b"original text\n").unwrap();
             builder.build().unwrap()
         })
@@ -24,24 +26,25 @@ fn init_resource<P: AsRef<Path>>(path: P) {
     writer
         .add_entry({
             let builder =
-                EntryBuilder::new_hard_link("linked1.txt".into(), "origin1.txt".into()).unwrap();
+                HardLinkEntryBuilder::new("linked1.txt".into(), "origin1.txt".into()).unwrap();
             builder.build().unwrap()
         })
         .unwrap();
     writer
         .add_entry({
             let builder =
-                EntryBuilder::new_hard_link("dir/linked1.txt".into(), "origin1.txt".into())
-                    .unwrap();
+                HardLinkEntryBuilder::new("dir/linked1.txt".into(), "origin1.txt".into()).unwrap();
             builder.build().unwrap()
         })
         .unwrap();
 
     writer
         .add_entry({
-            let mut builder =
-                EntryBuilder::new_file("dir/origin2.txt".into(), WriteOptions::builder().build())
-                    .unwrap();
+            let mut builder = FileEntryBuilder::new_with_options(
+                "dir/origin2.txt".into(),
+                WriteOptions::builder().build(),
+            )
+            .unwrap();
             builder.write_all(b"original text text\n").unwrap();
             builder.build().unwrap()
         })
@@ -49,7 +52,7 @@ fn init_resource<P: AsRef<Path>>(path: P) {
     writer
         .add_entry({
             let builder =
-                EntryBuilder::new_hard_link("dir/linked2.txt".into(), "dir/origin2.txt".into())
+                HardLinkEntryBuilder::new("dir/linked2.txt".into(), "dir/origin2.txt".into())
                     .unwrap();
             builder.build().unwrap()
         })
@@ -57,8 +60,7 @@ fn init_resource<P: AsRef<Path>>(path: P) {
     writer
         .add_entry({
             let builder =
-                EntryBuilder::new_hard_link("linked2.txt".into(), "dir/origin2.txt".into())
-                    .unwrap();
+                HardLinkEntryBuilder::new("linked2.txt".into(), "dir/origin2.txt".into()).unwrap();
             builder.build().unwrap()
         })
         .unwrap();

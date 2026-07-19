@@ -17,8 +17,7 @@ fn extract_duplicate_entries_last_wins() {
     let mut archive = pna::Archive::write_header(file).unwrap();
 
     for content in [b"aaa", b"bbb", b"ccc"] {
-        let mut builder =
-            pna::EntryBuilder::new_file("file.txt".into(), pna::WriteOptions::store()).unwrap();
+        let mut builder = pna::FileEntryBuilder::new("file.txt".into()).unwrap();
         builder.write_all(content).unwrap();
         archive.add_entry(builder.build().unwrap()).unwrap();
     }

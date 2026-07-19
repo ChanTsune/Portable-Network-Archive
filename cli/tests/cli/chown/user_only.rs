@@ -2,7 +2,7 @@ use crate::utils::{archive, archive::FileEntryDef, setup};
 use clap::Parser;
 #[allow(deprecated)]
 use pna::Permission;
-use pna::{Archive, EntryBuilder, EntryName, WriteOptions};
+use pna::{Archive, EntryName, FileEntryBuilder, Metadata};
 use portable_network_archive::cli;
 use std::fs::File;
 use std::io::Write;
@@ -93,18 +93,15 @@ fn chown_user_only_drops_legacy_fprm() {
     let path = "chown_legacy_fprm.pna";
     {
         let mut archive = Archive::write_header(File::create(path).unwrap()).unwrap();
-        let mut builder = EntryBuilder::new_file(
-            EntryName::from_utf8_preserve_root("target.txt"),
-            WriteOptions::store(),
-        )
-        .unwrap();
-        builder.permission(Permission::new(
+        let mut builder =
+            FileEntryBuilder::new(EntryName::from_utf8_preserve_root("target.txt")).unwrap();
+        builder.metadata(Metadata::new().with_permission(Some(Permission::new(
             1000,
             "user".to_string(),
             1000,
             "group".to_string(),
             0o644,
-        ));
+        ))));
         builder.write_all(b"target").unwrap();
         archive.add_entry(builder.build().unwrap()).unwrap();
         archive.finalize().unwrap();

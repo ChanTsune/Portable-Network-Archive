@@ -2,7 +2,7 @@
 
 use crate::utils::setup;
 use assert_cmd::cargo::{CommandCargoExt, cargo_bin_cmd};
-use pna::{Archive, EntryBuilder, WriteOptions};
+use pna::{Archive, DirEntryBuilder, FileEntryBuilder, HardLinkEntryBuilder, SymlinkEntryBuilder};
 use std::{
     io::{Read, Write},
     process::{Command, Stdio},
@@ -11,26 +11,26 @@ use std::{
 fn build_mixed_kind_archive() -> Vec<u8> {
     let mut archive = Archive::write_header(Vec::new()).unwrap();
 
-    let mut a = EntryBuilder::new_file("a.txt".into(), WriteOptions::store()).unwrap();
+    let mut a = FileEntryBuilder::new("a.txt".into()).unwrap();
     a.write_all(b"alpha").unwrap();
     archive.add_entry(a.build().unwrap()).unwrap();
 
-    let dir = EntryBuilder::new_dir("dir/".into()).build().unwrap();
+    let dir = DirEntryBuilder::new("dir/".into()).build().unwrap();
     archive.add_entry(dir).unwrap();
 
-    let symlink = EntryBuilder::new_symlink("link.txt".into(), "a.txt".into())
+    let symlink = SymlinkEntryBuilder::new("link.txt".into(), "a.txt".into())
         .unwrap()
         .build()
         .unwrap();
     archive.add_entry(symlink).unwrap();
 
-    let hardlink = EntryBuilder::new_hard_link("hard.txt".into(), "a.txt".into())
+    let hardlink = HardLinkEntryBuilder::new("hard.txt".into(), "a.txt".into())
         .unwrap()
         .build()
         .unwrap();
     archive.add_entry(hardlink).unwrap();
 
-    let mut b = EntryBuilder::new_file("b.txt".into(), WriteOptions::store()).unwrap();
+    let mut b = FileEntryBuilder::new("b.txt".into()).unwrap();
     b.write_all(b"beta").unwrap();
     archive.add_entry(b.build().unwrap()).unwrap();
 
@@ -40,7 +40,7 @@ fn build_mixed_kind_archive() -> Vec<u8> {
 fn build_large_archive(content_size: usize) -> Vec<u8> {
     let mut archive = Archive::write_header(Vec::new()).unwrap();
 
-    let mut builder = EntryBuilder::new_file("big.bin".into(), WriteOptions::store()).unwrap();
+    let mut builder = FileEntryBuilder::new("big.bin".into()).unwrap();
     let chunk = vec![0u8; 4096];
     let mut remaining = content_size;
     while remaining > 0 {

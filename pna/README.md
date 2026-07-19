@@ -37,14 +37,14 @@ fn main() -> io::Result<()> {
 ## Writing an archive
 
 ```rust,no_run
-use pna::{Archive, EntryBuilder, WriteOptions};
+use pna::{Archive, FileEntryBuilder, WriteOptions};
 use std::fs::File;
 use std::io::{self, prelude::*};
 
 fn main() -> io::Result<()> {
     let file = File::create("foo.pna")?;
     let mut archive = Archive::write_header(file)?;
-    let mut entry_builder = EntryBuilder::new_file(
+    let mut entry_builder = FileEntryBuilder::new_with_options(
         "bar.txt".into(),
         WriteOptions::builder().build(),
     )?;

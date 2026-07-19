@@ -1,6 +1,9 @@
 use crate::utils::setup;
 use clap::Parser;
-use pna::{Archive, EntryBuilder, WriteOptions};
+use pna::{
+    Archive, DirEntryBuilder, FileEntryBuilder, HardLinkEntryBuilder, SymlinkEntryBuilder,
+    WriteOptions,
+};
 use portable_network_archive::cli;
 use std::{
     fs,
@@ -15,7 +18,8 @@ fn create_file_archive(archive_path: &Path, file_name: &str, content: &[u8]) {
     let file = fs::File::create(archive_path).unwrap();
     let mut archive = Archive::write_header(file).unwrap();
     let mut builder =
-        EntryBuilder::new_file(file_name.into(), WriteOptions::builder().build()).unwrap();
+        FileEntryBuilder::new_with_options(file_name.into(), WriteOptions::builder().build())
+            .unwrap();
     builder.write_all(content).unwrap();
     archive.add_entry(builder.build().unwrap()).unwrap();
     archive.finalize().unwrap();
@@ -247,12 +251,13 @@ fn extract_with_safe_writes_creates_symlink() {
 
     // Add target file first
     let mut builder =
-        EntryBuilder::new_file("target.txt".into(), WriteOptions::builder().build()).unwrap();
+        FileEntryBuilder::new_with_options("target.txt".into(), WriteOptions::builder().build())
+            .unwrap();
     builder.write_all(b"target content").unwrap();
     archive.add_entry(builder.build().unwrap()).unwrap();
 
     // Add symlink pointing to target
-    let builder = EntryBuilder::new_symlink("link.txt".into(), "target.txt".into()).unwrap();
+    let builder = SymlinkEntryBuilder::new("link.txt".into(), "target.txt".into()).unwrap();
     archive.add_entry(builder.build().unwrap()).unwrap();
 
     archive.finalize().unwrap();
@@ -319,13 +324,13 @@ fn extract_with_safe_writes_creates_hardlink() {
 
     // Add original file
     let mut builder =
-        EntryBuilder::new_file("original.txt".into(), WriteOptions::builder().build()).unwrap();
+        FileEntryBuilder::new_with_options("original.txt".into(), WriteOptions::builder().build())
+            .unwrap();
     builder.write_all(b"shared content").unwrap();
     archive.add_entry(builder.build().unwrap()).unwrap();
 
     // Add hardlink to original
-    let builder =
-        EntryBuilder::new_hard_link("hardlink.txt".into(), "original.txt".into()).unwrap();
+    let builder = HardLinkEntryBuilder::new("hardlink.txt".into(), "original.txt".into()).unwrap();
     archive.add_entry(builder.build().unwrap()).unwrap();
 
     archive.finalize().unwrap();
@@ -455,7 +460,7 @@ fn extract_with_safe_writes_creates_directory() {
     let file = fs::File::create(&archive_path).unwrap();
     let mut archive = Archive::write_header(file).unwrap();
 
-    let builder = EntryBuilder::new_dir("subdir".into());
+    let builder = DirEntryBuilder::new("subdir".into());
     archive.add_entry(builder.build().unwrap()).unwrap();
 
     archive.finalize().unwrap();
@@ -504,12 +509,13 @@ fn extract_with_safe_writes_replaces_file_with_symlink() {
 
     // Add target file
     let mut builder =
-        EntryBuilder::new_file("target.txt".into(), WriteOptions::builder().build()).unwrap();
+        FileEntryBuilder::new_with_options("target.txt".into(), WriteOptions::builder().build())
+            .unwrap();
     builder.write_all(b"target content").unwrap();
     archive.add_entry(builder.build().unwrap()).unwrap();
 
     // Add symlink
-    let builder = EntryBuilder::new_symlink("link.txt".into(), "target.txt".into()).unwrap();
+    let builder = SymlinkEntryBuilder::new("link.txt".into(), "target.txt".into()).unwrap();
     archive.add_entry(builder.build().unwrap()).unwrap();
 
     archive.finalize().unwrap();
@@ -579,13 +585,13 @@ fn extract_with_safe_writes_replaces_file_with_hardlink() {
 
     // Add original file
     let mut builder =
-        EntryBuilder::new_file("original.txt".into(), WriteOptions::builder().build()).unwrap();
+        FileEntryBuilder::new_with_options("original.txt".into(), WriteOptions::builder().build())
+            .unwrap();
     builder.write_all(b"shared content").unwrap();
     archive.add_entry(builder.build().unwrap()).unwrap();
 
     // Add hardlink
-    let builder =
-        EntryBuilder::new_hard_link("hardlink.txt".into(), "original.txt".into()).unwrap();
+    let builder = HardLinkEntryBuilder::new("hardlink.txt".into(), "original.txt".into()).unwrap();
     archive.add_entry(builder.build().unwrap()).unwrap();
 
     archive.finalize().unwrap();
@@ -708,7 +714,7 @@ fn extract_with_safe_writes_replaces_symlink_with_symlink() {
     let file = fs::File::create(&archive_path).unwrap();
     let mut archive = Archive::write_header(file).unwrap();
 
-    let builder = EntryBuilder::new_symlink("link.txt".into(), "new_target.txt".into()).unwrap();
+    let builder = SymlinkEntryBuilder::new("link.txt".into(), "new_target.txt".into()).unwrap();
     archive.add_entry(builder.build().unwrap()).unwrap();
 
     archive.finalize().unwrap();
@@ -774,12 +780,13 @@ fn extract_with_safe_writes_replaces_symlink_with_hardlink() {
 
     // Add original file
     let mut builder =
-        EntryBuilder::new_file("original.txt".into(), WriteOptions::builder().build()).unwrap();
+        FileEntryBuilder::new_with_options("original.txt".into(), WriteOptions::builder().build())
+            .unwrap();
     builder.write_all(b"shared content").unwrap();
     archive.add_entry(builder.build().unwrap()).unwrap();
 
     // Add hardlink
-    let builder = EntryBuilder::new_hard_link("link.txt".into(), "original.txt".into()).unwrap();
+    let builder = HardLinkEntryBuilder::new("link.txt".into(), "original.txt".into()).unwrap();
     archive.add_entry(builder.build().unwrap()).unwrap();
 
     archive.finalize().unwrap();

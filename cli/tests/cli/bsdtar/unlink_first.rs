@@ -1,6 +1,8 @@
 use crate::utils::setup;
 use assert_cmd::cargo::cargo_bin_cmd;
-use pna::{Archive, Duration, EntryBuilder, WriteOptions, fs as pna_fs};
+use pna::{
+    Archive, DirEntryBuilder, Duration, FileEntryBuilder, Metadata, WriteOptions, fs as pna_fs,
+};
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
@@ -15,8 +17,9 @@ fn build_archive_with_mtime(path: &PathBuf, name: &str, contents: &str, mtime: D
     writer
         .add_entry({
             let mut builder =
-                EntryBuilder::new_file(name.into(), WriteOptions::builder().build()).unwrap();
-            builder.modified(mtime);
+                FileEntryBuilder::new_with_options(name.into(), WriteOptions::builder().build())
+                    .unwrap();
+            builder.metadata(Metadata::new().with_modified(Some(mtime)));
             builder.write_all(contents.as_bytes()).unwrap();
             builder.build().unwrap()
         })
@@ -33,7 +36,8 @@ fn build_single_file_archive(path: &PathBuf, name: &str, contents: &str) {
     writer
         .add_entry({
             let mut builder =
-                EntryBuilder::new_file(name.into(), WriteOptions::builder().build()).unwrap();
+                FileEntryBuilder::new_with_options(name.into(), WriteOptions::builder().build())
+                    .unwrap();
             builder.write_all(contents.as_bytes()).unwrap();
             builder.build().unwrap()
         })
@@ -279,13 +283,15 @@ fn unlink_first_with_follow_symlinks_preserves_symlinked_directory() {
         let file = fs::File::create(&archive_path).unwrap();
         let mut writer = Archive::write_header(file).unwrap();
         writer
-            .add_entry(EntryBuilder::new_dir("dir".into()).build().unwrap())
+            .add_entry(DirEntryBuilder::new("dir".into()).build().unwrap())
             .unwrap();
         writer
             .add_entry({
-                let mut builder =
-                    EntryBuilder::new_file("dir/file.txt".into(), WriteOptions::builder().build())
-                        .unwrap();
+                let mut builder = FileEntryBuilder::new_with_options(
+                    "dir/file.txt".into(),
+                    WriteOptions::builder().build(),
+                )
+                .unwrap();
                 builder.write_all(b"payload").unwrap();
                 builder.build().unwrap()
             })

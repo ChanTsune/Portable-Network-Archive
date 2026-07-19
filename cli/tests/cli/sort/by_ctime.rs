@@ -1,6 +1,6 @@
 use crate::utils::{archive::for_each_entry, setup};
 use clap::Parser;
-use pna::{Archive, Duration, EntryBuilder, WriteOptions};
+use pna::{Archive, Duration, FileEntryBuilder, Metadata};
 use portable_network_archive::cli;
 use std::fs;
 
@@ -14,18 +14,18 @@ fn sort_by_ctime() {
     let file = fs::File::create("sort_by_ctime/unsorted.pna").unwrap();
     let mut archive = Archive::write_header(file).unwrap();
     let entry1 = {
-        let mut b = EntryBuilder::new_file("c.txt".into(), WriteOptions::store()).unwrap();
-        b.created(Duration::seconds(3000));
+        let mut b = FileEntryBuilder::new("c.txt".into()).unwrap();
+        b.metadata(Metadata::new().with_created(Some(Duration::seconds(3000))));
         b.build().unwrap()
     };
     let entry2 = {
-        let mut b = EntryBuilder::new_file("a.txt".into(), WriteOptions::store()).unwrap();
-        b.created(Duration::seconds(1000));
+        let mut b = FileEntryBuilder::new("a.txt".into()).unwrap();
+        b.metadata(Metadata::new().with_created(Some(Duration::seconds(1000))));
         b.build().unwrap()
     };
     let entry3 = {
-        let mut b = EntryBuilder::new_file("b.txt".into(), WriteOptions::store()).unwrap();
-        b.created(Duration::seconds(2000));
+        let mut b = FileEntryBuilder::new("b.txt".into()).unwrap();
+        b.metadata(Metadata::new().with_created(Some(Duration::seconds(2000))));
         b.build().unwrap()
     };
     archive.add_entry(entry1).unwrap();

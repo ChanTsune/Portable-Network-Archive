@@ -8,10 +8,12 @@ use super::{
     TimestampStrategy,
 };
 use mtree2::{Entry as MtreeEntry, FileType as MtreeFileType, MTree};
-use pna::prelude::EntryBuilderExt;
-use pna::{EntryBuilder, NormalEntry, WriteOptions};
+use pna::prelude::*;
+use pna::{
+    DirEntryBuilder, FileEntryBuilder, Metadata, NormalEntry, SymlinkEntryBuilder, WriteOptions,
+};
 use std::{
-    fs::{self, Metadata},
+    fs,
     io::{self, BufRead, Read},
     path::{Path, PathBuf},
 };
@@ -335,7 +337,7 @@ fn create_entry_from_mtree(
 }
 
 /// Fetches metadata for a path, formatting errors with the path for context.
-fn get_metadata(path: &Path) -> io::Result<Metadata> {
+fn get_metadata(path: &Path) -> io::Result<fs::Metadata> {
     fs::metadata(path).map_err(|e| io::Error::new(e.kind(), format!("{}: {}", path.display(), e)))
 }
 
@@ -357,19 +359,18 @@ fn create_file_entry(
     entry_name: pna::EntryName,
     source_path: &Path,
     mtree_entry: &MtreeEntry,
-    metadata: &Metadata,
+    metadata: &fs::Metadata,
     option: &WriteOptions,
     keep_options: &KeepOptions,
 ) -> io::Result<Option<NormalEntry>> {
-    let mut entry = EntryBuilder::new_file(entry_name, option)?;
+    let mut entry = FileEntryBuilder::new_with_options(entry_name, option)?;
 
     let file = fs::File::open(source_path)?;
     let mut reader = io::BufReader::with_capacity(64 * 1024, file);
     io::copy(&mut reader, &mut entry)?;
 
-    apply_mtree_metadata(entry, mtree_entry, metadata, keep_options)?
-        .build()
-        .map(Some)
+    entry.metadata(build_mtree_metadata(mtree_entry, metadata, keep_options)?);
+    entry.build().map(Some)
 }
 
 /// Creates a directory entry from mtree specification.
@@ -379,21 +380,19 @@ fn create_dir_entry(
     mtree_entry: &MtreeEntry,
     keep_options: &KeepOptions,
 ) -> io::Result<Option<NormalEntry>> {
-    let entry = EntryBuilder::new_dir(entry_name);
+    let mut entry = DirEntryBuilder::new(entry_name);
 
     let metadata = match fs::metadata(source_path) {
         Ok(meta) => meta,
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            return apply_mtree_metadata_without_fs(entry, mtree_entry, keep_options)?
-                .build()
-                .map(Some);
+            entry.metadata(build_mtree_metadata_without_fs(mtree_entry, keep_options)?);
+            return entry.build().map(Some);
         }
         Err(e) => return Err(e),
     };
 
-    apply_mtree_metadata(entry, mtree_entry, &metadata, keep_options)?
-        .build()
-        .map(Some)
+    entry.metadata(build_mtree_metadata(mtree_entry, &metadata, keep_options)?);
+    entry.build().map(Some)
 }
 
 /// Creates a symlink entry from mtree specification.
@@ -402,7 +401,7 @@ fn create_symlink_entry(
     source_path: &Path,
     mtree_entry: &MtreeEntry,
     pathname_editor: &PathnameEditor,
-    metadata: &Metadata,
+    metadata: &fs::Metadata,
     keep_options: &KeepOptions,
 ) -> io::Result<Option<NormalEntry>> {
     let link_target = if let Some(link) = mtree_entry.link() {
@@ -411,22 +410,21 @@ fn create_symlink_entry(
         pathname_editor.edit_symlink(&fs::read_link(source_path)?)
     };
 
-    let entry = EntryBuilder::new_symlink(entry_name, link_target)?;
+    let mut entry = SymlinkEntryBuilder::new(entry_name, link_target)?;
 
-    apply_mtree_metadata(entry, mtree_entry, metadata, keep_options)?
-        .build()
-        .map(Some)
+    entry.metadata(build_mtree_metadata(mtree_entry, metadata, keep_options)?);
+    entry.build().map(Some)
 }
 
-/// Applies metadata from mtree entry, with filesystem metadata as fallback.
+/// Builds metadata from mtree entry, with filesystem metadata as fallback.
 /// When `nochange` keyword is set, always uses filesystem metadata (bsdtar behavior).
 /// Reference: libarchive's parse_file() in archive_read_support_format_mtree.c
-fn apply_mtree_metadata(
-    mut entry: EntryBuilder,
+fn build_mtree_metadata(
     mtree_entry: &MtreeEntry,
-    fs_metadata: &Metadata,
+    fs_metadata: &fs::Metadata,
     keep_options: &KeepOptions,
-) -> io::Result<EntryBuilder> {
+) -> io::Result<Metadata> {
+    let mut metadata = Metadata::new();
     let nochange = mtree_entry.no_change();
 
     if let TimestampStrategy::Preserve {
@@ -437,13 +435,13 @@ fn apply_mtree_metadata(
     {
         let mtree_time = if nochange { None } else { mtree_entry.time() };
         if let Some(m) = mtime.resolve(mtree_time.or_else(|| fs_metadata.modified().ok())) {
-            entry.modified_time(m);
+            metadata = metadata.with_modified_time(m);
         }
         if let Some(c) = ctime.resolve(fs_metadata.created().ok()) {
-            entry.created_time(c);
+            metadata = metadata.with_created_time(c);
         }
         if let Some(a) = atime.resolve(fs_metadata.accessed().ok()) {
-            entry.accessed_time(a);
+            metadata = metadata.with_accessed_time(a);
         }
     }
 
@@ -482,16 +480,17 @@ fn apply_mtree_metadata(
             },
         );
 
-        entry.owner_uid(pna::OwnerUid::from(u64::from(uid)));
-        entry.owner_gid(pna::OwnerGid::from(u64::from(gid)));
-        entry.owner_user_name(crate::command::core::permission::owner_name_opt(&uname));
-        entry.owner_group_name(crate::command::core::permission::owner_group_name_opt(
-            &gname,
-        ));
-        entry.permission_mode(pna::PermissionMode::from(mode));
+        metadata = metadata
+            .with_owner_uid(Some(pna::OwnerUid::from(u64::from(uid))))
+            .with_owner_gid(Some(pna::OwnerGid::from(u64::from(gid))))
+            .with_owner_user_name(crate::command::core::permission::owner_name_opt(&uname))
+            .with_owner_group_name(crate::command::core::permission::owner_group_name_opt(
+                &gname,
+            ))
+            .with_permission_mode(Some(pna::PermissionMode::from(mode)));
     }
 
-    Ok(entry)
+    Ok(metadata)
 }
 
 /// Resolves a numeric ID (uid or gid) with nochange and override handling.
@@ -524,16 +523,17 @@ where
     lookup_from_id().unwrap_or_default()
 }
 
-/// Applies metadata from mtree entry only (no filesystem metadata available).
-fn apply_mtree_metadata_without_fs(
-    mut entry: EntryBuilder,
+/// Builds metadata from mtree entry only (no filesystem metadata available).
+fn build_mtree_metadata_without_fs(
     mtree_entry: &MtreeEntry,
     keep_options: &KeepOptions,
-) -> io::Result<EntryBuilder> {
+) -> io::Result<Metadata> {
+    let mut metadata = Metadata::new();
+
     if let TimestampStrategy::Preserve { mtime, .. } = keep_options.timestamp_strategy
         && let Some(m) = mtime.resolve(mtree_entry.time())
     {
-        entry.modified_time(m);
+        metadata = metadata.with_modified_time(m);
     }
 
     #[cfg(unix)]
@@ -548,16 +548,17 @@ fn apply_mtree_metadata_without_fs(
         let uname = resolve_name(false, options.uname.as_ref(), mtree_entry.uname(), || None);
         let gname = resolve_name(false, options.gname.as_ref(), mtree_entry.gname(), || None);
 
-        entry.owner_uid(pna::OwnerUid::from(u64::from(uid)));
-        entry.owner_gid(pna::OwnerGid::from(u64::from(gid)));
-        entry.owner_user_name(crate::command::core::permission::owner_name_opt(&uname));
-        entry.owner_group_name(crate::command::core::permission::owner_group_name_opt(
-            &gname,
-        ));
-        entry.permission_mode(pna::PermissionMode::from(mode));
+        metadata = metadata
+            .with_owner_uid(Some(pna::OwnerUid::from(u64::from(uid))))
+            .with_owner_gid(Some(pna::OwnerGid::from(u64::from(gid))))
+            .with_owner_user_name(crate::command::core::permission::owner_name_opt(&uname))
+            .with_owner_group_name(crate::command::core::permission::owner_group_name_opt(
+                &gname,
+            ))
+            .with_permission_mode(Some(pna::PermissionMode::from(mode)));
     }
 
-    Ok(entry)
+    Ok(metadata)
 }
 
 #[cfg(test)]
