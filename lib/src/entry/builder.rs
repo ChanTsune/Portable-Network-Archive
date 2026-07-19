@@ -713,7 +713,7 @@ mod tests {
     #[test]
     fn file_entry_builder_metadata_size_fields_are_overwritten() {
         let mut b = FileEntryBuilder::new("f".into()).unwrap();
-        b.metadata(Metadata::new()); // raw_file_size/compressed_size は builder が計算
+        b.metadata(Metadata::new());
         b.write_all(b"abc").unwrap();
         let entry = b.build().unwrap();
         assert_eq!(entry.metadata().raw_file_size(), Some(3));
@@ -769,7 +769,6 @@ mod tests {
         let b = SymlinkEntryBuilder::new_with_options("link".into(), "secret/target".into(), opt)
             .unwrap();
         let entry = b.build().unwrap();
-        // 平文でターゲットが漏れていないこと
         for chunk in entry.clone().into_chunks() {
             assert!(
                 !chunk
@@ -832,7 +831,6 @@ mod tests {
         let b =
             HardLinkEntryBuilder::new_with_options("link".into(), "secret".into(), opt).unwrap();
         let entry = b.build().unwrap();
-        // 平文でターゲットが漏れていないこと
         for chunk in entry.clone().into_chunks() {
             assert!(
                 !chunk
