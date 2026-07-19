@@ -1,9 +1,11 @@
 //! Builder types for constructing archive entries.
 mod dir;
 mod file;
+mod link;
 mod solid;
 pub use dir::DirEntryBuilder;
 pub use file::FileEntryBuilder;
+pub use link::{HardLinkEntryBuilder, SymlinkEntryBuilder};
 pub use solid::SolidEntryBuilder;
 
 #[allow(deprecated)]
@@ -600,9 +602,12 @@ mod tests {
     use super::*;
     use crate::ChunkType;
     use crate::ReadOptions;
+    use crate::chunk::Chunk;
     use crate::entry::RawEntry;
     use crate::entry::private::SealedEntryExt;
-    use crate::entry::{DirEntryBuilder, FileEntryBuilder};
+    use crate::entry::{
+        DirEntryBuilder, FileEntryBuilder, HardLinkEntryBuilder, SymlinkEntryBuilder,
+    };
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
@@ -743,5 +748,106 @@ mod tests {
         let mut buf = Vec::new();
         r.read_to_end(&mut buf).unwrap();
         assert_eq!(&buf[..], b"secret");
+    }
+
+    #[test]
+    fn symlink_entry_builder_round_trips_target() {
+        let b = SymlinkEntryBuilder::new("link".into(), "target/file".into()).unwrap();
+        let entry = b.build().unwrap();
+        match entry.content(ReadOptions::builder().build()).unwrap() {
+            crate::EntryContent::SymbolicLink(r) => assert_eq!(r.as_str(), "target/file"),
+            other => panic!("unexpected content: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn symlink_entry_builder_encrypts_target() {
+        let opt = WriteOptions::builder()
+            .encryption(crate::Encryption::AES)
+            .password(Some("pass"))
+            .build();
+        let b = SymlinkEntryBuilder::new_with_options("link".into(), "secret/target".into(), opt)
+            .unwrap();
+        let entry = b.build().unwrap();
+        // 平文でターゲットが漏れていないこと
+        for chunk in entry.clone().into_chunks() {
+            assert!(
+                !chunk
+                    .data()
+                    .windows(b"secret/target".len())
+                    .any(|w| w == b"secret/target"),
+                "link target must not appear in plaintext"
+            );
+        }
+        match entry
+            .content(ReadOptions::with_password(Some("pass")))
+            .unwrap()
+        {
+            crate::EntryContent::SymbolicLink(r) => assert_eq!(r.as_str(), "secret/target"),
+            other => panic!("unexpected content: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn symlink_entry_builder_compresses_target() {
+        let opt = WriteOptions::builder()
+            .compression(crate::Compression::ZSTANDARD)
+            .build();
+        let b = SymlinkEntryBuilder::new_with_options("link".into(), "target".into(), opt).unwrap();
+        let entry = b.build().unwrap();
+        assert_eq!(entry.header().compression(), crate::Compression::ZSTANDARD);
+        let data_chunk = entry
+            .clone()
+            .into_chunks()
+            .into_iter()
+            .find(|c| c.ty() == ChunkType::FDAT)
+            .unwrap();
+        assert_ne!(
+            data_chunk.data(),
+            b"target",
+            "chunk data must be the compressed form, not the plain target"
+        );
+        match entry.content(ReadOptions::builder().build()).unwrap() {
+            crate::EntryContent::SymbolicLink(r) => assert_eq!(r.as_str(), "target"),
+            other => panic!("unexpected content: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn hard_link_entry_builder_round_trips_target() {
+        let b = HardLinkEntryBuilder::new("link".into(), "target/file".into()).unwrap();
+        let entry = b.build().unwrap();
+        match entry.content(ReadOptions::builder().build()).unwrap() {
+            crate::EntryContent::HardLink(r) => assert_eq!(r.as_str(), "target/file"),
+            other => panic!("unexpected content: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn hard_link_entry_builder_encrypts_target() {
+        let opt = WriteOptions::builder()
+            .encryption(crate::Encryption::AES)
+            .password(Some("pass"))
+            .build();
+        let b =
+            HardLinkEntryBuilder::new_with_options("link".into(), "secret".into(), opt).unwrap();
+        let entry = b.build().unwrap();
+        // 平文でターゲットが漏れていないこと
+        for chunk in entry.clone().into_chunks() {
+            assert!(
+                !chunk
+                    .data()
+                    .windows(b"secret".len())
+                    .any(|w| w == b"secret"),
+                "link target must not appear in plaintext"
+            );
+        }
+        match entry
+            .content(ReadOptions::with_password(Some("pass")))
+            .unwrap()
+        {
+            crate::EntryContent::HardLink(r) => assert_eq!(r.as_str(), "secret"),
+            other => panic!("unexpected content: {other:?}"),
+        }
     }
 }
