@@ -9,7 +9,7 @@ use crate::{
 
 use clap::{Parser, ValueEnum};
 #[cfg(unix)]
-use pna::prelude::MetadataTimeExt;
+use pna::prelude::SystemTimeDurationExt;
 use pna::{DataKind, EntryContent, NormalEntry, ReadOptions};
 use same_file::is_same_file;
 #[cfg(unix)]
@@ -222,12 +222,29 @@ struct CompareOptions {
     format: Format,
 }
 
-/// Compare two SystemTime values with 1-second tolerance for filesystem precision.
+/// Compare an archived timestamp against a filesystem timestamp at the archive's stored precision:
+/// whole-second storage compares by whole seconds, sub-second storage requires exact equality.
 #[cfg(unix)]
-fn times_equal(a: SystemTime, b: SystemTime) -> bool {
-    match a.duration_since(b) {
-        Ok(d) => d.as_secs() == 0,
-        Err(e) => e.duration().as_secs() == 0,
+fn matches_at_stored_precision(archived: pna::Duration, fs: SystemTime) -> bool {
+    let Ok(fs) = fs.try_duration_since_unix_epoch_signed() else {
+        return false;
+    };
+    if archived.subsec_nanoseconds() == 0 {
+        floor_seconds(fs) == floor_seconds(archived)
+    } else {
+        fs == archived
+    }
+}
+
+/// A whole second denotes the interval starting at it on both sides of the epoch;
+/// [`pna::Duration::whole_seconds`] alone truncates towards zero.
+#[cfg(unix)]
+fn floor_seconds(duration: pna::Duration) -> i64 {
+    let seconds = duration.whole_seconds();
+    if duration.subsec_nanoseconds() < 0 {
+        seconds - 1
+    } else {
+        seconds
     }
 }
 
@@ -249,9 +266,9 @@ fn compare_file_metadata<T: AsRef<[u8]>>(
         }
     }
 
-    if let Some(archive_mtime) = entry.metadata().saturating_modified_time()
+    if let Some(archive_mtime) = entry.metadata().modified()
         && let Ok(fs_mtime) = fs_meta.modified()
-        && !times_equal(archive_mtime, fs_mtime)
+        && !matches_at_stored_precision(archive_mtime, fs_mtime)
     {
         diffs.push(DiffKind::MtimeDiffers);
     }
@@ -301,9 +318,9 @@ fn compare_directory_metadata<T: AsRef<[u8]>>(
 
     // Only compare mtime and ownership with --full-compare
     if options.full_compare {
-        if let Some(archive_mtime) = entry.metadata().saturating_modified_time()
+        if let Some(archive_mtime) = entry.metadata().modified()
             && let Ok(fs_mtime) = fs_meta.modified()
-            && !times_equal(archive_mtime, fs_mtime)
+            && !matches_at_stored_precision(archive_mtime, fs_mtime)
         {
             diffs.push(DiffKind::MtimeDiffers);
         }
@@ -417,4 +434,63 @@ fn compare_entry<T: AsRef<[u8]>>(
         }
     }
     Ok(diff_count)
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::time::Duration as StdDuration;
+
+    fn after_epoch(millis: u64) -> SystemTime {
+        SystemTime::UNIX_EPOCH + StdDuration::from_millis(millis)
+    }
+
+    fn before_epoch(millis: u64) -> SystemTime {
+        SystemTime::UNIX_EPOCH - StdDuration::from_millis(millis)
+    }
+
+    #[test]
+    fn whole_second_archive_matches_subsecond_filesystem_time_within_the_same_second() {
+        assert!(matches_at_stored_precision(
+            pna::Duration::seconds(1),
+            after_epoch(1_500),
+        ));
+    }
+
+    #[test]
+    fn whole_second_archive_matches_subsecond_filesystem_time_within_the_same_second_before_epoch()
+    {
+        assert!(matches_at_stored_precision(
+            pna::Duration::seconds(-2),
+            before_epoch(1_500),
+        ));
+    }
+
+    #[test]
+    fn whole_second_archive_differs_from_filesystem_time_in_the_next_second_before_epoch() {
+        assert!(!matches_at_stored_precision(
+            pna::Duration::seconds(-1),
+            before_epoch(1_500),
+        ));
+    }
+
+    #[test]
+    fn whole_second_archive_matches_the_second_boundary_before_epoch() {
+        assert!(matches_at_stored_precision(
+            pna::Duration::seconds(-2),
+            before_epoch(2_000),
+        ));
+    }
+
+    #[test]
+    fn subsecond_archive_requires_exact_filesystem_time_before_epoch() {
+        assert!(matches_at_stored_precision(
+            pna::Duration::milliseconds(-1_500),
+            before_epoch(1_500),
+        ));
+        assert!(!matches_at_stored_precision(
+            pna::Duration::milliseconds(-1_500),
+            before_epoch(1_400),
+        ));
+    }
 }
