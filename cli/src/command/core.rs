@@ -2115,6 +2115,7 @@ fn transform_normal_entry(
                 .with_modified(metadata.modified())
                 .with_accessed(metadata.accessed())
                 .with_link_target_type(metadata.link_target_type())
+                .with_xattrs(metadata.xattrs().to_vec())
                 .with_owner_uid(new_uid.map(pna::OwnerUid::from))
                 .with_owner_gid(new_gid.map(pna::OwnerGid::from))
                 .with_owner_user_name(crate::command::core::permission::owner_name_opt(&new_uname))

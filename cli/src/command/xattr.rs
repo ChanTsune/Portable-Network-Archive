@@ -207,6 +207,7 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
             if globs.matches_any(name) {
                 println!("# file: {name}");
                 for attr in entry
+                    .metadata()
                     .xattrs()
                     .iter()
                     .filter(|a| dump_option.is_match(a.name()))
@@ -301,6 +302,7 @@ impl SetAttrStrategy<'_> {
             SetAttrStrategy::Restore(restore) => {
                 if let Some(attrs) = restore.get(entry.name().as_str()) {
                     let xattrs = entry
+                        .metadata()
                         .xattrs()
                         .iter()
                         .map(|it| (it.name(), it.value()))
@@ -319,7 +321,8 @@ impl SetAttrStrategy<'_> {
                             Ok(pna::ExtendedAttribute::new(name, value))
                         })
                         .collect::<io::Result<Vec<_>>>()?;
-                    Ok(entry.with_xattrs(xattrs))
+                    let metadata = entry.metadata().clone().with_xattrs(xattrs);
+                    Ok(entry.with_metadata(metadata))
                 } else {
                     Ok(entry)
                 }
@@ -372,8 +375,9 @@ fn transform_entry<T>(
     value: &[u8],
     remove: Option<&str>,
 ) -> io::Result<NormalEntry<T>> {
-    let xattrs = transform_xattr(entry.xattrs(), name, value, remove)?;
-    Ok(entry.with_xattrs(xattrs))
+    let xattrs = transform_xattr(entry.metadata().xattrs(), name, value, remove)?;
+    let metadata = entry.metadata().clone().with_xattrs(xattrs);
+    Ok(entry.with_metadata(metadata))
 }
 
 #[inline]

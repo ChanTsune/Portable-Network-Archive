@@ -32,16 +32,16 @@ fn xattr_set_hex() {
     archive::for_each_entry("xattr_set_hex/zstd.pna", |entry| {
         if entry.name() == "raw/empty.txt" {
             assert_eq!(
-                entry.xattrs(),
+                entry.metadata().xattrs(),
                 &[archive::xattr("user.hex", b"Hello World")]
             );
         } else {
             // Non-target entries should remain unaffected (no xattrs)
             assert!(
-                entry.xattrs().is_empty(),
+                entry.metadata().xattrs().is_empty(),
                 "Entry {} should have no xattrs but has {:?}",
                 entry.name(),
-                entry.xattrs()
+                entry.metadata().xattrs()
             );
         }
     })

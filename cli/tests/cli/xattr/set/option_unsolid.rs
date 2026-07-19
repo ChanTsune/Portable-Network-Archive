@@ -58,7 +58,7 @@ fn xattr_set_unsolid() {
     // Verify xattr was applied
     archive::for_each_entry("xattr_unsolid/archive.pna", |entry| {
         if entry.name() == "xattr_unsolid/in/raw/empty.txt" {
-            let xattrs = entry.xattrs();
+            let xattrs = entry.metadata().xattrs();
             assert_eq!(xattrs.len(), 1, "entry should have exactly one xattr");
             assert_eq!(xattrs[0].name(), "user.author");
             assert_eq!(xattrs[0].value(), b"pna developers");
@@ -123,12 +123,12 @@ fn xattr_set_unsolid_multiple_entries() {
     archive::for_each_entry("xattr_unsolid_multi/archive.pna", |entry| {
         entry_count += 1;
         if entry.name() == "xattr_unsolid_multi/in/raw/empty.txt" {
-            let xattrs = entry.xattrs();
+            let xattrs = entry.metadata().xattrs();
             assert_eq!(xattrs.len(), 1, "target entry should have xattr");
             assert_eq!(xattrs[0].name(), "user.marker");
         } else {
             assert!(
-                entry.xattrs().is_empty(),
+                entry.metadata().xattrs().is_empty(),
                 "other entries should have no xattrs"
             );
         }

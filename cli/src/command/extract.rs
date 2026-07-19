@@ -1607,7 +1607,7 @@ where
 
     #[cfg(unix)]
     if !skip_xattr_acl && matches!(keep_options.xattr_strategy, XattrStrategy::Always) {
-        match utils::os::unix::fs::xattrs::set_xattrs(path, item.xattrs()) {
+        match utils::os::unix::fs::xattrs::set_xattrs(path, item.metadata().xattrs()) {
             Ok(()) => {}
             Err(e) if e.kind() == io::ErrorKind::Unsupported => {
                 log::warn!(

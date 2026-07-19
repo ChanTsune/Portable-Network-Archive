@@ -32,16 +32,16 @@ fn xattr_set_base64() {
     archive::for_each_entry("xattr_set_base64/zstd.pna", |entry| {
         if entry.name() == "raw/empty.txt" {
             assert_eq!(
-                entry.xattrs(),
+                entry.metadata().xattrs(),
                 &[archive::xattr("user.base64", b"Hello World")]
             );
         } else {
             // Non-target entries should remain unaffected (no xattrs)
             assert!(
-                entry.xattrs().is_empty(),
+                entry.metadata().xattrs().is_empty(),
                 "Entry {} should have no xattrs but has {:?}",
                 entry.name(),
-                entry.xattrs()
+                entry.metadata().xattrs()
             );
         }
     })

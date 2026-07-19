@@ -57,7 +57,7 @@ fn xattr_restore_from_file() {
     archive::for_each_entry("xattr_restore_file/archive.pna", |entry| {
         match entry.name().as_str() {
             "xattr_restore_file/in/raw/empty.txt" => {
-                let xattrs = entry.xattrs();
+                let xattrs = entry.metadata().xattrs();
                 assert_eq!(xattrs.len(), 2);
                 assert!(
                     xattrs
@@ -71,13 +71,13 @@ fn xattr_restore_from_file() {
                 );
             }
             "xattr_restore_file/in/raw/text.txt" => {
-                let xattrs = entry.xattrs();
+                let xattrs = entry.metadata().xattrs();
                 assert_eq!(xattrs.len(), 1);
                 assert_eq!(xattrs[0].name(), "user.description");
                 assert_eq!(xattrs[0].value(), b"sample text file");
             }
             _ => {
-                assert!(entry.xattrs().is_empty());
+                assert!(entry.metadata().xattrs().is_empty());
             }
         }
     })
@@ -133,7 +133,7 @@ fn xattr_restore_from_file_with_encodings() {
 
     archive::for_each_entry("xattr_restore_enc/archive.pna", |entry| {
         if entry.name() == "xattr_restore_enc/in/raw/empty.txt" {
-            let xattrs = entry.xattrs();
+            let xattrs = entry.metadata().xattrs();
             assert_eq!(xattrs.len(), 3);
             assert!(
                 xattrs
@@ -226,7 +226,7 @@ fn xattr_restore_from_file_merge() {
 
     archive::for_each_entry("xattr_restore_merge/archive.pna", |entry| {
         if entry.name() == "xattr_restore_merge/in/raw/empty.txt" {
-            let xattrs = entry.xattrs();
+            let xattrs = entry.metadata().xattrs();
             assert_eq!(xattrs.len(), 3, "should have 3 xattrs after merge");
             assert!(
                 xattrs

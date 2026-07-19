@@ -62,7 +62,7 @@ fn xattr_set_on_multipart_archive() {
     // Verify xattr was applied in the consolidated output (archive.pna, not archive.part1.pna)
     archive::for_each_entry("xattr_multipart/split/archive.pna", |entry| {
         if entry.name() == "xattr_multipart/in/raw/empty.txt" {
-            let xattrs = entry.xattrs();
+            let xattrs = entry.metadata().xattrs();
             assert_eq!(xattrs.len(), 1, "entry should have exactly one xattr");
             assert_eq!(xattrs[0].name(), "user.multipart");
             assert_eq!(xattrs[0].value(), b"from_split");
@@ -133,7 +133,7 @@ fn xattr_set_multiple_entries_multipart() {
         let path = entry.name();
         if path.as_str().ends_with(".txt") {
             txt_count += 1;
-            let xattrs = entry.xattrs();
+            let xattrs = entry.metadata().xattrs();
             assert_eq!(
                 xattrs.len(),
                 1,
@@ -143,7 +143,7 @@ fn xattr_set_multiple_entries_multipart() {
             assert_eq!(xattrs[0].value(), b"text");
         } else {
             assert!(
-                entry.xattrs().is_empty(),
+                entry.metadata().xattrs().is_empty(),
                 "non-txt file {path} should have no xattrs"
             );
         }

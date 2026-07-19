@@ -1103,7 +1103,7 @@ fn bsdtar_extract_with_p_restores_xattr() {
     // Verify archive has xattr stored
     let mut has_xattr = false;
     archive::for_each_entry(&archive_path, |entry| {
-        if entry.header().path().as_str() == "test.txt" && !entry.xattrs().is_empty() {
+        if entry.header().path().as_str() == "test.txt" && !entry.metadata().xattrs().is_empty() {
             has_xattr = true;
         }
     })

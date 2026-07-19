@@ -101,6 +101,7 @@ where
         .with_modified(modified)
         .with_accessed(accessed)
         .with_link_target_type(link_target_type)
+        .with_xattrs(src.xattrs().to_vec())
         .with_owner_uid(own.uid.map(pna::OwnerUid::from))
         .with_owner_gid(own.gid.map(pna::OwnerGid::from))
         .with_owner_user_name(

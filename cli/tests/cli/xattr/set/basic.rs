@@ -30,16 +30,16 @@ fn archive_xattr_set() {
     archive::for_each_entry("xattr_set/zstd.pna", |entry| {
         if entry.name() == "raw/empty.txt" {
             assert_eq!(
-                entry.xattrs(),
+                entry.metadata().xattrs(),
                 &[archive::xattr("user.name", b"pna developers!")]
             );
         } else {
             // Non-target entries should remain unaffected (no xattrs)
             assert!(
-                entry.xattrs().is_empty(),
+                entry.metadata().xattrs().is_empty(),
                 "Entry {} should have no xattrs but has {:?}",
                 entry.name(),
-                entry.xattrs()
+                entry.metadata().xattrs()
             );
         }
     })
@@ -92,7 +92,7 @@ fn xattr_long_key_value() {
     archive::for_each_entry("xattr_long/zstd.pna", |entry| {
         if entry.name() == "raw/empty.txt" {
             assert_eq!(
-                entry.xattrs(),
+                entry.metadata().xattrs(),
                 &[
                     archive::xattr(long_name.as_str(), long_value.as_bytes()),
                     archive::xattr("user.special", "\0\n\r\x7f\u{1F600}".as_bytes()),
@@ -101,10 +101,10 @@ fn xattr_long_key_value() {
         } else {
             // Non-target entries should remain unaffected (no xattrs)
             assert!(
-                entry.xattrs().is_empty(),
+                entry.metadata().xattrs().is_empty(),
                 "Entry {} should have no xattrs but has {:?}",
                 entry.name(),
-                entry.xattrs()
+                entry.metadata().xattrs()
             );
         }
     })
@@ -138,14 +138,14 @@ fn xattr_empty_key() {
 
     archive::for_each_entry("xattr_empty_key/zstd.pna", |entry| {
         if entry.name() == "raw/empty.txt" {
-            assert_eq!(entry.xattrs(), &[archive::xattr("", b"value")]);
+            assert_eq!(entry.metadata().xattrs(), &[archive::xattr("", b"value")]);
         } else {
             // Non-target entries should remain unaffected (no xattrs)
             assert!(
-                entry.xattrs().is_empty(),
+                entry.metadata().xattrs().is_empty(),
                 "Entry {} should have no xattrs but has {:?}",
                 entry.name(),
-                entry.xattrs()
+                entry.metadata().xattrs()
             );
         }
     })
@@ -179,14 +179,17 @@ fn xattr_empty_value() {
 
     archive::for_each_entry("xattr_empty_value/zstd.pna", |entry| {
         if entry.name() == "raw/empty.txt" {
-            assert_eq!(entry.xattrs(), &[archive::xattr("user.empty", b"")]);
+            assert_eq!(
+                entry.metadata().xattrs(),
+                &[archive::xattr("user.empty", b"")]
+            );
         } else {
             // Non-target entries should remain unaffected (no xattrs)
             assert!(
-                entry.xattrs().is_empty(),
+                entry.metadata().xattrs().is_empty(),
                 "Entry {} should have no xattrs but has {:?}",
                 entry.name(),
-                entry.xattrs()
+                entry.metadata().xattrs()
             );
         }
     })
@@ -223,7 +226,7 @@ fn xattr_set_preserved_in_archive() {
         if entry.name() == "raw/empty.txt" {
             found = true;
             assert_eq!(
-                entry.xattrs(),
+                entry.metadata().xattrs(),
                 &[archive::xattr("user.roundtrip", b"preserved_value")]
             );
         }
@@ -308,10 +311,11 @@ fn xattr_round_trip_preservation() {
             found = true;
             assert!(
                 entry
+                    .metadata()
                     .xattrs()
                     .contains(&archive::xattr("user.roundtrip", b"preserved_value")),
                 "round-tripped entry is missing user.roundtrip xattr: {:?}",
-                entry.xattrs()
+                entry.metadata().xattrs()
             );
         }
     })

@@ -655,7 +655,6 @@ pub struct NormalEntry<T = Vec<u8>> {
     pub(crate) extra: Vec<RawChunk<T>>,
     pub(crate) data: Vec<T>,
     pub(crate) metadata: Metadata,
-    pub(crate) xattrs: Vec<ExtendedAttribute>,
 }
 
 impl<T> TryFrom<RawEntry<T>> for NormalEntry<T>
@@ -793,9 +792,9 @@ where
                 owner_user_sid,
                 owner_group_sid,
                 permission_mode,
+                xattrs,
             },
             data,
-            xattrs,
         })
     }
 }
@@ -825,6 +824,7 @@ where
             owner_user_sid,
             owner_group_sid,
             permission_mode,
+            xattrs,
         } = &self.metadata;
 
         total += (ChunkType::FHED, self.header.to_bytes()).write_chunk_in(writer)?;
@@ -893,7 +893,7 @@ where
         if let Some(ltp) = link_target_type {
             total += (ChunkType::fLTP, ltp.to_bytes()).write_chunk_in(writer)?;
         }
-        for xattr in &self.xattrs {
+        for xattr in xattrs {
             total += (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(writer)?;
         }
         total += (ChunkType::FEND, []).write_chunk_in(writer)?;
@@ -923,6 +923,7 @@ where
             owner_user_sid,
             owner_group_sid,
             permission_mode,
+            xattrs,
         } = self.metadata;
         let mut vec = Vec::new();
         vec.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
@@ -1003,7 +1004,7 @@ where
         if let Some(ltp) = link_target_type {
             vec.push(RawChunk::from_data(ChunkType::fLTP, ltp.to_bytes()));
         }
-        for xattr in self.xattrs {
+        for xattr in xattrs {
             vec.push(RawChunk::from_data(ChunkType::xATR, xattr.to_bytes()));
         }
         vec.push(RawChunk::from_data(ChunkType::FEND, Vec::new()));
@@ -1068,9 +1069,13 @@ impl<T> NormalEntry<T> {
     }
 
     /// Returns the extended attributes of this entry.
+    #[deprecated(
+        since = "0.36.0",
+        note = "xattrs are now a Metadata facet; use NormalEntry::metadata().xattrs()"
+    )]
     #[inline]
     pub fn xattrs(&self) -> &[ExtendedAttribute] {
-        &self.xattrs
+        self.metadata.xattrs()
     }
 
     /// Returns the extra chunks of this entry.
@@ -1101,24 +1106,13 @@ impl<T> NormalEntry<T> {
     }
 
     /// Applies extended attributes to the entry.
-    ///
-    /// # Examples
-    /// ```rust
-    /// # use std::io;
-    /// use libpna::{EntryBuilder, ExtendedAttribute, XattrName, XattrValue};
-    ///
-    /// # fn main() -> io::Result<()> {
-    /// let mut entry = EntryBuilder::new_dir("dir_entry".into()).build()?;
-    /// entry.with_xattrs(&[ExtendedAttribute::new(
-    ///     XattrName::try_from("key").unwrap(),
-    ///     XattrValue::try_from(b"value".as_slice()).unwrap(),
-    /// )]);
-    /// # Ok(())
-    /// # }
-    /// ```
+    #[deprecated(
+        since = "0.36.0",
+        note = "xattrs are now a Metadata facet; set them via Metadata::with_xattrs and NormalEntry::with_metadata"
+    )]
     #[inline]
     pub fn with_xattrs(mut self, xattrs: impl Into<Vec<ExtendedAttribute>>) -> Self {
-        self.xattrs = xattrs.into();
+        self.metadata.xattrs = xattrs.into();
         self
     }
 
@@ -1230,7 +1224,6 @@ impl<'a> From<NormalEntry<Cow<'a, [u8]>>> for NormalEntry<Vec<u8>> {
             extra: value.extra.into_iter().map(Into::into).collect(),
             data: value.data.into_iter().map(Into::into).collect(),
             metadata: value.metadata,
-            xattrs: value.xattrs,
         }
     }
 }
@@ -1244,7 +1237,6 @@ impl<'a> From<NormalEntry<&'a [u8]>> for NormalEntry<Vec<u8>> {
             extra: value.extra.into_iter().map(Into::into).collect(),
             data: value.data.into_iter().map(Into::into).collect(),
             metadata: value.metadata,
-            xattrs: value.xattrs,
         }
     }
 }
@@ -1258,7 +1250,6 @@ impl From<NormalEntry<Vec<u8>>> for NormalEntry<Cow<'_, [u8]>> {
             extra: value.extra.into_iter().map(Into::into).collect(),
             data: value.data.into_iter().map(Into::into).collect(),
             metadata: value.metadata,
-            xattrs: value.xattrs,
         }
     }
 }
@@ -1272,7 +1263,6 @@ impl<'a> From<NormalEntry<&'a [u8]>> for NormalEntry<Cow<'a, [u8]>> {
             extra: value.extra.into_iter().map(Into::into).collect(),
             data: value.data.into_iter().map(Into::into).collect(),
             metadata: value.metadata,
-            xattrs: value.xattrs,
         }
     }
 }
@@ -1712,5 +1702,41 @@ mod tests {
         assert!(result.is_ok());
         let entry = result.unwrap();
         assert_eq!(entry.extra.len(), 0);
+    }
+
+    fn sample_xattr() -> ExtendedAttribute {
+        ExtendedAttribute::new(
+            XattrName::try_from("user.k").unwrap(),
+            XattrValue::try_from(b"v".as_slice()).unwrap(),
+        )
+    }
+
+    #[test]
+    fn xattrs_round_trip_through_metadata() {
+        let xattr = sample_xattr();
+        let mut builder = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
+        builder.add_xattr(xattr.clone());
+        let entry = builder.build().unwrap();
+        let restored = NormalEntry::try_from(RawEntry(entry.into_chunks())).unwrap();
+        assert_eq!(restored.metadata().xattrs(), &[xattr]);
+    }
+
+    #[test]
+    fn empty_xattrs_emit_no_xatr_chunk() {
+        let entry = EntryBuilder::new_file("f".into(), WriteOptions::store())
+            .unwrap()
+            .build()
+            .unwrap();
+        assert!(entry.into_chunks().iter().all(|c| c.ty != ChunkType::xATR));
+    }
+
+    #[allow(deprecated)]
+    #[test]
+    fn deprecated_xattrs_accessor_delegates_to_metadata() {
+        let mut builder = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
+        builder.add_xattr(sample_xattr());
+        let entry = builder.build().unwrap();
+        assert_eq!(entry.xattrs(), entry.metadata().xattrs());
+        assert!(!entry.xattrs().is_empty());
     }
 }

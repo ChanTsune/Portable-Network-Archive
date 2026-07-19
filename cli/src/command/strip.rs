@@ -132,10 +132,10 @@ where
         metadata = metadata.with_created(entry.metadata().created());
         metadata = metadata.with_modified(entry.metadata().modified());
     }
-    entry = entry.with_metadata(metadata);
-    if !options.keep_xattr {
-        entry = entry.with_xattrs(&[]);
+    if options.keep_xattr {
+        metadata = metadata.with_xattrs(entry.metadata().xattrs().to_vec());
     }
+    entry = entry.with_metadata(metadata);
     let keep_private_all = options
         .keep_private
         .as_ref()

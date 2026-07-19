@@ -68,13 +68,13 @@ fn xattr_get_name_match_encoding() {
     for_each_entry("xattr_get_opts/archive.pna", |entry| {
         match entry.header().path().as_str() {
             "xattr_get_opts/in/raw/empty.txt" => {
-                assert_eq!(entry.xattrs(), &[xattr("user.name", b"pna")]);
+                assert_eq!(entry.metadata().xattrs(), &[xattr("user.name", b"pna")]);
             }
             "xattr_get_opts/in/raw/text.txt" => {
-                assert_eq!(entry.xattrs(), &[xattr("user.value", b"data")]);
+                assert_eq!(entry.metadata().xattrs(), &[xattr("user.value", b"data")]);
             }
             _ => {
-                assert!(entry.xattrs().is_empty());
+                assert!(entry.metadata().xattrs().is_empty());
             }
         }
     })

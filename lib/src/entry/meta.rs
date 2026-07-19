@@ -1,5 +1,6 @@
 //! Metadata and permission types for archive entries.
 
+use crate::entry::ExtendedAttribute;
 use crate::util::bounded::{LengthExceeded, str::BoundedString};
 use crate::{Duration, UnknownValueError};
 use std::io::{self, Read};
@@ -38,6 +39,7 @@ pub struct Metadata {
     pub(crate) owner_user_sid: Option<OwnerUserSid>,
     pub(crate) owner_group_sid: Option<OwnerGroupSid>,
     pub(crate) permission_mode: Option<PermissionMode>,
+    pub(crate) xattrs: Vec<ExtendedAttribute>,
 }
 
 impl Metadata {
@@ -59,6 +61,7 @@ impl Metadata {
             owner_user_sid: None,
             owner_group_sid: None,
             permission_mode: None,
+            xattrs: Vec::new(),
         }
     }
 
@@ -182,6 +185,16 @@ impl Metadata {
         self
     }
 
+    /// Sets the extended attributes facet (`xATR`).
+    ///
+    /// Each attribute is serialized as one `xATR` chunk. Passing an empty
+    /// collection records no attributes and emits no `xATR` chunks.
+    #[inline]
+    pub fn with_xattrs(mut self, xattrs: impl Into<Vec<ExtendedAttribute>>) -> Self {
+        self.xattrs = xattrs.into();
+        self
+    }
+
     /// Returns the raw file size of this entry's data in bytes.
     #[inline]
     pub const fn raw_file_size(&self) -> Option<u128> {
@@ -261,6 +274,12 @@ impl Metadata {
     #[inline]
     pub const fn link_target_type(&self) -> Option<LinkTargetType> {
         self.link_target_type
+    }
+
+    /// Returns the extended attributes (`xATR`) recorded for this entry.
+    #[inline]
+    pub fn xattrs(&self) -> &[ExtendedAttribute] {
+        &self.xattrs
     }
 }
 
