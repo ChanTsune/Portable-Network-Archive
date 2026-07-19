@@ -1,5 +1,9 @@
 //! Builder types for constructing archive entries.
+mod dir;
+mod file;
 mod solid;
+pub use dir::DirEntryBuilder;
+pub use file::FileEntryBuilder;
 pub use solid::SolidEntryBuilder;
 
 #[allow(deprecated)]
@@ -29,6 +33,77 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
 };
+
+/// Constructs the compression/encryption writer stack for entry data.
+#[allow(clippy::type_complexity)]
+pub(crate) fn data_writer(
+    option: impl WriteOption,
+) -> io::Result<(
+    CompressionWriter<CipherWriter<FlattenWriter>>,
+    Option<Vec<u8>>,
+    Option<String>,
+)> {
+    let context = get_writer_context(option)?;
+    let writer = get_writer(FlattenWriter::new(), &context)?;
+    let (iv, phsf) = match context.cipher {
+        None => (None, None),
+        Some(WriteCipher { context: c, .. }) => (Some(c.iv), Some(c.phsf)),
+    };
+    Ok((writer, iv, phsf))
+}
+
+/// Fields and logic shared by the kind-specific entry builders.
+pub(crate) struct EntryBuilderCore {
+    header: EntryHeader,
+    phsf: Option<String>,
+    iv: Option<Vec<u8>>,
+    metadata: Metadata,
+    extra_chunks: Vec<RawChunk>,
+}
+
+impl EntryBuilderCore {
+    pub(crate) const fn new(header: EntryHeader) -> Self {
+        Self {
+            header,
+            phsf: None,
+            iv: None,
+            metadata: Metadata::new(),
+            extra_chunks: Vec::new(),
+        }
+    }
+
+    pub(crate) fn set_cipher(&mut self, iv: Option<Vec<u8>>, phsf: Option<String>) {
+        self.iv = iv;
+        self.phsf = phsf;
+    }
+
+    pub(crate) fn metadata(&mut self, metadata: Metadata) {
+        self.metadata = metadata;
+    }
+
+    pub(crate) fn add_extra_chunk(&mut self, chunk: impl Into<RawChunk>) {
+        self.extra_chunks.push(chunk.into());
+    }
+
+    pub(crate) fn build(
+        mut self,
+        mut data: Vec<Vec<u8>>,
+        raw_file_size: Option<u128>,
+    ) -> NormalEntry {
+        if let Some(iv) = self.iv {
+            data.insert(0, iv);
+        }
+        self.metadata.raw_file_size = raw_file_size;
+        self.metadata.compressed_size = data.iter().map(|d| d.len()).sum();
+        NormalEntry {
+            header: self.header,
+            phsf: self.phsf,
+            extra: self.extra_chunks,
+            data,
+            metadata: self.metadata,
+        }
+    }
+}
 
 /// A builder for creating a [`NormalEntry`].
 ///
@@ -524,8 +599,10 @@ impl AsyncWrite for EntryBuilder {
 mod tests {
     use super::*;
     use crate::ChunkType;
+    use crate::ReadOptions;
     use crate::entry::RawEntry;
     use crate::entry::private::SealedEntryExt;
+    use crate::entry::{DirEntryBuilder, FileEntryBuilder};
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
@@ -597,5 +674,74 @@ mod tests {
             restored.metadata().link_target_type(),
             Some(LinkTargetType::File)
         );
+    }
+
+    #[test]
+    fn file_entry_builder_round_trips_data_and_metadata() {
+        let mut b = FileEntryBuilder::new("f.txt".into()).unwrap();
+        b.write_all(b"content").unwrap();
+        b.metadata(Metadata::new().with_modified(Some(crate::Duration::seconds(42))));
+        let entry = b.build().unwrap();
+        let raw = RawEntry(entry.into_chunks());
+        let restored = NormalEntry::try_from(raw).unwrap();
+        assert_eq!(restored.header().data_kind(), crate::DataKind::FILE);
+        assert_eq!(
+            restored.metadata().modified(),
+            Some(crate::Duration::seconds(42))
+        );
+        assert_eq!(restored.metadata().raw_file_size(), Some(7));
+        let mut r = restored.reader(ReadOptions::builder().build()).unwrap();
+        let mut buf = Vec::new();
+        r.read_to_end(&mut buf).unwrap();
+        assert_eq!(&buf[..], b"content");
+    }
+
+    #[test]
+    fn file_entry_builder_store_file_size_false_omits_size() {
+        let mut b = FileEntryBuilder::new("f".into()).unwrap();
+        b.store_file_size(false);
+        b.write_all(b"x").unwrap();
+        let entry = b.build().unwrap();
+        assert_eq!(entry.metadata().raw_file_size(), None);
+    }
+
+    #[test]
+    fn file_entry_builder_metadata_size_fields_are_overwritten() {
+        let mut b = FileEntryBuilder::new("f".into()).unwrap();
+        b.metadata(Metadata::new()); // raw_file_size/compressed_size は builder が計算
+        b.write_all(b"abc").unwrap();
+        let entry = b.build().unwrap();
+        assert_eq!(entry.metadata().raw_file_size(), Some(3));
+    }
+
+    #[test]
+    fn dir_entry_builder_round_trips() {
+        let mut b = DirEntryBuilder::new("d/".into());
+        b.metadata(Metadata::new().with_permission_mode(Some(crate::PermissionMode::from(0o755))));
+        let entry = b.build().unwrap();
+        let raw = RawEntry(entry.into_chunks());
+        let restored = NormalEntry::try_from(raw).unwrap();
+        assert_eq!(restored.header().data_kind(), crate::DataKind::DIRECTORY);
+        assert_eq!(
+            restored.metadata().permission_mode(),
+            Some(crate::PermissionMode::from(0o755))
+        );
+    }
+
+    #[test]
+    fn file_entry_builder_encrypted_round_trips() {
+        let opt = WriteOptions::builder()
+            .encryption(crate::Encryption::AES)
+            .password(Some("pass"))
+            .build();
+        let mut b = FileEntryBuilder::new_with_options("f".into(), opt).unwrap();
+        b.write_all(b"secret").unwrap();
+        let entry = b.build().unwrap();
+        let mut r = entry
+            .reader(ReadOptions::with_password(Some("pass")))
+            .unwrap();
+        let mut buf = Vec::new();
+        r.read_to_end(&mut buf).unwrap();
+        assert_eq!(&buf[..], b"secret");
     }
 }
