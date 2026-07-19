@@ -54,6 +54,21 @@ pub(crate) fn data_writer(
     Ok((writer, iv, phsf))
 }
 
+/// Largest UTF-8 char-boundary prefix of `s` whose byte length is ≤ 255 —
+/// the `fONm`/`fGNm` owner-name wire bound (1-byte length prefix). Used to
+/// rescue a legacy fPRM name that exceeds the bounded owner-facet limit.
+fn owner_name_bounded(s: &str) -> &str {
+    const MAX: usize = u8::MAX as usize;
+    if s.len() <= MAX {
+        return s;
+    }
+    let mut end = MAX;
+    while !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
+}
+
 /// Fields and logic shared by the kind-specific entry builders.
 pub(crate) struct EntryBuilderCore {
     header: EntryHeader,
@@ -83,8 +98,50 @@ impl EntryBuilderCore {
         &self.header
     }
 
+    /// Sets the metadata, rescuing deprecated `fPRM` permission data into
+    /// the owner-facet fields when no owner facet is set.
+    ///
+    /// If none of the owner-facet fields are populated, they are filled
+    /// from the `fPRM` data when present, and the `fPRM` data itself is
+    /// dropped from the stored metadata. Owner names longer than the
+    /// 255-byte wire bound of `fONm`/`fGNm` are truncated at a UTF-8
+    /// character boundary. If any owner-facet field is already populated,
+    /// the metadata is stored as-is (including `fPRM`, if set), preserving
+    /// the contract that `fPRM` and the owner facets are independent
+    /// chunks that may coexist.
+    ///
+    /// TODO: rescue unconditionally (dropping `fPRM` whenever it is
+    /// present, regardless of owner-facet fields) once the fPRM/owner-facet
+    /// coexistence contract is retired.
+    #[allow(deprecated)]
     pub(crate) fn metadata(&mut self, metadata: Metadata) {
-        self.metadata = metadata;
+        let has_owner_facet = metadata.owner_uid().is_some()
+            || metadata.owner_gid().is_some()
+            || metadata.owner_user_name().is_some()
+            || metadata.owner_group_name().is_some()
+            || metadata.owner_user_sid().is_some()
+            || metadata.owner_group_sid().is_some()
+            || metadata.permission_mode().is_some();
+        let Some(p) = (!has_owner_facet)
+            .then(|| metadata.permission().cloned())
+            .flatten()
+        else {
+            self.metadata = metadata;
+            return;
+        };
+        self.metadata = metadata
+            .with_owner_uid(Some(OwnerUid::from(p.uid())))
+            .with_owner_gid(Some(OwnerGid::from(p.gid())))
+            .with_owner_user_name(Some(
+                OwnerUserName::new(owner_name_bounded(p.uname()))
+                    .expect("owner_name_bounded guarantees <= 255 bytes"),
+            ))
+            .with_owner_group_name(Some(
+                OwnerGroupName::new(owner_name_bounded(p.gname()))
+                    .expect("owner_name_bounded guarantees <= 255 bytes"),
+            ))
+            .with_permission_mode(Some(PermissionMode::from(p.permissions())))
+            .with_permission(None);
     }
 
     pub(crate) fn add_extra_chunk(&mut self, chunk: impl Into<RawChunk>) {
@@ -889,5 +946,131 @@ mod tests {
             entry.metadata().modified(),
             Some(crate::Duration::seconds(2))
         );
+    }
+
+    #[test]
+    fn owner_name_bounded_passes_through_short_ascii() {
+        assert_eq!(owner_name_bounded(""), "");
+        assert_eq!(owner_name_bounded("alice"), "alice");
+        let exactly_255 = "a".repeat(255);
+        assert_eq!(owner_name_bounded(&exactly_255), exactly_255);
+    }
+
+    #[test]
+    fn owner_name_bounded_truncates_long_ascii_to_255() {
+        let s = "a".repeat(300);
+        let out = owner_name_bounded(&s);
+        assert_eq!(out.len(), 255);
+        assert!(out.bytes().all(|b| b == b'a'));
+        assert_eq!(owner_name_bounded(&"a".repeat(256)).len(), 255);
+    }
+
+    #[test]
+    fn owner_name_bounded_truncates_on_utf8_boundary() {
+        let two_byte_char = 'é';
+        assert_eq!(two_byte_char.len_utf8(), 2);
+        let s = String::from(two_byte_char).repeat(200); // 400 bytes
+        let out = owner_name_bounded(&s);
+        assert_eq!(out.len(), 254);
+        assert_eq!(out.chars().count(), 127);
+        assert!(out.chars().all(|c| c == two_byte_char));
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn metadata_preserves_all_owner_facets() {
+        let mut b = FileEntryBuilder::new("f".into()).unwrap();
+        b.metadata(
+            Metadata::new()
+                .with_owner_uid(Some(OwnerUid::from(1)))
+                .with_owner_gid(Some(OwnerGid::from(2)))
+                .with_owner_user_name(Some(OwnerUserName::new("u").unwrap()))
+                .with_owner_group_name(Some(OwnerGroupName::new("g").unwrap()))
+                .with_owner_user_sid(Some(OwnerUserSid::new("S-1-1").unwrap()))
+                .with_owner_group_sid(Some(OwnerGroupSid::new("S-1-2").unwrap()))
+                .with_permission_mode(Some(PermissionMode::from(0o644))),
+        );
+        let entry = b.build().unwrap();
+        let m = entry.metadata();
+        assert_eq!(m.owner_uid().map(|v| v.get()), Some(1));
+        assert_eq!(m.owner_gid().map(|v| v.get()), Some(2));
+        assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("u"));
+        assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("g"));
+        assert_eq!(m.owner_user_sid().map(|v| v.as_str()), Some("S-1-1"));
+        assert_eq!(m.owner_group_sid().map(|v| v.as_str()), Some("S-1-2"));
+        assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o644));
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn metadata_rescues_fprm_only_source() {
+        let mut b = FileEntryBuilder::new("f".into()).unwrap();
+        b.metadata(Metadata::new().with_permission(Some(Permission::new(
+            7,
+            "legacy".to_string(),
+            8,
+            "grp".to_string(),
+            0o600,
+        ))));
+        let entry = b.build().unwrap();
+        let m = entry.metadata();
+        assert_eq!(m.owner_uid().map(|v| v.get()), Some(7));
+        assert_eq!(m.owner_gid().map(|v| v.get()), Some(8));
+        assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("legacy"));
+        assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("grp"));
+        assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o600));
+        assert!(m.permission().is_none());
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn metadata_partial_owner_facet_skips_rescue() {
+        let mut b = FileEntryBuilder::new("f".into()).unwrap();
+        b.metadata(
+            Metadata::new()
+                .with_owner_uid(Some(OwnerUid::from(1)))
+                .with_owner_user_name(Some(OwnerUserName::new("new").unwrap()))
+                .with_permission(Some(Permission::new(
+                    7,
+                    "legacy".to_string(),
+                    8,
+                    "grp".to_string(),
+                    0o600,
+                ))),
+        );
+        let entry = b.build().unwrap();
+        let m = entry.metadata();
+        assert_eq!(m.owner_uid().map(|v| v.get()), Some(1));
+        assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("new"));
+        assert_eq!(m.owner_gid(), None);
+        assert_eq!(m.owner_group_name(), None);
+        assert_eq!(m.permission_mode(), None);
+        assert!(
+            m.permission().is_some(),
+            "fPRM must coexist with a partially set owner facet"
+        );
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn metadata_truncates_overlong_fprm_name() {
+        let big_char = 'é';
+        assert_eq!(big_char.len_utf8(), 2);
+        let big = String::from(big_char).repeat(200); // 400 bytes
+        let mut b = FileEntryBuilder::new("f".into()).unwrap();
+        b.metadata(Metadata::new().with_permission(Some(Permission::new(
+            7,
+            big,
+            8,
+            "grp".to_string(),
+            0o600,
+        ))));
+        let entry = b.build().unwrap();
+        let m = entry.metadata();
+        let uname = m.owner_user_name().unwrap().as_str();
+        assert_eq!(uname.len(), 254);
+        assert_eq!(uname.chars().count(), 127);
+        assert!(uname.chars().all(|c| c == big_char));
+        assert_eq!(m.owner_uid().map(|v| v.get()), Some(7));
     }
 }
