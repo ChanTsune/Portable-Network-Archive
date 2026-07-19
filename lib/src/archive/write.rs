@@ -484,7 +484,7 @@ impl<W: Write> SolidArchive<W> {
     /// [`write_solid_header()`](Archive::write_solid_header).
     ///
     /// Pre-built entries added via [`add_entry()`](SolidArchive::add_entry) use their own
-    /// chunk size configured through [`EntryBuilder::max_chunk_size()`](crate::EntryBuilder::max_chunk_size).
+    /// chunk size configured through [`FileEntryBuilder::max_chunk_size()`](crate::FileEntryBuilder::max_chunk_size).
     #[inline]
     pub fn set_max_file_chunk_size(&mut self, size: NonZeroU32) {
         self.max_chunk_size = Some(size);

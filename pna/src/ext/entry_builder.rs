@@ -1,11 +1,11 @@
-//! Provides extension traits for [`EntryBuilder`].
+//! Provides extension traits for [`OpaqueEntryBuilder`].
 use crate::ext::{private, time::opt_system_time_to_duration};
 use libpna::{
-    EntryBuilder, Metadata, OwnerGid, OwnerGroupName, OwnerUid, OwnerUserName, PermissionMode,
+    Metadata, OpaqueEntryBuilder, OwnerGid, OwnerGroupName, OwnerUid, OwnerUserName, PermissionMode,
 };
 use std::time::SystemTime;
 
-/// [`EntryBuilder`] extension trait.
+/// [`OpaqueEntryBuilder`] extension trait.
 ///
 /// Provides convenience methods for setting entry metadata using [`SystemTime`]
 /// instead of the lower-level [`Duration`](libpna::Duration) representation.
@@ -51,7 +51,7 @@ fn owner_name_bounded(s: &str) -> &str {
     &s[..end]
 }
 
-impl EntryBuilderExt for EntryBuilder {
+impl EntryBuilderExt for OpaqueEntryBuilder {
     /// Sets metadata from a [`Metadata`] instance.
     ///
     /// # Examples
@@ -223,7 +223,7 @@ mod tests {
         let mut buf = Vec::new();
         {
             let mut a = Archive::write_header(&mut buf).unwrap();
-            let mut b = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
+            let mut b = OpaqueEntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
             b.permission(permission);
             b.add_metadata(src);
             a.add_entry(b.build().unwrap()).unwrap();

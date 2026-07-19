@@ -14,8 +14,8 @@ mod write;
 pub use self::{
     attr::*,
     builder::{
-        DirEntryBuilder, EntryBuilder, FileEntryBuilder, HardLinkEntryBuilder, SolidEntryBuilder,
-        SymlinkEntryBuilder,
+        DirEntryBuilder, EntryBuilder, FileEntryBuilder, HardLinkEntryBuilder, OpaqueEntryBuilder,
+        SolidEntryBuilder, SymlinkEntryBuilder,
     },
     content::*,
     header::*,
