@@ -601,6 +601,15 @@ where
                 format!("`{}` chunk not found", ChunkType::SHED),
             ));
         };
+        if header.major != 0 || header.minor != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                format!(
+                    "solid entry version {}.{} is not supported",
+                    header.major, header.minor
+                ),
+            ));
+        }
         let mut extra = vec![];
         let mut data = vec![];
         let mut phsf = None;
@@ -1624,6 +1633,28 @@ mod tests {
         let err = result.unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
         assert!(err.to_string().contains("critical"));
+    }
+
+    #[test]
+    fn reject_solid_entry_with_unsupported_major_version() {
+        let shed = RawChunk::from_data(ChunkType::SHED, vec![1, 0, 0, 0, 0]);
+        let send = RawChunk::from_data(ChunkType::SEND, vec![]);
+
+        let raw_entry = RawEntry(vec![shed, send]);
+        let result = SolidEntry::try_from(raw_entry);
+
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::Unsupported);
+    }
+
+    #[test]
+    fn reject_solid_entry_with_unsupported_minor_version() {
+        let shed = RawChunk::from_data(ChunkType::SHED, vec![0, 1, 0, 0, 0]);
+        let send = RawChunk::from_data(ChunkType::SEND, vec![]);
+
+        let raw_entry = RawEntry(vec![shed, send]);
+        let result = SolidEntry::try_from(raw_entry);
+
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::Unsupported);
     }
 
     #[test]
