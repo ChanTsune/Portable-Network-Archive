@@ -277,7 +277,7 @@ impl SolidHeader {
     pub(crate) fn try_from_bytes(bytes: &[u8]) -> io::Result<Self> {
         let bytes: [_; 5] = bytes
             .try_into()
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         Ok(Self {
             major: bytes[0],
             minor: bytes[1],
@@ -324,8 +324,15 @@ mod tests {
 
     #[test]
     fn solid_header_try_from_bytes() {
-        assert!(SolidHeader::try_from_bytes(&[]).is_err());
         assert!(SolidHeader::try_from_bytes(&[0; 5]).is_ok());
+        assert_eq!(
+            SolidHeader::try_from_bytes(&[0; 4]).unwrap_err().kind(),
+            io::ErrorKind::InvalidData,
+        );
+        assert_eq!(
+            SolidHeader::try_from_bytes(&[0; 6]).unwrap_err().kind(),
+            io::ErrorKind::InvalidData,
+        );
     }
 
     #[test]
