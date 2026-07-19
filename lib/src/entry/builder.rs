@@ -168,42 +168,55 @@ impl EntryBuilderCore {
     }
 }
 
-/// A builder for creating a [`NormalEntry`].
+/// A builder for creating a [`NormalEntry`] by writing an opaque byte
+/// stream tagged with a declared [`DataKind`].
 ///
-/// This builder provides a flexible way to construct entries for PNA archives by specifying
-/// the entry type (file, directory, symbolic link, hard link), content, and metadata.
-/// It handles compression and encryption transparently according to the provided [`WriteOptions`].
-///
-/// # Entry Types
-///
-/// - **Files**: Created with [`new_file()`](Self::new_file), supports data writing via the [`Write`] trait
-/// - **Directories**: Created with [`new_dir()`](Self::new_dir), have no data payload
-/// - **Symbolic links**: Created with [`new_symlink()`](Self::new_symlink), data is the link target path
-/// - **Hard links**: Created with [`new_hard_link()`](Self::new_hard_link), data is the link target path
+/// This is the escape hatch for [`DataKind`]s that have no dedicated
+/// builder: data written via the [`Write`] trait is compressed and
+/// encrypted according to the given [`WriteOptions`] and stored as-is, with
+/// no interpretation of its meaning. It also provides convenience
+/// constructors ([`new_dir()`](Self::new_dir), [`new_file()`](Self::new_file),
+/// [`new_symlink()`](Self::new_symlink), [`new_hard_link()`](Self::new_hard_link))
+/// for the kinds defined by the PNA specification, but for those kinds
+/// prefer the corresponding kind-specific builder instead
+/// ([`FileEntryBuilder`], [`DirEntryBuilder`], [`SymlinkEntryBuilder`],
+/// [`HardLinkEntryBuilder`]), which encode that kind's on-wire contract in
+/// the type itself. Reach for [`new()`](Self::new) or
+/// [`new_with_options()`](Self::new_with_options) directly only for kinds
+/// the specification does not define, such as private or experimental
+/// [`DataKind`]s.
 ///
 /// # Write Trait Behavior
 ///
-/// For **file entries**, the [`Write`] trait is fully functional. Data written via
-/// [`write_all()`](Write::write_all) or similar methods is automatically compressed and
-/// encrypted according to the [`WriteOptions`] provided at construction time. The original
-/// (uncompressed) file size is tracked separately.
+/// For entries constructed via [`new()`](Self::new) or
+/// [`new_with_options()`](Self::new_with_options) — writing the opaque byte
+/// stream for the declared [`DataKind`] — the [`Write`] trait is fully
+/// functional; the legacy [`new_file()`](Self::new_file) constructor (which
+/// delegates to [`new_with_options()`](Self::new_with_options) with
+/// [`DataKind::FILE`]) behaves the same way. Data written via
+/// [`write_all()`](Write::write_all) or similar methods is automatically
+/// compressed and encrypted according to the [`WriteOptions`] provided at
+/// construction time. The original (uncompressed) size is tracked
+/// separately.
 ///
-/// For **directory entries**, the [`Write`] trait is implemented but writing data has no effect.
-/// Directories do not store data payloads in PNA archives.
+/// For **directory entries** ([`new_dir()`](Self::new_dir)), the [`Write`]
+/// trait is implemented but writing data has no effect. Directories do not
+/// store data payloads in PNA archives.
 ///
-/// For **symbolic link and hard link entries**, do not use the [`Write`] trait. Instead, the
-/// link target is provided to the constructor ([`new_symlink()`](Self::new_symlink) or
-/// [`new_hard_link()`](Self::new_hard_link)).
+/// For **symbolic link and hard link entries**, do not use the [`Write`] trait.
+/// The link target is written internally when the entry is constructed via
+/// [`new_symlink()`](Self::new_symlink) or [`new_hard_link()`](Self::new_hard_link);
+/// writing further data onto the builder would corrupt it.
 ///
 /// # Metadata
 ///
 /// Metadata (timestamps, permissions, extended attributes) can be set at any time before
 /// calling [`build()`](Self::build). The order does not matter - you can set metadata before,
-/// during, or after writing data to file entries.
+/// during, or after writing data.
 ///
 /// # Compression and Encryption
 ///
-/// When data is written to a file entry:
+/// When data is written:
 /// 1. Data is compressed according to [`WriteOptions`] compression settings
 /// 2. Compressed data is encrypted according to [`WriteOptions`] encryption settings
 /// 3. Encrypted data is buffered into chunks
@@ -214,22 +227,23 @@ impl EntryBuilderCore {
 /// # Important Notes
 ///
 /// - Each builder can only be built **once** ([`build()`](Self::build) consumes `self`)
-/// - File entries with no data written will have **zero size**
+/// - Only entries with a [`DataKind::FILE`] kind record a raw file size; if no
+///   data is written, that size is recorded as **zero**. For all other kinds,
+///   the raw file size is omitted entirely
 /// - Compression and encryption are applied **during writes**, not at build time
 /// - The [`build()`](Self::build) method finalizes compression/encryption streams
 /// - Building a directory or file without calling write methods is valid
-///
-/// Prefer the kind-specific builders ([`FileEntryBuilder`], [`DirEntryBuilder`],
-/// [`SymlinkEntryBuilder`], [`HardLinkEntryBuilder`]) for new code; this type
-/// remains for constructing entries of arbitrary [`DataKind`]s.
-pub struct EntryBuilder {
+pub struct OpaqueEntryBuilder {
     core: EntryBuilderCore,
     data: Option<CompressionWriter<CipherWriter<FlattenWriter>>>,
     store_file_size: bool,
     file_size: u128,
 }
 
-impl EntryBuilder {
+/// Alias of [`OpaqueEntryBuilder`].
+pub type EntryBuilder = OpaqueEntryBuilder;
+
+impl OpaqueEntryBuilder {
     /// Creates a builder for an entry of the given kind that stores its
     /// data without compression or encryption.
     ///
@@ -276,7 +290,7 @@ impl EntryBuilder {
         })
     }
 
-    /// Creates a new [`EntryBuilder`] for a directory entry.
+    /// Creates a new [`OpaqueEntryBuilder`] for a directory entry.
     #[inline]
     pub const fn new_dir(name: EntryName) -> Self {
         Self {
@@ -287,7 +301,7 @@ impl EntryBuilder {
         }
     }
 
-    /// Creates a new [`EntryBuilder`] for a file entry with the given write options.
+    /// Creates a new [`OpaqueEntryBuilder`] for a file entry with the given write options.
     ///
     /// # Errors
     ///
@@ -312,7 +326,7 @@ impl EntryBuilder {
         })
     }
 
-    /// Creates a new [`EntryBuilder`] for a symbolic link entry pointing to the given source.
+    /// Creates a new [`OpaqueEntryBuilder`] for a symbolic link entry pointing to the given source.
     ///
     /// # Errors
     ///
@@ -320,9 +334,9 @@ impl EntryBuilder {
     ///
     /// # Examples
     /// ```
-    /// use libpna::{EntryBuilder, EntryName, EntryReference};
+    /// use libpna::{OpaqueEntryBuilder, EntryName, EntryReference};
     ///
-    /// let builder = EntryBuilder::new_symlink(
+    /// let builder = OpaqueEntryBuilder::new_symlink(
     ///     EntryName::try_from("path/of/link").unwrap(),
     ///     EntryReference::try_from("path/of/target").unwrap(),
     /// )
@@ -334,7 +348,7 @@ impl EntryBuilder {
         Self::new_link(EntryHeader::for_symlink(name), source)
     }
 
-    /// Creates a new [`EntryBuilder`] for a hard link entry pointing to the given source.
+    /// Creates a new [`OpaqueEntryBuilder`] for a hard link entry pointing to the given source.
     ///
     /// # Errors
     ///
@@ -342,9 +356,9 @@ impl EntryBuilder {
     ///
     /// # Examples
     /// ```
-    /// use libpna::{EntryBuilder, EntryName, EntryReference};
+    /// use libpna::{OpaqueEntryBuilder, EntryName, EntryReference};
     ///
-    /// let builder = EntryBuilder::new_hard_link(
+    /// let builder = OpaqueEntryBuilder::new_hard_link(
     ///     EntryName::try_from("path/of/link").unwrap(),
     ///     EntryReference::try_from("path/of/target").unwrap(),
     /// )
@@ -390,7 +404,7 @@ impl EntryBuilder {
     /// Sets the permission of the entry to the given owner, group, and permissions.
     #[deprecated(
         since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks; use EntryBuilder::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode"
+        note = "the fPRM chunk is superseded by the owner facet chunks; use OpaqueEntryBuilder::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode"
     )]
     #[allow(deprecated)]
     #[inline]
@@ -501,10 +515,10 @@ impl EntryBuilder {
     /// ```rust
     /// # use std::io::{self, Write};
     /// use std::num::NonZeroU32;
-    /// use libpna::{EntryBuilder, WriteOptions};
+    /// use libpna::{OpaqueEntryBuilder, WriteOptions};
     ///
     /// # fn main() -> io::Result<()> {
-    /// let mut builder = EntryBuilder::new_file("data.bin".into(), WriteOptions::store())?;
+    /// let mut builder = OpaqueEntryBuilder::new_file("data.bin".into(), WriteOptions::store())?;
     /// builder.max_chunk_size(NonZeroU32::new(1024 * 1024).unwrap()); // 1MB chunks
     /// builder.write_all(b"file content")?;
     /// let entry = builder.build()?;
@@ -541,7 +555,7 @@ impl EntryBuilder {
     }
 }
 
-impl Write for EntryBuilder {
+impl Write for OpaqueEntryBuilder {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         if let Some(w) = &mut self.data {
@@ -560,7 +574,7 @@ impl Write for EntryBuilder {
 }
 
 #[cfg(feature = "unstable-async")]
-impl AsyncWrite for EntryBuilder {
+impl AsyncWrite for OpaqueEntryBuilder {
     #[inline]
     fn poll_write(
         self: Pin<&mut Self>,
@@ -597,7 +611,7 @@ mod tests {
 
     #[test]
     fn entry_extra_chunk() {
-        let mut builder = EntryBuilder::new_dir("dir".into());
+        let mut builder = OpaqueEntryBuilder::new_dir("dir".into());
         builder.add_extra_chunk(RawChunk::from_data(
             ChunkType::private(*b"abCd").unwrap(),
             [],
@@ -613,7 +627,7 @@ mod tests {
     #[test]
     fn fltp_symlink_roundtrip() {
         let mut builder =
-            EntryBuilder::new_symlink("link_name".into(), "target_dir".into()).unwrap();
+            OpaqueEntryBuilder::new_symlink("link_name".into(), "target_dir".into()).unwrap();
         builder.link_target_type(LinkTargetType::Directory);
         let entry = builder.build().unwrap();
         let chunks = entry.into_chunks();
@@ -628,7 +642,7 @@ mod tests {
     #[test]
     fn fltp_hardlink_roundtrip() {
         let mut builder =
-            EntryBuilder::new_hard_link("dir_hardlink".into(), "target_dir".into()).unwrap();
+            OpaqueEntryBuilder::new_hard_link("dir_hardlink".into(), "target_dir".into()).unwrap();
         builder.link_target_type(LinkTargetType::Directory);
         let entry = builder.build().unwrap();
         let chunks = entry.into_chunks();
@@ -642,7 +656,7 @@ mod tests {
 
     #[test]
     fn fltp_absent_returns_none() {
-        let builder = EntryBuilder::new_symlink("link_name".into(), "target".into()).unwrap();
+        let builder = OpaqueEntryBuilder::new_symlink("link_name".into(), "target".into()).unwrap();
         let entry = builder.build().unwrap();
         let chunks = entry.into_chunks();
         let raw = RawEntry(chunks);
@@ -653,7 +667,7 @@ mod tests {
     #[test]
     fn fltp_on_regular_file_is_preserved() {
         let mut builder =
-            EntryBuilder::new_file("regular.txt".into(), WriteOptions::store()).unwrap();
+            OpaqueEntryBuilder::new_file("regular.txt".into(), WriteOptions::store()).unwrap();
         builder.link_target_type(LinkTargetType::File);
         let entry = builder.build().unwrap();
         let chunks = entry.into_chunks();
@@ -836,7 +850,7 @@ mod tests {
     #[test]
     fn opaque_builder_round_trips_private_kind() {
         let kind = crate::DataKind::new_private(200).unwrap();
-        let mut b = EntryBuilder::new("custom".into(), kind).unwrap();
+        let mut b = OpaqueEntryBuilder::new("custom".into(), kind).unwrap();
         b.write_all(b"opaque bytes").unwrap();
         let entry = b.build().unwrap();
         let raw = RawEntry(entry.into_chunks());
@@ -855,7 +869,7 @@ mod tests {
 
     #[test]
     fn opaque_builder_with_file_kind_matches_file_entry_builder_wire() {
-        let mut a = EntryBuilder::new("f".into(), crate::DataKind::FILE).unwrap();
+        let mut a = OpaqueEntryBuilder::new("f".into(), crate::DataKind::FILE).unwrap();
         a.write_all(b"data").unwrap();
         let mut b = FileEntryBuilder::new("f".into()).unwrap();
         b.write_all(b"data").unwrap();
@@ -867,7 +881,7 @@ mod tests {
     #[test]
     fn opaque_builder_private_kind_omits_file_size() {
         let kind = crate::DataKind::new_private(200).unwrap();
-        let mut b = EntryBuilder::new("custom".into(), kind).unwrap();
+        let mut b = OpaqueEntryBuilder::new("custom".into(), kind).unwrap();
         b.write_all(b"x").unwrap();
         let entry = b.build().unwrap();
         assert_eq!(entry.metadata().raw_file_size(), None);
@@ -875,7 +889,7 @@ mod tests {
 
     #[test]
     fn opaque_builder_metadata_replaces_previous() {
-        let mut b = EntryBuilder::new("f".into(), crate::DataKind::FILE).unwrap();
+        let mut b = OpaqueEntryBuilder::new("f".into(), crate::DataKind::FILE).unwrap();
         b.metadata(Metadata::new().with_modified(Some(crate::Duration::seconds(1))));
         b.metadata(Metadata::new().with_modified(Some(crate::Duration::seconds(2))));
         let entry = b.build().unwrap();
