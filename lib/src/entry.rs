@@ -13,7 +13,10 @@ mod write;
 
 pub use self::{
     attr::*,
-    builder::{DirEntryBuilder, EntryBuilder, FileEntryBuilder, SolidEntryBuilder},
+    builder::{
+        DirEntryBuilder, EntryBuilder, FileEntryBuilder, HardLinkEntryBuilder, SolidEntryBuilder,
+        SymlinkEntryBuilder,
+    },
     content::*,
     header::*,
     meta::*,
