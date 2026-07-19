@@ -590,6 +590,9 @@ where
     if let Some(v) = metadata.permission_mode {
         (ChunkType::fMOd, v.to_bytes()).write_chunk_in(inner)?;
     }
+    for xattr in metadata.xattrs {
+        (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(inner)?;
+    }
     let context = get_writer_context(option)?;
     if let Some(WriteCipher { context: c, .. }) = &context.cipher {
         (ChunkType::PHSF, c.phsf.as_bytes()).write_chunk_in(inner)?;
@@ -602,9 +605,6 @@ where
         writer.flush()?;
         writer.try_into_inner()?.try_into_inner()?.into_inner()
     };
-    for xattr in metadata.xattrs {
-        (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(inner)?;
-    }
     (ChunkType::FEND, Vec::<u8>::new()).write_chunk_in(inner)?;
     Ok(())
 }
