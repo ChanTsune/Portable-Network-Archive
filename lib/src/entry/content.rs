@@ -12,11 +12,11 @@ use std::fmt;
 /// # Examples
 ///
 /// ```rust
-/// use libpna::{EntryBuilder, EntryContent, EntryName, ReadOptions, WriteOptions};
+/// use libpna::{EntryContent, EntryName, FileEntryBuilder, ReadOptions};
 /// use std::io::{self, Write};
 ///
 /// # fn main() -> io::Result<()> {
-/// let mut builder = EntryBuilder::new_file(EntryName::try_from("f.txt").unwrap(), WriteOptions::store())?;
+/// let mut builder = FileEntryBuilder::new(EntryName::try_from("f.txt").unwrap())?;
 /// builder.write_all(b"abc")?;
 /// let entry = builder.build()?;
 /// match entry.content(ReadOptions::builder().build())? {
@@ -76,10 +76,10 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use libpna::{EntryBuilder, EntryContent, EntryName, EntryReference, ReadOptions};
+    /// use libpna::{EntryContent, EntryName, EntryReference, ReadOptions, SymlinkEntryBuilder};
     ///
     /// # fn main() -> std::io::Result<()> {
-    /// let entry = EntryBuilder::new_symlink(
+    /// let entry = SymlinkEntryBuilder::new(
     ///     EntryName::try_from("path/of/link").unwrap(),
     ///     EntryReference::try_from("path/of/target").unwrap(),
     /// )?
@@ -121,7 +121,7 @@ mod tests {
 
     #[test]
     fn file_reads_contents() {
-        let mut builder = EntryBuilder::new_file("f.txt".into(), WriteOptions::store()).unwrap();
+        let mut builder = FileEntryBuilder::new("f.txt".into()).unwrap();
         builder.write_all(b"abc").unwrap();
         let entry = builder.build().unwrap();
         let EntryContent::File(reader) = entry.content(read_options()).unwrap() else {
@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn empty_file_reads_empty() {
-        let builder = EntryBuilder::new_file("f.txt".into(), WriteOptions::store()).unwrap();
+        let builder = FileEntryBuilder::new("f.txt".into()).unwrap();
         let entry = builder.build().unwrap();
         let EntryContent::File(reader) = entry.content(read_options()).unwrap() else {
             panic!("expected File");
@@ -142,7 +142,7 @@ mod tests {
 
     #[test]
     fn directory_has_no_content() {
-        let entry = EntryBuilder::new_dir("d".into()).build().unwrap();
+        let entry = DirEntryBuilder::new("d".into()).build().unwrap();
         assert!(matches!(
             entry.content(read_options()).unwrap(),
             EntryContent::Directory
@@ -151,7 +151,7 @@ mod tests {
 
     #[test]
     fn symlink_target_roundtrips() {
-        let entry = EntryBuilder::new_symlink(
+        let entry = SymlinkEntryBuilder::new(
             "l".into(),
             EntryReference::from_utf8_preserve_root("target/path"),
         )
@@ -166,7 +166,7 @@ mod tests {
 
     #[test]
     fn absolute_symlink_target_is_preserved() {
-        let entry = EntryBuilder::new_symlink(
+        let entry = SymlinkEntryBuilder::new(
             "l".into(),
             EntryReference::from_utf8_preserve_root("/usr/bin/env"),
         )
@@ -182,7 +182,7 @@ mod tests {
     #[test]
     fn empty_symlink_target_roundtrips() {
         let entry =
-            EntryBuilder::new_symlink("l".into(), EntryReference::from_utf8_preserve_root(""))
+            SymlinkEntryBuilder::new("l".into(), EntryReference::from_utf8_preserve_root(""))
                 .unwrap()
                 .build()
                 .unwrap();
@@ -194,7 +194,7 @@ mod tests {
 
     #[test]
     fn hard_link_target_roundtrips() {
-        let entry = EntryBuilder::new_hard_link(
+        let entry = HardLinkEntryBuilder::new(
             "l".into(),
             EntryReference::from_utf8_preserve_root("target"),
         )
@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn directory_with_stray_data_is_still_directory() {
-        let mut entry = EntryBuilder::new_dir("d".into()).build().unwrap();
+        let mut entry = DirEntryBuilder::new("d".into()).build().unwrap();
         entry.data = vec![b"junk".to_vec()];
         assert!(matches!(
             entry.content(read_options()).unwrap(),
@@ -220,7 +220,7 @@ mod tests {
     #[test]
     fn non_utf8_symlink_target_is_invalid_data() {
         let mut entry =
-            EntryBuilder::new_symlink("l".into(), EntryReference::from_utf8_preserve_root("t"))
+            SymlinkEntryBuilder::new("l".into(), EntryReference::from_utf8_preserve_root("t"))
                 .unwrap()
                 .build()
                 .unwrap();
@@ -232,7 +232,7 @@ mod tests {
     #[test]
     fn non_utf8_hard_link_target_is_invalid_data() {
         let mut entry =
-            EntryBuilder::new_hard_link("l".into(), EntryReference::from_utf8_preserve_root("t"))
+            HardLinkEntryBuilder::new("l".into(), EntryReference::from_utf8_preserve_root("t"))
                 .unwrap()
                 .build()
                 .unwrap();
@@ -243,7 +243,7 @@ mod tests {
 
     #[test]
     fn reserved_kind_yields_unknown_with_raw_bytes() {
-        let mut builder = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
+        let mut builder = FileEntryBuilder::new("f".into()).unwrap();
         builder.write_all(b"raw").unwrap();
         let mut entry = builder.build().unwrap();
         entry.header.data_kind = DataKind::from_byte(42);
@@ -256,7 +256,7 @@ mod tests {
 
     #[test]
     fn private_kind_yields_unknown_with_raw_bytes() {
-        let mut builder = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
+        let mut builder = FileEntryBuilder::new("f".into()).unwrap();
         builder.write_all(b"raw").unwrap();
         let mut entry = builder.build().unwrap();
         entry.header.data_kind = DataKind::from_byte(200);
@@ -269,7 +269,7 @@ mod tests {
 
     /// Wire format allows encrypted link entries, but the public builder
     /// always writes links with store options; assemble one manually the
-    /// same way `EntryBuilder::build` does.
+    /// same way `SymlinkEntryBuilder::build` does.
     fn encrypted_symlink_entry(target: &str, password: &str) -> NormalEntry {
         let options = WriteOptions::builder()
             .encryption(Encryption::AES)
@@ -293,7 +293,7 @@ mod tests {
             data.insert(0, iv);
         }
         let mut entry =
-            EntryBuilder::new_symlink("l".into(), EntryReference::from_utf8_preserve_root(target))
+            SymlinkEntryBuilder::new("l".into(), EntryReference::from_utf8_preserve_root(target))
                 .unwrap()
                 .build()
                 .unwrap();
@@ -324,7 +324,7 @@ mod tests {
 
     #[test]
     fn encrypted_directory_decodes_without_password() {
-        let mut entry = EntryBuilder::new_dir("d".into()).build().unwrap();
+        let mut entry = DirEntryBuilder::new("d".into()).build().unwrap();
         entry.header.encryption = Encryption::AES;
         entry.header.cipher_mode = CipherMode::CTR;
         assert!(matches!(

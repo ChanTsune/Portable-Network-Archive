@@ -1092,10 +1092,10 @@ impl<T> NormalEntry<T> {
     /// # Examples
     /// ```rust
     /// # use std::io;
-    /// use libpna::{EntryBuilder, Metadata};
+    /// use libpna::{DirEntryBuilder, Metadata};
     ///
     /// # fn main() -> io::Result<()> {
-    /// let mut entry = EntryBuilder::new_dir("dir_entry".into()).build()?;
+    /// let mut entry = DirEntryBuilder::new("dir_entry".into()).build()?;
     /// entry.with_metadata(Metadata::new());
     /// # Ok(())
     /// # }
@@ -1127,10 +1127,10 @@ impl<T> NormalEntry<T> {
     /// # Examples
     /// ```rust
     /// # use std::io;
-    /// use libpna::EntryBuilder;
+    /// use libpna::DirEntryBuilder;
     ///
     /// # fn main() -> io::Result<()> {
-    /// let entry = EntryBuilder::new_dir("original/path".into()).build()?;
+    /// let entry = DirEntryBuilder::new("original/path".into()).build()?;
     /// let renamed = entry.with_name("new/path".into());
     /// assert_eq!(renamed.header().path().as_str(), "new/path");
     /// # Ok(())
@@ -1149,10 +1149,10 @@ impl<T: Clone> NormalEntry<T> {
     /// # Examples
     /// ```rust
     /// # use std::io;
-    /// use libpna::{ChunkType, EntryBuilder, RawChunk};
+    /// use libpna::{ChunkType, DirEntryBuilder, RawChunk};
     ///
     /// # fn main() -> io::Result<()> {
-    /// let mut entry = EntryBuilder::new_dir("dir_entry".into()).build()?;
+    /// let mut entry = DirEntryBuilder::new("dir_entry".into()).build()?;
     /// entry.with_extra_chunks(&[RawChunk::from_data(
     ///     ChunkType::private(*b"myTy").unwrap(),
     ///     b"some data",
@@ -1540,7 +1540,7 @@ mod tests {
 
     #[test]
     fn normal_entry_with_name_updates_path() {
-        let entry = EntryBuilder::new_dir("original".into()).build().unwrap();
+        let entry = DirEntryBuilder::new("original".into()).build().unwrap();
         let _ = entry.header().path(); // Force cache population
         let renamed = entry.with_name("new".into());
         assert_eq!(renamed.header().path().as_str(), "new");
@@ -1550,7 +1550,7 @@ mod tests {
     #[test]
     fn normal_entry_encoded_reader_returns_encoded_fdat_body() {
         let data = b"plain data plain data plain data";
-        let mut builder = EntryBuilder::new_file(
+        let mut builder = FileEntryBuilder::new_with_options(
             "encoded".into(),
             WriteOptions::builder()
                 .compression(Compression::DEFLATE)
@@ -1717,8 +1717,8 @@ mod tests {
     #[test]
     fn xattrs_round_trip_through_metadata() {
         let xattr = sample_xattr();
-        let mut builder = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
-        builder.add_xattr(xattr.clone());
+        let mut builder = FileEntryBuilder::new("f".into()).unwrap();
+        builder.metadata(Metadata::new().with_xattrs(vec![xattr.clone()]));
         let entry = builder.build().unwrap();
         let restored = NormalEntry::try_from(RawEntry(entry.into_chunks())).unwrap();
         assert_eq!(restored.metadata().xattrs(), &[xattr]);
@@ -1726,18 +1726,15 @@ mod tests {
 
     #[test]
     fn empty_xattrs_emit_no_xatr_chunk() {
-        let entry = EntryBuilder::new_file("f".into(), WriteOptions::store())
-            .unwrap()
-            .build()
-            .unwrap();
+        let entry = FileEntryBuilder::new("f".into()).unwrap().build().unwrap();
         assert!(entry.into_chunks().iter().all(|c| c.ty != ChunkType::xATR));
     }
 
     #[allow(deprecated)]
     #[test]
     fn deprecated_xattrs_accessor_delegates_to_metadata() {
-        let mut builder = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
-        builder.add_xattr(sample_xattr());
+        let mut builder = FileEntryBuilder::new("f".into()).unwrap();
+        builder.metadata(Metadata::new().with_xattrs(vec![sample_xattr()]));
         let entry = builder.build().unwrap();
         assert_eq!(entry.xattrs(), entry.metadata().xattrs());
         assert!(!entry.xattrs().is_empty());

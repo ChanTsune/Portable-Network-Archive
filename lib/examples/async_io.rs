@@ -1,5 +1,5 @@
 #![cfg(not(target_family = "wasm"))]
-use libpna::{Archive, EntryBuilder, ReadEntry, ReadOptions, WriteOptions};
+use libpna::{Archive, FileEntryBuilder, ReadEntry, ReadOptions, WriteOptions};
 use std::io;
 use tokio_util::compat::{
     FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt, TokioAsyncReadCompatExt,
@@ -22,7 +22,7 @@ async fn create(path: String, file_names: &[String]) -> io::Result<()> {
     for file_name in file_names {
         let mut file = tokio::fs::File::open(file_name).await?;
         let mut entry_builder =
-            EntryBuilder::new_file(file_name.into(), WriteOptions::builder().build())?
+            FileEntryBuilder::new_with_options(file_name.into(), WriteOptions::builder().build())?
                 .compat_write();
         tokio::io::copy(&mut file, &mut entry_builder).await?;
         let entry = entry_builder.into_inner().build()?;

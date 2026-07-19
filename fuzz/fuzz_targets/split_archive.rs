@@ -1,13 +1,13 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use libpna::{Archive, Compression, EntryBuilder, EntryPart, ReadOptions, WriteOptions};
+use libpna::{Archive, Compression, EntryPart, FileEntryBuilder, ReadOptions, WriteOptions};
 use std::io::prelude::*;
 
 fuzz_target!(|data: (&[u8], usize)| {
     let (data, split_size) = data;
     let write_option = WriteOptions::builder().compression(Compression::NO).build();
-    let mut builder = EntryBuilder::new_file("fuzz".into(), write_option).unwrap();
+    let mut builder = FileEntryBuilder::new_with_options("fuzz".into(), write_option).unwrap();
     builder.write_all(data).unwrap();
     let entry = builder.build().unwrap();
     let entry_part = EntryPart::from(entry);

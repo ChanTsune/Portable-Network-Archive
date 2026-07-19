@@ -1,6 +1,6 @@
 use criterion::{Bencher, Criterion, criterion_group, criterion_main};
 use libpna::{
-    Archive, CipherMode, Compression, Encryption, EntryBuilder, ReadEntry, ReadOptions,
+    Archive, CipherMode, Compression, Encryption, FileEntryBuilder, ReadEntry, ReadOptions,
     WriteOptions, WriteOptionsBuilder,
 };
 use std::io::{self, prelude::*};
@@ -12,7 +12,7 @@ fn bench_write_archive(b: &mut Bencher, mut options: WriteOptionsBuilder) {
         let mut writer = Archive::write_header(&mut vec).unwrap();
         writer
             .add_entry({
-                let mut builder = EntryBuilder::new_file(
+                let mut builder = FileEntryBuilder::new_with_options(
                     "bench".into(),
                     options.password(Some("password")).build(),
                 )
@@ -30,9 +30,11 @@ fn bench_read_archive(b: &mut Bencher, mut options: WriteOptionsBuilder) {
     let mut writer = Archive::write_header(Vec::with_capacity(10000)).unwrap();
     writer
         .add_entry({
-            let mut builder =
-                EntryBuilder::new_file("bench".into(), options.password(Some("password")).build())
-                    .unwrap();
+            let mut builder = FileEntryBuilder::new_with_options(
+                "bench".into(),
+                options.password(Some("password")).build(),
+            )
+            .unwrap();
             builder.write_all(&buf).unwrap();
             builder.build().unwrap()
         })
@@ -57,9 +59,11 @@ fn bench_read_archive_from_slice(b: &mut Bencher, mut options: WriteOptionsBuild
     let mut writer = Archive::write_header(Vec::with_capacity(10000)).unwrap();
     writer
         .add_entry({
-            let mut builder =
-                EntryBuilder::new_file("bench".into(), options.password(Some("password")).build())
-                    .unwrap();
+            let mut builder = FileEntryBuilder::new_with_options(
+                "bench".into(),
+                options.password(Some("password")).build(),
+            )
+            .unwrap();
             builder.write_all(&buf).unwrap();
             builder.build().unwrap()
         })

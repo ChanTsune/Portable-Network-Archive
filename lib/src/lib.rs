@@ -10,7 +10,7 @@
 //! ## Creating an Archive
 //!
 //! ```no_run
-//! use libpna::{Archive, EntryBuilder, WriteOptions};
+//! use libpna::{Archive, DirEntryBuilder, FileEntryBuilder, WriteOptions};
 //! use std::fs::File;
 //! use std::io::{self, Write};
 //!
@@ -19,7 +19,7 @@
 //!     let mut archive = Archive::write_header(file)?;
 //!
 //!     // Add a file entry
-//!     let mut entry = EntryBuilder::new_file(
+//!     let mut entry = FileEntryBuilder::new_with_options(
 //!         "hello.txt".into(),
 //!         WriteOptions::builder().build(),
 //!     )?;
@@ -27,7 +27,7 @@
 //!     archive.add_entry(entry.build()?)?;
 //!
 //!     // Add a directory entry
-//!     let dir = EntryBuilder::new_dir("my_folder/".into());
+//!     let dir = DirEntryBuilder::new("my_folder/".into());
 //!     archive.add_entry(dir.build()?)?;
 //!
 //!     archive.finalize()?;
@@ -86,7 +86,7 @@
 //! Solid mode compresses multiple files together for better compression ratios:
 //!
 //! ```no_run
-//! use libpna::{Archive, EntryBuilder, SolidEntryBuilder, WriteOptions};
+//! use libpna::{Archive, FileEntryBuilder, SolidEntryBuilder, WriteOptions};
 //! use std::io::{self, Write};
 //!
 //! fn main() -> io::Result<()> {
@@ -95,11 +95,11 @@
 //!     // Create a solid entry containing multiple files
 //!     let mut solid = SolidEntryBuilder::new(WriteOptions::builder().build())?;
 //!
-//!     let mut file1 = EntryBuilder::new_file("file1.txt".into(), WriteOptions::store())?;
+//!     let mut file1 = FileEntryBuilder::new("file1.txt".into())?;
 //!     file1.write_all(b"Content 1")?;
 //!     solid.add_entry(file1.build()?)?;
 //!
-//!     let mut file2 = EntryBuilder::new_file("file2.txt".into(), WriteOptions::store())?;
+//!     let mut file2 = FileEntryBuilder::new("file2.txt".into())?;
 //!     file2.write_all(b"Content 2")?;
 //!     solid.add_entry(file2.build()?)?;
 //!

@@ -990,13 +990,16 @@ mod tests {
     #[test]
     fn owner_id_facets_round_trip_via_entry() {
         use crate::entry::{OwnerGid, OwnerUid};
-        use crate::{Archive, EntryBuilder, WriteOptions};
+        use crate::{Archive, FileEntryBuilder};
         let mut buf = Vec::new();
         {
             let mut archive = Archive::write_header(&mut buf).unwrap();
-            let mut b = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
-            b.owner_uid(OwnerUid::from(1000));
-            b.owner_gid(OwnerGid::from(2000));
+            let mut b = FileEntryBuilder::new("f".into()).unwrap();
+            b.metadata(
+                Metadata::new()
+                    .with_owner_uid(Some(OwnerUid::from(1000)))
+                    .with_owner_gid(Some(OwnerGid::from(2000))),
+            );
             let entry = b.build().unwrap();
             archive.add_entry(entry).unwrap();
             archive.finalize().unwrap();
@@ -1011,13 +1014,16 @@ mod tests {
     #[test]
     fn owner_name_facets_round_trip_via_entry() {
         use crate::entry::{OwnerGroupName, OwnerUserName};
-        use crate::{Archive, EntryBuilder, WriteOptions};
+        use crate::{Archive, FileEntryBuilder};
         let mut buf = Vec::new();
         {
             let mut archive = Archive::write_header(&mut buf).unwrap();
-            let mut b = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
-            b.owner_user_name(OwnerUserName::new("alice").unwrap());
-            b.owner_group_name(OwnerGroupName::new("").unwrap());
+            let mut b = FileEntryBuilder::new("f".into()).unwrap();
+            b.metadata(
+                Metadata::new()
+                    .with_owner_user_name(Some(OwnerUserName::new("alice").unwrap()))
+                    .with_owner_group_name(Some(OwnerGroupName::new("").unwrap())),
+            );
             let entry = b.build().unwrap();
             archive.add_entry(entry).unwrap();
             archive.finalize().unwrap();
@@ -1032,13 +1038,16 @@ mod tests {
     #[test]
     fn owner_sid_facets_round_trip_via_entry() {
         use crate::entry::{OwnerGroupSid, OwnerUserSid};
-        use crate::{Archive, EntryBuilder, WriteOptions};
+        use crate::{Archive, FileEntryBuilder};
         let mut buf = Vec::new();
         {
             let mut archive = Archive::write_header(&mut buf).unwrap();
-            let mut b = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
-            b.owner_user_sid(OwnerUserSid::new("S-1-5-21-1-2-3-1001").unwrap());
-            b.owner_group_sid(OwnerGroupSid::new("S-1-5-32-544").unwrap());
+            let mut b = FileEntryBuilder::new("f".into()).unwrap();
+            b.metadata(
+                Metadata::new()
+                    .with_owner_user_sid(Some(OwnerUserSid::new("S-1-5-21-1-2-3-1001").unwrap()))
+                    .with_owner_group_sid(Some(OwnerGroupSid::new("S-1-5-32-544").unwrap())),
+            );
             let entry = b.build().unwrap();
             archive.add_entry(entry).unwrap();
             archive.finalize().unwrap();
@@ -1059,13 +1068,16 @@ mod tests {
     #[test]
     fn fosi_length_prefixed_round_trip_and_empty() {
         use crate::entry::{OwnerGroupSid, OwnerUserSid};
-        use crate::{Archive, EntryBuilder, WriteOptions};
+        use crate::{Archive, FileEntryBuilder};
         let mut buf = Vec::new();
         {
             let mut a = Archive::write_header(&mut buf).unwrap();
-            let mut b = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
-            b.owner_user_sid(OwnerUserSid::new("S-1-5-21-1-2-3-1001").unwrap());
-            b.owner_group_sid(OwnerGroupSid::new("").unwrap()); // empty -> [0] -> Some("")
+            let mut b = FileEntryBuilder::new("f".into()).unwrap();
+            b.metadata(
+                Metadata::new()
+                    .with_owner_user_sid(Some(OwnerUserSid::new("S-1-5-21-1-2-3-1001").unwrap()))
+                    .with_owner_group_sid(Some(OwnerGroupSid::new("").unwrap())), // empty -> [0] -> Some("")
+            );
             a.add_entry(b.build().unwrap()).unwrap();
             a.finalize().unwrap();
         }
@@ -1081,12 +1093,12 @@ mod tests {
     #[test]
     fn permission_mode_facet_round_trip_via_entry() {
         use crate::entry::PermissionMode;
-        use crate::{Archive, EntryBuilder, WriteOptions};
+        use crate::{Archive, FileEntryBuilder};
         let mut buf = Vec::new();
         {
             let mut archive = Archive::write_header(&mut buf).unwrap();
-            let mut b = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
-            b.permission_mode(PermissionMode::from(0o750));
+            let mut b = FileEntryBuilder::new("f".into()).unwrap();
+            b.metadata(Metadata::new().with_permission_mode(Some(PermissionMode::from(0o750))));
             let entry = b.build().unwrap();
             archive.add_entry(entry).unwrap();
             archive.finalize().unwrap();
@@ -1167,27 +1179,30 @@ mod tests {
             OwnerGid, OwnerGroupName, OwnerGroupSid, OwnerUid, OwnerUserName, OwnerUserSid,
             PermissionMode,
         };
-        use crate::{Archive, EntryBuilder, WriteOptions};
+        use crate::{Archive, FileEntryBuilder};
         let mut buf = Vec::new();
         {
             let mut archive = Archive::write_header(&mut buf).unwrap();
-            let mut b = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
-            // Legacy fPRM (Permission uses plain String uname/gname on this branch).
-            b.permission(Permission::new(
-                7,
-                "legacy".to_string(),
-                8,
-                "grp".to_string(),
-                0o600,
-            ));
-            // All 7 new owner facets.
-            b.owner_uid(OwnerUid::from(1));
-            b.owner_gid(OwnerGid::from(2));
-            b.owner_user_name(OwnerUserName::new("u").unwrap());
-            b.owner_group_name(OwnerGroupName::new("g").unwrap());
-            b.owner_user_sid(OwnerUserSid::new("S-1-1").unwrap());
-            b.owner_group_sid(OwnerGroupSid::new("S-1-2").unwrap());
-            b.permission_mode(PermissionMode::from(0o644));
+            let mut b = FileEntryBuilder::new("f".into()).unwrap();
+            b.metadata(
+                Metadata::new()
+                    // Legacy fPRM (Permission uses plain String uname/gname on this branch).
+                    .with_permission(Some(Permission::new(
+                        7,
+                        "legacy".to_string(),
+                        8,
+                        "grp".to_string(),
+                        0o600,
+                    )))
+                    // All 7 new owner facets.
+                    .with_owner_uid(Some(OwnerUid::from(1)))
+                    .with_owner_gid(Some(OwnerGid::from(2)))
+                    .with_owner_user_name(Some(OwnerUserName::new("u").unwrap()))
+                    .with_owner_group_name(Some(OwnerGroupName::new("g").unwrap()))
+                    .with_owner_user_sid(Some(OwnerUserSid::new("S-1-1").unwrap()))
+                    .with_owner_group_sid(Some(OwnerGroupSid::new("S-1-2").unwrap()))
+                    .with_permission_mode(Some(PermissionMode::from(0o644))),
+            );
             let entry = b.build().unwrap();
             archive.add_entry(entry).unwrap();
             archive.finalize().unwrap();
@@ -1216,11 +1231,11 @@ mod tests {
 
     #[test]
     fn fonm_trailing_bytes_after_length_are_ignored() {
-        use crate::{Archive, ChunkType, EntryBuilder, RawChunk, WriteOptions};
+        use crate::{Archive, ChunkType, FileEntryBuilder, RawChunk};
         let mut buf = Vec::new();
         {
             let mut a = Archive::write_header(&mut buf).unwrap();
-            let mut b = EntryBuilder::new_file("g".into(), WriteOptions::store()).unwrap();
+            let mut b = FileEntryBuilder::new("g".into()).unwrap();
             b.add_extra_chunk(RawChunk::from_data(
                 ChunkType::fONm,
                 vec![3, b'a', b'b', b'c', 0xFF],
