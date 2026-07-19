@@ -17,7 +17,10 @@ use crate::utils::{archive, archive::FileEntryDef, setup};
 use clap::Parser;
 #[allow(deprecated)]
 use pna::Permission;
-use pna::{Archive, EntryBuilder, EntryName, WriteOptions};
+use pna::{
+    Archive, DirEntryBuilder, EntryName, FileEntryBuilder, HardLinkEntryBuilder, Metadata,
+    SymlinkEntryBuilder,
+};
 use portable_network_archive::cli;
 use std::fs::File;
 use std::io::Write;
@@ -80,18 +83,15 @@ fn archive_chmod_drops_legacy_fprm() {
     let path = "chmod_legacy_fprm.pna";
     {
         let mut archive = Archive::write_header(File::create(path).unwrap()).unwrap();
-        let mut builder = EntryBuilder::new_file(
-            EntryName::from_utf8_preserve_root(ENTRY_PATH),
-            WriteOptions::store(),
-        )
-        .unwrap();
-        builder.permission(Permission::new(
+        let mut builder =
+            FileEntryBuilder::new(EntryName::from_utf8_preserve_root(ENTRY_PATH)).unwrap();
+        builder.metadata(Metadata::new().with_permission(Some(Permission::new(
             1000,
             "user".to_string(),
             1000,
             "group".to_string(),
             0o777,
-        ));
+        ))));
         builder.write_all(ENTRY_CONTENT).unwrap();
         archive.add_entry(builder.build().unwrap()).unwrap();
         archive.finalize().unwrap();
@@ -131,11 +131,8 @@ fn archive_chmod_numeric_sets_missing_permission_mode() {
     let path = "chmod_missing_mode_numeric.pna";
     {
         let mut archive = Archive::write_header(File::create(path).unwrap()).unwrap();
-        let mut builder = EntryBuilder::new_file(
-            EntryName::from_utf8_preserve_root(ENTRY_PATH),
-            WriteOptions::store(),
-        )
-        .unwrap();
+        let mut builder =
+            FileEntryBuilder::new(EntryName::from_utf8_preserve_root(ENTRY_PATH)).unwrap();
         builder.write_all(ENTRY_CONTENT).unwrap();
         archive.add_entry(builder.build().unwrap()).unwrap();
         archive.finalize().unwrap();
@@ -176,17 +173,17 @@ fn archive_chmod_symbolic_uses_default_mode_for_missing_permission() {
     {
         let mut archive = Archive::write_header(File::create(path).unwrap()).unwrap();
 
-        let mut file = EntryBuilder::new_file("file.txt".into(), WriteOptions::store()).unwrap();
+        let mut file = FileEntryBuilder::new("file.txt".into()).unwrap();
         file.write_all(b"file").unwrap();
         archive.add_entry(file.build().unwrap()).unwrap();
 
         archive
-            .add_entry(EntryBuilder::new_dir("dir".into()).build().unwrap())
+            .add_entry(DirEntryBuilder::new("dir".into()).build().unwrap())
             .unwrap();
 
         archive
             .add_entry(
-                EntryBuilder::new_symlink("link.txt".into(), "file.txt".into())
+                SymlinkEntryBuilder::new("link.txt".into(), "file.txt".into())
                     .unwrap()
                     .build()
                     .unwrap(),
@@ -195,7 +192,7 @@ fn archive_chmod_symbolic_uses_default_mode_for_missing_permission() {
 
         archive
             .add_entry(
-                EntryBuilder::new_hard_link("hard.txt".into(), "file.txt".into())
+                HardLinkEntryBuilder::new("hard.txt".into(), "file.txt".into())
                     .unwrap()
                     .build()
                     .unwrap(),

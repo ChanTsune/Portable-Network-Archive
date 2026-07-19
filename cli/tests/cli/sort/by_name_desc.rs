@@ -1,6 +1,6 @@
 use crate::utils::{archive::for_each_entry, setup};
 use clap::Parser;
-use pna::{Archive, EntryBuilder, WriteOptions};
+use pna::{Archive, FileEntryBuilder};
 use portable_network_archive::cli;
 use std::fs;
 
@@ -13,9 +13,9 @@ fn sort_by_name_desc() {
     fs::create_dir_all("sort_by_name_desc").unwrap();
     let file = fs::File::create("sort_by_name_desc/unsorted.pna").unwrap();
     let mut archive = Archive::write_header(file).unwrap();
-    let entry_a = EntryBuilder::new_file("a.txt".into(), WriteOptions::store()).unwrap();
+    let entry_a = FileEntryBuilder::new("a.txt".into()).unwrap();
     archive.add_entry(entry_a.build().unwrap()).unwrap();
-    let entry_b = EntryBuilder::new_file("b.txt".into(), WriteOptions::store()).unwrap();
+    let entry_b = FileEntryBuilder::new("b.txt".into()).unwrap();
     archive.add_entry(entry_b.build().unwrap()).unwrap();
     archive.finalize().unwrap();
 

@@ -1,6 +1,6 @@
 use crate::utils::setup;
 use assert_cmd::cargo::cargo_bin_cmd;
-use pna::{Archive, Duration, EntryBuilder, EntryName, WriteOptions};
+use pna::{Archive, Duration, EntryName, FileEntryBuilder, Metadata};
 use std::io::Write;
 
 fn build_archive(path: &str) {
@@ -10,27 +10,27 @@ fn build_archive(path: &str) {
     // Jan 26 2025 00:00:00 UTC — deterministic timestamp for exact output matching
     let mtime = Duration::new(1737849600, 0);
 
-    let mut mode_only = EntryBuilder::new_file(
-        EntryName::from_utf8_preserve_root("mode_only.txt"),
-        WriteOptions::store(),
-    )
-    .unwrap();
-    mode_only.modified(mtime);
-    mode_only.permission_mode(pna::PermissionMode::from(0o644));
+    let mut mode_only =
+        FileEntryBuilder::new(EntryName::from_utf8_preserve_root("mode_only.txt")).unwrap();
+    mode_only.metadata(
+        Metadata::new()
+            .with_modified(Some(mtime))
+            .with_permission_mode(Some(pna::PermissionMode::from(0o644))),
+    );
     mode_only.write_all(b"a").unwrap();
     archive.add_entry(mode_only.build().unwrap()).unwrap();
 
-    let mut full_owner = EntryBuilder::new_file(
-        EntryName::from_utf8_preserve_root("full_owner.txt"),
-        WriteOptions::store(),
-    )
-    .unwrap();
-    full_owner.modified(mtime);
-    full_owner.owner_uid(pna::OwnerUid::from(1000));
-    full_owner.owner_gid(pna::OwnerGid::from(1000));
-    full_owner.owner_user_name(pna::OwnerUserName::new("alice").unwrap());
-    full_owner.owner_group_name(pna::OwnerGroupName::new("devs").unwrap());
-    full_owner.permission_mode(pna::PermissionMode::from(0o600));
+    let mut full_owner =
+        FileEntryBuilder::new(EntryName::from_utf8_preserve_root("full_owner.txt")).unwrap();
+    full_owner.metadata(
+        Metadata::new()
+            .with_modified(Some(mtime))
+            .with_owner_uid(Some(pna::OwnerUid::from(1000)))
+            .with_owner_gid(Some(pna::OwnerGid::from(1000)))
+            .with_owner_user_name(Some(pna::OwnerUserName::new("alice").unwrap()))
+            .with_owner_group_name(Some(pna::OwnerGroupName::new("devs").unwrap()))
+            .with_permission_mode(Some(pna::PermissionMode::from(0o600))),
+    );
     full_owner.write_all(b"b").unwrap();
     archive.add_entry(full_owner.build().unwrap()).unwrap();
 

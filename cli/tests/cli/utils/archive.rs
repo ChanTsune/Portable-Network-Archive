@@ -33,13 +33,15 @@ pub fn create_archive_with_permissions(
     let mut archive = pna::Archive::write_header(file)?;
 
     for entry_def in entries {
-        let mut builder =
-            pna::EntryBuilder::new_file(entry_def.path.into(), pna::WriteOptions::store())?;
-        builder.owner_uid(pna::OwnerUid::from(1000));
-        builder.owner_gid(pna::OwnerGid::from(1000));
-        builder.owner_user_name(pna::OwnerUserName::new("user").unwrap());
-        builder.owner_group_name(pna::OwnerGroupName::new("group").unwrap());
-        builder.permission_mode(pna::PermissionMode::from(entry_def.permission));
+        let mut builder = pna::FileEntryBuilder::new(entry_def.path.into())?;
+        builder.metadata(
+            pna::Metadata::new()
+                .with_owner_uid(Some(pna::OwnerUid::from(1000)))
+                .with_owner_gid(Some(pna::OwnerGid::from(1000)))
+                .with_owner_user_name(Some(pna::OwnerUserName::new("user").unwrap()))
+                .with_owner_group_name(Some(pna::OwnerGroupName::new("group").unwrap()))
+                .with_permission_mode(Some(pna::PermissionMode::from(entry_def.permission))),
+        );
         builder.write_all(entry_def.content)?;
         let entry = builder.build()?;
         archive.add_entry(entry)?;
@@ -59,13 +61,15 @@ pub fn create_solid_archive_with_permissions(
 
     let mut solid_builder = pna::SolidEntryBuilder::new(pna::WriteOptions::store())?;
     for entry_def in entries {
-        let mut builder =
-            pna::EntryBuilder::new_file(entry_def.path.into(), pna::WriteOptions::store())?;
-        builder.owner_uid(pna::OwnerUid::from(1000));
-        builder.owner_gid(pna::OwnerGid::from(1000));
-        builder.owner_user_name(pna::OwnerUserName::new("user").unwrap());
-        builder.owner_group_name(pna::OwnerGroupName::new("group").unwrap());
-        builder.permission_mode(pna::PermissionMode::from(entry_def.permission));
+        let mut builder = pna::FileEntryBuilder::new(entry_def.path.into())?;
+        builder.metadata(
+            pna::Metadata::new()
+                .with_owner_uid(Some(pna::OwnerUid::from(1000)))
+                .with_owner_gid(Some(pna::OwnerGid::from(1000)))
+                .with_owner_user_name(Some(pna::OwnerUserName::new("user").unwrap()))
+                .with_owner_group_name(Some(pna::OwnerGroupName::new("group").unwrap()))
+                .with_permission_mode(Some(pna::PermissionMode::from(entry_def.permission))),
+        );
         builder.write_all(entry_def.content)?;
         let entry = builder.build()?;
         solid_builder.add_entry(entry)?;
@@ -94,12 +98,15 @@ pub fn create_encrypted_archive_with_permissions(
 
     for entry_def in entries {
         let mut builder =
-            pna::EntryBuilder::new_file(entry_def.path.into(), write_options.clone())?;
-        builder.owner_uid(pna::OwnerUid::from(1000));
-        builder.owner_gid(pna::OwnerGid::from(1000));
-        builder.owner_user_name(pna::OwnerUserName::new("user").unwrap());
-        builder.owner_group_name(pna::OwnerGroupName::new("group").unwrap());
-        builder.permission_mode(pna::PermissionMode::from(entry_def.permission));
+            pna::FileEntryBuilder::new_with_options(entry_def.path.into(), write_options.clone())?;
+        builder.metadata(
+            pna::Metadata::new()
+                .with_owner_uid(Some(pna::OwnerUid::from(1000)))
+                .with_owner_gid(Some(pna::OwnerGid::from(1000)))
+                .with_owner_user_name(Some(pna::OwnerUserName::new("user").unwrap()))
+                .with_owner_group_name(Some(pna::OwnerGroupName::new("group").unwrap()))
+                .with_permission_mode(Some(pna::PermissionMode::from(entry_def.permission))),
+        );
         builder.write_all(entry_def.content)?;
         let entry = builder.build()?;
         archive.add_entry(entry)?;
@@ -172,9 +179,7 @@ pub fn create_test_archive(path: impl AsRef<Path>, entries: &[(&str, &str)]) {
     for (name, contents) in entries {
         writer
             .add_entry({
-                let mut builder =
-                    pna::EntryBuilder::new_file((*name).into(), pna::WriteOptions::store())
-                        .unwrap();
+                let mut builder = pna::FileEntryBuilder::new((*name).into()).unwrap();
                 builder.write_all(contents.as_bytes()).unwrap();
                 builder.build().unwrap()
             })
@@ -205,13 +210,15 @@ pub fn create_archive_with_symlinks(
     let mut archive = pna::Archive::write_header(file)?;
 
     for entry_def in file_entries {
-        let mut builder =
-            pna::EntryBuilder::new_file(entry_def.path.into(), pna::WriteOptions::store())?;
-        builder.owner_uid(pna::OwnerUid::from(1000));
-        builder.owner_gid(pna::OwnerGid::from(1000));
-        builder.owner_user_name(pna::OwnerUserName::new("user").unwrap());
-        builder.owner_group_name(pna::OwnerGroupName::new("group").unwrap());
-        builder.permission_mode(pna::PermissionMode::from(entry_def.permission));
+        let mut builder = pna::FileEntryBuilder::new(entry_def.path.into())?;
+        builder.metadata(
+            pna::Metadata::new()
+                .with_owner_uid(Some(pna::OwnerUid::from(1000)))
+                .with_owner_gid(Some(pna::OwnerGid::from(1000)))
+                .with_owner_user_name(Some(pna::OwnerUserName::new("user").unwrap()))
+                .with_owner_group_name(Some(pna::OwnerGroupName::new("group").unwrap()))
+                .with_permission_mode(Some(pna::PermissionMode::from(entry_def.permission))),
+        );
         builder.write_all(entry_def.content)?;
         let entry = builder.build()?;
         archive.add_entry(entry)?;
@@ -219,24 +226,26 @@ pub fn create_archive_with_symlinks(
 
     for symlink_def in symlink_entries {
         let mut builder =
-            pna::EntryBuilder::new_symlink(symlink_def.path.into(), symlink_def.target.into())?;
-        builder.link_target_type(symlink_def.link_target_type);
+            pna::SymlinkEntryBuilder::new(symlink_def.path.into(), symlink_def.target.into())?;
+        let mut metadata = pna::Metadata::new().with_link_target_type(symlink_def.link_target_type);
         if let Some(mode) = symlink_def.permission {
-            builder.owner_uid(pna::OwnerUid::from(1000));
-            builder.owner_gid(pna::OwnerGid::from(1000));
-            builder.owner_user_name(pna::OwnerUserName::new("user").unwrap());
-            builder.owner_group_name(pna::OwnerGroupName::new("group").unwrap());
-            builder.permission_mode(pna::PermissionMode::from(mode));
+            metadata = metadata
+                .with_owner_uid(Some(pna::OwnerUid::from(1000)))
+                .with_owner_gid(Some(pna::OwnerGid::from(1000)))
+                .with_owner_user_name(Some(pna::OwnerUserName::new("user").unwrap()))
+                .with_owner_group_name(Some(pna::OwnerGroupName::new("group").unwrap()))
+                .with_permission_mode(Some(pna::PermissionMode::from(mode)));
         }
         if let Some(m) = symlink_def.modified {
-            builder.modified(m);
+            metadata = metadata.with_modified(Some(m));
         }
         if let Some(a) = symlink_def.accessed {
-            builder.accessed(a);
+            metadata = metadata.with_accessed(Some(a));
         }
         if let Some(c) = symlink_def.created {
-            builder.created(c);
+            metadata = metadata.with_created(Some(c));
         }
+        builder.metadata(metadata);
         let entry = builder.build()?;
         archive.add_entry(entry)?;
     }

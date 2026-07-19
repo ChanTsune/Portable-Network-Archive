@@ -1,6 +1,6 @@
 use crate::utils::{list_lines, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
-use pna::{Archive, EntryBuilder, WriteOptions};
+use pna::{Archive, FileEntryBuilder};
 use std::{
     fs,
     io::Write,
@@ -21,7 +21,7 @@ fn build_duplicate_archive(path: impl AsRef<Path>) -> Vec<u8> {
         ("b.txt", b"first-b"),
         ("b.txt", b"second-b"),
     ] {
-        let mut builder = EntryBuilder::new_file(name.into(), WriteOptions::store()).unwrap();
+        let mut builder = FileEntryBuilder::new(name.into()).unwrap();
         builder.write_all(content).unwrap();
         archive.add_entry(builder.build().unwrap()).unwrap();
     }

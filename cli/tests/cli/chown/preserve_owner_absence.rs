@@ -1,6 +1,6 @@
 use crate::utils::{archive, setup};
 use clap::Parser;
-use pna::{Archive, EntryBuilder, EntryName, WriteOptions};
+use pna::{Archive, EntryName, FileEntryBuilder, Metadata};
 use portable_network_archive::cli;
 use std::fs::File;
 use std::io::Write;
@@ -17,19 +17,13 @@ fn chown_user_only_preserves_missing_gid() {
     let path = "chown_preserve_absence.pna";
     {
         let mut a = Archive::write_header(File::create(path).unwrap()).unwrap();
-        let mut mo = EntryBuilder::new_file(
-            EntryName::from_utf8_preserve_root("mode_only.txt"),
-            WriteOptions::store(),
-        )
-        .unwrap();
-        mo.permission_mode(pna::PermissionMode::from(0o644));
+        let mut mo =
+            FileEntryBuilder::new(EntryName::from_utf8_preserve_root("mode_only.txt")).unwrap();
+        mo.metadata(Metadata::new().with_permission_mode(Some(pna::PermissionMode::from(0o644))));
         mo.write_all(b"m").unwrap();
         a.add_entry(mo.build().unwrap()).unwrap();
-        let mut bare = EntryBuilder::new_file(
-            EntryName::from_utf8_preserve_root("bare.txt"),
-            WriteOptions::store(),
-        )
-        .unwrap();
+        let mut bare =
+            FileEntryBuilder::new(EntryName::from_utf8_preserve_root("bare.txt")).unwrap();
         bare.write_all(b"x").unwrap();
         a.add_entry(bare.build().unwrap()).unwrap();
         a.finalize().unwrap();
@@ -93,19 +87,13 @@ fn chown_group_only_preserves_missing_uid() {
     let path = "chown_preserve_absence_group.pna";
     {
         let mut a = Archive::write_header(File::create(path).unwrap()).unwrap();
-        let mut mo = EntryBuilder::new_file(
-            EntryName::from_utf8_preserve_root("mode_only.txt"),
-            WriteOptions::store(),
-        )
-        .unwrap();
-        mo.permission_mode(pna::PermissionMode::from(0o600));
+        let mut mo =
+            FileEntryBuilder::new(EntryName::from_utf8_preserve_root("mode_only.txt")).unwrap();
+        mo.metadata(Metadata::new().with_permission_mode(Some(pna::PermissionMode::from(0o600))));
         mo.write_all(b"m").unwrap();
         a.add_entry(mo.build().unwrap()).unwrap();
-        let mut bare = EntryBuilder::new_file(
-            EntryName::from_utf8_preserve_root("bare.txt"),
-            WriteOptions::store(),
-        )
-        .unwrap();
+        let mut bare =
+            FileEntryBuilder::new(EntryName::from_utf8_preserve_root("bare.txt")).unwrap();
         bare.write_all(b"x").unwrap();
         a.add_entry(bare.build().unwrap()).unwrap();
         a.finalize().unwrap();

@@ -2,17 +2,17 @@
 
 use crate::utils::setup;
 use assert_cmd::cargo::cargo_bin_cmd;
-use pna::{Archive, EntryBuilder, WriteOptions};
+use pna::{Archive, FileEntryBuilder};
 use std::io::Write;
 
 fn build_two_entry_archive() -> Vec<u8> {
     let mut archive = Archive::write_header(Vec::new()).unwrap();
 
-    let mut a = EntryBuilder::new_file("a.txt".into(), WriteOptions::store()).unwrap();
+    let mut a = FileEntryBuilder::new("a.txt".into()).unwrap();
     a.write_all(b"alpha").unwrap();
     archive.add_entry(a.build().unwrap()).unwrap();
 
-    let mut b = EntryBuilder::new_file("b.txt".into(), WriteOptions::store()).unwrap();
+    let mut b = FileEntryBuilder::new("b.txt".into()).unwrap();
     b.write_all(b"beta").unwrap();
     archive.add_entry(b.build().unwrap()).unwrap();
 

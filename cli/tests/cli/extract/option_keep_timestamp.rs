@@ -108,13 +108,15 @@ fn extract_keep_timestamp_restores_directory_times() {
     // Build archive programmatically with a directory entry having explicit timestamps
     let file = fs::File::create(&archive_path).unwrap();
     let mut archive = pna::Archive::write_header(file).unwrap();
-    let mut dir_builder = pna::EntryBuilder::new_dir("mydir".into());
-    dir_builder.modified(mtime_epoch);
-    dir_builder.accessed(atime_epoch);
+    let mut dir_builder = pna::DirEntryBuilder::new("mydir".into());
+    dir_builder.metadata(
+        pna::Metadata::new()
+            .with_modified(Some(mtime_epoch))
+            .with_accessed(Some(atime_epoch)),
+    );
     archive.add_entry(dir_builder.build().unwrap()).unwrap();
     // Add a file inside the directory so extraction creates the directory
-    let mut file_builder =
-        pna::EntryBuilder::new_file("mydir/file.txt".into(), pna::WriteOptions::store()).unwrap();
+    let mut file_builder = pna::FileEntryBuilder::new("mydir/file.txt".into()).unwrap();
     file_builder.write_all(b"content").unwrap();
     archive.add_entry(file_builder.build().unwrap()).unwrap();
     archive.finalize().unwrap();
@@ -167,23 +169,31 @@ fn extract_with_keep_timestamp_restores_nested_directory_times() {
     let file = fs::File::create(&archive_path).unwrap();
     let mut archive = pna::Archive::write_header(file).unwrap();
 
-    let mut dir_a = pna::EntryBuilder::new_dir("a".into());
-    dir_a.modified(a_mtime_epoch);
-    dir_a.accessed(a_atime_epoch);
+    let mut dir_a = pna::DirEntryBuilder::new("a".into());
+    dir_a.metadata(
+        pna::Metadata::new()
+            .with_modified(Some(a_mtime_epoch))
+            .with_accessed(Some(a_atime_epoch)),
+    );
     archive.add_entry(dir_a.build().unwrap()).unwrap();
 
-    let mut dir_b = pna::EntryBuilder::new_dir("a/b".into());
-    dir_b.modified(b_mtime_epoch);
-    dir_b.accessed(b_atime_epoch);
+    let mut dir_b = pna::DirEntryBuilder::new("a/b".into());
+    dir_b.metadata(
+        pna::Metadata::new()
+            .with_modified(Some(b_mtime_epoch))
+            .with_accessed(Some(b_atime_epoch)),
+    );
     archive.add_entry(dir_b.build().unwrap()).unwrap();
 
-    let mut dir_c = pna::EntryBuilder::new_dir("a/b/c".into());
-    dir_c.modified(c_mtime_epoch);
-    dir_c.accessed(c_atime_epoch);
+    let mut dir_c = pna::DirEntryBuilder::new("a/b/c".into());
+    dir_c.metadata(
+        pna::Metadata::new()
+            .with_modified(Some(c_mtime_epoch))
+            .with_accessed(Some(c_atime_epoch)),
+    );
     archive.add_entry(dir_c.build().unwrap()).unwrap();
 
-    let mut file_builder =
-        pna::EntryBuilder::new_file("a/b/c/file.txt".into(), pna::WriteOptions::store()).unwrap();
+    let mut file_builder = pna::FileEntryBuilder::new("a/b/c/file.txt".into()).unwrap();
     file_builder.write_all(b"content").unwrap();
     archive.add_entry(file_builder.build().unwrap()).unwrap();
     archive.finalize().unwrap();
@@ -244,17 +254,22 @@ fn extract_keep_timestamp_restores_hardlink_times() {
     let file = fs::File::create(&archive_path).unwrap();
     let mut archive = pna::Archive::write_header(file).unwrap();
 
-    let mut file_builder =
-        pna::EntryBuilder::new_file("original.txt".into(), pna::WriteOptions::store()).unwrap();
-    file_builder.modified(mtime_epoch);
-    file_builder.accessed(atime_epoch);
+    let mut file_builder = pna::FileEntryBuilder::new("original.txt".into()).unwrap();
+    file_builder.metadata(
+        pna::Metadata::new()
+            .with_modified(Some(mtime_epoch))
+            .with_accessed(Some(atime_epoch)),
+    );
     file_builder.write_all(b"shared content").unwrap();
     archive.add_entry(file_builder.build().unwrap()).unwrap();
 
     let mut link_builder =
-        pna::EntryBuilder::new_hard_link("link.txt".into(), "original.txt".into()).unwrap();
-    link_builder.modified(mtime_epoch);
-    link_builder.accessed(atime_epoch);
+        pna::HardLinkEntryBuilder::new("link.txt".into(), "original.txt".into()).unwrap();
+    link_builder.metadata(
+        pna::Metadata::new()
+            .with_modified(Some(mtime_epoch))
+            .with_accessed(Some(atime_epoch)),
+    );
     archive.add_entry(link_builder.build().unwrap()).unwrap();
 
     archive.finalize().unwrap();

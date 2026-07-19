@@ -1,6 +1,6 @@
 use crate::utils::{list_lines, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
-use pna::{Archive, EntryBuilder, ReadOptions, WriteOptions};
+use pna::{Archive, FileEntryBuilder, ReadOptions};
 use std::{
     fs,
     io::{Cursor, Read, Write},
@@ -10,7 +10,7 @@ use std::{
 fn build_archive(entries: &[(&str, &[u8])]) -> Vec<u8> {
     let mut archive = Archive::write_header(Vec::new()).unwrap();
     for (name, content) in entries {
-        let mut builder = EntryBuilder::new_file((*name).into(), WriteOptions::store()).unwrap();
+        let mut builder = FileEntryBuilder::new((*name).into()).unwrap();
         builder.write_all(content).unwrap();
         archive.add_entry(builder.build().unwrap()).unwrap();
     }

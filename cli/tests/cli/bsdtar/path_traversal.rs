@@ -1,6 +1,9 @@
 use crate::utils::setup;
 use assert_cmd::cargo::cargo_bin_cmd;
-use pna::{Archive, EntryBuilder, EntryName, EntryReference, WriteOptions};
+use pna::{
+    Archive, EntryName, EntryReference, FileEntryBuilder, HardLinkEntryBuilder,
+    SymlinkEntryBuilder, WriteOptions,
+};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -23,7 +26,7 @@ fn build_archive_with_file(archive_path: &Path, file_name: &str, file_content: &
 
     writer
         .add_entry({
-            let mut builder = EntryBuilder::new_file(
+            let mut builder = FileEntryBuilder::new_with_options(
                 EntryName::from_utf8_preserve_root(file_name),
                 WriteOptions::builder().build(),
             )
@@ -51,7 +54,7 @@ fn build_archive_with_file_and_symlink(
 
     writer
         .add_entry({
-            let mut builder = EntryBuilder::new_file(
+            let mut builder = FileEntryBuilder::new_with_options(
                 EntryName::from_utf8_preserve_root(file_name),
                 WriteOptions::builder().build(),
             )
@@ -63,7 +66,7 @@ fn build_archive_with_file_and_symlink(
 
     writer
         .add_entry({
-            EntryBuilder::new_symlink(
+            SymlinkEntryBuilder::new(
                 EntryName::from_utf8_preserve_root(symlink_name),
                 EntryReference::from_utf8_preserve_root(symlink_target),
             )
@@ -91,7 +94,7 @@ fn build_archive_with_file_and_hardlink(
 
     writer
         .add_entry({
-            let mut builder = EntryBuilder::new_file(
+            let mut builder = FileEntryBuilder::new_with_options(
                 EntryName::from_utf8_preserve_root(file_name),
                 WriteOptions::builder().build(),
             )
@@ -103,7 +106,7 @@ fn build_archive_with_file_and_hardlink(
 
     writer
         .add_entry({
-            EntryBuilder::new_hard_link(
+            HardLinkEntryBuilder::new(
                 EntryName::from_utf8_preserve_root(hardlink_name),
                 EntryReference::from_utf8_preserve_root(hardlink_target),
             )

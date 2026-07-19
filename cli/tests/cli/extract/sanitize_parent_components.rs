@@ -16,7 +16,7 @@ fn extract_command_sanitizes_parent_components_in_entry_names() {
     let mut archive = pna::Archive::write_header(archive_file).unwrap();
 
     let raw_name = pna::EntryName::from_utf8_preserve_root("../escape.txt");
-    let mut builder = pna::EntryBuilder::new_file(raw_name, pna::WriteOptions::store()).unwrap();
+    let mut builder = pna::FileEntryBuilder::new(raw_name).unwrap();
     builder.write_all(b"payload").unwrap();
     let entry = builder.build().unwrap();
     archive.add_entry(entry).unwrap();
