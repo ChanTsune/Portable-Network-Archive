@@ -1622,9 +1622,9 @@ dependencies = [
 
 [[package]]
 name = "mtree2"
-version = "0.6.15"
+version = "0.6.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63a9c42187e8079b8db9bc8fca7109ebe0f96c121174b0366c26a16a97bf4d5c"
+checksum = "5803e372660c062aec14b8cd7cf63c056c6b157115bfcb19f8e14d76cc68be2a"
 dependencies = [
  "bitflags 2.13.1",
  "faster-hex",
@@ -2421,9 +2421,9 @@ dependencies = [
 
 [[package]]
 name = "smallvec"
-version = "1.15.1"
+version = "1.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
+checksum = "8ed6a63f02c8539c91a8685a86f4099661ba3da017932f6ebbea6de3f0fa7c90"
 dependencies = [
  "serde",
 ]
