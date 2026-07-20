@@ -293,7 +293,7 @@ impl Default for Metadata {
 /// Owner, group, and permission bits for an archive entry.
 #[deprecated(
     since = "0.34.0",
-    note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching EntryBuilder/with_* setters)"
+    note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
 )]
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Permission {
@@ -321,7 +321,7 @@ impl Permission {
     /// ```
     #[deprecated(
         since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching EntryBuilder/with_* setters)"
+        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
     )]
     #[inline]
     pub const fn new(uid: u64, uname: String, gid: u64, gname: String, permission: u16) -> Self {
@@ -346,7 +346,7 @@ impl Permission {
     /// ```
     #[deprecated(
         since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching EntryBuilder/with_* setters)"
+        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
     )]
     #[inline]
     pub const fn uid(&self) -> u64 {
@@ -366,7 +366,7 @@ impl Permission {
     /// ```
     #[deprecated(
         since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching EntryBuilder/with_* setters)"
+        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
     )]
     #[inline]
     pub fn uname(&self) -> &str {
@@ -386,7 +386,7 @@ impl Permission {
     /// ```
     #[deprecated(
         since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching EntryBuilder/with_* setters)"
+        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
     )]
     #[inline]
     pub const fn gid(&self) -> u64 {
@@ -406,7 +406,7 @@ impl Permission {
     /// ```
     #[deprecated(
         since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching EntryBuilder/with_* setters)"
+        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
     )]
     #[inline]
     pub fn gname(&self) -> &str {
@@ -426,7 +426,7 @@ impl Permission {
     /// ```
     #[deprecated(
         since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching EntryBuilder/with_* setters)"
+        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
     )]
     #[inline]
     pub const fn permissions(&self) -> u16 {
