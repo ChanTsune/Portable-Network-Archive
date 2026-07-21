@@ -220,7 +220,9 @@ pub(crate) struct FileArgs {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-#[command(group(ArgGroup::new("password_provider").args(["password", "password_file"])))]
+#[command(group(
+    ArgGroup::new("password_provider").args(["password", "password_file", "password_file_raw"])
+))]
 pub(crate) struct PasswordArgs {
     #[arg(
         long,
@@ -228,8 +230,18 @@ pub(crate) struct PasswordArgs {
         help = "Password of archive. If password is not given it's asked from the tty"
     )]
     pub(crate) password: Option<Option<String>>,
-    #[arg(long, value_name = "FILE", help = "Read password from specified file")]
+    #[arg(
+        long,
+        value_name = "FILE",
+        help = "Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password"
+    )]
     pub(crate) password_file: Option<PathBuf>,
+    #[arg(
+        long,
+        value_name = "FILE",
+        help = "Read password from the specified file as-is (entire file content, including newlines)"
+    )]
+    pub(crate) password_file_raw: Option<PathBuf>,
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -515,12 +527,67 @@ mod tests {
                 "-f",
                 "a.pna",
                 "src",
+                "--aes",
+                "--password-file-raw",
+                "pw.txt",
+            ],
+            vec![
+                "pna",
+                "c",
+                "-f",
+                "a.pna",
+                "src",
                 "--argon2",
                 "--password=secret",
             ],
             vec!["pna", "c", "-f", "a.pna", "src", "--password=secret"],
         ] {
             Cli::try_parse_from(&args).unwrap_or_else(|e| panic!("args {args:?} rejected: {e}"));
+        }
+    }
+
+    #[test]
+    fn password_providers_are_mutually_exclusive() {
+        for args in [
+            vec![
+                "pna",
+                "c",
+                "-f",
+                "a.pna",
+                "src",
+                "--password=secret",
+                "--password-file",
+                "pw.txt",
+            ],
+            vec![
+                "pna",
+                "c",
+                "-f",
+                "a.pna",
+                "src",
+                "--password=secret",
+                "--password-file-raw",
+                "pw.txt",
+            ],
+            vec![
+                "pna",
+                "c",
+                "-f",
+                "a.pna",
+                "src",
+                "--password-file",
+                "pw.txt",
+                "--password-file-raw",
+                "pw.txt",
+            ],
+        ] {
+            let err = Cli::try_parse_from(&args).unwrap_err();
+            assert_eq!(
+                err.kind(),
+                clap::error::ErrorKind::ArgumentConflict,
+                "args {args:?} produced unexpected error kind: {}",
+                err.render()
+            );
         }
     }
 }

@@ -26,6 +26,7 @@ mod option_older_mtime_than;
 #[cfg(unix)]
 mod option_one_file_system;
 mod option_password_from_file;
+mod option_password_from_file_raw;
 mod option_password_hash;
 mod option_strip_components;
 mod option_substitution;
