@@ -135,17 +135,11 @@ jobs:
           key: ${{ join(matrix.targets, '-') }}
           cache-provider: ${{ matrix.cache_provider }}
           save-if: ${{ github.ref_name == github.event.repository.default_branch }}
-      - name: Cache dist binary
-        if: ${{ !contains(matrix.targets, 'riscv64gc-unknown-linux-gnu') }}
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cargo/bin/dist
-          key: dist-${{ runner.os }}-${{ runner.arch }}-v0.31.0
       - name: Install dist
         if: ${{ !contains(matrix.targets, 'riscv64gc-unknown-linux-gnu') }}
         shell: bash
         run: |
-          dist --version 2>/dev/null | grep -q "0.31.0" || (${{ matrix.install_dist.run }} || cargo install --locked --version 0.31.0 cargo-dist)
+          ${{ matrix.install_dist.run }} || cargo install --locked --version 0.31.0 cargo-dist
       - name: Install dist from crates.io
         if: ${{ contains(matrix.targets, 'riscv64gc-unknown-linux-gnu') }}
         uses: baptiste0928/cargo-install@f204293d9709061b7bc1756fec3ec4e2cd57dec0 # v3.4.0
