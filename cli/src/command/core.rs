@@ -1120,7 +1120,7 @@ pub(crate) fn build_entry_metadata(
         keep_options.mac_metadata_strategy,
         MacMetadataStrategy::Always
     );
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(all(unix, not(target_os = "macos")))]
     let skip_xattr_acl = false;
 
     #[cfg(unix)]
