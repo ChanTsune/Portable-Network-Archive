@@ -17,7 +17,7 @@ struct Captured {
 }
 
 /// Precondition: An fPRM-only archive carries ownership and timestamp metadata.
-/// Action: Run `pna experimental migrate` to a new output archive.
+/// Action: Run `pna migrate` to a new output archive.
 /// Expectation: Every entry's ownership is converted to owner-facet chunks
 /// (rescued from fPRM); the legacy fPRM chunk is not emitted; timestamps and
 /// entry count are preserved.
@@ -52,7 +52,6 @@ fn migrate_converts_fprm_to_owner_facet() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "migrate",
         "-f",
         LEGACY_FIXTURE,
