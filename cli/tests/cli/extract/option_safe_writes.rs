@@ -1,9 +1,8 @@
 use crate::utils::setup;
 use clap::Parser;
-use pna::{
-    Archive, DirEntryBuilder, FileEntryBuilder, HardLinkEntryBuilder, SymlinkEntryBuilder,
-    WriteOptions,
-};
+use pna::{Archive, DirEntryBuilder, FileEntryBuilder, WriteOptions};
+#[cfg(unix)]
+use pna::{HardLinkEntryBuilder, SymlinkEntryBuilder};
 use portable_network_archive::cli;
 use std::{
     fs,
