@@ -281,7 +281,8 @@ Create archive
 * `--argon2 <PARAMS>` — Use argon2 for password hashing
 * `--pbkdf2 <PARAMS>` — Use pbkdf2 for password hashing
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `-f`, `--file <ARCHIVE>` — Archive file path
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
@@ -423,7 +424,8 @@ Append files to archive
 * `--zstd <level>` — Use zstd for compression [possible level: 1-21, min, max]
 * `--xz <level>` — Use xz for compression [possible level: 0-9, min, max]
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--aes <cipher mode>` — Use aes for encryption
 
   Possible values: `cbc`, `ctr`
@@ -488,7 +490,8 @@ Extract files from archive
   Default value: `false`
 * `--out-dir <DIRECTORY>` — Output directory of extracted files
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--keep-timestamp` [alias: `preserve-timestamps`] — Restore the timestamp of the files
 
   Default value: `false`
@@ -678,7 +681,8 @@ List files in archive
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `-f`, `--file <ARCHIVE>` — Archive file path
 * `--help` — Print help
 * `--quiet` — Make some output more quiet (alias for --log-level off)
@@ -732,7 +736,8 @@ Delete entry from archive
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
@@ -880,7 +885,8 @@ Strip entries metadata
   Default value: `false`
 * `--output <OUTPUT>` — Output file path
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `-f`, `--file <ARCHIVE>` — Archive file path
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
@@ -921,7 +927,8 @@ Sort entries in archive
 
   Default value: `name`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -962,7 +969,8 @@ Upgrade archives created by older PNA versions
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `-f`, `--file <ARCHIVE>`
 * `--output <OUTPUT>` — Output file path
 * `--quiet` — Make some output more quiet (alias for --log-level off)
@@ -1053,7 +1061,8 @@ Get extended attributes of entries
   Possible values: `text`, `hex`, `base64`
 
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -1103,7 +1112,8 @@ Set extended attributes of entries
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -1404,7 +1414,8 @@ bsdtar-like CLI semantics for PNA archives
 * `--argon2 <PARAMS>` — Use argon2 for password hashing
 * `--pbkdf2 <PARAMS>` — Use pbkdf2 for password hashing
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--options <OPTIONS>` — Comma-separated list of options. Format: key=value or module:key=value. Supported: compression-level. Modules: deflate, zstd, xz
 * `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
 * `--exclude <PATTERN>` — Exclude path glob
@@ -1694,7 +1705,8 @@ Update entries in archive
 * `--zstd <level>` — Use zstd for compression [possible level: 1-21, min, max]
 * `--xz <level>` — Use xz for compression [possible level: 0-9, min, max]
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--aes <cipher mode>` — Use aes for encryption
 
   Possible values: `cbc`, `ctr`
@@ -1782,7 +1794,8 @@ Change owner
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -1829,7 +1842,8 @@ Change mode
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -1913,7 +1927,8 @@ Get acl of entries
   Default value: `false`
 * `-f`, `--file <ARCHIVE>` — Archive file path
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -1966,7 +1981,8 @@ Set acl of entries
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -2045,7 +2061,8 @@ Upgrade archives created by older PNA versions (stabilized, use `pna migrate` co
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `-f`, `--file <ARCHIVE>`
 * `--output <OUTPUT>` — Output file path
 * `--quiet` — Make some output more quiet (alias for --log-level off)
@@ -2197,7 +2214,8 @@ Compare archive entries with filesystem
 
 * `-f`, `--file <ARCHIVE>` — Archive file path
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--full-compare` — Compare directory mtime and ownership (by default, only mode is compared for directories)
 
   Default value: `false`
@@ -2241,7 +2259,8 @@ Note: for encrypted entries, a wrong password is indistinguishable from corrupti
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
