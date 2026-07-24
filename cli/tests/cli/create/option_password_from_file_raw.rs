@@ -1,6 +1,5 @@
 use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
-use pna::prelude::*;
 use portable_network_archive::cli;
 use std::{collections::HashSet, fs};
 
@@ -57,16 +56,16 @@ fn create_with_password_file_raw() {
     }
 }
 
-/// Precondition: Input files and a password file whose content includes a trailing newline.
-/// Action: Create an encrypted archive with `--password-file` (legacy full-file read).
-/// Expectation: The entire file content (including the newline) is still accepted as the password.
+/// Precondition: Input files and a password file with a trailing newline after the password.
+/// Action: Create an encrypted archive with `--password-file`.
+/// Expectation: Only the first non-empty line is used (trailing newline is ignored).
 #[test]
-fn create_with_password_file_including_newline() {
+fn create_with_password_file_ignores_trailing_newline() {
     setup();
     TestResources::extract_in("raw/", "create_with_password_file_newline/in/").unwrap();
     let password_file_path = "create_with_password_file_newline/password_file";
-    let password = "create_with_password_file_newline\n";
-    fs::write(password_file_path, password).unwrap();
+    let password = "create_with_password_file_newline";
+    fs::write(password_file_path, format!("{password}\n")).unwrap();
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -94,25 +93,28 @@ fn create_with_password_file_including_newline() {
     .unwrap();
 }
 
-/// Precondition: Input files and a password file whose content is not valid UTF-8.
-/// Action: Create an encrypted archive with `--password-file` (legacy full-file read).
-/// Expectation: The entire byte sequence is still accepted as the password (only a warning is
-/// emitted; the upcoming first-non-empty-UTF-8-line behavior would reject this file outright).
+/// Precondition: Input files and a multi-line password file.
+/// Action: Create an encrypted archive with `--password-file`.
+/// Expectation: Only the first non-empty line is used as the password.
 #[test]
-fn create_with_password_file_non_utf8() {
+fn create_with_password_file_uses_first_non_empty_line() {
     setup();
-    TestResources::extract_in("raw/", "create_with_password_file_non_utf8/in/").unwrap();
-    let password_file_path = "create_with_password_file_non_utf8/password_file";
-    let password: &[u8] = &[0xff, 0xfe, 0xfd];
-    fs::write(password_file_path, password).unwrap();
+    TestResources::extract_in("raw/", "create_with_password_file_first_line/in/").unwrap();
+    let password_file_path = "create_with_password_file_first_line/password_file";
+    let password = "first-line-password";
+    fs::write(
+        password_file_path,
+        format!("\n{password}\nsecond-line-ignored\n"),
+    )
+    .unwrap();
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
         "-f",
-        "create_with_password_file_non_utf8/password_from_file.pna",
+        "create_with_password_file_first_line/password_from_file.pna",
         "--overwrite",
-        "create_with_password_file_non_utf8/in/",
+        "create_with_password_file_first_line/in/",
         "--password-file",
         password_file_path,
         "--aes",
@@ -124,10 +126,75 @@ fn create_with_password_file_non_utf8() {
     .execute()
     .unwrap();
 
-    let mut archive =
-        pna::Archive::open("create_with_password_file_non_utf8/password_from_file.pna").unwrap();
-    let read_options = pna::ReadOptions::with_password(Some(password));
-    for entry in archive.entries().extract_solid_entries(&read_options) {
-        entry.unwrap();
-    }
+    archive::for_each_entry_with_password(
+        "create_with_password_file_first_line/password_from_file.pna",
+        password,
+        |_entry| {},
+    )
+    .unwrap();
+}
+
+/// Precondition: Input files and an empty password file.
+/// Action: Create an encrypted archive with `--password-file`.
+/// Expectation: The command fails because the password is empty.
+#[test]
+fn create_with_empty_password_file_is_rejected() {
+    setup();
+    TestResources::extract_in("raw/", "create_with_empty_password_file/in/").unwrap();
+    let password_file_path = "create_with_empty_password_file/password_file";
+    fs::write(password_file_path, "\n\n").unwrap();
+    let err = cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "create_with_empty_password_file/password_from_file.pna",
+        "--overwrite",
+        "create_with_empty_password_file/in/",
+        "--password-file",
+        password_file_path,
+        "--aes",
+        "ctr",
+        "--argon2",
+        "t=1,m=50",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap_err();
+
+    let err = format!("{err:?}");
+    assert!(err.contains("password is empty"), "unexpected error: {err}");
+}
+
+/// Precondition: Input files and a password file whose content is not valid UTF-8.
+/// Action: Create an encrypted archive with `--password-file`.
+/// Expectation: The command fails because the password file must be valid UTF-8
+/// (use `--password-file-raw` for arbitrary bytes).
+#[test]
+fn create_with_non_utf8_password_file_is_rejected() {
+    setup();
+    TestResources::extract_in("raw/", "create_with_non_utf8_password_file/in/").unwrap();
+    let password_file_path = "create_with_non_utf8_password_file/password_file";
+    fs::write(password_file_path, [0xff, 0xfe, 0xfd]).unwrap();
+    let err = cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "create_with_non_utf8_password_file/password_from_file.pna",
+        "--overwrite",
+        "create_with_non_utf8_password_file/in/",
+        "--password-file",
+        password_file_path,
+        "--aes",
+        "ctr",
+        "--argon2",
+        "t=1,m=50",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap_err();
+
+    let err = format!("{err:?}");
+    assert!(err.contains("UTF-8"), "unexpected error: {err}");
 }
