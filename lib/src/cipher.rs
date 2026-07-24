@@ -6,6 +6,9 @@ mod gcm;
 mod stream;
 
 use crate::io::TryIntoInner;
+pub(crate) use aead::{DEFAULT_SEGMENT_SIZE, STREAM_HEADER_LEN, StreamHeader, derive_stream_key};
+#[cfg(test)]
+pub(crate) use aead::{GCM_TAG_LEN, segment_nonce};
 use aes::Aes256;
 use camellia::Camellia256;
 use cipher::block_padding::Pkcs7;
@@ -50,6 +53,12 @@ pub(crate) type EncryptGcmAes256Writer<W> = gcm::GcmEncryptWriter<W, Aes256>;
 /// A type alias for a Camellia-256 GCM mode STREAM encryption writer.
 pub(crate) type EncryptGcmCamellia256Writer<W> = gcm::GcmEncryptWriter<W, Camellia256>;
 
+/// A type alias for an AES-256 GCM mode STREAM decryption reader.
+pub(crate) type DecryptGcmAes256Reader<R> = gcm::GcmDecryptReader<R, Aes256>;
+
+/// A type alias for a Camellia-256 GCM mode STREAM decryption reader.
+pub(crate) type DecryptGcmCamellia256Reader<R> = gcm::GcmDecryptReader<R, Camellia256>;
+
 /// An enum representing different encryption writers for PNA archives.
 ///
 /// This enum provides different encryption implementations for writing data to a PNA archive.
@@ -68,10 +77,8 @@ pub(crate) enum CipherWriter<W: Write> {
     /// Camellia-256 encryption in CTR mode.
     CtrCamellia(Ctr128BEWriter<W, Camellia256>),
     /// AES-256 encryption in GCM STREAM mode.
-    #[allow(dead_code)]
     GcmAes(EncryptGcmAes256Writer<W>),
     /// Camellia-256 encryption in GCM STREAM mode.
-    #[allow(dead_code)]
     GcmCamellia(EncryptGcmCamellia256Writer<W>),
 }
 
@@ -136,8 +143,9 @@ impl<W: Write> TryIntoInner<W> for CipherWriter<W> {
 /// An enum representing different decryption readers for PNA archives.
 ///
 /// This enum provides different decryption implementations for reading data from a PNA archive.
-/// It supports both block ciphers (AES-256 and Camellia-256 in CBC mode) and stream ciphers
-/// (AES-256 and Camellia-256 in CTR mode).
+/// It supports block ciphers (AES-256 and Camellia-256 in CBC mode), stream ciphers
+/// (AES-256 and Camellia-256 in CTR mode), and authenticated encryption
+/// (AES-256 and Camellia-256 in GCM STREAM mode).
 pub(crate) enum DecryptReader<R: Read> {
     /// No decryption, data is read as-is.
     No(R),
@@ -149,6 +157,10 @@ pub(crate) enum DecryptReader<R: Read> {
     CtrAes(Ctr128BEReader<R, Aes256>),
     /// Camellia-256 decryption in CTR mode.
     CtrCamellia(Ctr128BEReader<R, Camellia256>),
+    /// AES-256 decryption in GCM STREAM mode.
+    GcmAes(DecryptGcmAes256Reader<R>),
+    /// Camellia-256 decryption in GCM STREAM mode.
+    GcmCamellia(DecryptGcmCamellia256Reader<R>),
 }
 
 impl<R: Read> Read for DecryptReader<R> {
@@ -159,6 +171,8 @@ impl<R: Read> Read for DecryptReader<R> {
             DecryptReader::CbcCamellia(r) => r.read(buf),
             DecryptReader::CtrAes(r) => r.read(buf),
             DecryptReader::CtrCamellia(r) => r.read(buf),
+            DecryptReader::GcmAes(r) => r.read(buf),
+            DecryptReader::GcmCamellia(r) => r.read(buf),
         }
     }
 }
