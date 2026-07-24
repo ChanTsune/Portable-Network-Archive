@@ -334,8 +334,8 @@ impl CipherAlgorithmArgs {
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, ValueEnum)]
 pub(crate) enum CipherMode {
     Cbc,
-    #[default]
     Ctr,
+    #[default]
     Gcm,
 }
 
@@ -524,5 +524,19 @@ mod tests {
         ] {
             Cli::try_parse_from(&args).unwrap_or_else(|e| panic!("args {args:?} rejected: {e}"));
         }
+    }
+
+    #[test]
+    fn cipher_mode_default_is_gcm() {
+        assert_eq!(CipherMode::default(), CipherMode::Gcm);
+    }
+
+    #[test]
+    fn cipher_algorithm_args_aes_without_mode_defaults_to_gcm() {
+        let args = CipherAlgorithmArgs {
+            aes: Some(None),
+            camellia: None,
+        };
+        assert_eq!(args.mode(), pna::CipherMode::GCM);
     }
 }

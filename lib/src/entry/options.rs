@@ -955,8 +955,10 @@ impl TryFrom<u8> for DataKind {
 /// - **Hash Algorithm**: Always use [`HashAlgorithm::argon2id()`] in production for password-based
 ///   encryption. [`HashAlgorithm::pbkdf2_sha256()`] is primarily for compatibility with older
 ///   systems or when Argon2 is not available.
-/// - **Cipher Mode**: CTR mode ([`CipherMode::CTR`]) is recommended over CBC for most use cases
-///   as it allows parallel processing and has simpler security requirements.
+/// - **Cipher Mode**: GCM ([`CipherMode::GCM`]) is the default and recommended mode: it
+///   authenticates the ciphertext, so tampering is detected instead of silently decrypting to
+///   garbage as with CBC/CTR. Use CBC/CTR only when interoperating with tools that require them;
+///   between the two, CTR is preferred over CBC.
 /// - **Per-Entry Randomness**: Each entry receives its own randomly generated encryption
 ///   material — an IV for CBC/CTR, or a salt and nonce prefix for GCM — generated using
 ///   cryptographically secure random number generation. You do not need to provide this yourself.
@@ -992,7 +994,7 @@ impl TryFrom<u8> for DataKind {
 ///
 /// let opts = WriteOptions::builder()
 ///     .encryption(Encryption::AES)
-///     .cipher_mode(CipherMode::CTR)
+///     .cipher_mode(CipherMode::GCM)
 ///     .hash_algorithm(HashAlgorithm::argon2id())
 ///     .password(Some("secure_password"))
 ///     .build();
@@ -1005,7 +1007,7 @@ impl TryFrom<u8> for DataKind {
 /// let opts = WriteOptions::builder()
 ///     .compression(Compression::ZSTANDARD)
 ///     .encryption(Encryption::AES)
-///     .cipher_mode(CipherMode::CTR)
+///     .cipher_mode(CipherMode::GCM)
 ///     .hash_algorithm(HashAlgorithm::argon2id())
 ///     .password(Some("secure_password"))
 ///     .build();
@@ -1119,7 +1121,7 @@ impl WriteOptionsBuilder {
             compression: Compression::NO,
             compression_level: CompressionLevel::DEFAULT,
             encryption: Encryption::NO,
-            cipher_mode: CipherMode::CTR,
+            cipher_mode: CipherMode::GCM,
             hash_algorithm: HashAlgorithm::argon2id(),
             password: None,
             segment_size: DEFAULT_SEGMENT_SIZE,
@@ -1503,6 +1505,11 @@ mod tests {
     fn cipher_mode_gcm_roundtrips_through_byte() {
         let byte = CipherMode::GCM.to_byte();
         assert_eq!(CipherMode::from_byte(byte), CipherMode::GCM);
+    }
+
+    #[test]
+    fn default_cipher_mode_is_gcm() {
+        assert_eq!(WriteOptions::builder().cipher_mode, CipherMode::GCM);
     }
 
     fn test_output(byte: u8) -> Output {
