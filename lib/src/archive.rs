@@ -751,4 +751,632 @@ mod tests {
             read_entry.metadata().raw_file_size()
         );
     }
+
+    mod gcm_roundtrip {
+        use super::*;
+        use crate::chunk::{Chunk, ChunkExt, ChunkType, RawChunk, read_as_chunks};
+        use std::num::NonZeroU32;
+        #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+        use wasm_bindgen_test::wasm_bindgen_test as test;
+
+        fn gcm_options(
+            encryption: Encryption,
+            compression: Compression,
+            segment_size: u32,
+        ) -> WriteOptions {
+            let mut builder = WriteOptions::builder();
+            builder
+                .compression(compression)
+                .encryption(encryption)
+                .cipher_mode(CipherMode::GCM)
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .password(Some("password"));
+            builder.segment_size(segment_size);
+            builder.build()
+        }
+
+        fn per_entry_archive(
+            options: &WriteOptions,
+            plain: &[u8],
+            max_chunk: Option<u32>,
+        ) -> Vec<u8> {
+            let mut writer = Archive::write_header(Vec::new()).unwrap();
+            let mut builder =
+                FileEntryBuilder::new_with_options("dir/file".into(), options).unwrap();
+            if let Some(size) = max_chunk {
+                builder.max_chunk_size(NonZeroU32::new(size).unwrap());
+            }
+            builder.write_all(plain).unwrap();
+            writer.add_entry(builder.build().unwrap()).unwrap();
+            writer.finalize().unwrap()
+        }
+
+        fn read_per_entry(archived: &[u8], password: Option<&str>) -> io::Result<Vec<u8>> {
+            let mut reader = Archive::read_header(archived).unwrap();
+            let entry = reader.entries().skip_solid().next().unwrap().unwrap();
+            let mut r = entry.reader(ReadOptions::with_password(password))?;
+            let mut out = Vec::new();
+            r.read_to_end(&mut out)?;
+            Ok(out)
+        }
+
+        /// Rewrites a single-entry archive so that its datastream is carried by
+        /// `FDAT` chunks split at the given byte offsets, regardless of how the
+        /// encoder originally chunked it.
+        fn resplit_datastream(archive: &[u8], boundaries: &[usize]) -> Vec<u8> {
+            let mut stream = Vec::new();
+            for chunk in read_as_chunks(archive).unwrap() {
+                let chunk = chunk.unwrap();
+                if chunk.ty() == ChunkType::FDAT {
+                    stream.extend_from_slice(chunk.data());
+                }
+            }
+            let mut segments = Vec::new();
+            let mut prev = 0;
+            for &b in boundaries {
+                segments.push(&stream[prev..b]);
+                prev = b;
+            }
+            segments.push(&stream[prev..]);
+
+            let mut out = PNA_HEADER.to_vec();
+            let mut emitted = false;
+            for chunk in read_as_chunks(archive).unwrap() {
+                let chunk = chunk.unwrap();
+                if chunk.ty() == ChunkType::FDAT {
+                    if !emitted {
+                        for segment in &segments {
+                            RawChunk::from_data(ChunkType::FDAT, segment.to_vec())
+                                .write_chunk_in(&mut out)
+                                .unwrap();
+                        }
+                        emitted = true;
+                    }
+                    continue;
+                }
+                RawChunk::from_data(chunk.ty(), chunk.data().to_vec())
+                    .write_chunk_in(&mut out)
+                    .unwrap();
+            }
+            out
+        }
+
+        fn assert_per_entry_roundtrip(
+            encryption: Encryption,
+            compression: Compression,
+            plain: &[u8],
+        ) {
+            let options = gcm_options(encryption, compression, 4);
+            let archived = per_entry_archive(&options, plain, None);
+            assert_eq!(read_per_entry(&archived, Some("password")).unwrap(), plain);
+        }
+
+        fn assert_solid_roundtrip(encryption: Encryption, compression: Compression, plain: &[u8]) {
+            let options = gcm_options(encryption, compression, 4);
+            let mut writer = Archive::write_solid_header(Vec::new(), options).unwrap();
+            writer
+                .add_entry({
+                    let mut b = FileEntryBuilder::new("dir/file".into()).unwrap();
+                    b.write_all(plain).unwrap();
+                    b.build().unwrap()
+                })
+                .unwrap();
+            let archived = writer.finalize().unwrap();
+
+            let mut reader = Archive::read_header(archived.as_slice()).unwrap();
+            let entry = reader.entries().next().unwrap().unwrap();
+            let ReadEntry::Solid(solid) = entry else {
+                panic!("expected a solid entry");
+            };
+            let options = ReadOptions::with_password(Some(b"password"));
+            let inner = solid.entries(&options).unwrap().next().unwrap().unwrap();
+            let mut r = inner.reader(ReadOptions::builder().build()).unwrap();
+            let mut out = Vec::new();
+            r.read_to_end(&mut out).unwrap();
+            assert_eq!(out, plain);
+        }
+
+        const REPRESENTATIVE: &[u8] = b"012345678";
+
+        #[test]
+        fn per_entry_aes_uncompressed() {
+            assert_per_entry_roundtrip(Encryption::AES, Compression::NO, REPRESENTATIVE);
+        }
+
+        #[test]
+        fn per_entry_aes_zstd() {
+            assert_per_entry_roundtrip(Encryption::AES, Compression::ZSTANDARD, REPRESENTATIVE);
+        }
+
+        #[test]
+        fn per_entry_camellia_uncompressed() {
+            assert_per_entry_roundtrip(Encryption::CAMELLIA, Compression::NO, REPRESENTATIVE);
+        }
+
+        #[test]
+        fn per_entry_camellia_zstd() {
+            assert_per_entry_roundtrip(
+                Encryption::CAMELLIA,
+                Compression::ZSTANDARD,
+                REPRESENTATIVE,
+            );
+        }
+
+        #[test]
+        fn solid_aes_uncompressed() {
+            assert_solid_roundtrip(Encryption::AES, Compression::NO, REPRESENTATIVE);
+        }
+
+        #[test]
+        fn solid_aes_zstd() {
+            assert_solid_roundtrip(Encryption::AES, Compression::ZSTANDARD, REPRESENTATIVE);
+        }
+
+        #[test]
+        fn solid_camellia_uncompressed() {
+            assert_solid_roundtrip(Encryption::CAMELLIA, Compression::NO, REPRESENTATIVE);
+        }
+
+        #[test]
+        fn solid_camellia_zstd() {
+            assert_solid_roundtrip(Encryption::CAMELLIA, Compression::ZSTANDARD, REPRESENTATIVE);
+        }
+
+        #[test]
+        fn plaintext_length_zero() {
+            assert_per_entry_roundtrip(Encryption::AES, Compression::NO, b"");
+        }
+
+        #[test]
+        fn plaintext_length_below_segment() {
+            assert_per_entry_roundtrip(Encryption::AES, Compression::NO, b"abc");
+        }
+
+        #[test]
+        fn plaintext_length_exact_segment() {
+            assert_per_entry_roundtrip(Encryption::AES, Compression::NO, b"abcd");
+        }
+
+        #[test]
+        fn plaintext_length_two_segments() {
+            assert_per_entry_roundtrip(Encryption::AES, Compression::NO, b"abcdefgh");
+        }
+
+        #[test]
+        fn plaintext_length_partial_tail() {
+            assert_per_entry_roundtrip(Encryption::AES, Compression::NO, b"abcdefghi");
+        }
+
+        #[test]
+        fn chunk_split_default() {
+            let options = gcm_options(Encryption::AES, Compression::NO, 4);
+            let archived = per_entry_archive(&options, REPRESENTATIVE, None);
+            assert_eq!(
+                read_per_entry(&archived, Some("password")).unwrap(),
+                REPRESENTATIVE
+            );
+        }
+
+        #[test]
+        fn chunk_split_one_byte() {
+            let options = gcm_options(Encryption::AES, Compression::NO, 4);
+            let archived = per_entry_archive(&options, REPRESENTATIVE, Some(1));
+            assert_eq!(
+                read_per_entry(&archived, Some("password")).unwrap(),
+                REPRESENTATIVE
+            );
+        }
+
+        #[test]
+        fn fdat_boundary_inside_stream_header() {
+            let options = gcm_options(Encryption::AES, Compression::NO, 4);
+            let archived = per_entry_archive(&options, REPRESENTATIVE, None);
+            let resplit = resplit_datastream(&archived, &[20]);
+            assert_eq!(
+                read_per_entry(&resplit, Some("password")).unwrap(),
+                REPRESENTATIVE
+            );
+        }
+
+        #[test]
+        fn fdat_boundary_inside_segment_tag() {
+            let options = gcm_options(Encryption::AES, Compression::NO, 4);
+            let archived = per_entry_archive(&options, REPRESENTATIVE, None);
+            // 43-byte header + 4-byte first-segment ciphertext + 8 bytes into its
+            // 16-byte GCM tag.
+            let resplit = resplit_datastream(&archived, &[43 + 4 + 8]);
+            assert_eq!(
+                read_per_entry(&resplit, Some("password")).unwrap(),
+                REPRESENTATIVE
+            );
+        }
+
+        #[test]
+        fn slice_path_reads_gcm_entry() {
+            let options = gcm_options(Encryption::AES, Compression::NO, 4);
+            let archived = per_entry_archive(&options, REPRESENTATIVE, None);
+            let mut reader = Archive::read_header_from_slice(&archived).unwrap();
+            let entry = reader.entries_slice().next().unwrap().unwrap();
+            let ReadEntry::Normal(entry) = entry else {
+                panic!("expected a normal entry");
+            };
+            let mut r = entry
+                .reader(ReadOptions::with_password(Some("password")))
+                .unwrap();
+            let mut out = Vec::new();
+            r.read_to_end(&mut out).unwrap();
+            assert_eq!(out, REPRESENTATIVE);
+        }
+
+        #[test]
+        fn entries_with_options_reads_solid_gcm_entry() {
+            let options = gcm_options(Encryption::AES, Compression::NO, 4);
+            let mut writer = Archive::write_solid_header(Vec::new(), options).unwrap();
+            writer
+                .add_entry({
+                    let mut b = FileEntryBuilder::new("dir/file".into()).unwrap();
+                    b.write_all(REPRESENTATIVE).unwrap();
+                    b.build().unwrap()
+                })
+                .unwrap();
+            let archived = writer.finalize().unwrap();
+
+            let mut reader = Archive::read_header(archived.as_slice()).unwrap();
+            let entry = reader
+                .entries_with_options(&ReadOptions::with_password(Some(b"password")))
+                .next()
+                .unwrap()
+                .unwrap();
+            let mut r = entry.reader(ReadOptions::builder().build()).unwrap();
+            let mut out = Vec::new();
+            r.read_to_end(&mut out).unwrap();
+            assert_eq!(out, REPRESENTATIVE);
+        }
+
+        /// Decryption binds to the raw header bytes while re-serialization uses
+        /// the parsed header, so copying an entry into a new archive must keep
+        /// the two representations identical.
+        #[test]
+        fn copied_entry_remains_decryptable() {
+            let options = gcm_options(Encryption::AES, Compression::NO, 4);
+            let archived = per_entry_archive(&options, REPRESENTATIVE, None);
+
+            let mut reader = Archive::read_header(archived.as_slice()).unwrap();
+            let mut writer = Archive::write_header(Vec::new()).unwrap();
+            for entry in reader.entries().skip_solid() {
+                writer.add_entry(entry.unwrap()).unwrap();
+            }
+            let copied = writer.finalize().unwrap();
+
+            assert_eq!(
+                read_per_entry(&copied, Some("password")).unwrap(),
+                REPRESENTATIVE
+            );
+        }
+    }
+
+    mod gcm_negative {
+        use super::*;
+        use crate::chunk::{Chunk, ChunkExt, ChunkType, RawChunk, read_as_chunks};
+        use crate::error::AeadError;
+        #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+        use wasm_bindgen_test::wasm_bindgen_test as test;
+
+        const PASSWORD: &str = "password";
+        const SEGMENT_SIZE: u32 = 4;
+        const STREAM_HEADER_LEN: usize = 43;
+        const GCM_TAG_LEN: usize = 16;
+
+        fn gcm_options() -> WriteOptions {
+            gcm_options_with_segment(SEGMENT_SIZE)
+        }
+
+        fn gcm_options_with_segment(segment_size: u32) -> WriteOptions {
+            let mut builder = WriteOptions::builder();
+            builder
+                .compression(Compression::NO)
+                .encryption(Encryption::AES)
+                .cipher_mode(CipherMode::GCM)
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .password(Some(PASSWORD));
+            builder.segment_size(segment_size);
+            builder.build()
+        }
+
+        fn archive_of(entries: &[(&str, &[u8])]) -> Vec<u8> {
+            let options = gcm_options();
+            let mut writer = Archive::write_header(Vec::new()).unwrap();
+            for (path, plain) in entries {
+                let mut builder =
+                    FileEntryBuilder::new_with_options((*path).into(), &options).unwrap();
+                builder.write_all(plain).unwrap();
+                writer.add_entry(builder.build().unwrap()).unwrap();
+            }
+            writer.finalize().unwrap()
+        }
+
+        fn single(plain: &[u8]) -> Vec<u8> {
+            archive_of(&[("dir/file", plain)])
+        }
+
+        fn read_nth(archive: &[u8], index: usize, password: Option<&str>) -> io::Result<Vec<u8>> {
+            let mut reader = Archive::read_header(archive).unwrap();
+            let entry = reader.entries().skip_solid().nth(index).unwrap().unwrap();
+            let mut r = entry.reader(ReadOptions::with_password(password))?;
+            let mut out = Vec::new();
+            r.read_to_end(&mut out)?;
+            Ok(out)
+        }
+
+        fn read_first(archive: &[u8]) -> io::Result<Vec<u8>> {
+            read_nth(archive, 0, Some(PASSWORD))
+        }
+
+        fn tamper_chunk(
+            archive: &[u8],
+            chunk_type: ChunkType,
+            index: usize,
+            f: impl FnOnce(&mut Vec<u8>),
+        ) -> Vec<u8> {
+            let mut out = PNA_HEADER.to_vec();
+            let mut f = Some(f);
+            let mut seen = 0;
+            for chunk in read_as_chunks(archive).unwrap() {
+                let chunk = chunk.unwrap();
+                let mut data = chunk.data().to_vec();
+                if chunk.ty() == chunk_type {
+                    if seen == index {
+                        (f.take().expect("target chunk is tampered once"))(&mut data);
+                    }
+                    seen += 1;
+                }
+                RawChunk::from_data(chunk.ty(), data)
+                    .write_chunk_in(&mut out)
+                    .unwrap();
+            }
+            assert!(f.is_none(), "target chunk was found and tampered");
+            out
+        }
+
+        fn datastream_of(archive: &[u8], entry_index: usize) -> Vec<u8> {
+            let mut current: isize = -1;
+            let mut stream = Vec::new();
+            for chunk in read_as_chunks(archive).unwrap() {
+                let chunk = chunk.unwrap();
+                if chunk.ty() == ChunkType::FHED {
+                    current += 1;
+                }
+                if chunk.ty() == ChunkType::FDAT && current == entry_index as isize {
+                    stream.extend_from_slice(chunk.data());
+                }
+            }
+            stream
+        }
+
+        fn tamper_datastream(
+            archive: &[u8],
+            entry_index: usize,
+            f: impl FnOnce(&mut Vec<u8>),
+        ) -> Vec<u8> {
+            let mut out = PNA_HEADER.to_vec();
+            let mut f = Some(f);
+            let mut current: isize = -1;
+            let mut stream: Option<Vec<u8>> = None;
+            for chunk in read_as_chunks(archive).unwrap() {
+                let chunk = chunk.unwrap();
+                let ty = chunk.ty();
+                if ty == ChunkType::FHED {
+                    current += 1;
+                }
+                if ty == ChunkType::FDAT && current == entry_index as isize {
+                    stream
+                        .get_or_insert_with(Vec::new)
+                        .extend_from_slice(chunk.data());
+                    continue;
+                }
+                if let Some(mut data) = stream.take() {
+                    (f.take().expect("target datastream is tampered once"))(&mut data);
+                    RawChunk::from_data(ChunkType::FDAT, data)
+                        .write_chunk_in(&mut out)
+                        .unwrap();
+                }
+                RawChunk::from_data(ty, chunk.data().to_vec())
+                    .write_chunk_in(&mut out)
+                    .unwrap();
+            }
+            assert!(f.is_none(), "target datastream was found and tampered");
+            out
+        }
+
+        fn aead(err: &io::Error) -> &AeadError {
+            err.get_ref()
+                .and_then(|e| e.downcast_ref::<AeadError>())
+                .expect("decrypt error carries an AeadError")
+        }
+
+        fn solid_datastream(archive: &[u8]) -> Vec<u8> {
+            let mut stream = Vec::new();
+            for chunk in read_as_chunks(archive).unwrap() {
+                let chunk = chunk.unwrap();
+                if chunk.ty() == ChunkType::SDAT {
+                    stream.extend_from_slice(chunk.data());
+                }
+            }
+            stream
+        }
+
+        fn tamper_solid_datastream(archive: &[u8], f: impl FnOnce(&mut Vec<u8>)) -> Vec<u8> {
+            let mut out = PNA_HEADER.to_vec();
+            let mut f = Some(f);
+            let mut stream: Option<Vec<u8>> = None;
+            for chunk in read_as_chunks(archive).unwrap() {
+                let chunk = chunk.unwrap();
+                let ty = chunk.ty();
+                if ty == ChunkType::SDAT {
+                    stream
+                        .get_or_insert_with(Vec::new)
+                        .extend_from_slice(chunk.data());
+                    continue;
+                }
+                if let Some(mut data) = stream.take() {
+                    (f.take().expect("target datastream is tampered once"))(&mut data);
+                    RawChunk::from_data(ChunkType::SDAT, data)
+                        .write_chunk_in(&mut out)
+                        .unwrap();
+                }
+                RawChunk::from_data(ty, chunk.data().to_vec())
+                    .write_chunk_in(&mut out)
+                    .unwrap();
+            }
+            assert!(f.is_none(), "target datastream was found and tampered");
+            out
+        }
+
+        /// Reads inner entry contents, stopping at the first error (the iterator
+        /// reproduces a decryption error indefinitely rather than ending).
+        fn read_solid_contents(archive: &[u8], password: Option<&str>) -> Vec<io::Result<Vec<u8>>> {
+            let mut reader = Archive::read_header(archive).unwrap();
+            let ReadEntry::Solid(solid) = reader.entries().next().unwrap().unwrap() else {
+                panic!("expected a solid entry");
+            };
+            let mut contents = Vec::new();
+            let options = ReadOptions::with_password(password);
+            for entry in solid.entries(&options).unwrap() {
+                let result = entry.and_then(|e| {
+                    let mut r = e.reader(ReadOptions::builder().build())?;
+                    let mut out = Vec::new();
+                    r.read_to_end(&mut out)?;
+                    Ok(out)
+                });
+                let stop = result.is_err();
+                contents.push(result);
+                if stop {
+                    break;
+                }
+            }
+            contents
+        }
+
+        #[test]
+        fn wrong_password_fails_authentication_without_distinguishing_the_cause() {
+            let archive = single(b"abcdefgh");
+            assert_eq!(read_first(&archive).unwrap(), b"abcdefgh");
+            let err = read_nth(&archive, 0, Some("wrong")).unwrap_err();
+            assert!(matches!(aead(&err), AeadError::AuthenticationFailure));
+            let message = err.to_string();
+            assert!(message.contains("wrong password"));
+            assert!(message.contains("corrupted data"));
+        }
+
+        /// K_master is shared across entries written with the same options, so
+        /// per-stream key and nonce uniqueness rests entirely on the random
+        /// stream salt and nonce prefix in each stream header.
+        #[test]
+        fn entries_use_distinct_stream_salts_and_nonce_prefixes() {
+            let archive = archive_of(&[("dir/a", b"abcdefgh"), ("dir/b", b"abcdefgh")]);
+            let first = datastream_of(&archive, 0);
+            let second = datastream_of(&archive, 1);
+            assert_ne!(first[..32], second[..32], "stream salts must differ");
+            assert_ne!(first[32..39], second[32..39], "nonce prefixes must differ");
+        }
+
+        #[test]
+        fn truncating_solid_datastream_at_inner_entry_boundary_is_truncation() {
+            let entry = |path: &str, plain: &[u8]| {
+                let mut b = FileEntryBuilder::new(path.into()).unwrap();
+                b.write_all(plain).unwrap();
+                b.build().unwrap()
+            };
+            let first = entry("dir/a", b"first");
+            let second = entry("dir/b", b"second");
+
+            let mut writer =
+                Archive::write_solid_header(Vec::new(), WriteOptions::store()).unwrap();
+            writer.add_entry(first.clone()).unwrap();
+            let first_len = solid_datastream(&writer.finalize().unwrap()).len();
+
+            // The first GCM segment ends exactly at the first inner entry's FEND.
+            let mut writer =
+                Archive::write_solid_header(Vec::new(), gcm_options_with_segment(first_len as u32))
+                    .unwrap();
+            writer.add_entry(first).unwrap();
+            writer.add_entry(second).unwrap();
+            let archived = writer.finalize().unwrap();
+            let contents = read_solid_contents(&archived, Some(PASSWORD));
+            assert_eq!(
+                contents
+                    .into_iter()
+                    .map(|it| it.unwrap())
+                    .collect::<Vec<_>>(),
+                [b"first".to_vec(), b"second".to_vec()]
+            );
+
+            let truncated = tamper_solid_datastream(&archived, |data| {
+                data.truncate(STREAM_HEADER_LEN + first_len + GCM_TAG_LEN + 8);
+            });
+            let results = read_solid_contents(&truncated, Some(PASSWORD));
+            assert_eq!(results[0].as_ref().unwrap(), b"first");
+            assert_eq!(
+                results.len(),
+                2,
+                "truncation must surface as an error instead of ending iteration cleanly"
+            );
+            assert!(matches!(
+                aead(results[1].as_ref().unwrap_err()),
+                AeadError::Truncation
+            ));
+        }
+
+        #[test]
+        fn swapping_datastreams_between_entries_fails_authentication() {
+            let archive = archive_of(&[("dir/a", b"abcdefgh"), ("dir/b", b"abcdefgh")]);
+            assert_eq!(read_nth(&archive, 0, Some(PASSWORD)).unwrap(), b"abcdefgh");
+            assert_eq!(read_nth(&archive, 1, Some(PASSWORD)).unwrap(), b"abcdefgh");
+            let stream0 = datastream_of(&archive, 0);
+            let stream1 = datastream_of(&archive, 1);
+            let archive = tamper_datastream(&archive, 0, |data| *data = stream1);
+            let archive = tamper_datastream(&archive, 1, |data| *data = stream0);
+            let err = read_nth(&archive, 0, Some(PASSWORD)).unwrap_err();
+            assert!(matches!(aead(&err), AeadError::AuthenticationFailure));
+        }
+
+        #[test]
+        fn modifying_phsf_salt_fails_authentication() {
+            let archive = single(b"abcdefgh");
+            assert_eq!(read_first(&archive).unwrap(), b"abcdefgh");
+            let tampered = tamper_chunk(&archive, ChunkType::PHSF, 0, |data| {
+                let phsf = std::str::from_utf8(data).unwrap();
+                let mut fields = phsf.split('$').map(str::to_owned).collect::<Vec<_>>();
+                let salt = &mut fields[3];
+                let mut bytes = std::mem::take(salt).into_bytes();
+                bytes[0] = if bytes[0] == b'A' { b'B' } else { b'A' };
+                *salt = String::from_utf8(bytes).unwrap();
+                *data = fields.join("$").into_bytes();
+            });
+            let err = read_first(&tampered).unwrap_err();
+            assert!(matches!(aead(&err), AeadError::AuthenticationFailure));
+        }
+
+        #[test]
+        fn modifying_fhed_path_fails_authentication() {
+            let archive = single(b"abcdefgh");
+            assert_eq!(read_first(&archive).unwrap(), b"abcdefgh");
+            let tampered = tamper_chunk(&archive, ChunkType::FHED, 0, |data| {
+                data[6] ^= 0x01;
+            });
+            let err = read_first(&tampered).unwrap_err();
+            assert!(matches!(aead(&err), AeadError::AuthenticationFailure));
+        }
+
+        #[test]
+        fn datastream_shorter_than_the_stream_header_is_malformed() {
+            let archive = single(b"012345678");
+            assert_eq!(read_first(&archive).unwrap(), b"012345678");
+            let tampered = tamper_datastream(&archive, 0, |data| {
+                data.truncate(STREAM_HEADER_LEN - 1);
+            });
+            let err = read_first(&tampered).unwrap_err();
+            assert!(matches!(aead(&err), AeadError::Malformed(_)));
+        }
+    }
 }

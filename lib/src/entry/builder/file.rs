@@ -69,9 +69,9 @@ impl FileEntryBuilder {
             option.cipher_mode(),
             name,
         );
-        let (writer, iv, phsf) = data_writer(option)?;
+        let (writer, prefix, phsf) = data_writer(option, &header.to_bytes())?;
         let mut core = EntryBuilderCore::new(header);
-        core.set_cipher(iv, phsf);
+        core.set_cipher(prefix, phsf);
         Ok(Self {
             core,
             data: writer,

@@ -1,8 +1,11 @@
 //! Entry compression and encryption writing.
 
 use crate::{
-    Cipher, CipherAlgorithm, HashAlgorithm,
-    cipher::{CipherWriter, Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
+    ChunkType, Cipher, CipherAlgorithm, HashAlgorithm,
+    cipher::{
+        CipherWriter, Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer,
+        EncryptGcmAes256Writer, EncryptGcmCamellia256Writer, StreamHeader, derive_stream_key,
+    },
     compress::CompressionWriter,
     entry::{CipherMode, Compress, DerivedKeyMaterial, HashAlgorithmParams, WriteOption},
     hash, random,
@@ -18,9 +21,33 @@ use zstd::stream::write::Encoder as ZstdEncoder;
 
 pub(crate) struct CipherContext {
     pub(crate) phsf: String,
-    pub(crate) iv: Vec<u8>,
-    pub(crate) key: Output,
-    pub(crate) mode: CipherMode,
+    pub(crate) payload: CipherPayload,
+}
+
+pub(crate) enum CipherPayload {
+    /// CBC/CTR: the KDF output is used directly as the encryption key.
+    Block {
+        mode: CipherMode,
+        iv: Vec<u8>,
+        key: Output,
+    },
+    /// GCM: the per-stream key is derived from the KDF output (K_master) and
+    /// the stream header.
+    GcmStream {
+        header: StreamHeader,
+        k_stream: [u8; 32],
+    },
+}
+
+impl CipherContext {
+    /// On-wire datastream prefix: the block IV for CBC/CTR, or the stream
+    /// header for GCM.
+    pub(crate) fn prefix_bytes(&self) -> Vec<u8> {
+        match &self.payload {
+            CipherPayload::Block { iv, .. } => iv.clone(),
+            CipherPayload::GcmStream { header, .. } => header.to_bytes().to_vec(),
+        }
+    }
 }
 
 pub(crate) struct WriteCipher {
@@ -44,25 +71,62 @@ pub(crate) fn derive_key_material(
 }
 
 #[inline]
-fn to_hashed(cipher: &Cipher) -> io::Result<WriteCipher> {
-    let iv = match cipher.cipher_algorithm {
-        CipherAlgorithm::Aes => random::random_vec(Aes256::block_size()),
-        CipherAlgorithm::Camellia => random::random_vec(Camellia256::block_size()),
-    }?;
+fn to_hashed(
+    cipher: &Cipher,
+    header_chunk_type: ChunkType,
+    header_chunk_data: &[u8],
+) -> io::Result<WriteCipher> {
+    let context = match cipher.mode {
+        CipherMode::GCM => {
+            let mut salt = [0u8; 32];
+            random::random_bytes(&mut salt)?;
+            let mut nonce_prefix = [0u8; 7];
+            random::random_bytes(&mut nonce_prefix)?;
+            let header = StreamHeader::new(salt, nonce_prefix, cipher.segment_size)
+                .map_err(io::Error::other)?;
+            let k_stream = derive_stream_key(
+                cipher.derived.key.as_bytes(),
+                &header.salt,
+                header_chunk_type,
+                header_chunk_data,
+                cipher.derived.phsf.as_bytes(),
+            );
+            CipherContext {
+                phsf: cipher.derived.phsf.clone(),
+                payload: CipherPayload::GcmStream { header, k_stream },
+            }
+        }
+        _ => {
+            let iv = match cipher.cipher_algorithm {
+                CipherAlgorithm::Aes => random::random_vec(Aes256::block_size()),
+                CipherAlgorithm::Camellia => random::random_vec(Camellia256::block_size()),
+            }?;
+            CipherContext {
+                phsf: cipher.derived.phsf.clone(),
+                payload: CipherPayload::Block {
+                    mode: cipher.mode,
+                    iv,
+                    key: cipher.derived.key,
+                },
+            }
+        }
+    };
     Ok(WriteCipher {
         algorithm: cipher.cipher_algorithm,
-        context: CipherContext {
-            phsf: cipher.derived.phsf.clone(),
-            iv,
-            key: cipher.derived.key,
-            mode: cipher.mode,
-        },
+        context,
     })
 }
 
 #[inline]
-pub(crate) fn get_writer_context(option: impl WriteOption) -> io::Result<EntryWriterContext> {
-    let cipher = option.cipher().map(to_hashed).transpose()?;
+pub(crate) fn get_writer_context(
+    option: impl WriteOption,
+    header_chunk_type: ChunkType,
+    header_chunk_data: &[u8],
+) -> io::Result<EntryWriterContext> {
+    let cipher = option
+        .cipher()
+        .map(|c| to_hashed(c, header_chunk_type, header_chunk_data))
+        .transpose()?;
     Ok(EntryWriterContext {
         compress: option.compress(),
         cipher,
@@ -120,56 +184,58 @@ fn encryption_writer<W: Write>(
 ) -> io::Result<CipherWriter<W>> {
     Ok(match cipher {
         None => CipherWriter::No(writer),
-        Some(WriteCipher {
-            algorithm: CipherAlgorithm::Aes,
-            context:
-                CipherContext {
-                    iv,
-                    key,
+        Some(WriteCipher { algorithm, context }) => match (algorithm, &context.payload) {
+            (
+                CipherAlgorithm::Aes,
+                CipherPayload::Block {
                     mode: CipherMode::CBC,
-                    ..
-                },
-        }) => CipherWriter::CbcAes(EncryptCbcAes256Writer::new(writer, key.as_bytes(), iv)?),
-        Some(WriteCipher {
-            algorithm: CipherAlgorithm::Aes,
-            context:
-                CipherContext {
                     iv,
                     key,
+                },
+            ) => CipherWriter::CbcAes(EncryptCbcAes256Writer::new(writer, key.as_bytes(), iv)?),
+            (
+                CipherAlgorithm::Aes,
+                CipherPayload::Block {
                     mode: CipherMode::CTR,
-                    ..
-                },
-        }) => CipherWriter::CtrAes(Ctr128BEWriter::new(writer, key.as_bytes(), iv)?),
-        Some(WriteCipher {
-            algorithm: CipherAlgorithm::Camellia,
-            context:
-                CipherContext {
                     iv,
                     key,
+                },
+            ) => CipherWriter::CtrAes(Ctr128BEWriter::new(writer, key.as_bytes(), iv)?),
+            (
+                CipherAlgorithm::Camellia,
+                CipherPayload::Block {
                     mode: CipherMode::CBC,
-                    ..
-                },
-        }) => CipherWriter::CbcCamellia(EncryptCbcCamellia256Writer::new(
-            writer,
-            key.as_bytes(),
-            iv,
-        )?),
-        Some(WriteCipher {
-            algorithm: CipherAlgorithm::Camellia,
-            context:
-                CipherContext {
                     iv,
                     key,
-                    mode: CipherMode::CTR,
-                    ..
                 },
-        }) => CipherWriter::CtrCamellia(Ctr128BEWriter::new(writer, key.as_bytes(), iv)?),
-        Some(WriteCipher { context, .. }) => {
-            return Err(io::Error::new(
-                io::ErrorKind::Unsupported,
-                format!("unsupported cipher mode for writing: {:?}", context.mode),
-            ));
-        }
+            ) => CipherWriter::CbcCamellia(EncryptCbcCamellia256Writer::new(
+                writer,
+                key.as_bytes(),
+                iv,
+            )?),
+            (
+                CipherAlgorithm::Camellia,
+                CipherPayload::Block {
+                    mode: CipherMode::CTR,
+                    iv,
+                    key,
+                },
+            ) => CipherWriter::CtrCamellia(Ctr128BEWriter::new(writer, key.as_bytes(), iv)?),
+            (CipherAlgorithm::Aes, CipherPayload::GcmStream { header, k_stream }) => {
+                CipherWriter::GcmAes(EncryptGcmAes256Writer::new(writer, k_stream, header))
+            }
+            (CipherAlgorithm::Camellia, CipherPayload::GcmStream { header, k_stream }) => {
+                CipherWriter::GcmCamellia(EncryptGcmCamellia256Writer::new(
+                    writer, k_stream, header,
+                ))
+            }
+            (_, CipherPayload::Block { mode, .. }) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::Unsupported,
+                    format!("unsupported cipher mode for writing: {mode:?}"),
+                ));
+            }
+        },
     })
 }
 

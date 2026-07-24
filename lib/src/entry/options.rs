@@ -1,6 +1,9 @@
 //! Read and write options for archive entries.
 
-use crate::{compress, entry::write::derive_key_material, error::UnknownValueError};
+use crate::{
+    cipher::DEFAULT_SEGMENT_SIZE, compress, entry::write::derive_key_material,
+    error::UnknownValueError,
+};
 use password_hash::Output;
 pub(crate) use private::*;
 use std::{
@@ -30,6 +33,8 @@ mod private {
         pub(crate) hash_algorithm: HashAlgorithm,
         pub(crate) cipher_algorithm: CipherAlgorithm,
         pub(crate) mode: CipherMode,
+        /// GCM datastream segment size in bytes; unused by CBC/CTR modes.
+        pub(crate) segment_size: u32,
     }
 
     impl Cipher {
@@ -41,6 +46,7 @@ mod private {
             hash_algorithm: HashAlgorithm,
             cipher_algorithm: CipherAlgorithm,
             mode: CipherMode,
+            segment_size: u32,
         ) -> Self {
             Self {
                 password,
@@ -48,6 +54,7 @@ mod private {
                 hash_algorithm,
                 cipher_algorithm,
                 mode,
+                segment_size,
             }
         }
     }
@@ -591,6 +598,8 @@ impl CipherMode {
     pub const CBC: Self = Self(0);
     /// Counter mode.
     pub const CTR: Self = Self(1);
+    /// Galois/Counter mode (AEAD, STREAM-based).
+    pub const GCM: Self = Self(2);
 
     /// Deserializes a cipher mode from its u8 representation.
     ///
@@ -640,7 +649,7 @@ impl CipherMode {
     /// (unassigned and raw value < 128).
     #[inline]
     pub const fn is_reserved(self) -> bool {
-        !matches!(self.0, 0..=1) && self.0 < 128
+        !matches!(self.0, 0..=2) && self.0 < 128
     }
 
     /// Returns `true` if this is an application-specific private value
@@ -657,6 +666,7 @@ impl fmt::Debug for CipherMode {
         match *self {
             Self::CBC => f.write_str("CBC"),
             Self::CTR => f.write_str("CTR"),
+            Self::GCM => f.write_str("GCM"),
             Self(v) if v < 128 => f.debug_tuple("Reserved").field(&v).finish(),
             Self(v) => f.debug_tuple("Private").field(&v).finish(),
         }
@@ -947,13 +957,13 @@ impl TryFrom<u8> for DataKind {
 ///   systems or when Argon2 is not available.
 /// - **Cipher Mode**: CTR mode ([`CipherMode::CTR`]) is recommended over CBC for most use cases
 ///   as it allows parallel processing and has simpler security requirements.
-/// - **IV Generation**: Initialization vectors (IVs) are automatically generated using
-///   cryptographically secure random number generation. You do not need to provide IVs.
+/// - **Per-Entry Randomness**: Each entry receives its own randomly generated encryption
+///   material — an IV for CBC/CTR, or a salt and nonce prefix for GCM — generated using
+///   cryptographically secure random number generation. You do not need to provide this yourself.
 /// - **Key Derivation**: The encryption key is derived from the password once when the
 ///   options are built ([`WriteOptionsBuilder::build()`] / [`WriteOptionsBuilder::try_build()`]),
-///   and shared by every entry written with the same [`WriteOptions`]. Each entry still
-///   receives a unique, randomly generated IV. Build a fresh [`WriteOptions`] per archive
-///   so that each archive uses an independent salt and key.
+///   and shared by every entry written with the same [`WriteOptions`]. Build a fresh
+///   [`WriteOptions`] per archive so that each archive uses an independent salt and key.
 /// - **Password Strength**: Use strong passwords (12+ characters, mixed case, numbers, symbols)
 ///   as the encryption key is derived from the password.
 ///
@@ -1070,6 +1080,7 @@ pub struct WriteOptionsBuilder {
     cipher_mode: CipherMode,
     hash_algorithm: HashAlgorithm,
     password: Option<Vec<u8>>,
+    segment_size: u32,
 }
 
 impl Default for WriteOptionsBuilder {
@@ -1095,6 +1106,9 @@ impl From<WriteOptions> for WriteOptionsBuilder {
             cipher_mode: value.cipher_mode(),
             hash_algorithm: value.hash_algorithm(),
             password: value.password().map(|p| p.to_vec()),
+            segment_size: value
+                .cipher()
+                .map_or(DEFAULT_SEGMENT_SIZE, |it| it.segment_size),
         }
     }
 }
@@ -1108,6 +1122,7 @@ impl WriteOptionsBuilder {
             cipher_mode: CipherMode::CTR,
             hash_algorithm: HashAlgorithm::argon2id(),
             password: None,
+            segment_size: DEFAULT_SEGMENT_SIZE,
         }
     }
 
@@ -1167,12 +1182,41 @@ impl WriteOptionsBuilder {
         self
     }
 
+    /// Sets the GCM datastream segment size in bytes.
+    #[cfg(test)]
+    #[inline]
+    pub(crate) fn segment_size(&mut self, size: u32) -> &mut Self {
+        self.segment_size = size;
+        self
+    }
+
+    /// Returns the hash algorithm to derive with, applying the GCM spec profile.
+    ///
+    /// GCM with a fully-defaulted Argon2id uses the spec-recommended parameters
+    /// (t=3, m=64 MiB, p=4); explicitly configured parameters are preserved.
+    fn effective_hash_algorithm(&self) -> HashAlgorithm {
+        match (self.cipher_mode, self.hash_algorithm.0) {
+            (
+                CipherMode::GCM,
+                HashAlgorithmParams::Argon2Id {
+                    time_cost: None,
+                    memory_cost: None,
+                    parallelism_cost: None,
+                },
+            ) => HashAlgorithm::argon2id_with(Some(3), Some(65536), Some(4)),
+            _ => self.hash_algorithm,
+        }
+    }
+
     /// Creates a new [`WriteOptions`] from this builder, deriving the encryption
     /// key when encryption is enabled.
     ///
     /// The key derivation function (KDF) runs once here with a freshly generated
     /// random salt. Every entry written with the resulting [`WriteOptions`] shares
-    /// the derived key and salt; a unique random IV is still generated per entry.
+    /// the derived key and salt; fresh per-entry encryption material — an IV for
+    /// CBC/CTR, or a salt and nonce prefix for GCM — is still generated per entry.
+    /// Build a fresh [`WriteOptions`] for each archive so that no two archives
+    /// reuse the same KDF salt.
     ///
     /// # Errors
     ///
@@ -1213,13 +1257,15 @@ impl WriteOptionsBuilder {
             let password = self.password.as_deref().ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidInput, "Password was not provided.")
             })?;
-            let derived = derive_key_material(cipher_algorithm, self.hash_algorithm, password)?;
+            let hash_algorithm = self.effective_hash_algorithm();
+            let derived = derive_key_material(cipher_algorithm, hash_algorithm, password)?;
             Some(Cipher::new(
                 password.into(),
                 derived,
-                self.hash_algorithm,
+                hash_algorithm,
                 cipher_algorithm,
                 self.cipher_mode,
+                self.segment_size,
             ))
         } else {
             None
@@ -1441,6 +1487,22 @@ mod tests {
     #[should_panic(expected = "Password was not provided.")]
     fn build_without_password_panics() {
         let _ = WriteOptions::builder().encryption(Encryption::AES).build();
+    }
+
+    #[test]
+    fn cipher_mode_2_from_byte_returns_gcm() {
+        assert_eq!(CipherMode::from_byte(2), CipherMode::GCM);
+    }
+
+    #[test]
+    fn cipher_mode_gcm_to_byte_is_2() {
+        assert_eq!(CipherMode::GCM.to_byte(), 2);
+    }
+
+    #[test]
+    fn cipher_mode_gcm_roundtrips_through_byte() {
+        let byte = CipherMode::GCM.to_byte();
+        assert_eq!(CipherMode::from_byte(byte), CipherMode::GCM);
     }
 
     fn test_output(byte: u8) -> Output {
@@ -1744,7 +1806,8 @@ mod tests {
         assert!(!CipherMode::CBC.is_reserved());
         assert!(!CipherMode::CTR.is_reserved());
         assert!(!CipherMode::CTR.is_private());
-        assert!(CipherMode::from_byte(2).is_reserved());
+        assert!(!CipherMode::GCM.is_reserved());
+        assert!(CipherMode::from_byte(3).is_reserved());
         assert!(CipherMode::from_byte(127).is_reserved());
         assert!(!CipherMode::from_byte(127).is_private());
         assert!(!CipherMode::from_byte(128).is_reserved());
@@ -1756,7 +1819,8 @@ mod tests {
     fn cipher_mode_debug_matches_former_enum_output() {
         assert_eq!(format!("{:?}", CipherMode::CBC), "CBC");
         assert_eq!(format!("{:?}", CipherMode::CTR), "CTR");
-        assert_eq!(format!("{:?}", CipherMode::from_byte(2)), "Reserved(2)");
+        assert_eq!(format!("{:?}", CipherMode::GCM), "GCM");
+        assert_eq!(format!("{:?}", CipherMode::from_byte(3)), "Reserved(3)");
         assert_eq!(format!("{:?}", CipherMode::from_byte(200)), "Private(200)");
     }
 
