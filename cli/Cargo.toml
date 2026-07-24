@@ -13,7 +13,7 @@ rust-version = "1.88"
 [dependencies]
 anstream = "1.0.0"
 anyhow = { version = "1.0.102", features = ["backtrace"] }
-base64 = "0.22.1"
+base64 = "0.23.0"
 bitflags = "2.13.0"
 bstr = "1.12.1"
 bugreport = { version = "0.6.0", default-features = false, features = ["collector_operating_system", "format_markdown"] }
