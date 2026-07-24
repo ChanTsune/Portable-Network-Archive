@@ -4,6 +4,7 @@
 //! necessary to manage PNA archives abstracted over a reader or writer hosted by [`libpna`].
 #![doc = include_str!("../README.md")]
 #![cfg_attr(target_os = "wasi", feature(wasi_ext))]
+#![cfg_attr(all(target_os = "wasi", target_env = "p2"), feature(wasip2))]
 #![doc(html_root_url = "https://docs.rs/pna/0.36.0")]
 #![deny(
     missing_docs,
