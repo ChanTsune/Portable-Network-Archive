@@ -8,7 +8,7 @@ use clap::Parser;
 use portable_network_archive::cli;
 
 /// Precondition: A 0.19.1 format archive with Linux ACL data exists.
-/// Action: Run `pna experimental migrate` to convert to latest format.
+/// Action: Run `pna migrate` to convert to latest format.
 /// Expectation: Migration succeeds and output archive is readable with preserved ACL data.
 #[test]
 fn migrate_linux_acl() {
@@ -18,7 +18,6 @@ fn migrate_linux_acl() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "migrate",
         "-f",
         "0.19.1/linux_acl.pna",
@@ -39,7 +38,7 @@ fn migrate_linux_acl() {
 }
 
 /// Precondition: A 0.19.1 format archive with macOS ACL data exists.
-/// Action: Run `pna experimental migrate` to convert to latest format.
+/// Action: Run `pna migrate` to convert to latest format.
 /// Expectation: Migration succeeds and output archive is readable with preserved ACL data.
 #[test]
 fn migrate_macos_acl() {
@@ -49,7 +48,6 @@ fn migrate_macos_acl() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "migrate",
         "-f",
         "0.19.1/macos_acl.pna",
@@ -70,7 +68,7 @@ fn migrate_macos_acl() {
 }
 
 /// Precondition: A 0.19.1 format archive with FreeBSD ACL data exists.
-/// Action: Run `pna experimental migrate` to convert to latest format.
+/// Action: Run `pna migrate` to convert to latest format.
 /// Expectation: Migration succeeds and output archive is readable with preserved ACL data.
 #[test]
 fn migrate_freebsd_acl() {
@@ -80,7 +78,6 @@ fn migrate_freebsd_acl() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "migrate",
         "-f",
         "0.19.1/freebsd_acl.pna",
@@ -101,7 +98,7 @@ fn migrate_freebsd_acl() {
 }
 
 /// Precondition: A 0.19.1 format archive with Windows ACL data exists.
-/// Action: Run `pna experimental migrate` to convert to latest format.
+/// Action: Run `pna migrate` to convert to latest format.
 /// Expectation: Migration succeeds and output archive is readable with preserved ACL data.
 #[test]
 fn migrate_windows_acl() {
@@ -111,7 +108,6 @@ fn migrate_windows_acl() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "migrate",
         "-f",
         "0.19.1/windows_acl.pna",
