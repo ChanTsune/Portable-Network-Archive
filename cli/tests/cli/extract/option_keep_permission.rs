@@ -529,3 +529,75 @@ fn extract_preserves_directory_permission() {
     let meta = fs::symlink_metadata("extract_dir_perm/out/raw/images").unwrap();
     assert_eq!(meta.permissions().mode() & 0o777, 0o750,);
 }
+
+/// Precondition: A GCM-encrypted archive contains a file with the setuid bit set (mode 0o4755),
+/// stored via `--keep-permission`.
+/// Action: Extract the archive without `--keep-permission`.
+/// Expectation: The extracted file has no special bits (setuid/setgid/sticky), and its
+/// permission bits are masked by the umask instead of the archived mode.
+#[test]
+#[cfg(unix)]
+fn extract_encrypted_gcm_without_keep_permission_drops_setuid() {
+    setup();
+    TestResources::extract_in("raw/", "extract_gcm_setuid/in/").unwrap();
+
+    set_permissions_or_skip!("extract_gcm_setuid/in/raw/text.txt", 0o4755);
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "extract_gcm_setuid/archive.pna",
+        "--overwrite",
+        "extract_gcm_setuid/in/",
+        "--keep-permission",
+        "--aes",
+        "gcm",
+        "--password",
+        "password",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let mut found = false;
+    archive::for_each_entry_with_password(
+        "extract_gcm_setuid/archive.pna",
+        Some("password"),
+        |entry| {
+            if entry.header().path().as_str().ends_with("raw/text.txt") {
+                found = true;
+                let mode = entry.metadata().permission_mode().unwrap();
+                assert_eq!(mode.get() & 0o7777, 0o4755);
+            }
+        },
+    )
+    .unwrap();
+    assert!(found, "raw/text.txt entry not found in archive");
+
+    crate::utils::pna_cmd_with_umask(0o022)
+        .arg("--quiet")
+        .arg("x")
+        .arg("-f")
+        .arg("extract_gcm_setuid/archive.pna")
+        .arg("--overwrite")
+        .arg("--out-dir")
+        .arg("extract_gcm_setuid/out/")
+        .arg("--password")
+        .arg("password")
+        .arg("--strip-components")
+        .arg("2")
+        .assert()
+        .success();
+
+    let extracted_mode = fs::symlink_metadata("extract_gcm_setuid/out/raw/text.txt")
+        .unwrap()
+        .permissions()
+        .mode();
+    assert_eq!(
+        extracted_mode & 0o7777,
+        0o666 & !0o022,
+        "without --keep-permission the archived mode (with setuid) must be replaced by the umask-masked default"
+    );
+}

@@ -73,6 +73,28 @@ pub fn setup() {
     std::env::set_current_dir(env!("CARGO_TARGET_TMPDIR")).expect("Failed to set current dir");
 }
 
+/// Spawns the `pna` binary under `mask` without touching this test process's
+/// own umask, which `libc::umask` would otherwise change process-wide (it is
+/// not thread-local) and race with unrelated tests running concurrently in
+/// this binary.
+#[cfg(unix)]
+pub fn pna_cmd_with_umask(mask: u16) -> assert_cmd::Command {
+    use assert_cmd::cargo::CommandCargoExt as _;
+    use std::os::unix::process::CommandExt as _;
+
+    let mut cmd = std::process::Command::cargo_bin("pna").expect("pna binary not found");
+    // SAFETY: umask() only runs in the forked child, after fork() and before
+    // exec(), so it affects only that child process and never the parent
+    // test runner or its other threads.
+    unsafe {
+        cmd.pre_exec(move || {
+            libc::umask(mask as libc::mode_t);
+            Ok(())
+        });
+    }
+    assert_cmd::Command::from_std(cmd)
+}
+
 /// Record separator that the bsdtar-compat list output is expected to emit on
 /// the host platform. Reference bsdtar relies on the C runtime's text-mode
 /// translation, so Windows list output ends each record with CRLF while every

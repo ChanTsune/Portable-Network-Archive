@@ -165,3 +165,133 @@ fn camellia_cbc_archive() {
 
     assert_dirs_equal("zstd_camellia_cbc/in/", "zstd_camellia_cbc/out/");
 }
+
+#[test]
+fn aes_gcm_archive() {
+    setup();
+    TestResources::extract_in("raw/", "zstd_aes_gcm/in/").unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "zstd_aes_gcm/zstd_aes_gcm.pna",
+        "--overwrite",
+        "zstd_aes_gcm/in/",
+        "--password",
+        "password",
+        "--aes",
+        "gcm",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        "zstd_aes_gcm/zstd_aes_gcm.pna",
+        "--overwrite",
+        "--out-dir",
+        "zstd_aes_gcm/out/",
+        "--password",
+        "password",
+        "--strip-components",
+        "2",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    assert_dirs_equal("zstd_aes_gcm/in/", "zstd_aes_gcm/out/");
+}
+
+#[test]
+fn camellia_gcm_archive() {
+    setup();
+    TestResources::extract_in("raw/", "zstd_camellia_gcm/in/").unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "zstd_camellia_gcm/zstd_camellia_gcm.pna",
+        "--overwrite",
+        "zstd_camellia_gcm/in/",
+        "--password",
+        "password",
+        "--camellia",
+        "gcm",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        "zstd_camellia_gcm/zstd_camellia_gcm.pna",
+        "--overwrite",
+        "--out-dir",
+        "zstd_camellia_gcm/out/",
+        "--password",
+        "password",
+        "--strip-components",
+        "2",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    assert_dirs_equal("zstd_camellia_gcm/in/", "zstd_camellia_gcm/out/");
+}
+
+/// Precondition: Archive is encrypted with AES-GCM (AEAD) and a password.
+/// Action: Extract with an incorrect password.
+/// Expectation: Extraction fails, since GCM authentication deterministically
+/// detects the wrong key (a guarantee CBC/CTR modes do not provide).
+#[test]
+fn aes_gcm_archive_wrong_password_fails() {
+    setup();
+    TestResources::extract_in("raw/", "zstd_aes_gcm_wrong_password/in/").unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "zstd_aes_gcm_wrong_password/zstd_aes_gcm_wrong_password.pna",
+        "--overwrite",
+        "zstd_aes_gcm_wrong_password/in/",
+        "--password",
+        "password",
+        "--aes",
+        "gcm",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+    let result = cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        "zstd_aes_gcm_wrong_password/zstd_aes_gcm_wrong_password.pna",
+        "--overwrite",
+        "--out-dir",
+        "zstd_aes_gcm_wrong_password/out/",
+        "--password",
+        "wrong_password",
+        "--strip-components",
+        "2",
+    ])
+    .unwrap()
+    .execute();
+
+    let err = result.unwrap_err();
+    assert!(
+        format!("{err:?}").contains("authentication failed"),
+        "error should be classified as an authentication failure: {err:?}"
+    );
+}

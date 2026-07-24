@@ -110,3 +110,19 @@ fn solid_deflate() {
         None,
     );
 }
+
+#[test]
+fn solid_zstd_aes_gcm() {
+    extract_all(
+        include_bytes!("../../resources/test/solid_zstd_aes_gcm.pna"),
+        Some(b"password"),
+    );
+}
+
+#[test]
+fn solid_zstd_camellia_gcm() {
+    extract_all(
+        include_bytes!("../../resources/test/solid_zstd_camellia_gcm.pna"),
+        Some(b"password"),
+    );
+}
