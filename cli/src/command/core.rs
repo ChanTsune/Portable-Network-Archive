@@ -2126,8 +2126,8 @@ fn transform_normal_entry(
         return Ok(None);
     };
 
-    let mut result = if new_name == *entry.name() {
-        // A name that did not change is not a rename, so it must not be sent
+    let mut result = if new_name == *original_name {
+        // A name the editor left alone is not a rename, so it must not be sent
         // through the re-encryption path below.
         entry
     } else if entry.encryption() != pna::Encryption::NO
@@ -2139,7 +2139,7 @@ fn transform_normal_entry(
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!(
-                    "cannot rename encrypted entry {original_name}: an entry encrypted in cipher mode {:?} must be re-encrypted under the new name, which requires the password",
+                    "entry {original_name} is written as {new_name}, and an entry encrypted in cipher mode {:?} must be re-encrypted when its header changes, which requires the password",
                     entry.cipher_mode()
                 ),
             ));
