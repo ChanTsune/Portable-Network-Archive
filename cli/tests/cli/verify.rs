@@ -648,6 +648,53 @@ fn verify_with_fast_without_password_on_encrypted_solid_archive() {
         );
 }
 
+/// Precondition: A solid archive encrypted in an AEAD mode exists and a wrong
+/// password is supplied.
+/// Action: Run verify with the wrong password.
+/// Expectation: Exit failure with the solid block reported as FAILED, without
+/// the note about a wrong password being indistinguishable from corruption —
+/// encryption is a property of the block, so the note has to be decided from the
+/// solid header rather than from the entries inside it.
+#[test]
+fn verify_with_wrong_password_on_aead_encrypted_solid_archive() {
+    setup();
+    TestResources::extract_in("raw/", "verify_solid_aead/in/").unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "verify_solid_aead/verify_solid_aead.pna",
+        "--overwrite",
+        "--solid",
+        "verify_solid_aead/in/",
+        "--password",
+        "password",
+        "--aes",
+        "gcm",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "experimental",
+            "verify",
+            "-f",
+            "verify_solid_aead/verify_solid_aead.pna",
+            "--password",
+            "wrong-password",
+        ])
+        .assert()
+        .failure()
+        .stdout(
+            contains("<solid block #1>: FAILED")
+                .and(contains("key mismatch"))
+                .and(contains("indistinguishable from corruption").not()),
+        );
+}
+
 /// Precondition: A multipart archive exists.
 /// Action: Run verify against the first part.
 /// Expectation: Exit success; all parts are traversed and verified.
