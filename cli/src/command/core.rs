@@ -2368,6 +2368,100 @@ mod tests {
         }
     }
 
+    /// Deliberately runs with an algorithm, a mode and a compression the source
+    /// does not use: all three must come from the source entry, or a rename
+    /// silently re-encodes it under whatever this run happens to be writing.
+    #[test]
+    fn gcm_reencrypt_takes_the_cipher_and_compression_from_the_source_entry() {
+        let source_options = WriteOptions::builder()
+            .compression(pna::Compression::ZSTANDARD)
+            .encryption(pna::Encryption::AES)
+            .cipher_mode(pna::CipherMode::GCM)
+            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .password(Some("password"))
+            .build();
+        let mut source =
+            FileEntryBuilder::new_with_options("original".into(), &source_options).unwrap();
+        source.write_all(b"secret payload").unwrap();
+        let source = source.build().unwrap();
+        let run_options = WriteOptions::builder()
+            .compression(pna::Compression::NO)
+            .encryption(pna::Encryption::CAMELLIA)
+            .cipher_mode(pna::CipherMode::CTR)
+            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .password(Some("password"))
+            .build();
+        let mut cache = ReencryptOptionsCache::new();
+
+        let renamed = re_encrypt_entry_with_name(
+            &source,
+            "renamed".into(),
+            b"password",
+            &run_options,
+            &mut cache,
+        )
+        .unwrap();
+
+        assert_eq!(renamed.header().encryption(), pna::Encryption::AES);
+        assert_eq!(renamed.header().cipher_mode(), pna::CipherMode::GCM);
+        assert_eq!(renamed.header().compression(), pna::Compression::ZSTANDARD);
+        // The header only means anything if the payload actually decodes under
+        // it: a header can name a codec the data was not written with.
+        let mut reader = renamed
+            .reader(pna::ReadOptions::with_password(Some("password")))
+            .unwrap();
+        let mut out = Vec::new();
+        reader.read_to_end(&mut out).unwrap();
+        assert_eq!(out, b"secret payload");
+    }
+
+    /// An archive may mix cipher algorithms, so entries that differ in one must
+    /// not share a cache slot: the second would be re-encrypted with the first's
+    /// algorithm and, because its header is rewritten to match, would still
+    /// decrypt.
+    #[test]
+    fn gcm_reencrypt_options_are_not_shared_across_cipher_algorithms() {
+        let camellia_options = WriteOptions::builder()
+            .encryption(pna::Encryption::CAMELLIA)
+            .cipher_mode(pna::CipherMode::GCM)
+            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .password(Some("password"))
+            .build();
+        let mut aes_source =
+            FileEntryBuilder::new_with_options("aes".into(), gcm_write_options()).unwrap();
+        aes_source.write_all(b"secret payload").unwrap();
+        let aes_source = aes_source.build().unwrap();
+        let mut camellia_source =
+            FileEntryBuilder::new_with_options("camellia".into(), &camellia_options).unwrap();
+        camellia_source.write_all(b"secret payload").unwrap();
+        let camellia_source = camellia_source.build().unwrap();
+        let mut cache = ReencryptOptionsCache::new();
+
+        let renamed_aes = re_encrypt_entry_with_name(
+            &aes_source,
+            "renamed_aes".into(),
+            b"password",
+            &gcm_write_options(),
+            &mut cache,
+        )
+        .unwrap();
+        let renamed_camellia = re_encrypt_entry_with_name(
+            &camellia_source,
+            "renamed_camellia".into(),
+            b"password",
+            &gcm_write_options(),
+            &mut cache,
+        )
+        .unwrap();
+
+        assert_eq!(cache.len(), 2);
+        assert_eq!(renamed_aes.header().encryption(), pna::Encryption::AES);
+        assert_eq!(
+            renamed_camellia.header().encryption(),
+            pna::Encryption::CAMELLIA
+        );
+    }
+
     #[test]
     fn gcm_reencrypt_inherits_the_hash_algorithm_from_create_options() {
         let source_options = WriteOptions::builder()
@@ -2598,6 +2692,53 @@ mod tests {
             }
             other => panic!("expected unknown kind, got {other:?}"),
         }
+    }
+
+    /// Re-encryption rebuilds the entry from its payload, so everything the wire
+    /// format carries outside the datastream — including chunks belonging to a
+    /// type this build does not model — survives only by being copied over.
+    #[test]
+    fn gcm_reencrypt_preserves_metadata_and_extra_chunks() {
+        let xattr = pna::ExtendedAttribute::new(
+            pna::XattrName::try_from("user.k").unwrap(),
+            pna::XattrValue::try_from(b"v".as_slice()).unwrap(),
+        );
+        let private_chunk = pna::RawChunk::from_data(
+            pna::ChunkType::private(*b"abCd").unwrap(),
+            b"private payload".as_slice(),
+        );
+        let mut source =
+            FileEntryBuilder::new_with_options("original".into(), gcm_write_options()).unwrap();
+        source.write_all(b"secret payload").unwrap();
+        source.metadata(
+            Metadata::new()
+                .with_xattrs(vec![xattr.clone()])
+                .with_permission_mode(Some(pna::PermissionMode::from(0o644)))
+                .with_modified(Some(pna::Duration::seconds(1_000))),
+        );
+        source.add_extra_chunk(private_chunk.clone());
+        let source = source.build().unwrap();
+        let mut cache = ReencryptOptionsCache::new();
+
+        let renamed = re_encrypt_entry_with_name(
+            &source,
+            "renamed".into(),
+            b"password",
+            &gcm_write_options(),
+            &mut cache,
+        )
+        .unwrap();
+
+        assert_eq!(renamed.metadata().xattrs(), &[xattr]);
+        assert_eq!(
+            renamed.metadata().permission_mode().map(|it| it.get()),
+            Some(0o644)
+        );
+        assert_eq!(
+            renamed.metadata().modified(),
+            Some(pna::Duration::seconds(1_000))
+        );
+        assert_eq!(renamed.extra_chunks(), &[private_chunk]);
     }
 
     fn default_collect_options<'a>(
