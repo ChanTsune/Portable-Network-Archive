@@ -19,7 +19,7 @@ pub(crate) struct VerifyCommand {
     #[arg(
         long,
         help = "Verify chunk structure and CRC32 only, without decoding entry data",
-        long_help = "Verify chunk structure and CRC32 only, without decoding entry data. Solid blocks are still decoded because enumerating their entries requires decompression and decryption, so stream corruption inside a solid block is detected even with --fast. Encrypted normal entries are counted as ok because nothing is decoded, so the skipped category does not apply."
+        long_help = "Verify chunk structure and CRC32 only. No entry data is decoded, so neither the entries contained in a solid block nor corruption that leaves a chunk's CRC32 intact are checked. Every entry whose chunks are intact is counted as ok, and no password is required."
     )]
     fast: bool,
     #[command(flatten)]
@@ -78,6 +78,14 @@ fn verify_archive(args: VerifyCommand) -> anyhow::Result<()> {
                 Err(err) => Err(err),
                 Ok(read_entry) => {
                     resyncing = false;
+                    if fast {
+                        // Assembling the entry already validated every chunk's
+                        // CRC32, which is all `--fast` checks: no entry data is
+                        // decoded, so the entries inside a solid block are not
+                        // verified either.
+                        report.ok += 1;
+                        return Ok(());
+                    }
                     match read_entry {
                         ReadEntry::Solid(solid) => {
                             solid_blocks += 1;
@@ -87,7 +95,7 @@ fn verify_archive(args: VerifyCommand) -> anyhow::Result<()> {
                                 return Ok(());
                             }
                             if let Err(err) =
-                                verify_solid(&solid, password, &read_options, fast, &mut report)
+                                verify_solid(&solid, password, &read_options, &mut report)
                             {
                                 println!("<solid block #{solid_blocks}>: FAILED ({err})");
                                 report.failed += 1;
@@ -95,7 +103,7 @@ fn verify_archive(args: VerifyCommand) -> anyhow::Result<()> {
                             }
                         }
                         ReadEntry::Normal(entry) => {
-                            verify_entry(&entry, password, &read_options, fast, &mut report)
+                            verify_entry(&entry, password, &read_options, &mut report)
                         }
                     }
                     Ok(())
@@ -124,11 +132,10 @@ fn verify_solid(
     solid: &SolidEntry,
     password: Option<&[u8]>,
     read_options: &ReadOptions,
-    fast: bool,
     report: &mut VerifyReport,
 ) -> io::Result<()> {
     for entry in solid.entries(read_options)? {
-        verify_entry(&entry?, password, read_options, fast, report);
+        verify_entry(&entry?, password, read_options, report);
     }
     Ok(())
 }
@@ -137,14 +144,8 @@ fn verify_entry(
     entry: &NormalEntry,
     password: Option<&[u8]>,
     read_options: &ReadOptions,
-    fast: bool,
     report: &mut VerifyReport,
 ) {
-    if fast {
-        // Entry assembly already validated chunk CRC32 and structure.
-        report.ok += 1;
-        return;
-    }
     let encrypted = entry.header().encryption() != Encryption::NO;
     if encrypted && password.is_none() {
         // Decoding is impossible without the password.

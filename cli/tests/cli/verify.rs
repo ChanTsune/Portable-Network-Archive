@@ -332,13 +332,56 @@ fn verify_with_solid_archive() {
         ));
 }
 
-/// Precondition: A plain solid archive whose first solid-data chunk was altered
-/// and the chunk CRC recomputed, so corruption is only detectable by decoding.
-/// Action: Run verify with --fast.
-/// Expectation: Exit failure with the solid block reported as FAILED — fast mode
-/// still decodes solid blocks because enumerating their entries requires it.
+/// Precondition: A solid archive whose solid-data chunk was altered and the
+/// chunk CRC recomputed, so corruption is only detectable by decoding.
+/// Action: Run verify in default (deep) mode.
+/// Expectation: Exit failure with the solid block reported as FAILED.
 #[test]
-fn verify_with_fast_on_corrupted_solid_archive() {
+fn verify_with_solid_stream_corruption() {
+    setup();
+    TestResources::extract_in("raw/", "verify_solid_stream/in/").unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "verify_solid_stream/verify_solid_stream.pna",
+        "--deflate",
+        "--overwrite",
+        "--solid",
+        "verify_solid_stream/in/",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+    assert!(
+        corrupt_first_chunk(
+            "verify_solid_stream/verify_solid_stream.pna",
+            *b"SDAT",
+            true
+        )
+        .unwrap()
+    );
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "experimental",
+            "verify",
+            "-f",
+            "verify_solid_stream/verify_solid_stream.pna",
+        ])
+        .assert()
+        .failure()
+        .stdout(contains("FAILED"));
+}
+
+/// Precondition: Same corruption as the deep-mode solid test (valid CRC, broken
+/// solid data stream).
+/// Action: Run verify with --fast.
+/// Expectation: Exit success — fast mode does not decode a solid block, so the
+/// entries it contains are not verified.
+#[test]
+fn verify_with_fast_on_solid_stream_corruption() {
     setup();
     TestResources::extract_in("raw/", "verify_fast_solid/in/").unwrap();
     cli::Cli::try_parse_from([
@@ -347,6 +390,7 @@ fn verify_with_fast_on_corrupted_solid_archive() {
         "c",
         "-f",
         "verify_fast_solid/verify_fast_solid.pna",
+        "--deflate",
         "--overwrite",
         "--solid",
         "verify_fast_solid/in/",
@@ -367,8 +411,52 @@ fn verify_with_fast_on_corrupted_solid_archive() {
             "--fast",
         ])
         .assert()
+        .success()
+        .stdout(contains("failed: 0"));
+}
+
+/// Precondition: A solid archive whose solid-data chunk's bytes were altered
+/// without updating the stored CRC.
+/// Action: Run verify with --fast.
+/// Expectation: Exit failure — fast mode validates chunk CRC32 inside a solid
+/// block as well.
+#[test]
+fn verify_with_fast_on_solid_crc_mismatch() {
+    setup();
+    TestResources::extract_in("raw/", "verify_fast_solid_crc/in/").unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "verify_fast_solid_crc/verify_fast_solid_crc.pna",
+        "--overwrite",
+        "--solid",
+        "verify_fast_solid_crc/in/",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+    assert!(
+        corrupt_first_chunk(
+            "verify_fast_solid_crc/verify_fast_solid_crc.pna",
+            *b"SDAT",
+            false
+        )
+        .unwrap()
+    );
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "experimental",
+            "verify",
+            "-f",
+            "verify_fast_solid_crc/verify_fast_solid_crc.pna",
+            "--fast",
+        ])
+        .assert()
         .failure()
-        .stdout(contains("FAILED"));
+        .stdout(contains("FAILED").and(contains("failed: 1,")));
 }
 
 /// Precondition: An encrypted solid archive exists and no password is supplied.
@@ -409,6 +497,48 @@ fn verify_without_password_on_encrypted_solid_archive() {
         .stdout(
             contains("<solid block #1>: skipped (encrypted)")
                 .and(contains("skipped (encrypted): 1")),
+        );
+}
+
+/// Precondition: An encrypted solid archive exists and no password is supplied.
+/// Action: Run verify with --fast.
+/// Expectation: Exit success with the block counted as ok rather than skipped —
+/// fast mode needs no password because it never decrypts.
+#[test]
+fn verify_with_fast_without_password_on_encrypted_solid_archive() {
+    setup();
+    TestResources::extract_in("raw/", "verify_fast_solid_enc/in/").unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "verify_fast_solid_enc/verify_fast_solid_enc.pna",
+        "--overwrite",
+        "--solid",
+        "verify_fast_solid_enc/in/",
+        "--password",
+        "password",
+        "--aes",
+        "ctr",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "experimental",
+            "verify",
+            "-f",
+            "verify_fast_solid_enc/verify_fast_solid_enc.pna",
+            "--fast",
+        ])
+        .assert()
+        .success()
+        .stdout(
+            contains("total: 1, ok: 1, failed: 0, skipped (encrypted): 0")
+                .and(contains("<solid block").not()),
         );
 }
 
