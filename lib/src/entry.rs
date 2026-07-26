@@ -1149,7 +1149,7 @@ impl<T> NormalEntry<T> {
     #[inline]
     pub fn with_name(self, name: EntryName) -> Self {
         self.try_with_name(name)
-            .expect("renaming this entry would make its data undecryptable")
+            .unwrap_or_else(|_| panic!("renaming this entry would make its data undecryptable"))
     }
 
     /// Returns this entry with a new name, refusing renames that
@@ -1163,8 +1163,10 @@ impl<T> NormalEntry<T> {
     ///
     /// # Errors
     ///
-    /// Returns an error when the entry is encrypted in a cipher mode that does
-    /// not [allow a header rewrite](CipherMode::allows_header_rewrite).
+    /// Returns the entry unchanged when it is encrypted in a cipher mode that
+    /// does not [allow a header rewrite](CipherMode::allows_header_rewrite), so
+    /// that a caller can copy it verbatim or re-encrypt it instead of having to
+    /// ask whether the rename is possible beforehand.
     ///
     /// # Examples
     /// ```rust
@@ -1173,23 +1175,22 @@ impl<T> NormalEntry<T> {
     ///
     /// # fn main() -> io::Result<()> {
     /// let entry = DirEntryBuilder::new("original/path".into()).build()?;
-    /// let renamed = entry.try_with_name("new/path".into())?;
+    /// let Ok(renamed) = entry.try_with_name("new/path".into()) else {
+    ///     unreachable!("an unencrypted entry can always be renamed")
+    /// };
     /// assert_eq!(renamed.header().path().as_str(), "new/path");
     /// # Ok(())
     /// # }
     /// ```
+    // `result_large_err` guards against a large `Err` taxing the common `Ok`
+    // path, which cannot happen when both variants are the same type.
+    #[allow(clippy::result_large_err)]
     #[inline]
-    pub fn try_with_name(mut self, name: EntryName) -> io::Result<Self> {
+    pub fn try_with_name(mut self, name: EntryName) -> Result<Self, Self> {
         if self.header.encryption != Encryption::NO
             && !self.header.cipher_mode.allows_header_rewrite()
         {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!(
-                    "cannot rename an entry encrypted in cipher mode {:?}: only CBC and CTR derive keys independently of the entry header",
-                    self.header.cipher_mode
-                ),
-            ));
+            return Err(self);
         }
         self.header = self.header.with_name(name);
         Ok(self)
@@ -1651,9 +1652,9 @@ mod tests {
         builder.write_all(b"secret payload").unwrap();
         let entry = builder.build().unwrap();
 
-        let err = entry.try_with_name("dir/renamed".into()).unwrap_err();
-        assert_eq!(io::ErrorKind::InvalidInput, err.kind());
-        assert!(err.to_string().contains("GCM"), "{err}");
+        let refused = entry.try_with_name("dir/renamed".into()).unwrap_err();
+        assert_eq!(refused.header().path().as_str(), "dir/original");
+        assert_eq!(refused.header().cipher_mode(), CipherMode::GCM);
     }
 
     #[test]
@@ -1662,9 +1663,9 @@ mod tests {
         entry.header.encryption = Encryption::AES;
         entry.header.cipher_mode = CipherMode::from_byte(3);
 
-        let err = entry.try_with_name("dir/renamed".into()).unwrap_err();
-        assert_eq!(io::ErrorKind::InvalidInput, err.kind());
-        assert!(err.to_string().contains("Reserved(3)"), "{err}");
+        let refused = entry.try_with_name("dir/renamed".into()).unwrap_err();
+        assert_eq!(refused.header().path().as_str(), "dir/original");
+        assert_eq!(refused.header().cipher_mode(), CipherMode::from_byte(3));
     }
 
     #[test]
