@@ -2255,7 +2255,7 @@ Note: for encrypted entries, a wrong password is indistinguishable from corrupti
 ###### **Options:**
 
 * `-f`, `--file <ARCHIVE>` — Archive file path
-* `--fast` — Verify chunk structure and CRC32 only, without decoding entry data. Solid blocks are still decoded because enumerating their entries requires decompression and decryption, so stream corruption inside a solid block is detected even with --fast. Encrypted normal entries are counted as ok because nothing is decoded, so the skipped category does not apply.
+* `--fast` — Verify chunk structure and CRC32 only. No entry data is decoded, so neither the entries contained in a solid block nor corruption that leaves a chunk's CRC32 intact are checked. Every entry whose chunks are intact is counted as ok, and no password is required.
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
