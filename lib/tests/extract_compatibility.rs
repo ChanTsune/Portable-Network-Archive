@@ -1,13 +1,19 @@
 use libpna::{Archive, DataKind, ReadOptions};
 use std::io;
 
+/// Reads every entry of a fixture and compares it against the original file.
+///
+/// Counts what it checked: without that, a fixture that lost its entries would
+/// leave the loop body unexecuted and the test would still pass.
 fn extract_all(bytes: &[u8], password: Option<&[u8]>) {
+    let mut n = 0;
     let mut archive_reader = Archive::read_header(bytes).unwrap();
     for entry in archive_reader.entries().skip_solid() {
         let item = entry.unwrap();
         if item.header().data_kind() == DataKind::DIRECTORY {
             continue;
         }
+        n += 1;
         let path = item.header().path().as_str();
         let mut dist = Vec::new();
         let mut reader = item.reader(ReadOptions::with_password(password)).unwrap();
@@ -79,11 +85,16 @@ fn extract_all(bytes: &[u8], password: Option<&[u8]>) {
             a => panic!("Unexpected entry name {a}"),
         }
     }
+    assert_eq!(n, 9);
 }
 
+/// The empty fixture holds no entries, so it cannot go through `extract_all`:
+/// asserting that it yields nothing is the whole of what this fixture pins.
 #[test]
 fn empty() {
-    extract_all(include_bytes!("../../resources/test/empty.pna"), None);
+    let bytes = include_bytes!("../../resources/test/empty.pna");
+    let mut archive_reader = Archive::read_header(bytes.as_slice()).unwrap();
+    assert!(archive_reader.entries().skip_solid().next().is_none());
 }
 
 #[test]
