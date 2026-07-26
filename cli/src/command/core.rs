@@ -2130,23 +2130,25 @@ fn transform_normal_entry(
         // A name the editor left alone is not a rename, so it must not be sent
         // through the re-encryption path below.
         entry
-    } else if entry.encryption() != pna::Encryption::NO
-        && !entry.cipher_mode().allows_header_rewrite()
-    {
-        // The stream key is bound to the header bytes, so a renamed entry is
-        // only readable if it is decrypted and re-encrypted under the new name.
-        let Some(password) = password else {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!(
-                    "entry {original_name} is written as {new_name}, and an entry encrypted in cipher mode {:?} must be re-encrypted when its header changes, which requires the password",
-                    entry.cipher_mode()
-                ),
-            ));
-        };
-        re_encrypt_entry_with_name(&entry, new_name, password, option, reencrypt_options)?
     } else {
-        entry.try_with_name(new_name)?
+        match entry.try_with_name(new_name.clone()) {
+            Ok(renamed) => renamed,
+            // The stream key is bound to the header bytes, so a renamed entry is
+            // only readable if it is decrypted and re-encrypted under the new name.
+            Err(entry) => {
+                let Some(password) = password else {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!(
+                            "entry {} is written as {new_name}, and an entry encrypted in cipher mode {:?} must be re-encrypted when its header changes, which requires the password",
+                            entry.name(),
+                            entry.cipher_mode()
+                        ),
+                    ));
+                };
+                re_encrypt_entry_with_name(&entry, new_name, password, option, reencrypt_options)?
+            }
+        }
     };
 
     let mut metadata = result.metadata().clone();
