@@ -161,6 +161,9 @@ struct DiffRecord<'a> {
 /// Prints a single difference in the requested output format.
 fn report(kind: &DiffKind, path: &str, format: Format) {
     match format {
+        Format::Plain if matches!(kind, DiffKind::Missing) => {
+            eprintln!("{}", kind.display(path))
+        }
         Format::Plain => println!("{}", kind.display(path)),
         Format::JsonL => {
             let target = match kind {
