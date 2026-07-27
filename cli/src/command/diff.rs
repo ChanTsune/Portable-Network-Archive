@@ -101,7 +101,7 @@ enum DiffKind {
     /// Group ID differs
     #[cfg(unix)]
     GidDiffers,
-    /// File type mismatch (e.g., file vs directory)
+    /// File type differs (e.g., file vs directory)
     TypeMismatch,
     /// Symbolic link target differs
     SymlinkDiffers,
@@ -142,7 +142,7 @@ impl fmt::Display for DiffMessage<'_> {
             DiffKind::UidDiffers => write!(f, "{}: Uid differs", self.path),
             #[cfg(unix)]
             DiffKind::GidDiffers => write!(f, "{}: Gid differs", self.path),
-            DiffKind::TypeMismatch => write!(f, "{}: File type mismatch", self.path),
+            DiffKind::TypeMismatch => write!(f, "{}: File type differs", self.path),
             DiffKind::SymlinkDiffers => write!(f, "{}: Symlink differs", self.path),
             DiffKind::NotLinked(target) => write!(f, "{}: Not linked to {target}", self.path),
         }

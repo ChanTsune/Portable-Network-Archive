@@ -9,7 +9,7 @@ use std::fs;
 
 /// Precondition: Archive contains hardlink.
 /// Action: Replace hardlink with directory on the filesystem, run diff.
-/// Expectation: Reports "File type mismatch".
+/// Expectation: Reports "File type differs".
 #[cfg(unix)]
 #[test]
 fn diff_detects_hardlink_to_directory_mismatch() {
@@ -37,7 +37,7 @@ fn diff_detects_hardlink_to_directory_mismatch() {
         .assert()
         .code(1)
         .stdout(predicate::str::contains(format!(
-            "{link}: File type mismatch"
+            "{link}: File type differs"
         )));
 }
 

@@ -7,7 +7,7 @@ use std::os::unix::fs::symlink;
 
 /// Precondition: Archive contains symlink.
 /// Action: Replace symlink with regular file on the filesystem, run diff.
-/// Expectation: Reports "File type mismatch".
+/// Expectation: Reports "File type differs".
 #[cfg(unix)]
 #[test]
 fn diff_detects_symlink_to_file_mismatch() {
@@ -35,13 +35,13 @@ fn diff_detects_symlink_to_file_mismatch() {
         .assert()
         .code(1)
         .stdout(predicate::str::contains(format!(
-            "{link}: File type mismatch"
+            "{link}: File type differs"
         )));
 }
 
 /// Precondition: Archive contains regular file.
 /// Action: Replace file with directory on the filesystem, run diff.
-/// Expectation: Reports "File type mismatch".
+/// Expectation: Reports "File type differs".
 #[test]
 fn diff_detects_file_to_directory_mismatch() {
     setup();
@@ -66,13 +66,13 @@ fn diff_detects_file_to_directory_mismatch() {
         .assert()
         .code(1)
         .stdout(predicate::str::contains(format!(
-            "{file_path}: File type mismatch"
+            "{file_path}: File type differs"
         )));
 }
 
 /// Precondition: Archive contains directory.
 /// Action: Replace directory with regular file on the filesystem, run diff.
-/// Expectation: Reports "File type mismatch".
+/// Expectation: Reports "File type differs".
 #[test]
 fn diff_detects_directory_to_file_mismatch() {
     setup();
@@ -104,6 +104,6 @@ fn diff_detects_directory_to_file_mismatch() {
         .assert()
         .code(1)
         .stdout(predicate::str::contains(format!(
-            "{subdir}: File type mismatch"
+            "{subdir}: File type differs"
         )));
 }
