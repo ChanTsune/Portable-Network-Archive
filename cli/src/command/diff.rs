@@ -170,6 +170,9 @@ struct DiffRecord<'a> {
 
 fn report(kind: &DiffKind, path: &str, format: Format) {
     match format {
+        Format::Plain if matches!(kind, DiffKind::Missing) => {
+            eprintln!("{}", kind.display(path))
+        }
         Format::Plain => println!("{}", kind.display(path)),
         Format::JsonL => println!(
             "{}",
