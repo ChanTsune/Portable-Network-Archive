@@ -61,7 +61,7 @@ fn diff_with_content_difference_exits_one() {
 
 /// Precondition: Archive contains a file that is later removed from disk.
 /// Action: Run `pna experimental diff`.
-/// Expectation: Exits with status 1 and writes nothing to stderr.
+/// Expectation: Exits with status 1, reports the difference on stderr, and writes nothing to stdout.
 #[test]
 fn diff_with_missing_file_exits_one() {
     setup();
@@ -84,8 +84,8 @@ fn diff_with_missing_file_exits_one() {
         .args(["experimental", "diff", "-f", &archive_path])
         .assert()
         .code(1)
-        .stdout(predicate::str::contains("Cannot stat"))
-        .stderr("");
+        .stdout("")
+        .stderr(predicate::str::contains("Cannot stat"));
 }
 
 /// Precondition: The given archive path does not exist.
