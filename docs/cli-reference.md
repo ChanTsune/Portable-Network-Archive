@@ -2219,6 +2219,12 @@ Compare archive entries with filesystem
 * `--full-compare` — Compare directory mtime and ownership (by default, only mode is compared for directories)
 
   Default value: `false`
+* `--format <FORMAT>` — Output format. plain: tar-style text. jsonl: one JSON Lines record per difference with fields `path`, `kind` (one of: missing, size, content, mode, mtime, uid, gid, type, symlink, hardlink) and, for kind=hardlink only, `target` (the stored link target). mode/mtime/uid/gid comparisons only occur on Unix.
+
+  Default value: `plain`
+
+  Possible values: `plain`, `jsonl`
+
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -2240,7 +2246,7 @@ Compare archive entries with filesystem
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
-* `-h`, `--help` — Print help
+* `-h`, `--help` — Print help (see a summary with '-h')
 
 
 
