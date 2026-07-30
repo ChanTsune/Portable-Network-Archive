@@ -382,14 +382,14 @@ impl<W: Write> Archive<W> {
         (ChunkType::SHED, header.to_bytes()).write_chunk_in(&mut self.inner)?;
         if let Some(WriteCipher { context: c, .. }) = &context.cipher {
             (ChunkType::PHSF, c.phsf.as_bytes()).write_chunk_in(&mut self.inner)?;
-            (ChunkType::SDAT, c.prefix_bytes().as_slice()).write_chunk_in(&mut self.inner)?;
         }
         self.inner.flush()?;
         let max_chunk_size = self.max_chunk_size;
-        let writer = get_writer(
-            ChunkStreamWriter::new(ChunkType::SDAT, self.inner, max_chunk_size),
-            &context,
-        )?;
+        let mut writer = ChunkStreamWriter::new(ChunkType::SDAT, self.inner, max_chunk_size);
+        if let Some(WriteCipher { context: c, .. }) = &context.cipher {
+            writer.write_all(&c.prefix_bytes())?;
+        }
+        let writer = get_writer(writer, &context)?;
 
         Ok(SolidArchive {
             archive_header: self.header,
@@ -598,10 +598,12 @@ where
     let context = get_writer_context(option, ChunkType::FHED, &header.to_bytes())?;
     if let Some(WriteCipher { context: c, .. }) = &context.cipher {
         (ChunkType::PHSF, c.phsf.as_bytes()).write_chunk_in(inner)?;
-        (ChunkType::FDAT, c.prefix_bytes().as_slice()).write_chunk_in(inner)?;
     }
     let inner = {
-        let writer = ChunkStreamWriter::new(ChunkType::FDAT, inner, max_chunk_size);
+        let mut writer = ChunkStreamWriter::new(ChunkType::FDAT, inner, max_chunk_size);
+        if let Some(WriteCipher { context: c, .. }) = &context.cipher {
+            writer.write_all(&c.prefix_bytes())?;
+        }
         let writer = get_writer(writer, &context)?;
         let mut writer = f(writer)?;
         writer.flush()?;
@@ -614,7 +616,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ReadOptions;
+    use crate::{CipherMode, Encryption, HashAlgorithm, ReadOptions};
     use std::io::Read;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
@@ -764,6 +766,85 @@ mod tests {
             .unwrap()
             .filter(|c| c.as_ref().unwrap().ty() == ty)
             .count()
+    }
+
+    fn assert_chunk_sizes_at_most(archive: &[u8], ty: ChunkType, max: usize) {
+        let sizes = crate::chunk::read_chunks_from_slice(archive)
+            .unwrap()
+            .filter_map(|chunk| {
+                let chunk = chunk.unwrap();
+                (chunk.ty() == ty).then(|| chunk.data().len())
+            })
+            .collect::<Vec<_>>();
+        assert!(!sizes.is_empty(), "expected at least one {ty:?} chunk");
+        assert!(
+            sizes.iter().all(|&size| size <= max),
+            "{ty:?} chunk sizes {sizes:?} must all be <= {max}"
+        );
+    }
+
+    fn gcm_write_options() -> WriteOptions {
+        WriteOptions::builder()
+            .encryption(Encryption::AES)
+            .cipher_mode(CipherMode::GCM)
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .password(Some("password"))
+            .build()
+    }
+
+    #[test]
+    fn archive_write_file_gcm_header_respects_max_chunk_size() {
+        let mut writer = Archive::write_header(Vec::new()).expect("failed to write header");
+        writer.set_max_chunk_size(NonZeroU32::new(8).unwrap());
+        writer
+            .write_file(
+                EntryName::from_lossy("file"),
+                Metadata::new(),
+                gcm_write_options(),
+                |writer| writer.write_all(b"x"),
+            )
+            .expect("failed to write");
+        let file = writer.finalize().expect("failed to finalize");
+
+        assert_chunk_sizes_at_most(&file, ChunkType::FDAT, 8);
+
+        let mut reader = Archive::read_header(file.as_slice()).unwrap();
+        let entry = reader.entries().skip_solid().next().unwrap().unwrap();
+        let mut data = entry
+            .reader(ReadOptions::with_password(Some("password")))
+            .unwrap();
+        let mut plain = Vec::new();
+        data.read_to_end(&mut plain).unwrap();
+        assert_eq!(plain, b"x");
+    }
+
+    #[test]
+    fn solid_archive_gcm_header_respects_max_chunk_size() {
+        let mut archive = Archive::write_header(Vec::new()).expect("failed to write header");
+        archive.set_max_chunk_size(NonZeroU32::new(8).unwrap());
+        let mut writer = archive
+            .into_solid_archive(gcm_write_options())
+            .expect("failed to create solid archive");
+        writer
+            .write_file(EntryName::from_lossy("file"), Metadata::new(), |writer| {
+                writer.write_all(b"x")
+            })
+            .expect("failed to write");
+        let file = writer.finalize().expect("failed to finalize");
+
+        assert_chunk_sizes_at_most(&file, ChunkType::SDAT, 8);
+
+        let mut reader = Archive::read_header(file.as_slice()).unwrap();
+        let entry = reader
+            .entries()
+            .extract_solid_entries(&ReadOptions::with_password(Some("password")))
+            .next()
+            .unwrap()
+            .unwrap();
+        let mut data = entry.reader(ReadOptions::builder().build()).unwrap();
+        let mut plain = Vec::new();
+        data.read_to_end(&mut plain).unwrap();
+        assert_eq!(plain, b"x");
     }
 
     #[test]
