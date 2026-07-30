@@ -1,6 +1,11 @@
 //! Read and write options for archive entries.
 
-use crate::{compress, entry::write::derive_key_material, error::UnknownValueError};
+use crate::{
+    cipher::{DEFAULT_SEGMENT_SIZE, SegmentSize},
+    compress,
+    entry::write::derive_key_material,
+    error::UnknownValueError,
+};
 use password_hash::Output;
 pub(crate) use private::*;
 use std::{
@@ -30,6 +35,8 @@ mod private {
         pub(crate) hash_algorithm: HashAlgorithm,
         pub(crate) cipher_algorithm: CipherAlgorithm,
         pub(crate) mode: CipherMode,
+        /// GCM datastream segment size; unused by CBC/CTR modes.
+        pub(crate) segment_size: SegmentSize,
     }
 
     impl Cipher {
@@ -41,6 +48,7 @@ mod private {
             hash_algorithm: HashAlgorithm,
             cipher_algorithm: CipherAlgorithm,
             mode: CipherMode,
+            segment_size: SegmentSize,
         ) -> Self {
             Self {
                 password,
@@ -48,6 +56,7 @@ mod private {
                 hash_algorithm,
                 cipher_algorithm,
                 mode,
+                segment_size,
             }
         }
     }
@@ -950,13 +959,13 @@ impl TryFrom<u8> for DataKind {
 ///   systems or when Argon2 is not available.
 /// - **Cipher Mode**: CTR mode ([`CipherMode::CTR`]) is recommended over CBC for most use cases
 ///   as it allows parallel processing and has simpler security requirements.
-/// - **IV Generation**: Initialization vectors (IVs) are automatically generated using
-///   cryptographically secure random number generation. You do not need to provide IVs.
+/// - **Per-Entry Randomness**: Each entry receives its own randomly generated encryption
+///   material — an IV for CBC/CTR, or a salt and nonce prefix for GCM — generated using
+///   cryptographically secure random number generation. You do not need to provide this yourself.
 /// - **Key Derivation**: The encryption key is derived from the password once when the
 ///   options are built ([`WriteOptionsBuilder::build()`] / [`WriteOptionsBuilder::try_build()`]),
-///   and shared by every entry written with the same [`WriteOptions`]. Each entry still
-///   receives a unique, randomly generated IV. Build a fresh [`WriteOptions`] per archive
-///   so that each archive uses an independent salt and key.
+///   and shared by every entry written with the same [`WriteOptions`]. Build a fresh
+///   [`WriteOptions`] per archive so that each archive uses an independent salt and key.
 /// - **Password Strength**: Use strong passwords (12+ characters, mixed case, numbers, symbols)
 ///   as the encryption key is derived from the password.
 ///
@@ -1073,6 +1082,7 @@ pub struct WriteOptionsBuilder {
     cipher_mode: CipherMode,
     hash_algorithm: HashAlgorithm,
     password: Option<Vec<u8>>,
+    segment_size: u32,
 }
 
 impl Default for WriteOptionsBuilder {
@@ -1098,6 +1108,9 @@ impl From<WriteOptions> for WriteOptionsBuilder {
             cipher_mode: value.cipher_mode(),
             hash_algorithm: value.hash_algorithm(),
             password: value.password().map(|p| p.to_vec()),
+            segment_size: value
+                .cipher()
+                .map_or(DEFAULT_SEGMENT_SIZE, |it| it.segment_size.get()),
         }
     }
 }
@@ -1111,6 +1124,7 @@ impl WriteOptionsBuilder {
             cipher_mode: CipherMode::CTR,
             hash_algorithm: HashAlgorithm::argon2id(),
             password: None,
+            segment_size: DEFAULT_SEGMENT_SIZE,
         }
     }
 
@@ -1170,12 +1184,23 @@ impl WriteOptionsBuilder {
         self
     }
 
+    /// Sets the GCM datastream segment size in bytes.
+    #[cfg(test)]
+    #[inline]
+    pub(crate) fn segment_size(&mut self, size: u32) -> &mut Self {
+        self.segment_size = size;
+        self
+    }
+
     /// Creates a new [`WriteOptions`] from this builder, deriving the encryption
     /// key when encryption is enabled.
     ///
     /// The key derivation function (KDF) runs once here with a freshly generated
     /// random salt. Every entry written with the resulting [`WriteOptions`] shares
-    /// the derived key and salt; a unique random IV is still generated per entry.
+    /// the derived key and salt; fresh per-entry encryption material — an IV for
+    /// CBC/CTR, or a salt and nonce prefix for GCM — is still generated per entry.
+    /// Build a fresh [`WriteOptions`] for each archive so that no two archives
+    /// reuse the same KDF salt.
     ///
     /// # Errors
     ///
@@ -1216,13 +1241,21 @@ impl WriteOptionsBuilder {
             let password = self.password.as_deref().ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidInput, "Password was not provided.")
             })?;
-            let derived = derive_key_material(cipher_algorithm, self.hash_algorithm, password)?;
+            let segment_size = SegmentSize::new(self.segment_size).ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("segment size out of range: {}", self.segment_size),
+                )
+            })?;
+            let hash_algorithm = self.hash_algorithm;
+            let derived = derive_key_material(cipher_algorithm, hash_algorithm, password)?;
             Some(Cipher::new(
                 password.into(),
                 derived,
-                self.hash_algorithm,
+                hash_algorithm,
                 cipher_algorithm,
                 self.cipher_mode,
+                segment_size,
             ))
         } else {
             None
@@ -1428,6 +1461,34 @@ mod tests {
             .try_build()
             .unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+    }
+
+    #[test]
+    fn try_build_with_out_of_range_segment_size_returns_error() {
+        for size in [0, crate::cipher::MAX_SEGMENT_SIZE + 1] {
+            let mut builder = WriteOptions::builder();
+            builder
+                .encryption(Encryption::AES)
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .password(Some("password"));
+            builder.segment_size(size);
+            let err = builder.try_build().unwrap_err();
+            assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        }
+    }
+
+    #[test]
+    fn try_build_accepts_boundary_segment_sizes() {
+        for size in [1, crate::cipher::MAX_SEGMENT_SIZE] {
+            let mut builder = WriteOptions::builder();
+            builder
+                .encryption(Encryption::AES)
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .password(Some("password"));
+            builder.segment_size(size);
+            let options = builder.try_build().unwrap();
+            assert_eq!(options.cipher().unwrap().segment_size.get(), size);
+        }
     }
 
     #[test]
