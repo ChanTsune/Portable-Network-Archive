@@ -591,6 +591,8 @@ impl CipherMode {
     pub const CBC: Self = Self(0);
     /// Counter mode.
     pub const CTR: Self = Self(1);
+    /// Galois/Counter mode (AEAD, STREAM-based).
+    pub const GCM: Self = Self(2);
 
     /// Deserializes a cipher mode from its u8 representation.
     ///
@@ -640,7 +642,7 @@ impl CipherMode {
     /// (unassigned and raw value < 128).
     #[inline]
     pub const fn is_reserved(self) -> bool {
-        !matches!(self.0, 0..=1) && self.0 < 128
+        !matches!(self.0, 0..=2) && self.0 < 128
     }
 
     /// Returns `true` if this is an application-specific private value
@@ -657,6 +659,7 @@ impl fmt::Debug for CipherMode {
         match *self {
             Self::CBC => f.write_str("CBC"),
             Self::CTR => f.write_str("CTR"),
+            Self::GCM => f.write_str("GCM"),
             Self(v) if v < 128 => f.debug_tuple("Reserved").field(&v).finish(),
             Self(v) => f.debug_tuple("Private").field(&v).finish(),
         }
@@ -1443,6 +1446,22 @@ mod tests {
         let _ = WriteOptions::builder().encryption(Encryption::AES).build();
     }
 
+    #[test]
+    fn cipher_mode_2_from_byte_returns_gcm() {
+        assert_eq!(CipherMode::from_byte(2), CipherMode::GCM);
+    }
+
+    #[test]
+    fn cipher_mode_gcm_to_byte_is_2() {
+        assert_eq!(CipherMode::GCM.to_byte(), 2);
+    }
+
+    #[test]
+    fn cipher_mode_gcm_roundtrips_through_byte() {
+        let byte = CipherMode::GCM.to_byte();
+        assert_eq!(CipherMode::from_byte(byte), CipherMode::GCM);
+    }
+
     fn test_output(byte: u8) -> Output {
         Output::new(&[byte; 32]).unwrap()
     }
@@ -1744,7 +1763,8 @@ mod tests {
         assert!(!CipherMode::CBC.is_reserved());
         assert!(!CipherMode::CTR.is_reserved());
         assert!(!CipherMode::CTR.is_private());
-        assert!(CipherMode::from_byte(2).is_reserved());
+        assert!(!CipherMode::GCM.is_reserved());
+        assert!(CipherMode::from_byte(3).is_reserved());
         assert!(CipherMode::from_byte(127).is_reserved());
         assert!(!CipherMode::from_byte(127).is_private());
         assert!(!CipherMode::from_byte(128).is_reserved());
@@ -1756,7 +1776,8 @@ mod tests {
     fn cipher_mode_debug_matches_former_enum_output() {
         assert_eq!(format!("{:?}", CipherMode::CBC), "CBC");
         assert_eq!(format!("{:?}", CipherMode::CTR), "CTR");
-        assert_eq!(format!("{:?}", CipherMode::from_byte(2)), "Reserved(2)");
+        assert_eq!(format!("{:?}", CipherMode::GCM), "GCM");
+        assert_eq!(format!("{:?}", CipherMode::from_byte(3)), "Reserved(3)");
         assert_eq!(format!("{:?}", CipherMode::from_byte(200)), "Private(200)");
     }
 
