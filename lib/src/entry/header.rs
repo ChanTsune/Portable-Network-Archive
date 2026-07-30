@@ -117,6 +117,9 @@ impl EntryHeader {
         self.cipher_mode
     }
 
+    /// Must stay byte-identical to the bytes [`Self::try_from_bytes`] accepted:
+    /// AEAD stream-key derivation is specified over the received `FHED` Data
+    /// field and reads it back through this method.
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
         let name = self.name.as_bytes();
         let mut data = Vec::with_capacity(6 + name.len());
@@ -263,6 +266,10 @@ impl SolidHeader {
     }
 
     /// Converts to [`ChunkType::SHED`](crate::ChunkType::SHED) body bytes.
+    ///
+    /// For a header read from an archive this reproduces the `SHED` Data field
+    /// byte for byte, which [`CipherMode::GCM`] relies on: stream-key
+    /// derivation is specified over that field as received.
     #[inline]
     pub const fn to_bytes(&self) -> [u8; 5] {
         [
@@ -323,6 +330,23 @@ mod tests {
     }
 
     #[test]
+    fn entry_header_to_bytes_reproduces_the_parsed_bytes() {
+        for bytes in [
+            b"\x00\x00\x00\x00\x00\x00".as_slice(),
+            b"\x00\x00\x00\x00\x00\x00file",
+            b"\x00\x00\x02\x02\x01\x01dir/file",
+            b"\x00\x00\x00\x00\x00\x00/abs//dir/../trailing/",
+            b"\x00\x00\x7f\x3f\xc8\xff\xe6\x97\xa5",
+            b"\xff\xff\xff\xff\xff\xffa",
+        ] {
+            assert_eq!(
+                EntryHeader::try_from_bytes(bytes).unwrap().to_bytes(),
+                bytes
+            );
+        }
+    }
+
+    #[test]
     fn solid_header_try_from_bytes() {
         assert!(SolidHeader::try_from_bytes(&[0; 5]).is_ok());
         assert_eq!(
@@ -342,6 +366,21 @@ mod tests {
             header,
             SolidHeader::try_from_bytes(&header.to_bytes()).unwrap(),
         );
+    }
+
+    #[test]
+    fn solid_header_to_bytes_reproduces_the_parsed_bytes() {
+        for bytes in [
+            [0x00, 0x00, 0x00, 0x00, 0x00],
+            [0x00, 0x00, 0x02, 0x01, 0x02],
+            [0x00, 0x00, 0x3f, 0xc8, 0x7f],
+            [0xff, 0xff, 0xff, 0xff, 0xff],
+        ] {
+            assert_eq!(
+                SolidHeader::try_from_bytes(&bytes).unwrap().to_bytes(),
+                bytes
+            );
+        }
     }
 
     #[test]
