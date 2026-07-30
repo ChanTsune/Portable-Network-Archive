@@ -1053,6 +1053,59 @@ mod tests {
                 REPRESENTATIVE
             );
         }
+
+        /// A datastream carried across an `ANXT` boundary reaches the decoder as
+        /// one stream, so the segment look-ahead must not read the end of a part
+        /// as the end of the datastream and verify a non-final segment as final.
+        #[test]
+        fn entry_split_across_archive_parts_remains_decryptable() {
+            let options = gcm_options(Encryption::AES, Compression::NO, 4);
+            let mut builder =
+                FileEntryBuilder::new_with_options("dir/file".into(), &options).unwrap();
+            builder.write_all(REPRESENTATIVE).unwrap();
+            let entry = EntryPart::from(builder.build().unwrap());
+
+            let mut remaining = entry.as_ref();
+            let mut parts = Vec::new();
+            loop {
+                let (head, tail) = remaining
+                    .try_split(entry.bytes_len() / 2)
+                    .expect("half an entry leaves room for a chunk header");
+                parts.push(head);
+                match tail {
+                    Some(tail) => remaining = tail,
+                    None => break,
+                }
+            }
+            assert!(parts.len() >= 2, "the entry must span both parts");
+
+            let mut part1 = Vec::new();
+            let mut part2 = Vec::new();
+            let mut writer = Archive::write_header(&mut part1).unwrap();
+            writer.add_entry_part(parts[0].clone()).unwrap();
+            let mut writer = writer.split_to_next_archive(&mut part2).unwrap();
+            for part in &parts[1..] {
+                writer.add_entry_part(part.clone()).unwrap();
+            }
+            writer.finalize().unwrap();
+
+            let mut reader = Archive::read_header(part1.as_slice()).unwrap();
+            let mut out = Vec::new();
+            loop {
+                for entry in reader.entries().skip_solid() {
+                    let entry = entry.unwrap();
+                    let mut r = entry
+                        .reader(ReadOptions::with_password(Some("password")))
+                        .unwrap();
+                    r.read_to_end(&mut out).unwrap();
+                }
+                if !reader.has_next_archive() {
+                    break;
+                }
+                reader = reader.read_next_archive(part2.as_slice()).unwrap();
+            }
+            assert_eq!(out, REPRESENTATIVE);
+        }
     }
 
     mod gcm_negative {
