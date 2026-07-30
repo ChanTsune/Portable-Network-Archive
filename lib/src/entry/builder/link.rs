@@ -21,10 +21,10 @@ impl LinkEntryBuilder {
         source: EntryReference,
         option: impl WriteOption,
     ) -> io::Result<Self> {
-        let (mut writer, iv, phsf) = data_writer(option)?;
+        let (mut writer, prefix, phsf) = data_writer(option, &header.to_bytes())?;
         writer.write_all(source.as_bytes())?;
         let mut core = EntryBuilderCore::new(header);
-        core.set_cipher(iv, phsf);
+        core.set_cipher(prefix, phsf);
         Ok(Self { core, data: writer })
     }
 
