@@ -2102,8 +2102,10 @@ fn transform_normal_entry(
         ..
     }: &CreateOptions,
 ) -> io::Result<Option<NormalEntry>> {
-    // Apply path transformation
-    let original_name = entry.header().path();
+    // The editor applies the name policy, which may be to keep the name exactly as
+    // received, so it has to see the stored name. A sanitized path arrives with the
+    // strictest policy already applied and no policy can decline it.
+    let original_name = entry.name();
     let Some(new_name) = pathname_editor.edit_entry_name(original_name.as_ref()) else {
         log::debug!("Skip: {original_name}");
         return Ok(None);
