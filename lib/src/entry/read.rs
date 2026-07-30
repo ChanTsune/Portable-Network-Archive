@@ -1,10 +1,15 @@
 //! Entry decryption and decompression reading.
 
 use crate::{
-    CipherMode, Compression, Encryption,
-    cipher::{Ctr128BEReader, DecryptCbcAes256Reader, DecryptCbcCamellia256Reader, DecryptReader},
+    ChunkType, CipherMode, Compression, Encryption,
+    cipher::{
+        Ctr128BEReader, DecryptCbcAes256Reader, DecryptCbcCamellia256Reader,
+        DecryptGcmAes256Reader, DecryptGcmCamellia256Reader, DecryptReader, STREAM_HEADER_LEN,
+        StreamHeader, derive_stream_key,
+    },
     compress::DecompressReader,
-    entry::KeyCache,
+    entry::{KeyCache, ReadOption},
+    error::AeadError,
     hash::derive_password_hash,
 };
 use aes::Aes256;
@@ -35,46 +40,113 @@ fn resolve_key(phsf: &str, password: &[u8], key_cache: Option<&KeyCache>) -> io:
     Ok(key)
 }
 
+#[inline]
+fn derive_key(
+    phsf: &str,
+    password: Option<&[u8]>,
+    key_cache: Option<&KeyCache>,
+) -> io::Result<Output> {
+    let password = password
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "password was not provided"))?;
+    resolve_key(phsf, password, key_cache)
+}
+
 /// Decrypt reader according to an encryption type.
-pub(crate) fn decrypt_reader<R: Read>(
+///
+/// `header_chunk_type` and `header_chunk_data` are the `FHED`/`SHED` Type and
+/// Data fields; both feed AEAD (GCM) stream-key derivation and are ignored by
+/// the block/stream cipher modes.
+pub(crate) fn decrypt_reader<R: Read, O: ReadOption>(
     mut reader: R,
     encryption: Encryption,
     cipher_mode: CipherMode,
     phsf: Option<&str>,
-    password: Option<&[u8]>,
-    key_cache: Option<&KeyCache>,
+    options: O,
+    header_chunk_type: ChunkType,
+    header_chunk_data: &[u8],
 ) -> io::Result<DecryptReader<R>> {
+    let password = options.password();
+    let key_cache = options.key_cache();
     Ok(match encryption {
         Encryption::NO => DecryptReader::No(reader),
         encryption @ (Encryption::AES | Encryption::CAMELLIA) => {
             let s = phsf.ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidData, "`PHSF` chunk not found")
             })?;
-            let password = password.ok_or_else(|| {
-                io::Error::new(io::ErrorKind::InvalidInput, "password was not provided")
-            })?;
-            let hash = resolve_key(s, password, key_cache)?;
-            let key = hash.as_bytes();
             match (encryption, cipher_mode) {
                 (Encryption::AES, CipherMode::CBC) => {
+                    let key = derive_key(s, password, key_cache)?;
                     let mut iv = vec![0; Aes256::block_size()];
                     reader.read_exact(&mut iv)?;
-                    DecryptReader::CbcAes(DecryptCbcAes256Reader::new(reader, key, &iv)?)
+                    DecryptReader::CbcAes(DecryptCbcAes256Reader::new(reader, key.as_bytes(), &iv)?)
                 }
                 (Encryption::AES, CipherMode::CTR) => {
+                    let key = derive_key(s, password, key_cache)?;
                     let mut iv = vec![0u8; Aes256::block_size()];
                     reader.read_exact(&mut iv)?;
-                    DecryptReader::CtrAes(Ctr128BEReader::new(reader, key, &iv)?)
+                    DecryptReader::CtrAes(Ctr128BEReader::new(reader, key.as_bytes(), &iv)?)
                 }
                 (Encryption::CAMELLIA, CipherMode::CBC) => {
+                    let key = derive_key(s, password, key_cache)?;
                     let mut iv = vec![0; Camellia256::block_size()];
                     reader.read_exact(&mut iv)?;
-                    DecryptReader::CbcCamellia(DecryptCbcCamellia256Reader::new(reader, key, &iv)?)
+                    DecryptReader::CbcCamellia(DecryptCbcCamellia256Reader::new(
+                        reader,
+                        key.as_bytes(),
+                        &iv,
+                    )?)
                 }
                 (Encryption::CAMELLIA, CipherMode::CTR) => {
+                    let key = derive_key(s, password, key_cache)?;
                     let mut iv = vec![0u8; Camellia256::block_size()];
                     reader.read_exact(&mut iv)?;
-                    DecryptReader::CtrCamellia(Ctr128BEReader::new(reader, key, &iv)?)
+                    DecryptReader::CtrCamellia(Ctr128BEReader::new(reader, key.as_bytes(), &iv)?)
+                }
+                (enc, CipherMode::GCM) => {
+                    let mut header = [0u8; STREAM_HEADER_LEN];
+                    reader.read_exact(&mut header).map_err(|e| {
+                        if e.kind() == io::ErrorKind::UnexpectedEof {
+                            AeadError::Malformed("datastream shorter than the stream header").into()
+                        } else {
+                            e
+                        }
+                    })?;
+                    // Parsed (and the segment size range-checked) before the
+                    // password KDF runs, so a malformed stream fails without
+                    // paying for the deliberately expensive KDF that `PHSF`
+                    // records.
+                    let header = StreamHeader::try_from_bytes(&header)?;
+                    let k_master = derive_key(s, password, key_cache)?;
+                    if k_master.as_bytes().len() != 32 {
+                        return Err(AeadError::Malformed("K_master is not 32 bytes").into());
+                    }
+                    // Segments are only reachable once the password is known to
+                    // match the recorded KDF parameters, so a tag failure below
+                    // means tampering rather than a wrong password.
+                    if !header.confirms_key(k_master.as_bytes()) {
+                        return Err(AeadError::KeyMismatch.into());
+                    }
+                    let k_stream = derive_stream_key(
+                        k_master.as_bytes(),
+                        &header,
+                        header_chunk_type,
+                        header_chunk_data,
+                        s.as_bytes(),
+                    );
+                    match enc {
+                        Encryption::AES => DecryptReader::GcmAes(DecryptGcmAes256Reader::new(
+                            reader, &k_stream, &header,
+                        )),
+                        Encryption::CAMELLIA => DecryptReader::GcmCamellia(
+                            DecryptGcmCamellia256Reader::new(reader, &k_stream, &header),
+                        ),
+                        _ => {
+                            return Err(io::Error::new(
+                                io::ErrorKind::Unsupported,
+                                format!("unsupported encryption algorithm for GCM: {enc:?}"),
+                            ));
+                        }
+                    }
                 }
                 _ => {
                     return Err(io::Error::new(
@@ -140,8 +212,9 @@ mod tests {
             Encryption::CAMELLIA,
             CipherMode::from_byte(3),
             Some(phsf),
-            Some(b"password"),
-            None,
+            crate::ReadOptions::with_password(Some("password")),
+            ChunkType::FHED,
+            b"",
         );
         assert!(matches!(
             result,
