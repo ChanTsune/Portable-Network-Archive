@@ -1,9 +1,16 @@
 //! Cipher implementations for PNA archive encryption and decryption.
 
+mod aead;
 mod block;
 mod stream;
 
 use crate::io::TryIntoInner;
+pub(crate) use aead::{
+    DEFAULT_SEGMENT_SIZE, STREAM_HEADER_LEN, SegmentSize, StreamHeader, StreamKey,
+    derive_stream_key, key_confirmation,
+};
+#[cfg(test)]
+pub(crate) use aead::{GCM_TAG_LEN, segment_nonce};
 use aes::Aes256;
 use camellia::Camellia256;
 use cipher::block_padding::Pkcs7;
