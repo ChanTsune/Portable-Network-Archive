@@ -1,3 +1,4 @@
+use super::prepend_data_prefix;
 use crate::{
     archive::{InternalArchiveDataWriter, InternalDataWriter, write_file_entry},
     chunk::{ChunkType, RawChunk},
@@ -67,6 +68,7 @@ pub struct SolidEntryBuilder {
     header: SolidHeader,
     phsf: Option<String>,
     prefix: Option<Vec<u8>>,
+    max_chunk_size: NonZeroU32,
     data: CompressionWriter<CipherWriter<FlattenWriter>>,
     extra: Vec<RawChunk>,
     max_file_chunk_size: Option<NonZeroU32>,
@@ -94,6 +96,7 @@ impl SolidEntryBuilder {
         Ok(Self {
             header,
             prefix,
+            max_chunk_size: NonZeroU32::MAX,
             phsf,
             data: writer,
             extra: Vec::new(),
@@ -208,6 +211,7 @@ impl SolidEntryBuilder {
     /// ```
     #[inline]
     pub fn max_chunk_size(&mut self, size: NonZeroU32) -> &mut Self {
+        self.max_chunk_size = size;
         self.data
             .get_mut()
             .get_mut()
@@ -235,7 +239,7 @@ impl SolidEntryBuilder {
             data: {
                 let mut data = self.data.try_into_inner()?.try_into_inner()?.inner;
                 if let Some(prefix) = self.prefix {
-                    data.insert(0, prefix);
+                    prepend_data_prefix(&mut data, prefix, self.max_chunk_size);
                 }
                 data
             },
@@ -271,7 +275,7 @@ impl SolidEntryBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ChunkType, ReadOptions};
+    use crate::{ChunkType, CipherMode, Encryption, HashAlgorithm, ReadOptions};
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
@@ -310,6 +314,36 @@ mod tests {
             solid_entry.data.len() > 1,
             "Data should be split into multiple chunks"
         );
+    }
+
+    #[test]
+    fn solid_entry_gcm_header_respects_max_chunk_size() {
+        let options = WriteOptions::builder()
+            .encryption(Encryption::AES)
+            .cipher_mode(CipherMode::GCM)
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .password(Some("password"))
+            .build();
+        let mut builder = SolidEntryBuilder::new(options).unwrap();
+        builder.max_chunk_size(NonZeroU32::new(8).unwrap());
+        builder
+            .write_file("entry".into(), Metadata::new(), |w| w.write_all(b"x"))
+            .unwrap();
+        let solid_entry = builder.build_as_entry().unwrap();
+
+        assert!(
+            solid_entry.data.iter().all(|chunk| chunk.len() <= 8),
+            "every SDAT body must respect max_chunk_size"
+        );
+
+        let mut entries = solid_entry
+            .entries(ReadOptions::with_password(Some("password")))
+            .unwrap();
+        let entry = entries.next().unwrap().unwrap();
+        let mut reader = entry.reader(ReadOptions::builder().build()).unwrap();
+        let mut plain = Vec::new();
+        reader.read_to_end(&mut plain).unwrap();
+        assert_eq!(plain, b"x");
     }
 
     #[test]

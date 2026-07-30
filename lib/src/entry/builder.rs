@@ -59,6 +59,15 @@ pub(crate) fn data_writer(
     Ok((writer, prefix, phsf))
 }
 
+pub(super) fn prepend_data_prefix(
+    data: &mut Vec<Vec<u8>>,
+    prefix: Vec<u8>,
+    max_chunk_size: NonZeroU32,
+) {
+    let max_chunk_size = max_chunk_size.get() as usize;
+    data.splice(0..0, prefix.chunks(max_chunk_size).map(<[u8]>::to_vec));
+}
+
 /// Largest UTF-8 char-boundary prefix of `s` whose byte length is ≤ 255 —
 /// the `fONm`/`fGNm` owner-name wire bound (1-byte length prefix). Used to
 /// rescue a legacy fPRM name that exceeds the bounded owner-facet limit.
@@ -79,6 +88,7 @@ pub(crate) struct EntryBuilderCore {
     header: EntryHeader,
     phsf: Option<String>,
     prefix: Option<Vec<u8>>,
+    max_chunk_size: NonZeroU32,
     metadata: Metadata,
     extra_chunks: Vec<RawChunk>,
 }
@@ -89,6 +99,7 @@ impl EntryBuilderCore {
             header,
             phsf: None,
             prefix: None,
+            max_chunk_size: NonZeroU32::MAX,
             metadata: Metadata::new(),
             extra_chunks: Vec::new(),
         }
@@ -97,6 +108,10 @@ impl EntryBuilderCore {
     pub(crate) fn set_cipher(&mut self, prefix: Option<Vec<u8>>, phsf: Option<String>) {
         self.prefix = prefix;
         self.phsf = phsf;
+    }
+
+    pub(crate) fn set_max_chunk_size(&mut self, size: NonZeroU32) {
+        self.max_chunk_size = size;
     }
 
     pub(crate) fn header(&self) -> &EntryHeader {
@@ -159,7 +174,7 @@ impl EntryBuilderCore {
         raw_file_size: Option<u128>,
     ) -> NormalEntry {
         if let Some(prefix) = self.prefix {
-            data.insert(0, prefix);
+            prepend_data_prefix(&mut data, prefix, self.max_chunk_size);
         }
         self.metadata.raw_file_size = raw_file_size;
         self.metadata.compressed_size = data.iter().map(|d| d.len()).sum();
@@ -590,6 +605,7 @@ impl OpaqueEntryBuilder {
     /// ```
     #[inline]
     pub fn max_chunk_size(&mut self, size: NonZeroU32) -> &mut Self {
+        self.core.set_max_chunk_size(size);
         if let Some(data) = &mut self.data {
             data.get_mut()
                 .get_mut()
@@ -1280,6 +1296,28 @@ mod tests {
                     .unwrap()
                     .is_empty()
             );
+        }
+
+        #[test]
+        fn new_file_gcm_header_respects_max_chunk_size() {
+            let options = gcm_write_options(Encryption::AES, 4);
+            let mut builder =
+                FileEntryBuilder::new_with_options("dir/file".into(), &options).unwrap();
+            builder.max_chunk_size(NonZeroU32::new(1).unwrap());
+            builder.write_all(b"x").unwrap();
+            let entry = builder.build().unwrap();
+
+            assert!(
+                entry.data.iter().all(|chunk| chunk.len() <= 1),
+                "every FDAT body must respect max_chunk_size"
+            );
+
+            let mut reader = entry
+                .reader(ReadOptions::with_password(Some("password")))
+                .unwrap();
+            let mut plain = Vec::new();
+            reader.read_to_end(&mut plain).unwrap();
+            assert_eq!(plain, b"x");
         }
 
         #[test]

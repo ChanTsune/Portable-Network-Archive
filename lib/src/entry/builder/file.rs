@@ -103,6 +103,7 @@ impl FileEntryBuilder {
     /// The default is the maximum allowed chunk size (~4GB).
     #[inline]
     pub fn max_chunk_size(&mut self, size: NonZeroU32) -> &mut Self {
+        self.core.set_max_chunk_size(size);
         self.data
             .get_mut()
             .get_mut()
