@@ -1,10 +1,11 @@
 use crate::utils::{EmbedExt, TestResources, setup};
 use clap::Parser;
 use portable_network_archive::cli;
+use std::fs;
 
 /// Precondition: An archive exists but one of the requested entry paths does not.
 /// Action: Run `pna acl set` with both existing and non-existent entry paths.
-/// Expectation: The command returns an error due to the missing entry.
+/// Expectation: The command returns an error and leaves the archive unchanged.
 #[test]
 fn fail_with_missing_file() {
     setup();
@@ -21,6 +22,8 @@ fn fail_with_missing_file() {
     .unwrap()
     .execute()
     .unwrap();
+
+    let before = fs::read("acl_set_missing/archive.pna").unwrap();
 
     let result = cli::Cli::try_parse_from([
         "pna",
@@ -39,4 +42,8 @@ fn fail_with_missing_file() {
     .execute();
 
     assert!(result.is_err());
+    assert!(
+        fs::read("acl_set_missing/archive.pna").unwrap() == before,
+        "the archive must be left unchanged"
+    );
 }

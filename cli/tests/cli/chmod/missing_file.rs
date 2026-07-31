@@ -1,10 +1,11 @@
 use crate::utils::{EmbedExt, TestResources, setup};
 use clap::Parser;
 use portable_network_archive::cli;
+use std::fs;
 
 /// Precondition: An archive contains files, but one target file does not exist in the archive.
 /// Action: Run `pna experimental chmod` targeting both existing and non-existing files.
-/// Expectation: The command fails with an error when a specified file is not found.
+/// Expectation: The command fails with an error and leaves the archive unchanged.
 #[test]
 fn fail_with_missing_file() {
     setup();
@@ -25,6 +26,8 @@ fn fail_with_missing_file() {
     .execute()
     .unwrap();
 
+    let before = fs::read("chmod_missing/archive.pna").unwrap();
+
     let result = cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -32,7 +35,7 @@ fn fail_with_missing_file() {
         "chmod",
         "-f",
         "chmod_missing/archive.pna",
-        "644",
+        "600",
         "chmod_missing/in/raw/empty.txt",
         "chmod_missing/in/raw/not_found.txt",
     ])
@@ -40,4 +43,8 @@ fn fail_with_missing_file() {
     .execute();
 
     assert!(result.is_err());
+    assert!(
+        fs::read("chmod_missing/archive.pna").unwrap() == before,
+        "the archive must be left unchanged"
+    );
 }

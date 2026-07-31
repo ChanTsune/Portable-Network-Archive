@@ -98,9 +98,10 @@ fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
 
     drop(source);
 
-    temp_file.persist(output_path)?;
-
+    // Fail before the commit point: a missing pattern must leave the archive untouched.
     globs.ensure_all_matched()?;
+
+    temp_file.persist(output_path)?;
     Ok(())
 }
 
