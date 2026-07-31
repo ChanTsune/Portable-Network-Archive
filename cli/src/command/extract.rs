@@ -25,7 +25,7 @@ use crate::{
     },
 };
 use anyhow::Context;
-use clap::{ArgGroup, Parser, ValueHint};
+use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
 use pna::{
     DataKind, EntryContent, EntryName, EntryReference, LinkTargetType, NormalEntry, ReadOptions,
     prelude::*,
@@ -55,11 +55,7 @@ use std::{
     ),
     group(ArgGroup::new("null-requires").arg("null").requires("from-input")),
     group(ArgGroup::new("keep-timestamp-flag").args(["keep_timestamp", "no_keep_timestamp"])),
-    group(ArgGroup::new("keep-permission-flag").args(["keep_permission", "no_keep_permission"])),
-    group(ArgGroup::new("keep-xattr-flag").args(["keep_xattr", "no_keep_xattr"])),
-    group(ArgGroup::new("keep-acl-flag").args(["keep_acl", "no_keep_acl"])),
     group(ArgGroup::new("path-transform").args(["substitutions", "transforms"])),
-    group(ArgGroup::new("owner-flag").args(["same_owner", "no_same_owner"])),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
     group(ArgGroup::new("ctime-older-than-source").args(["older_ctime", "older_ctime_than"])),
@@ -71,8 +67,6 @@ use std::{
         ArgGroup::new("overwrite-flag")
             .args(["overwrite", "no_overwrite", "keep_newer_files", "keep_old_files"])
     ),
-    group(ArgGroup::new("safe-writes-flag").args(["safe_writes", "no_safe_writes"])),
-    group(ArgGroup::new("unsafe-links-flag").args(["allow_unsafe_links", "no_allow_unsafe_links"])),
 )]
 pub(crate) struct ExtractCommand {
     #[arg(long, help = "Overwrite file")]
@@ -143,6 +137,7 @@ pub(crate) struct ExtractCommand {
     #[arg(
         long = "preserve-permissions",
         visible_alias = "keep-permission",
+        conflicts_with = "no_keep_permission",
         help = "Restore the permissions of the files"
     )]
     #[cfg_attr(windows, arg(requires = "unstable", help_heading = "Unstable Options"))]
@@ -150,27 +145,31 @@ pub(crate) struct ExtractCommand {
     #[arg(
         long = "no-preserve-permissions",
         visible_alias = "no-keep-permission",
+        action = ArgAction::SetTrue,
         help = "Do not restore permissions of files. This is the inverse option of --preserve-permissions"
     )]
     #[cfg_attr(windows, arg(requires = "unstable", help_heading = "Unstable Options"))]
-    no_keep_permission: bool,
+    no_keep_permission: (),
     #[arg(
         long = "preserve-xattrs",
         visible_alias = "keep-xattr",
+        conflicts_with = "no_keep_xattr",
         help = "Restore the extended attributes of the files"
     )]
     pub(crate) keep_xattr: bool,
     #[arg(
         long = "no-preserve-xattrs",
         visible_alias = "no-keep-xattr",
+        action = ArgAction::SetTrue,
         help = "Do not restore extended attributes of files. This is the inverse option of --preserve-xattrs"
     )]
-    pub(crate) no_keep_xattr: bool,
+    pub(crate) no_keep_xattr: (),
     #[arg(
         long = "preserve-acls",
         visible_alias = "keep-acl",
         requires = "unstable",
         help_heading = "Unstable Options",
+        conflicts_with = "no_keep_acl",
         help = "Restore ACLs"
     )]
     keep_acl: bool,
@@ -179,9 +178,10 @@ pub(crate) struct ExtractCommand {
         visible_alias = "no-keep-acl",
         requires = "unstable",
         help_heading = "Unstable Options",
+        action = ArgAction::SetTrue,
         help = "Do not restore ACLs. This is the inverse option of --preserve-acls"
     )]
-    no_keep_acl: bool,
+    no_keep_acl: (),
     #[arg(long, value_name = "NAME", help = "Restore user from given name")]
     uname: Option<String>,
     #[arg(long, value_name = "NAME", help = "Restore group from given name")]
@@ -348,26 +348,33 @@ pub(crate) struct ExtractCommand {
     transforms: Option<Vec<TransformRule>>,
     #[arg(
         long,
-        help = "Try extracting files with the same ownership as exists in the archive"
+        help = "Try extracting files with the same ownership as exists in the archive (default)",
+        default_value_t = true,
+        default_value_if("no_same_owner", ArgPredicate::Equals("true".into()), "false"),
+        conflicts_with = "no_same_owner"
     )]
     same_owner: bool,
-    #[arg(long, help = "Extract files as yourself")]
-    no_same_owner: bool,
+    #[arg(long, action = ArgAction::SetTrue, help = "Extract files as yourself")]
+    no_same_owner: (),
     #[arg(
         long,
+        action = ArgAction::SetTrue,
         help = "Allow extracting symbolic links and hard links that contain root or parent paths"
     )]
-    allow_unsafe_links: bool,
+    allow_unsafe_links: (),
     #[arg(
         long,
         help = "Do not allow extracting symbolic links and hard links that contain root or parent paths (default)",
-        default_value_t = true
+        default_value_t = true,
+        default_value_if("allow_unsafe_links", ArgPredicate::Equals("true".into()), "false"),
+        conflicts_with = "allow_unsafe_links"
     )]
     no_allow_unsafe_links: bool,
     #[arg(
         long,
         requires = "unstable",
         help_heading = "Unstable Options",
+        conflicts_with = "no_safe_writes",
         help = "Extract files atomically via temp file and rename"
     )]
     safe_writes: bool,
@@ -375,9 +382,10 @@ pub(crate) struct ExtractCommand {
         long,
         requires = "unstable",
         help_heading = "Unstable Options",
+        action = ArgAction::SetTrue,
         help = "Disable atomic extraction. This is the inverse option of --safe-writes"
     )]
-    no_safe_writes: bool,
+    no_safe_writes: (),
     #[command(flatten)]
     pub(crate) file: FileArgs,
 }
@@ -446,8 +454,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     );
     let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
         keep_permission: args.keep_permission,
-        no_keep_permission: args.no_keep_permission,
-        same_owner: !args.no_same_owner,
+        same_owner: args.same_owner,
         uname: args.uname,
         gname: args.gname,
         uid: args.uid,
@@ -470,14 +477,14 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         .resolve(),
         mode_strategy,
         owner_strategy,
-        xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr, false),
-        acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
+        xattr_strategy: XattrStrategy::from_flag(args.keep_xattr),
+        acl_strategy: AclStrategy::from_flag(args.keep_acl),
         fflags_strategy: FflagsStrategy::Never,
         mac_metadata_strategy: MacMetadataStrategy::Never,
     };
     let output_options = OutputOption {
         overwrite_strategy,
-        allow_unsafe_links: args.allow_unsafe_links,
+        allow_unsafe_links: !args.no_allow_unsafe_links,
         out_dir: args.out_dir,
         to_stdout: false,
         filter,
@@ -491,7 +498,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         ordered_path_locks: Arc::new(OrderedPathLocks::default()),
         unlink_first: false,
         time_filters,
-        safe_writes: args.safe_writes && !args.no_safe_writes,
+        safe_writes: args.safe_writes,
         verbose: false,
         absolute_paths: false,
         warned_lead_slash: Arc::new(AtomicBool::new(false)),

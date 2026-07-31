@@ -13,8 +13,11 @@ use crate::{
 };
 use base64::Engine;
 use clap::{
-    ArgGroup, Parser, ValueEnum, ValueHint,
-    builder::styling::{AnsiColor, Color as Colour, Style},
+    ArgAction, ArgGroup, Parser, ValueEnum, ValueHint,
+    builder::{
+        ArgPredicate,
+        styling::{AnsiColor, Color as Colour, Style},
+    },
 };
 use jiff::{Timestamp, Zoned, tz::TimeZone};
 use pna::{
@@ -44,7 +47,6 @@ use tabled::{
 #[clap(disable_help_flag = true)]
 #[command(
     group(ArgGroup::new("null-requires").arg("null").requires("exclude_from")),
-    group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
     group(ArgGroup::new("ctime-older-than-source").args(["older_ctime", "older_ctime_than"])),
     group(ArgGroup::new("ctime-newer-than-source").args(["newer_ctime", "newer_ctime_than"])),
     group(ArgGroup::new("mtime-older-than-source").args(["older_mtime", "older_mtime_than"])),
@@ -180,16 +182,19 @@ pub(crate) struct ListCommand {
         long,
         visible_alias = "recursion",
         help = "Operate recursively on the content of directories (default)",
-        default_value_t = true
+        default_value_t = true,
+        default_value_if("no_recursive", ArgPredicate::Equals("true".into()), "false"),
+        conflicts_with = "no_recursive"
     )]
     recursive: bool,
     #[arg(
         short = 'n',
         long = "no-recursive",
         visible_aliases = ["norecurse", "no-recursion"],
+        action = ArgAction::SetTrue,
         help = "Do not operate recursively on the content of directories"
     )]
-    no_recursive: bool,
+    no_recursive: (),
     #[arg(
         long,
         value_name = "PATTERN",
@@ -524,8 +529,8 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
     };
     let archive = args.file.archive;
     let files = args.file.files;
-    let files_globs = BsdGlobMatcher::new(files.iter().map(|it| it.as_str()))
-        .with_no_recursive(args.no_recursive);
+    let files_globs =
+        BsdGlobMatcher::new(files.iter().map(|it| it.as_str())).with_no_recursive(!args.recursive);
 
     let mut exclude = args.exclude;
     if let Some(p) = args.exclude_from {

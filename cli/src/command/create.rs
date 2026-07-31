@@ -20,7 +20,7 @@ use crate::{
 };
 use anyhow::ensure;
 use bytesize::ByteSize;
-use clap::{ArgGroup, Parser, ValueHint};
+use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
 use pna::{Archive, SolidEntryBuilder, WriteOptions};
 use std::{
     env, fs,
@@ -31,7 +31,6 @@ use std::{
 
 #[derive(Parser, Clone, Debug)]
 #[command(
-    group(ArgGroup::new("keep-acl-flag").args(["keep_acl", "no_keep_acl"])),
     group(ArgGroup::new("path-transform").args(["substitutions", "transforms"])),
     group(ArgGroup::new("read-files-from").args(["files_from", "files_from_stdin"])),
     group(
@@ -45,16 +44,11 @@ use std::{
     group(ArgGroup::new("store-numeric-owner").args(["numeric_owner"]).requires("keep_permission")),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
-    group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
-    group(ArgGroup::new("keep-dir-flag").args(["keep_dir", "no_keep_dir"])),
-    group(ArgGroup::new("keep-xattr-flag").args(["keep_xattr", "no_keep_xattr"])),
     group(ArgGroup::new("keep-timestamp-flag").args(["keep_timestamp", "no_keep_timestamp"])),
     group(ArgGroup::new("ctime-older-than-source").args(["older_ctime", "older_ctime_than"])),
     group(ArgGroup::new("ctime-newer-than-source").args(["newer_ctime", "newer_ctime_than"])),
     group(ArgGroup::new("mtime-older-than-source").args(["older_mtime", "older_mtime_than"])),
     group(ArgGroup::new("mtime-newer-than-source").args(["newer_mtime", "newer_mtime_than"])),
-    group(ArgGroup::new("overwrite-flag").args(["overwrite", "no_overwrite"])),
-    group(ArgGroup::new("keep-permission-flag").args(["keep_permission", "no_keep_permission"])),
 )]
 pub(crate) struct CreateCommand {
     #[arg(
@@ -76,33 +70,43 @@ pub(crate) struct CreateCommand {
         long,
         visible_alias = "recursion",
         help = "Add the directory to the archive recursively",
-        default_value_t = true
+        default_value_t = true,
+        default_value_if("no_recursive", ArgPredicate::Equals("true".into()), "false"),
+        conflicts_with = "no_recursive"
     )]
     recursive: bool,
     #[arg(
         long,
         visible_alias = "no-recursion",
+        action = ArgAction::SetTrue,
         help = "Do not recursively add directories to the archives. This is the inverse option of --recursive"
     )]
-    no_recursive: bool,
-    #[arg(long, help = "Overwrite file")]
+    no_recursive: (),
+    #[arg(long, conflicts_with = "no_overwrite", help = "Overwrite file")]
     overwrite: bool,
     #[arg(
         long,
+        action = ArgAction::SetTrue,
         help = "Do not overwrite files. This is the inverse option of --overwrite"
     )]
-    no_overwrite: bool,
+    no_overwrite: (),
+    // The pair resolves into this field, so reading it needs no knowledge of `--no-keep-dir`.
+    // The predicate is `Equals` rather than `IsPresent` because a default value counts as
+    // present, which would make the result depend on the order the args are declared in.
     #[arg(
         long,
         help = "Include directories in archive (default)",
-        default_value_t = true
+        default_value_t = true,
+        default_value_if("no_keep_dir", ArgPredicate::Equals("true".into()), "false"),
+        conflicts_with = "no_keep_dir"
     )]
     keep_dir: bool,
     #[arg(
         long,
+        action = ArgAction::SetTrue,
         help = "Do not archive directories. This is the inverse option of --keep-dir"
     )]
-    no_keep_dir: bool,
+    no_keep_dir: (),
     #[arg(
         long = "preserve-timestamps",
         visible_alias = "keep-timestamp",
@@ -118,6 +122,7 @@ pub(crate) struct CreateCommand {
     #[arg(
         long = "preserve-permissions",
         visible_alias = "keep-permission",
+        conflicts_with = "no_keep_permission",
         help = "Preserve file permissions"
     )]
     #[cfg_attr(windows, arg(requires = "unstable", help_heading = "Unstable Options"))]
@@ -125,27 +130,31 @@ pub(crate) struct CreateCommand {
     #[arg(
         long = "no-preserve-permissions",
         visible_alias = "no-keep-permission",
+        action = ArgAction::SetTrue,
         help = "Do not archive permissions of files. This is the inverse option of --preserve-permissions"
     )]
     #[cfg_attr(windows, arg(requires = "unstable", help_heading = "Unstable Options"))]
-    no_keep_permission: bool,
+    no_keep_permission: (),
     #[arg(
         long = "preserve-xattrs",
         visible_alias = "keep-xattr",
+        conflicts_with = "no_keep_xattr",
         help = "Preserve extended attributes"
     )]
     keep_xattr: bool,
     #[arg(
         long = "no-preserve-xattrs",
         visible_alias = "no-keep-xattr",
+        action = ArgAction::SetTrue,
         help = "Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs"
     )]
-    pub(crate) no_keep_xattr: bool,
+    pub(crate) no_keep_xattr: (),
     #[arg(
         long = "preserve-acls",
         visible_alias = "keep-acl",
         requires = "unstable",
         help_heading = "Unstable Options",
+        conflicts_with = "no_keep_acl",
         help = "Preserve ACLs"
     )]
     keep_acl: bool,
@@ -154,9 +163,10 @@ pub(crate) struct CreateCommand {
         visible_alias = "no-keep-acl",
         requires = "unstable",
         help_heading = "Unstable Options",
+        action = ArgAction::SetTrue,
         help = "Do not archive ACLs. This is the inverse option of --preserve-acls"
     )]
-    no_keep_acl: bool,
+    no_keep_acl: (),
     #[arg(
         long,
         value_name = "size",
@@ -463,8 +473,8 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     }
     .resolve()?;
     let collect_options = CollectOptions {
-        recursive: !args.no_recursive,
-        keep_dir: !args.no_keep_dir,
+        recursive: args.recursive,
+        keep_dir: args.keep_dir,
         gitignore: args.gitignore,
         nodump: args.nodump,
         follow_links: args.follow_links,
@@ -484,7 +494,6 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     }
     let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
         keep_permission: args.keep_permission,
-        no_keep_permission: args.no_keep_permission,
         same_owner: true, // Must be `true` for creation
         uname: args.uname,
         gname: args.gname,
@@ -508,8 +517,8 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         .resolve(),
         mode_strategy,
         owner_strategy,
-        xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr, false),
-        acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
+        xattr_strategy: XattrStrategy::from_flag(args.keep_xattr),
+        acl_strategy: AclStrategy::from_flag(args.keep_acl),
         fflags_strategy: FflagsStrategy::Never,
         mac_metadata_strategy: MacMetadataStrategy::Never,
     };
