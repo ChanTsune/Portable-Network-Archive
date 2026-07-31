@@ -360,7 +360,8 @@ pub(crate) struct ExtractCommand {
     allow_unsafe_links: bool,
     #[arg(
         long,
-        help = "Do not allow extracting symbolic links and hard links that contain root or parent paths (default)"
+        help = "Do not allow extracting symbolic links and hard links that contain root or parent paths (default)",
+        default_value_t = true
     )]
     no_allow_unsafe_links: bool,
     #[arg(

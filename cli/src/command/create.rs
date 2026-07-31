@@ -92,7 +92,11 @@ pub(crate) struct CreateCommand {
         help = "Do not overwrite files. This is the inverse option of --overwrite"
     )]
     no_overwrite: bool,
-    #[arg(long, help = "Include directories in archive (default)")]
+    #[arg(
+        long,
+        help = "Include directories in archive (default)",
+        default_value_t = true
+    )]
     keep_dir: bool,
     #[arg(
         long,
