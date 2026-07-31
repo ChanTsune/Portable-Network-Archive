@@ -6,11 +6,11 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            SplitArchiveReader, TransformStrategyKeepSolid, TransformStrategyUnSolid,
-            collect_split_archives,
+            NamedTempFile, SplitArchiveReader, TransformStrategyKeepSolid,
+            TransformStrategyUnSolid, collect_split_archives,
         },
     },
-    utils::{PathPartExt, env::NamedTempFile},
+    utils::PathPartExt,
 };
 use clap::{Args, Parser, ValueHint};
 use pna::{Metadata, NormalEntry, RawChunk, prelude::*};

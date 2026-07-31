@@ -3,13 +3,12 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            SplitArchiveReader, TransformStrategyKeepSolid, TransformStrategyUnSolid,
-            collect_split_archives,
+            NamedTempFile, SplitArchiveReader, TransformStrategyKeepSolid,
+            TransformStrategyUnSolid, collect_split_archives,
         },
     },
     utils::{
         GlobPatterns, PathPartExt,
-        env::NamedTempFile,
         fs::{Group, User},
     },
 };

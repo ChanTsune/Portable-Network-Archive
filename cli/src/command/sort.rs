@@ -2,9 +2,9 @@ use crate::{
     cli::PasswordArgs,
     command::{
         Command, ask_password,
-        core::{SplitArchiveReader, collect_split_archives},
+        core::{NamedTempFile, SplitArchiveReader, collect_split_archives},
     },
-    utils::{PathPartExt, env::NamedTempFile},
+    utils::PathPartExt,
 };
 use clap::{Parser, ValueHint};
 use pna::{Archive, NormalEntry, ReadOptions};

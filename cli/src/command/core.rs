@@ -10,6 +10,7 @@ mod path_transformer;
 pub(crate) mod permission;
 pub(crate) mod re;
 pub(crate) mod safe_writer;
+mod staged_archive;
 pub(crate) mod time_filter;
 pub(crate) mod timestamp;
 
@@ -17,6 +18,7 @@ pub(crate) use self::archive_source::SplitArchiveReader;
 pub(crate) use self::path::PathnameEditor;
 pub(crate) use self::permission::{ModeStrategy, OwnerOptions, OwnerStrategy, Umask};
 pub(crate) use self::safe_writer::SafeWriter;
+pub(crate) use self::staged_archive::NamedTempFile;
 pub(crate) use self::timestamp::{TimeSource, TimestampStrategy};
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs, MissingTimePolicy},

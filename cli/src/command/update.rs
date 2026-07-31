@@ -8,8 +8,8 @@ use crate::{
         Command, ask_password,
         core::{
             AclStrategy, CollectOptions, CollectedEntry, CreateOptions, FflagsStrategy,
-            KeepOptions, MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
-            PermissionStrategyResolver, SplitArchiveReader, TimeFilterResolver,
+            KeepOptions, MacMetadataStrategy, NamedTempFile, PathFilter, PathTransformers,
+            PathnameEditor, PermissionStrategyResolver, SplitArchiveReader, TimeFilterResolver,
             TimestampStrategyResolver, TransformContext, TransformStrategy,
             TransformStrategyKeepSolid, TransformStrategyUnSolid, XattrStrategy,
             collect_items_from_paths, collect_split_archives, create_entry, entry_option,
@@ -18,7 +18,7 @@ use crate::{
             read_paths, read_paths_stdin,
         },
     },
-    utils::{PathPartExt, VCS_FILES, env::NamedTempFile, fs::HardlinkResolver},
+    utils::{PathPartExt, VCS_FILES, fs::HardlinkResolver},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
