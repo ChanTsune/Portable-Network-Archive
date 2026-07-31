@@ -1,3 +1,4 @@
+use crate::utils;
 use std::{
     fs, io,
     path::{Path, PathBuf},
@@ -86,23 +87,21 @@ impl SafeWriter {
             .temp_path
             .take()
             .expect("persist called on already-persisted SafeWriter");
-        fs::rename(&temp_path, &self.final_path)
+        utils::fs::mv(&temp_path, &self.final_path)
     }
 
-    /// Prepares the destination path for the rename operation.
+    /// Removes a directory standing where the file is about to go.
+    ///
+    /// A file cannot be moved onto a directory, so an empty one is removed to make room; a
+    /// non-empty one makes the move fail. Everything else is left to the move itself, which
+    /// replaces an existing file in one step.
     fn prepare_destination(&self) -> io::Result<()> {
         #[cfg(windows)]
         use std::os::windows::fs::FileTypeExt;
         match fs::symlink_metadata(&self.final_path) {
-            // Empty directory blocking file extraction is removed (non-empty will fail)
             Ok(meta) if meta.file_type().is_dir() => fs::remove_dir(&self.final_path),
-            // Windows rename() fails if destination exists; remove it first
             #[cfg(windows)]
             Ok(meta) if meta.file_type().is_symlink_dir() => fs::remove_dir(&self.final_path),
-            // Windows rename() fails if destination exists; remove it first
-            #[cfg(windows)]
-            Ok(_) => fs::remove_file(&self.final_path),
-            #[cfg(not(windows))]
             Ok(_) => Ok(()),
             Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
             Err(e) => Err(e),
