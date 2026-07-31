@@ -4,7 +4,7 @@ use crate::cipher::aead::{GCM_TAG_LEN, StreamHeader, StreamKey, segment_nonce};
 use crate::error::AeadError;
 use aes_gcm::AesGcm;
 use aes_gcm::aead::array::Array;
-use aes_gcm::aead::{Aead, AeadCore, KeyInit, consts::U12};
+use aes_gcm::aead::{AeadCore, AeadInOut, KeyInit, consts::U12};
 use std::io::{self, Read, Write};
 
 /// Bounds how far a segment buffer can outrun the bytes that actually arrived.
@@ -12,7 +12,7 @@ const SEGMENT_READ_STEP: usize = 64 * 1024;
 
 pub(crate) struct GcmEncryptWriter<W, C>
 where
-    AesGcm<C, U12>: KeyInit + Aead + AeadCore<NonceSize = U12>,
+    AesGcm<C, U12>: KeyInit + AeadInOut + AeadCore<NonceSize = U12>,
 {
     w: W,
     cipher: AesGcm<C, U12>,
@@ -25,7 +25,7 @@ where
 impl<W, C> GcmEncryptWriter<W, C>
 where
     W: Write,
-    AesGcm<C, U12>: KeyInit + Aead + AeadCore<NonceSize = U12>,
+    AesGcm<C, U12>: KeyInit + AeadInOut + AeadCore<NonceSize = U12>,
 {
     pub(crate) fn new(writer: W, k_stream: &StreamKey, header: &StreamHeader) -> Self {
         let segment_size = header.segment_size().get() as usize;
@@ -45,11 +45,12 @@ where
     fn flush_segment(&mut self, is_final: bool) -> io::Result<()> {
         let nonce =
             Array::<u8, U12>::from(segment_nonce(&self.nonce_prefix, self.counter, is_final));
-        let segment = self
+        let tag = self
             .cipher
-            .encrypt(&nonce, self.buf.as_slice())
+            .encrypt_inout_detached(&nonce, &[], self.buf.as_mut_slice().into())
             .map_err(|_| io::Error::other("GCM segment encryption failed"))?;
-        self.w.write_all(&segment)?;
+        self.w.write_all(&self.buf)?;
+        self.w.write_all(tag.as_slice())?;
         self.buf.clear();
         self.counter = self
             .counter
@@ -72,7 +73,7 @@ where
 impl<W, C> Write for GcmEncryptWriter<W, C>
 where
     W: Write,
-    AesGcm<C, U12>: KeyInit + Aead + AeadCore<NonceSize = U12>,
+    AesGcm<C, U12>: KeyInit + AeadInOut + AeadCore<NonceSize = U12>,
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let mut rest = buf;
@@ -102,8 +103,8 @@ where
 enum Stopped {
     Aead(AeadError),
     /// The inner reader or an allocation failed partway through a segment. Those
-    /// bytes leave with `read_full`'s buffer, so the framing cannot be picked up
-    /// again — re-reporting the failure is the only honest answer.
+    /// bytes leave with `read_segment`'s local buffer, so the framing cannot be
+    /// picked up again — re-reporting the failure is the only honest answer.
     Source(io::ErrorKind, String),
 }
 
@@ -118,20 +119,19 @@ impl Stopped {
 
 /// STREAM-based GCM segment decryption reader.
 ///
-/// Reads one segment ahead so that a segment is decrypted with the final flag
-/// set only when no datastream bytes follow it. Only tag-verified plaintext is
-/// ever returned to the caller.
+/// Reads one byte ahead so that a full-sized segment is decrypted with the
+/// final flag set only when no datastream bytes follow it. Only tag-verified
+/// plaintext is ever returned to the caller.
 pub(crate) struct GcmDecryptReader<R, C>
 where
-    AesGcm<C, U12>: KeyInit + Aead + AeadCore<NonceSize = U12>,
+    AesGcm<C, U12>: KeyInit + AeadInOut + AeadCore<NonceSize = U12>,
 {
     r: R,
     cipher: AesGcm<C, U12>,
     nonce_prefix: [u8; 7],
     segment_size: usize,
     counter: u32,
-    pending: Option<Vec<u8>>,
-    started: bool,
+    lookahead: Option<u8>,
     plain: Vec<u8>,
     pos: usize,
     done: bool,
@@ -141,7 +141,7 @@ where
 impl<R, C> GcmDecryptReader<R, C>
 where
     R: Read,
-    AesGcm<C, U12>: KeyInit + Aead + AeadCore<NonceSize = U12>,
+    AesGcm<C, U12>: KeyInit + AeadInOut + AeadCore<NonceSize = U12>,
 {
     pub(crate) fn new(reader: R, k_stream: &StreamKey, header: &StreamHeader) -> Self {
         Self {
@@ -151,8 +151,7 @@ where
             nonce_prefix: header.nonce_prefix,
             segment_size: header.segment_size().get() as usize,
             counter: 0,
-            pending: None,
-            started: false,
+            lookahead: None,
             plain: Vec::new(),
             pos: 0,
             done: false,
@@ -170,25 +169,57 @@ where
         e
     }
 
-    fn read_full(&mut self) -> io::Result<Vec<u8>> {
+    fn grow_segment_buffer(
+        &mut self,
+        buf: &mut Vec<u8>,
+        filled: usize,
+        limit: usize,
+    ) -> io::Result<()> {
+        let grown = filled + (limit - filled).min(SEGMENT_READ_STEP);
+        if grown > buf.capacity() {
+            let doubled = buf.capacity().saturating_mul(2);
+            let target_capacity = limit.min(doubled.max(grown));
+            buf.try_reserve_exact(target_capacity - buf.len())
+                .map_err(|_| {
+                    self.stop_on_source(io::Error::new(
+                        io::ErrorKind::OutOfMemory,
+                        format!("failed to allocate {target_capacity} bytes for segment"),
+                    ))
+                })?;
+        }
+        buf.resize(grown, 0);
+        Ok(())
+    }
+
+    fn read_one(&mut self) -> io::Result<Option<u8>> {
+        let mut byte = [0u8; 1];
+        loop {
+            match self.r.read(&mut byte) {
+                Ok(0) => return Ok(None),
+                Ok(_) => return Ok(Some(byte[0])),
+                Err(ref e) if e.kind() == io::ErrorKind::Interrupted => continue,
+                Err(e) => return Err(self.stop_on_source(e)),
+            }
+        }
+    }
+
+    fn read_segment(&mut self, mut buf: Vec<u8>) -> io::Result<(Vec<u8>, bool)> {
         // The segment size comes from the unauthenticated stream header, so
         // committing it up front would let a hostile archive turn a few hundred
         // bytes into a 64 MiB allocation before any tag is verified. Growing in
-        // bounded steps keeps the commitment proportional to the bytes that
-        // actually arrived; `try_reserve` reports exhaustion instead of aborting.
-        let cap = self.segment_size + GCM_TAG_LEN;
-        let mut buf = Vec::new();
-        let mut filled = 0;
-        while filled < cap {
+        // bounded steps keeps committed memory proportional to the bytes that
+        // actually arrived, and the geometric growth is clamped to that limit so
+        // the tag cannot trigger one final doubling. `try_reserve_exact` reports
+        // exhaustion instead of aborting.
+        let limit = self.segment_size + GCM_TAG_LEN;
+        buf.clear();
+        if let Some(byte) = self.lookahead.take() {
+            buf.push(byte);
+        }
+        let mut filled = buf.len();
+        while filled < limit {
             if filled == buf.len() {
-                let grown = buf.len() + (cap - buf.len()).min(SEGMENT_READ_STEP);
-                buf.try_reserve(grown - buf.len()).map_err(|_| {
-                    self.stop_on_source(io::Error::new(
-                        io::ErrorKind::OutOfMemory,
-                        format!("failed to allocate {grown} bytes for segment"),
-                    ))
-                })?;
-                buf.resize(grown, 0);
+                self.grow_segment_buffer(&mut buf, filled, limit)?;
             }
             match self.r.read(&mut buf[filled..]) {
                 Ok(0) => break,
@@ -198,57 +229,55 @@ where
             }
         }
         buf.truncate(filled);
-        Ok(buf)
+        let lookahead = self.read_one()?;
+        self.lookahead = lookahead;
+        Ok((buf, lookahead.is_none()))
     }
 
     fn refill(&mut self) -> io::Result<()> {
-        if !self.started {
-            self.pending = Some(self.read_full()?);
-            self.started = true;
-        }
-        let b = self.read_full()?;
-        let a = self
-            .pending
-            .take()
-            .expect("a started reader always holds a buffered segment");
+        let segment = std::mem::take(&mut self.plain);
+        let (mut segment, is_final) = self.read_segment(segment)?;
         let i = self.counter;
-        if b.is_empty() {
-            if a.len() < GCM_TAG_LEN {
-                // Zero segments is a structural violation (no empty final segment
-                // was even present); a short tail after earlier segments is a cut.
-                let f = if i == 0 {
-                    AeadError::Malformed("datastream shorter than one empty final segment")
-                } else {
-                    AeadError::Truncation
-                };
-                return Err(self.fail(f));
-            }
-            let plain = self.decrypt(i, true, &a)?;
-            self.plain = plain;
-            self.pos = 0;
+        // Checked before the short-tail case below so that a segment with bytes
+        // after it is reported as the layout violation it is, whatever its length.
+        if !is_final && segment.len() < self.segment_size + GCM_TAG_LEN {
+            return Err(self.fail(AeadError::Malformed(
+                "non-final segment shorter than segment size",
+            )));
+        }
+        if segment.len() < GCM_TAG_LEN {
+            // Zero segments is a structural violation (no empty final segment
+            // was even present); a short tail after earlier segments is a cut.
+            let f = if i == 0 {
+                AeadError::Malformed("datastream shorter than one empty final segment")
+            } else {
+                AeadError::Truncation
+            };
+            return Err(self.fail(f));
+        }
+        self.decrypt_in_place(i, is_final, &mut segment)?;
+        if is_final {
             self.done = true;
         } else {
-            if a.len() < self.segment_size + GCM_TAG_LEN {
-                return Err(self.fail(AeadError::Malformed(
-                    "non-final segment shorter than segment size",
-                )));
-            }
-            let plain = self.decrypt(i, false, &a)?;
             self.counter = self
                 .counter
                 .checked_add(1)
                 .ok_or_else(|| self.fail(AeadError::Malformed("segment counter overflow")))?;
-            self.plain = plain;
-            self.pos = 0;
-            self.pending = Some(b);
         }
+        self.plain = segment;
+        self.pos = 0;
         Ok(())
     }
 
-    fn decrypt(&mut self, counter: u32, is_final: bool, segment: &[u8]) -> io::Result<Vec<u8>> {
+    fn decrypt_in_place(
+        &mut self,
+        counter: u32,
+        is_final: bool,
+        segment: &mut Vec<u8>,
+    ) -> io::Result<()> {
         let nonce = Array::<u8, U12>::from(segment_nonce(&self.nonce_prefix, counter, is_final));
-        match self.cipher.decrypt(&nonce, segment) {
-            Ok(plain) => Ok(plain),
+        match self.cipher.decrypt_in_place(&nonce, &[], segment) {
+            Ok(()) => Ok(()),
             Err(_) => Err(self.fail(AeadError::AuthenticationFailure)),
         }
     }
@@ -257,7 +286,7 @@ where
 impl<R, C> Read for GcmDecryptReader<R, C>
 where
     R: Read,
-    AesGcm<C, U12>: KeyInit + Aead + AeadCore<NonceSize = U12>,
+    AesGcm<C, U12>: KeyInit + AeadInOut + AeadCore<NonceSize = U12>,
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if let Some(stopped) = &self.fuse {
@@ -291,6 +320,7 @@ mod tests {
     use crate::cipher::aead::{KeyConfirmation, SegmentSize};
     use crate::error::AeadError;
     use aes::Aes256;
+    use aes_gcm::aead::Aead;
     use camellia::Camellia256;
     use std::io::{Cursor, Read};
 
@@ -309,7 +339,7 @@ mod tests {
 
     fn encrypt_all<C>(plain: &[u8]) -> Vec<u8>
     where
-        AesGcm<C, U12>: KeyInit + Aead + AeadCore<NonceSize = U12>,
+        AesGcm<C, U12>: KeyInit + AeadInOut + AeadCore<NonceSize = U12>,
     {
         let mut w = GcmEncryptWriter::<_, C>::new(Vec::new(), &KEY, &header(SEG));
         w.write_all(plain).unwrap();
@@ -318,7 +348,7 @@ mod tests {
 
     fn encrypt_byte_by_byte<C>(plain: &[u8]) -> Vec<u8>
     where
-        AesGcm<C, U12>: KeyInit + Aead + AeadCore<NonceSize = U12>,
+        AesGcm<C, U12>: KeyInit + AeadInOut + AeadCore<NonceSize = U12>,
     {
         let mut w = GcmEncryptWriter::<_, C>::new(Vec::new(), &KEY, &header(SEG));
         for b in plain {
@@ -350,6 +380,38 @@ mod tests {
         let nonce = Array::<u8, U12>::from(segment_nonce(&PREFIX, counter, true));
         out.extend_from_slice(&cipher.decrypt(&nonce, rest).unwrap());
         out
+    }
+
+    #[derive(Default)]
+    struct RecordingWriter {
+        bytes: Vec<u8>,
+        write_sizes: Vec<usize>,
+    }
+
+    impl Write for RecordingWriter {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.write_sizes.push(buf.len());
+            self.bytes.extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn encryption_writes_in_place_buffer_and_detached_tag() {
+        let mut writer =
+            GcmEncryptWriter::<_, Aes256>::new(RecordingWriter::default(), &KEY, &header(SEG));
+        writer.write_all(b"abcd").unwrap();
+        let output = writer.finish().unwrap();
+
+        assert_eq!(output.write_sizes, [SEG as usize, GCM_TAG_LEN]);
+        assert_eq!(
+            decrypt_stream::<Aes256>(SEG as usize, &output.bytes),
+            b"abcd"
+        );
     }
 
     #[test]
@@ -412,7 +474,7 @@ mod tests {
 
     fn decrypt_all<C>(ciphertext: Vec<u8>) -> io::Result<Vec<u8>>
     where
-        AesGcm<C, U12>: KeyInit + Aead + AeadCore<NonceSize = U12>,
+        AesGcm<C, U12>: KeyInit + AeadInOut + AeadCore<NonceSize = U12>,
     {
         let mut r = GcmDecryptReader::<_, C>::new(Cursor::new(ciphertext), &KEY, &header(SEG));
         let mut out = Vec::new();
@@ -422,7 +484,7 @@ mod tests {
 
     fn roundtrip<C>(plain: &[u8])
     where
-        AesGcm<C, U12>: KeyInit + Aead + AeadCore<NonceSize = U12>,
+        AesGcm<C, U12>: KeyInit + AeadInOut + AeadCore<NonceSize = U12>,
     {
         let ct = encrypt_all::<C>(plain);
         assert_eq!(decrypt_all::<C>(ct).unwrap().as_slice(), plain);
@@ -523,6 +585,55 @@ mod tests {
         assert_eq!(out, b"abcdefgh");
     }
 
+    /// A segment of exactly `SEGMENT_READ_STEP` needs a second growth step for
+    /// its tag alone, which is where unclamped doubling would commit twice the
+    /// ciphertext a segment can hold.
+    #[test]
+    fn segment_capacity_is_clamped_to_the_ciphertext_limit() {
+        let stream = header(SEGMENT_READ_STEP as u32);
+        let plain = vec![0u8; SEGMENT_READ_STEP + 1];
+        let mut w = GcmEncryptWriter::<_, Aes256>::new(Vec::new(), &KEY, &stream);
+        w.write_all(&plain).unwrap();
+        let ct = w.finish().unwrap();
+
+        let mut r = GcmDecryptReader::<_, Aes256>::new(Cursor::new(ct), &KEY, &stream);
+        let mut out = Vec::new();
+        r.read_to_end(&mut out).unwrap();
+        assert_eq!(out, plain);
+
+        let limit = SEGMENT_READ_STEP + GCM_TAG_LEN;
+        assert!(
+            r.plain.capacity() <= limit,
+            "segment capacity {} should be clamped to {limit}",
+            r.plain.capacity()
+        );
+    }
+
+    #[test]
+    fn decrypts_with_one_byte_lookahead_and_reuses_the_segment_buffer() {
+        let ct = encrypt_all::<Aes256>(b"abcdefgh");
+        let mut r = GcmDecryptReader::<_, Aes256>::new(Cursor::new(ct), &KEY, &header(SEG));
+        let mut first = [0u8; SEG as usize];
+
+        assert_eq!(r.read(&mut first).unwrap(), first.len());
+        assert_eq!(&first, b"abcd");
+        assert_eq!(
+            r.r.position() as usize,
+            SEG as usize + GCM_TAG_LEN + 1,
+            "only one byte of the next segment should be consumed"
+        );
+        let segment_ptr = r.plain.as_ptr();
+
+        let mut second = [0u8; SEG as usize];
+        assert_eq!(r.read(&mut second).unwrap(), second.len());
+        assert_eq!(&second, b"efgh");
+        assert_eq!(
+            r.plain.as_ptr(),
+            segment_ptr,
+            "the consumed plaintext allocation should hold the next segment"
+        );
+    }
+
     #[test]
     fn roundtrip_three_bytes_aes() {
         roundtrip::<Aes256>(b"abc");
@@ -607,6 +718,29 @@ mod tests {
         let mut out = [0u8; 8];
         let err = r.read(&mut out).unwrap_err();
         assert!(matches!(classify(&err), AeadError::Malformed(_)));
+    }
+
+    /// Bytes after a segment make it a layout violation rather than a cut end,
+    /// even when the segment is too short to hold a tag at all. Distinguishable
+    /// from [`AeadError::Truncation`] only once a segment has been verified, so
+    /// the first stall carries a whole valid segment plus its look-ahead byte.
+    #[test]
+    fn non_final_segment_shorter_than_a_tag_is_malformed() {
+        let ct = encrypt_all::<Aes256>(b"abcdefgh");
+        let first = SEG as usize + GCM_TAG_LEN;
+        let reader = StallReader {
+            segments: vec![ct[..first + 1].to_vec(), vec![0u8; 1], vec![0u8; 1]],
+            index: 0,
+            pos: 0,
+        };
+        let mut r = GcmDecryptReader::<_, Aes256>::new(reader, &KEY, &header(SEG));
+        let mut out = [0u8; SEG as usize];
+
+        assert_eq!(r.read(&mut out).unwrap(), out.len());
+        assert_eq!(&out, b"abcd");
+
+        let err = r.read(&mut out).unwrap_err();
+        assert!(matches!(classify(&err), AeadError::Malformed(_)), "{err}");
     }
 
     #[test]
