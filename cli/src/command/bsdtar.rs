@@ -211,7 +211,8 @@ pub(crate) struct BsdtarCommand {
     #[arg(
         short = 'm',
         long,
-        visible_aliases = ["no-preserve-timestamps", "modification_time"],
+        visible_aliases = ["no-preserve-timestamps", "modification-time"],
+        alias = "modification_time",
         help = "Do not archive timestamp of files. This is the inverse option of --preserve-timestamps"
     )]
     no_keep_timestamp: bool,
