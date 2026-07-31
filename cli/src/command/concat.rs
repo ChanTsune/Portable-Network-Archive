@@ -7,24 +7,22 @@ use crate::{
     utils::{self, PathWithCwd},
 };
 use anyhow::Context;
-use clap::{ArgGroup, Parser, ValueHint};
+use clap::{ArgAction, Parser, ValueHint};
 use pna::Archive;
 #[cfg(feature = "memmap")]
 use std::io;
 use std::path::PathBuf;
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-#[command(
-    group(ArgGroup::new("overwrite-flag").args(["overwrite", "no_overwrite"])),
-)]
 pub(crate) struct ConcatCommand {
-    #[arg(long, help = "Overwrite file")]
+    #[arg(long, conflicts_with = "no_overwrite", help = "Overwrite file")]
     overwrite: bool,
     #[arg(
         long,
+        action = ArgAction::SetTrue,
         help = "Do not overwrite files. This is the inverse option of --overwrite"
     )]
-    no_overwrite: bool,
+    no_overwrite: (),
     #[arg(short, long, required = true, help = "Archive files to concatenate", value_hint = ValueHint::FilePath)]
     files: Vec<PathBuf>,
 }

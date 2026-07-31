@@ -12,14 +12,11 @@ use crate::{
         fs::{Group, User},
     },
 };
-use clap::{ArgGroup, Parser, ValueHint};
+use clap::{ArgAction, Parser, ValueHint, builder::ArgPredicate};
 use pna::NormalEntry;
 use std::{io, ops::Not, path::PathBuf, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-#[command(
-    group(ArgGroup::new("lookup").args(["owner_lookup", "no_owner_lookup"])),
-)]
 pub(crate) struct ChownCommand {
     #[arg(short = 'f', long = "file", value_hint = ValueHint::FilePath)]
     archive: PathBuf,
@@ -30,11 +27,13 @@ pub(crate) struct ChownCommand {
     #[arg(
         long,
         help = "resolve user and group (default)",
-        default_value_t = true
+        default_value_t = true,
+        default_value_if("no_owner_lookup", ArgPredicate::Equals("true".into()), "false"),
+        conflicts_with = "no_owner_lookup"
     )]
     owner_lookup: bool,
-    #[arg(long, help = "do not resolve user and group")]
-    no_owner_lookup: bool,
+    #[arg(long, action = ArgAction::SetTrue, help = "do not resolve user and group")]
+    no_owner_lookup: (),
     #[arg(value_hint = ValueHint::AnyPath)]
     files: Vec<String>,
     #[command(flatten)]
@@ -60,7 +59,7 @@ fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
 
     let owner = args
         .owner
-        .lookup_platform_owner(args.numeric_owner, !args.no_owner_lookup)?;
+        .lookup_platform_owner(args.numeric_owner, args.owner_lookup)?;
 
     let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive)?)?;
 

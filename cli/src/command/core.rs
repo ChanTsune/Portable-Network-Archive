@@ -163,18 +163,8 @@ pub(crate) enum XattrStrategy {
 }
 
 impl XattrStrategy {
-    pub(crate) const fn from_flags(
-        keep_xattr: bool,
-        no_keep_xattr: bool,
-        default_preserve: bool,
-    ) -> Self {
-        if no_keep_xattr {
-            Self::Never
-        } else if keep_xattr || default_preserve {
-            Self::Always
-        } else {
-            Self::Never
-        }
+    pub(crate) const fn from_flag(preserve: bool) -> Self {
+        if preserve { Self::Always } else { Self::Never }
     }
 }
 
@@ -185,14 +175,8 @@ pub(crate) enum AclStrategy {
 }
 
 impl AclStrategy {
-    pub(crate) const fn from_flags(keep_acl: bool, no_keep_acl: bool) -> Self {
-        if no_keep_acl {
-            Self::Never
-        } else if keep_acl {
-            Self::Always
-        } else {
-            Self::Never
-        }
+    pub(crate) const fn from_flag(preserve: bool) -> Self {
+        if preserve { Self::Always } else { Self::Never }
     }
 }
 
@@ -310,13 +294,11 @@ impl TimestampStrategyResolver {
 /// Resolves CLI permission options into split mode and owner strategies.
 ///
 /// This struct encapsulates the CLI-specific logic for determining permission behavior:
-/// - `no_keep_permission` forces both mode and owner to `Never`
 /// - `keep_permission` enables `Preserve` for mode, and ownership handling via `same_owner`
 /// - `same_owner` controls whether to restore ownership (extraction only)
 /// - Owner override fields (uid, gid, uname, gname) are used in both creation and extraction
 pub(crate) struct PermissionStrategyResolver {
     pub(crate) keep_permission: bool,
-    pub(crate) no_keep_permission: bool,
     pub(crate) same_owner: bool,
     pub(crate) uname: Option<String>,
     pub(crate) gname: Option<String>,
@@ -335,9 +317,7 @@ impl PermissionStrategyResolver {
     /// For creation contexts, pass `same_owner: true` since ownership
     /// is always stored when `--keep-permission` is enabled.
     pub(crate) fn resolve(self) -> (ModeStrategy, OwnerStrategy) {
-        if self.no_keep_permission {
-            (ModeStrategy::Never, OwnerStrategy::Never)
-        } else if self.keep_permission {
+        if self.keep_permission {
             let mode_strategy = ModeStrategy::Preserve;
             let owner_strategy = if self.same_owner {
                 OwnerStrategy::Preserve {

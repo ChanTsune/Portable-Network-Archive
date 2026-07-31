@@ -841,8 +841,8 @@ impl ExtractionPermissionStrategyResolver {
         (
             mode_strategy,
             owner_strategy,
-            XattrStrategy::from_flags(self.keep_xattr || p_enables, self.no_keep_xattr, false),
-            AclStrategy::from_flags(self.keep_acl || p_enables, self.no_keep_acl),
+            XattrStrategy::from_flag(!self.no_keep_xattr && (self.keep_xattr || p_enables)),
+            AclStrategy::from_flag(!self.no_keep_acl && (self.keep_acl || p_enables)),
             FflagsStrategy::from_flags(self.keep_fflags || p_enables, self.no_keep_fflags),
             MacMetadataStrategy::from_flags(self.mac_metadata || p_enables, self.no_mac_metadata),
         )
@@ -957,8 +957,8 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
         .resolve(),
         mode_strategy,
         owner_strategy,
-        xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr, true),
-        acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
+        xattr_strategy: XattrStrategy::from_flag(!args.no_keep_xattr),
+        acl_strategy: AclStrategy::from_flag(!args.no_keep_acl && args.keep_acl),
         fflags_strategy: FflagsStrategy::from_flags(args.keep_fflags, args.no_keep_fflags),
         mac_metadata_strategy: MacMetadataStrategy::from_flags(
             args.mac_metadata,
@@ -1279,8 +1279,8 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
         .resolve(),
         mode_strategy,
         owner_strategy,
-        xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr, true),
-        acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
+        xattr_strategy: XattrStrategy::from_flag(!args.no_keep_xattr),
+        acl_strategy: AclStrategy::from_flag(!args.no_keep_acl && args.keep_acl),
         fflags_strategy: FflagsStrategy::from_flags(args.keep_fflags, args.no_keep_fflags),
         mac_metadata_strategy: MacMetadataStrategy::from_flags(
             args.mac_metadata,
@@ -1441,8 +1441,8 @@ fn run_update(args: BsdtarCommand) -> anyhow::Result<()> {
         .resolve(),
         mode_strategy,
         owner_strategy,
-        xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr, true),
-        acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
+        xattr_strategy: XattrStrategy::from_flag(!args.no_keep_xattr),
+        acl_strategy: AclStrategy::from_flag(!args.no_keep_acl && args.keep_acl),
         fflags_strategy: FflagsStrategy::from_flags(args.keep_fflags, args.no_keep_fflags),
         mac_metadata_strategy: MacMetadataStrategy::from_flags(
             args.mac_metadata,
