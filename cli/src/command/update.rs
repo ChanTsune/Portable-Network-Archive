@@ -8,8 +8,8 @@ use crate::{
         Command, ask_password,
         core::{
             AclStrategy, CollectOptions, CollectedEntry, CreateOptions, FflagsStrategy,
-            KeepOptions, MacMetadataStrategy, NamedTempFile, PathFilter, PathTransformers,
-            PathnameEditor, PermissionStrategyResolver, SplitArchiveReader, TimeFilterResolver,
+            KeepOptions, MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
+            PermissionStrategyResolver, SplitArchiveReader, StagedArchive, TimeFilterResolver,
             TimestampStrategyResolver, TransformContext, TransformStrategy,
             TransformStrategyKeepSolid, TransformStrategyUnSolid, XattrStrategy,
             collect_items_from_paths, collect_split_archives, create_entry, entry_option,
@@ -506,9 +506,8 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
     let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
 
     let output_path = args.output.unwrap_or_else(|| archive_path.remove_part());
-    let mut temp_file =
-        NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
-    let mut out_archive = Archive::write_header(temp_file.as_file_mut())?;
+    let mut staged = StagedArchive::new(output_path)?;
+    let mut out_archive = Archive::write_header(staged.as_file_mut())?;
 
     let mut source = SplitArchiveReader::new(archives)?;
     match transform_strategy {
@@ -540,7 +539,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
     out_archive.finalize()?;
     drop(source);
 
-    temp_file.persist(output_path)?;
+    staged.commit(None)?;
 
     Ok(())
 }

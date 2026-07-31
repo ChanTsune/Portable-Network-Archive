@@ -5,7 +5,7 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            NamedTempFile, PathFilter, SplitArchiveReader, TransformStrategyKeepSolid,
+            PathFilter, SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
             TransformStrategyUnSolid, collect_split_archives, read_paths, read_paths_stdin,
         },
     },
@@ -127,19 +127,18 @@ fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
     let output_path = args
         .output
         .unwrap_or_else(|| args.file.archive.remove_part());
-    let mut temp_file =
-        NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
+    let mut staged = StagedArchive::new(output_path)?;
 
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
-            temp_file.as_file_mut(),
+            staged.as_file_mut(),
             password.as_deref(),
             #[hooq::skip_all]
             |entry| Ok(filter_entry(&mut globs, &filter, entry?)),
             TransformStrategyUnSolid,
         ),
         SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
-            temp_file.as_file_mut(),
+            staged.as_file_mut(),
             password.as_deref(),
             #[hooq::skip_all]
             |entry| Ok(filter_entry(&mut globs, &filter, entry?)),
@@ -149,10 +148,7 @@ fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
 
     drop(source);
 
-    // Fail before the commit point: a missing pattern must leave the archive untouched.
-    globs.ensure_all_matched()?;
-
-    temp_file.persist(output_path)?;
+    staged.commit(Some(&globs))?;
     Ok(())
 }
 

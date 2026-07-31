@@ -2,7 +2,7 @@ use crate::{
     cli::PasswordArgs,
     command::{
         Command, ask_password,
-        core::{NamedTempFile, SplitArchiveReader, collect_split_archives},
+        core::{SplitArchiveReader, StagedArchive, collect_split_archives},
     },
     utils::PathPartExt,
 };
@@ -177,9 +177,9 @@ fn sort_archive(args: SortCommand) -> anyhow::Result<()> {
         std::cmp::Ordering::Equal
     });
 
-    let mut temp_file =
-        NamedTempFile::new(|| args.archive.parent().unwrap_or_else(|| ".".as_ref()))?;
-    let mut archive = Archive::write_header(temp_file.as_file_mut())?;
+    let output = args.output.unwrap_or_else(|| args.archive.remove_part());
+    let mut staged = StagedArchive::new(output)?;
+    let mut archive = Archive::write_header(staged.as_file_mut())?;
     for entry in entries {
         archive.add_entry(entry)?;
     }
@@ -187,8 +187,7 @@ fn sort_archive(args: SortCommand) -> anyhow::Result<()> {
 
     drop(source);
 
-    let output = args.output.unwrap_or_else(|| args.archive.remove_part());
-    temp_file.persist(output)?;
+    staged.commit(None)?;
 
     Ok(())
 }
