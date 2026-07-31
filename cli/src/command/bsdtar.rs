@@ -9,10 +9,10 @@ use crate::{
         ask_password,
         core::{
             AclStrategy, CollectOptions, CreateOptions, FflagsStrategy, ItemSource, KeepOptions,
-            MacMetadataStrategy, ModeStrategy, NamedTempFile, OwnerOptions, OwnerStrategy,
-            PathFilter, PathTransformers, PathnameEditor, SplitArchiveReader, TimeFilterResolver,
-            TimestampStrategyResolver, TransformStrategyUnSolid, Umask, XattrStrategy,
-            apply_chroot, collect_items_from_paths, collect_items_from_sources,
+            MacMetadataStrategy, ModeStrategy, OwnerOptions, OwnerStrategy, PathFilter,
+            PathTransformers, PathnameEditor, SplitArchiveReader, StagedArchive,
+            TimeFilterResolver, TimestampStrategyResolver, TransformStrategyUnSolid, Umask,
+            XattrStrategy, apply_chroot, collect_items_from_paths, collect_items_from_sources,
             collect_split_archives,
             path_lock::OrderedPathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
@@ -1527,9 +1527,8 @@ fn run_update(args: BsdtarCommand) -> anyhow::Result<()> {
 
     let archives = collect_split_archives(&archive_path)?;
 
-    let mut temp_file =
-        NamedTempFile::new(|| archive_path.parent().unwrap_or_else(|| ".".as_ref()))?;
-    let mut out_archive = Archive::write_header(temp_file.as_file_mut())?;
+    let mut staged = StagedArchive::new(archive_path.remove_part())?;
+    let mut out_archive = Archive::write_header(staged.as_file_mut())?;
 
     let mut source = SplitArchiveReader::new(archives)?;
     run_update_archive(
@@ -1547,7 +1546,7 @@ fn run_update(args: BsdtarCommand) -> anyhow::Result<()> {
     out_archive.finalize()?;
     drop(source);
 
-    temp_file.persist(archive_path.remove_part())?;
+    staged.commit(None)?;
 
     Ok(())
 }

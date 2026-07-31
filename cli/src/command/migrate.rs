@@ -3,7 +3,7 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            NamedTempFile, SplitArchiveReader, TransformStrategyKeepSolid,
+            SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
             TransformStrategyUnSolid, collect_split_archives,
         },
     },
@@ -39,19 +39,18 @@ fn migrate_metadata(args: MigrateCommand) -> anyhow::Result<()> {
     let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive)?)?;
 
     let output_path = args.output;
-    let mut temp_file =
-        NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
+    let mut staged = StagedArchive::new(output_path)?;
 
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
-            temp_file.as_file_mut(),
+            staged.as_file_mut(),
             password.as_deref(),
             #[hooq::skip_all]
             |entry| Ok(Some(convert_entry_to_owner_facet(entry?)?)),
             TransformStrategyUnSolid,
         ),
         SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
-            temp_file.as_file_mut(),
+            staged.as_file_mut(),
             password.as_deref(),
             #[hooq::skip_all]
             |entry| Ok(Some(convert_entry_to_owner_facet(entry?)?)),
@@ -61,7 +60,7 @@ fn migrate_metadata(args: MigrateCommand) -> anyhow::Result<()> {
 
     drop(source);
 
-    temp_file.persist(output_path)?;
+    staged.commit(None)?;
     Ok(())
 }
 

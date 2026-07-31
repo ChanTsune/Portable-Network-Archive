@@ -3,7 +3,7 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            NamedTempFile, SplitArchiveReader, TransformStrategyKeepSolid,
+            SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
             TransformStrategyUnSolid, collect_split_archives,
         },
     },
@@ -61,12 +61,11 @@ fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
     let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive)?)?;
 
     let output_path = args.archive.remove_part();
-    let mut temp_file =
-        NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
+    let mut staged = StagedArchive::new(output_path)?;
 
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
-            temp_file.as_file_mut(),
+            staged.as_file_mut(),
             password.as_deref(),
             #[hooq::skip_all]
             |entry| {
@@ -80,7 +79,7 @@ fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
             TransformStrategyUnSolid,
         ),
         SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
-            temp_file.as_file_mut(),
+            staged.as_file_mut(),
             password.as_deref(),
             #[hooq::skip_all]
             |entry| {
@@ -97,10 +96,7 @@ fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
 
     drop(source);
 
-    // Fail before the commit point: a missing pattern must leave the archive untouched.
-    globs.ensure_all_matched()?;
-
-    temp_file.persist(output_path)?;
+    staged.commit(Some(&globs))?;
     Ok(())
 }
 

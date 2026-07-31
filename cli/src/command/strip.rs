@@ -6,7 +6,7 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            NamedTempFile, SplitArchiveReader, TransformStrategyKeepSolid,
+            SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
             TransformStrategyUnSolid, collect_split_archives,
         },
     },
@@ -70,19 +70,18 @@ fn strip_metadata(args: StripCommand) -> anyhow::Result<()> {
     let mut source = SplitArchiveReader::new(collect_split_archives(&archive)?)?;
 
     let output_path = args.output.unwrap_or_else(|| archive.remove_part());
-    let mut temp_file =
-        NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
+    let mut staged = StagedArchive::new(output_path)?;
 
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
-            temp_file.as_file_mut(),
+            staged.as_file_mut(),
             password.as_deref(),
             #[hooq::skip_all]
             |entry| Ok(Some(strip_entry_metadata(entry?, &args.strip_options))),
             TransformStrategyUnSolid,
         ),
         SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
-            temp_file.as_file_mut(),
+            staged.as_file_mut(),
             password.as_deref(),
             #[hooq::skip_all]
             |entry| Ok(Some(strip_entry_metadata(entry?, &args.strip_options))),
@@ -92,7 +91,7 @@ fn strip_metadata(args: StripCommand) -> anyhow::Result<()> {
 
     drop(source);
 
-    temp_file.persist(output_path)?;
+    staged.commit(None)?;
     Ok(())
 }
 
