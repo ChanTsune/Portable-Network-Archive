@@ -19,26 +19,30 @@ use std::path::PathBuf;
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) struct StripOptions {
     #[arg(
-        long,
-        visible_alias = "preserve-timestamps",
+        long = "preserve-timestamps",
+        visible_alias = "keep-timestamp",
         help = "Preserve file timestamps"
     )]
     keep_timestamp: bool,
     #[arg(
-        long,
-        visible_alias = "preserve-permissions",
+        long = "preserve-permissions",
+        visible_alias = "keep-permission",
         help = "Preserve file permissions"
     )]
     keep_permission: bool,
     #[arg(
-        long,
-        visible_alias = "preserve-xattrs",
+        long = "preserve-xattrs",
+        visible_alias = "keep-xattr",
         help = "Preserve extended attributes"
     )]
     keep_xattr: bool,
-    #[arg(long, visible_alias = "preserve-acls", help = "Preserve ACLs")]
+    #[arg(
+        long = "preserve-acls",
+        visible_alias = "keep-acl",
+        help = "Preserve ACLs"
+    )]
     keep_acl: bool,
-    #[arg(long, visible_alias = "preserve-private_chunks", value_name = "CHUNK_TYPE", help = "Keep private chunks. If no CHUNK_TYPE is specified, all private chunks are kept", value_delimiter = ',', num_args = 0..)]
+    #[arg(long = "preserve-private-chunks", visible_alias = "keep-private", alias = "preserve-private_chunks", value_name = "CHUNK_TYPE", help = "Preserve private chunks. If no CHUNK_TYPE is specified, all private chunks are preserved", value_delimiter = ',', num_args = 0..)]
     pub(crate) keep_private: Option<Vec<PrivateChunkType>>,
 }
 

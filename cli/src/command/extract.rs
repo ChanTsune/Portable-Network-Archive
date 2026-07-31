@@ -101,14 +101,14 @@ pub(crate) struct ExtractCommand {
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[arg(
-        long,
-        visible_alias = "preserve-timestamps",
+        long = "preserve-timestamps",
+        visible_alias = "keep-timestamp",
         help = "Restore the timestamp of the files"
     )]
     pub(crate) keep_timestamp: bool,
     #[arg(
-        long,
-        visible_alias = "no-preserve-timestamps",
+        long = "no-preserve-timestamps",
+        visible_alias = "no-keep-timestamp",
         help = "Do not restore timestamp of files. This is the inverse option of --preserve-timestamps"
     )]
     pub(crate) no_keep_timestamp: bool,
@@ -141,45 +141,45 @@ pub(crate) struct ExtractCommand {
     )]
     clamp_atime: bool,
     #[arg(
-        long,
-        visible_alias = "preserve-permissions",
+        long = "preserve-permissions",
+        visible_alias = "keep-permission",
         help = "Restore the permissions of the files"
     )]
     #[cfg_attr(windows, arg(requires = "unstable", help_heading = "Unstable Options"))]
     keep_permission: bool,
     #[arg(
-        long,
-        visible_alias = "no-preserve-permissions",
+        long = "no-preserve-permissions",
+        visible_alias = "no-keep-permission",
         help = "Do not restore permissions of files. This is the inverse option of --preserve-permissions"
     )]
     #[cfg_attr(windows, arg(requires = "unstable", help_heading = "Unstable Options"))]
     no_keep_permission: bool,
     #[arg(
-        long,
-        visible_alias = "preserve-xattrs",
+        long = "preserve-xattrs",
+        visible_alias = "keep-xattr",
         help = "Restore the extended attributes of the files"
     )]
     pub(crate) keep_xattr: bool,
     #[arg(
-        long,
-        visible_alias = "no-preserve-xattrs",
+        long = "no-preserve-xattrs",
+        visible_alias = "no-keep-xattr",
         help = "Do not restore extended attributes of files. This is the inverse option of --preserve-xattrs"
     )]
     pub(crate) no_keep_xattr: bool,
     #[arg(
-        long,
-        visible_alias = "preserve-acls",
+        long = "preserve-acls",
+        visible_alias = "keep-acl",
         requires = "unstable",
         help_heading = "Unstable Options",
         help = "Restore ACLs"
     )]
     keep_acl: bool,
     #[arg(
-        long,
-        visible_alias = "no-preserve-acls",
+        long = "no-preserve-acls",
+        visible_alias = "no-keep-acl",
         requires = "unstable",
         help_heading = "Unstable Options",
-        help = "Do not restore ACLs. This is the inverse option of --keep-acl"
+        help = "Do not restore ACLs. This is the inverse option of --preserve-acls"
     )]
     no_keep_acl: bool,
     #[arg(long, value_name = "NAME", help = "Restore user from given name")]

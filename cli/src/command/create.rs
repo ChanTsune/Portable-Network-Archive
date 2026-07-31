@@ -104,57 +104,57 @@ pub(crate) struct CreateCommand {
     )]
     no_keep_dir: bool,
     #[arg(
-        long,
-        visible_alias = "preserve-timestamps",
+        long = "preserve-timestamps",
+        visible_alias = "keep-timestamp",
         help = "Preserve file timestamps"
     )]
     keep_timestamp: bool,
     #[arg(
-        long,
-        visible_alias = "no-preserve-timestamps",
+        long = "no-preserve-timestamps",
+        visible_alias = "no-keep-timestamp",
         help = "Do not archive timestamp of files. This is the inverse option of --preserve-timestamps"
     )]
     pub(crate) no_keep_timestamp: bool,
     #[arg(
-        long,
-        visible_alias = "preserve-permissions",
+        long = "preserve-permissions",
+        visible_alias = "keep-permission",
         help = "Preserve file permissions"
     )]
     #[cfg_attr(windows, arg(requires = "unstable", help_heading = "Unstable Options"))]
     keep_permission: bool,
     #[arg(
-        long,
-        visible_alias = "no-preserve-permissions",
+        long = "no-preserve-permissions",
+        visible_alias = "no-keep-permission",
         help = "Do not archive permissions of files. This is the inverse option of --preserve-permissions"
     )]
     #[cfg_attr(windows, arg(requires = "unstable", help_heading = "Unstable Options"))]
     no_keep_permission: bool,
     #[arg(
-        long,
-        visible_alias = "preserve-xattrs",
+        long = "preserve-xattrs",
+        visible_alias = "keep-xattr",
         help = "Preserve extended attributes"
     )]
     keep_xattr: bool,
     #[arg(
-        long,
-        visible_alias = "no-preserve-xattrs",
+        long = "no-preserve-xattrs",
+        visible_alias = "no-keep-xattr",
         help = "Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs"
     )]
     pub(crate) no_keep_xattr: bool,
     #[arg(
-        long,
-        visible_alias = "preserve-acls",
+        long = "preserve-acls",
+        visible_alias = "keep-acl",
         requires = "unstable",
         help_heading = "Unstable Options",
         help = "Preserve ACLs"
     )]
     keep_acl: bool,
     #[arg(
-        long,
-        visible_alias = "no-preserve-acls",
+        long = "no-preserve-acls",
+        visible_alias = "no-keep-acl",
         requires = "unstable",
         help_heading = "Unstable Options",
-        help = "Do not archive ACLs. This is the inverse option of --keep-acl"
+        help = "Do not archive ACLs. This is the inverse option of --preserve-acls"
     )]
     no_keep_acl: bool,
     #[arg(

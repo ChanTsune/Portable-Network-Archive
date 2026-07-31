@@ -205,15 +205,15 @@ pub(crate) struct BsdtarCommand {
     )]
     no_keep_dir: bool,
     #[arg(
-        long,
-        visible_alias = "preserve-timestamps",
+        long = "preserve-timestamps",
+        visible_alias = "keep-timestamp",
         help = "Preserve file timestamps"
     )]
     keep_timestamp: bool,
     #[arg(
         short = 'm',
-        long,
-        visible_aliases = ["no-preserve-timestamps", "modification-time"],
+        long = "no-preserve-timestamps",
+        visible_aliases = ["no-keep-timestamp", "modification-time"],
         alias = "modification_time",
         help = "Do not archive timestamp of files. This is the inverse option of --preserve-timestamps"
     )]
@@ -234,47 +234,47 @@ pub(crate) struct BsdtarCommand {
     )]
     same_permissions: bool,
     #[arg(
-        long,
-        visible_aliases = ["preserve-xattrs", "xattrs"],
+        long = "preserve-xattrs",
+        visible_aliases = ["keep-xattr", "xattrs"],
         help = "Preserve extended attributes"
     )]
     keep_xattr: bool,
     #[arg(
-        long,
-        visible_aliases = ["no-preserve-xattrs", "no-xattrs"],
+        long = "no-preserve-xattrs",
+        visible_aliases = ["no-keep-xattr", "no-xattrs"],
         help = "Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs"
     )]
     no_keep_xattr: bool,
     #[arg(
-        long,
-        visible_aliases = ["preserve-acls", "acls"],
+        long = "preserve-acls",
+        visible_aliases = ["keep-acl", "acls"],
         requires = "unstable",
         help_heading = "Unstable Options",
         help = "Preserve ACLs"
     )]
     keep_acl: bool,
     #[arg(
-        long,
-        visible_aliases = ["no-preserve-acls", "no-acls"],
+        long = "no-preserve-acls",
+        visible_aliases = ["no-keep-acl", "no-acls"],
         requires = "unstable",
         help_heading = "Unstable Options",
-        help = "Do not archive ACLs. This is the inverse option of --keep-acl"
+        help = "Do not archive ACLs. This is the inverse option of --preserve-acls"
     )]
     no_keep_acl: bool,
     #[arg(
-        long,
-        visible_aliases = ["preserve-fflags", "fflags"],
+        long = "preserve-fflags",
+        visible_aliases = ["keep-fflags", "fflags"],
         requires = "unstable",
         help_heading = "Unstable Options",
         help = "Archiving the file flags of the files"
     )]
     keep_fflags: bool,
     #[arg(
-        long,
-        visible_aliases = ["no-preserve-fflags", "no-fflags"],
+        long = "no-preserve-fflags",
+        visible_aliases = ["no-keep-fflags", "no-fflags"],
         requires = "unstable",
         help_heading = "Unstable Options",
-        help = "Do not archive file flags of files. This is the inverse option of --keep-fflags"
+        help = "Do not archive file flags of files. This is the inverse option of --preserve-fflags"
     )]
     no_keep_fflags: bool,
     #[arg(
