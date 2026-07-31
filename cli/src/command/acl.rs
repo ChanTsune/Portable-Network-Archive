@@ -372,11 +372,12 @@ fn archive_set_acl(args: SetAclCommand) -> anyhow::Result<()> {
 
     drop(source);
 
-    temp_file.persist(output_path)?;
-
+    // Fail before the commit point: a missing pattern must leave the archive untouched.
     if let SetAclsStrategy::Apply { globs, .. } = set_strategy {
         globs.ensure_all_matched()?;
     }
+
+    temp_file.persist(output_path)?;
     Ok(())
 }
 
