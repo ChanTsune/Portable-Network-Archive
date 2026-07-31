@@ -79,7 +79,11 @@ pub(crate) struct AppendCommand {
         help = "Do not recursively add directories to the archives. This is the inverse option of --recursive"
     )]
     no_recursive: bool,
-    #[arg(long, help = "Include directories in archive (default)")]
+    #[arg(
+        long,
+        help = "Include directories in archive (default)",
+        default_value_t = true
+    )]
     keep_dir: bool,
     #[arg(
         long,

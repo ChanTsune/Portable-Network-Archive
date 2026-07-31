@@ -28,7 +28,11 @@ pub(crate) struct ChownCommand {
     owner: RawOwnership,
     #[arg(long, help = "force numeric owner and group IDs (no name resolution)")]
     numeric_owner: bool,
-    #[arg(long, help = "resolve user and group (default)")]
+    #[arg(
+        long,
+        help = "resolve user and group (default)",
+        default_value_t = true
+    )]
     owner_lookup: bool,
     #[arg(long, help = "do not resolve user and group")]
     no_owner_lookup: bool,

@@ -195,7 +195,11 @@ pub(crate) struct BsdtarCommand {
         help = "Skip extracting files if they already exist"
     )]
     keep_old_files: bool,
-    #[arg(long, help = "Include directories in archive (default)")]
+    #[arg(
+        long,
+        help = "Include directories in archive (default)",
+        default_value_t = true
+    )]
     keep_dir: bool,
     #[arg(
         long,
@@ -578,7 +582,8 @@ pub(crate) struct BsdtarCommand {
     to_stdout: bool,
     #[arg(
         long,
-        help = "Allow extracting symbolic links and hard links that contain root or parent paths (default)"
+        help = "Allow extracting symbolic links and hard links that contain root or parent paths (default)",
+        default_value_t = true
     )]
     allow_unsafe_links: bool,
     #[arg(
