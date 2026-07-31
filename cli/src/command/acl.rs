@@ -6,12 +6,12 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            SplitArchiveReader, TransformStrategyKeepSolid, TransformStrategyUnSolid,
-            collect_split_archives,
+            NamedTempFile, SplitArchiveReader, TransformStrategyKeepSolid,
+            TransformStrategyUnSolid, collect_split_archives,
         },
     },
     ext::{Acls, NormalEntryExt},
-    utils::{GlobPatterns, PathPartExt, env::NamedTempFile},
+    utils::{GlobPatterns, PathPartExt},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use nom::{

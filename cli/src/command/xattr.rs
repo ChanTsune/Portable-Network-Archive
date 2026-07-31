@@ -5,11 +5,11 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            SplitArchiveReader, TransformStrategyKeepSolid, TransformStrategyUnSolid,
-            collect_split_archives,
+            NamedTempFile, SplitArchiveReader, TransformStrategyKeepSolid,
+            TransformStrategyUnSolid, collect_split_archives,
         },
     },
-    utils::{GlobPatterns, PathPartExt, env::NamedTempFile},
+    utils::{GlobPatterns, PathPartExt},
 };
 use base64::Engine;
 use bstr::{ByteSlice, io::BufReadExt};

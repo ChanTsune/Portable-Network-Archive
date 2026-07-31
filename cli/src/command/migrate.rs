@@ -3,12 +3,11 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            SplitArchiveReader, TransformStrategyKeepSolid, TransformStrategyUnSolid,
-            collect_split_archives,
+            NamedTempFile, SplitArchiveReader, TransformStrategyKeepSolid,
+            TransformStrategyUnSolid, collect_split_archives,
         },
     },
     ext::*,
-    utils::env::NamedTempFile,
 };
 use clap::{Parser, ValueHint};
 use pna::{NormalEntry, RawChunk, prelude::*};

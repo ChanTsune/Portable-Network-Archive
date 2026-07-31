@@ -5,11 +5,11 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            PathFilter, SplitArchiveReader, TransformStrategyKeepSolid, TransformStrategyUnSolid,
-            collect_split_archives, read_paths, read_paths_stdin,
+            NamedTempFile, PathFilter, SplitArchiveReader, TransformStrategyKeepSolid,
+            TransformStrategyUnSolid, collect_split_archives, read_paths, read_paths_stdin,
         },
     },
-    utils::{GlobPatterns, PathPartExt, VCS_FILES, env::NamedTempFile},
+    utils::{GlobPatterns, PathPartExt, VCS_FILES},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::NormalEntry;

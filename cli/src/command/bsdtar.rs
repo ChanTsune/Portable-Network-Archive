@@ -9,8 +9,8 @@ use crate::{
         ask_password,
         core::{
             AclStrategy, CollectOptions, CreateOptions, FflagsStrategy, ItemSource, KeepOptions,
-            MacMetadataStrategy, ModeStrategy, OwnerOptions, OwnerStrategy, PathFilter,
-            PathTransformers, PathnameEditor, SplitArchiveReader, TimeFilterResolver,
+            MacMetadataStrategy, ModeStrategy, NamedTempFile, OwnerOptions, OwnerStrategy,
+            PathFilter, PathTransformers, PathnameEditor, SplitArchiveReader, TimeFilterResolver,
             TimestampStrategyResolver, TransformStrategyUnSolid, Umask, XattrStrategy,
             apply_chroot, collect_items_from_paths, collect_items_from_sources,
             collect_split_archives,
@@ -23,9 +23,7 @@ use crate::{
         list::{Format, LineEnding, ListOptions, TimeField, TimeFormat},
         update::run_update_archive,
     },
-    utils::{
-        self, BsdGlobMatcher, PathPartExt, VCS_FILES, env::NamedTempFile, fs::HardlinkResolver,
-    },
+    utils::{self, BsdGlobMatcher, PathPartExt, VCS_FILES, fs::HardlinkResolver},
 };
 use clap::{ArgGroup, Args, Parser, ValueHint};
 use pna::Archive;
