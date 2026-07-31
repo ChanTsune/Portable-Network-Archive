@@ -1,3 +1,4 @@
+mod abandoned_staged_file;
 mod delete_all_entries;
 mod directory_entry;
 mod missing_file;
