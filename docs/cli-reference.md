@@ -180,7 +180,7 @@ Create archive
   Default value: `false`
 * `--keep-dir` — Include directories in archive (default)
 
-  Default value: `false`
+  Default value: `true`
 * `--no-keep-dir` — Do not archive directories. This is the inverse option of --keep-dir
 
   Default value: `false`
@@ -337,7 +337,7 @@ Append files to archive
   Default value: `false`
 * `--keep-dir` — Include directories in archive (default)
 
-  Default value: `false`
+  Default value: `true`
 * `--no-keep-dir` — Do not archive directories. This is the inverse option of --keep-dir
 
   Default value: `false`
@@ -568,7 +568,7 @@ Extract files from archive
   Default value: `false`
 * `--no-allow-unsafe-links` — Do not allow extracting symbolic links and hard links that contain root or parent paths (default)
 
-  Default value: `false`
+  Default value: `true`
 * `--safe-writes` — Extract files atomically via temp file and rename
 
   Default value: `false`
@@ -1348,7 +1348,7 @@ bsdtar-like CLI semantics for PNA archives
   Default value: `false`
 * `--keep-dir` — Include directories in archive (default)
 
-  Default value: `false`
+  Default value: `true`
 * `--no-keep-dir` — Do not archive directories. This is the inverse option of --keep-dir
 
   Default value: `false`
@@ -1481,7 +1481,7 @@ bsdtar-like CLI semantics for PNA archives
   Default value: `false`
 * `--allow-unsafe-links` — Allow extracting symbolic links and hard links that contain root or parent paths (default)
 
-  Default value: `false`
+  Default value: `true`
 * `--no-allow-unsafe-links` — Do not allow extracting symbolic links and hard links that contain root or parent paths
 
   Default value: `false`
@@ -1629,7 +1629,7 @@ Update entries in archive
   Default value: `false`
 * `--keep-dir` — Include directories in archive (default)
 
-  Default value: `false`
+  Default value: `true`
 * `--no-keep-dir` — Do not archive directories. This is the inverse option of --keep-dir
 
   Default value: `false`
@@ -1783,7 +1783,7 @@ Change owner
   Default value: `false`
 * `--owner-lookup` — resolve user and group (default)
 
-  Default value: `false`
+  Default value: `true`
 * `--no-owner-lookup` — do not resolve user and group
 
   Default value: `false`
