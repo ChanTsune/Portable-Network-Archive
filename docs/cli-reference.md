@@ -40,7 +40,6 @@ This document contains the help content for the `pna` command-line program.
 * [`pna experimental acl help get`↴](#pna-experimental-acl-help-get)
 * [`pna experimental acl help set`↴](#pna-experimental-acl-help-set)
 * [`pna experimental acl help help`↴](#pna-experimental-acl-help-help)
-* [`pna experimental migrate`↴](#pna-experimental-migrate)
 * [`pna experimental chunk`↴](#pna-experimental-chunk)
 * [`pna experimental chunk list`↴](#pna-experimental-chunk-list)
 * [`pna experimental chunk help`↴](#pna-experimental-chunk-help)
@@ -55,7 +54,6 @@ This document contains the help content for the `pna` command-line program.
 * [`pna experimental help acl`↴](#pna-experimental-help-acl)
 * [`pna experimental help acl get`↴](#pna-experimental-help-acl-get)
 * [`pna experimental help acl set`↴](#pna-experimental-help-acl-set)
-* [`pna experimental help migrate`↴](#pna-experimental-help-migrate)
 * [`pna experimental help chunk`↴](#pna-experimental-help-chunk)
 * [`pna experimental help chunk list`↴](#pna-experimental-help-chunk-list)
 * [`pna experimental help diff`↴](#pna-experimental-help-diff)
@@ -86,7 +84,6 @@ This document contains the help content for the `pna` command-line program.
 * [`pna help experimental acl`↴](#pna-help-experimental-acl)
 * [`pna help experimental acl get`↴](#pna-help-experimental-acl-get)
 * [`pna help experimental acl set`↴](#pna-help-experimental-acl-set)
-* [`pna help experimental migrate`↴](#pna-help-experimental-migrate)
 * [`pna help experimental chunk`↴](#pna-help-experimental-chunk)
 * [`pna help experimental chunk list`↴](#pna-help-experimental-chunk-list)
 * [`pna help experimental diff`↴](#pna-help-experimental-diff)
@@ -1569,7 +1566,6 @@ Unstable experimental commands; behavior and interface may change or be removed
 * `chown` — Change owner
 * `chmod` — Change mode
 * `acl` — Manipulate ACLs of entries
-* `migrate` — Upgrade archives created by older PNA versions (stabilized, use `pna migrate` command instead. this command will be removed in the future)
 * `chunk` — Chunk level operation
 * `diff` — Compare archive entries with filesystem
 * `verify` — Verify archive integrity
@@ -2046,50 +2042,6 @@ Print this message or the help of the given subcommand(s)
 
 
 
-## `pna experimental migrate`
-
-Upgrade archives created by older PNA versions (stabilized, use `pna migrate` command instead. this command will be removed in the future)
-
-**Usage:** `pna experimental migrate [OPTIONS] --file <ARCHIVE> --output <OUTPUT>`
-
-###### **Options:**
-
-* `--unsolid` — Convert solid entries to regular entries
-
-  Default value: `false`
-* `--keep-solid` — Preserve solid entries without conversion
-
-  Default value: `false`
-* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
-* `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
-* `-f`, `--file <ARCHIVE>`
-* `--output <OUTPUT>` — Output file path
-* `--quiet` — Make some output more quiet (alias for --log-level off)
-
-  Default value: `false`
-* `--verbose` — Make some output more verbose (alias for --log-level debug)
-
-  Default value: `false`
-* `--log-level <LEVEL>` — Set the log level
-
-  Default value: `warn`
-
-  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
-
-* `--color <WHEN>` — Control color output
-
-  Default value: `auto`
-
-  Possible values: `auto`, `always`, `never`
-
-* `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
-
-  Default value: `false`
-* `-h`, `--help` — Print help
-
-
-
 ## `pna experimental chunk`
 
 Chunk level operation
@@ -2304,7 +2256,6 @@ Print this message or the help of the given subcommand(s)
 * `chown` — Change owner
 * `chmod` — Change mode
 * `acl` — Manipulate ACLs of entries
-* `migrate` — Upgrade archives created by older PNA versions (stabilized, use `pna migrate` command instead. this command will be removed in the future)
 * `chunk` — Chunk level operation
 * `diff` — Compare archive entries with filesystem
 * `verify` — Verify archive integrity
@@ -2362,14 +2313,6 @@ Get acl of entries
 Set acl of entries
 
 **Usage:** `pna experimental help acl set`
-
-
-
-## `pna experimental help migrate`
-
-Upgrade archives created by older PNA versions (stabilized, use `pna migrate` command instead. this command will be removed in the future)
-
-**Usage:** `pna experimental help migrate`
 
 
 
@@ -2601,7 +2544,6 @@ Unstable experimental commands; behavior and interface may change or be removed
 * `chown` — Change owner
 * `chmod` — Change mode
 * `acl` — Manipulate ACLs of entries
-* `migrate` — Upgrade archives created by older PNA versions (stabilized, use `pna migrate` command instead. this command will be removed in the future)
 * `chunk` — Chunk level operation
 * `diff` — Compare archive entries with filesystem
 * `verify` — Verify archive integrity
@@ -2658,14 +2600,6 @@ Get acl of entries
 Set acl of entries
 
 **Usage:** `pna help experimental acl set`
-
-
-
-## `pna help experimental migrate`
-
-Upgrade archives created by older PNA versions (stabilized, use `pna migrate` command instead. this command will be removed in the future)
-
-**Usage:** `pna help experimental migrate`
 
 
 
