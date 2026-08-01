@@ -84,25 +84,24 @@ impl SafeWriter {
 
         let temp_path = self
             .temp_path
-            .take()
+            .as_deref()
             .expect("persist called on already-persisted SafeWriter");
-        fs::rename(&temp_path, &self.final_path)
+        fs::rename(temp_path, &self.final_path)?;
+        self.temp_path = None;
+        Ok(())
     }
 
-    /// Prepares the destination path for the rename operation.
+    /// Removes a directory standing where the file is about to go.
+    ///
+    /// A file cannot be renamed onto a directory, so an empty one is removed to make room; a
+    /// non-empty one makes the rename fail. Existing files are replaced by the rename itself.
     fn prepare_destination(&self) -> io::Result<()> {
         #[cfg(windows)]
         use std::os::windows::fs::FileTypeExt;
         match fs::symlink_metadata(&self.final_path) {
-            // Empty directory blocking file extraction is removed (non-empty will fail)
             Ok(meta) if meta.file_type().is_dir() => fs::remove_dir(&self.final_path),
-            // Windows rename() fails if destination exists; remove it first
             #[cfg(windows)]
             Ok(meta) if meta.file_type().is_symlink_dir() => fs::remove_dir(&self.final_path),
-            // Windows rename() fails if destination exists; remove it first
-            #[cfg(windows)]
-            Ok(_) => fs::remove_file(&self.final_path),
-            #[cfg(not(windows))]
             Ok(_) => Ok(()),
             Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
             Err(e) => Err(e),
@@ -231,6 +230,35 @@ mod tests {
         assert_eq!(fs::read_to_string(&target).unwrap(), "new content");
 
         // Cleanup
+        let _ = fs::remove_file(&target);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn safe_writer_cleans_up_temp_when_rename_fails() {
+        use std::os::windows::fs::OpenOptionsExt;
+        use windows::Win32::Storage::FileSystem::{FILE_SHARE_READ, FILE_SHARE_WRITE};
+
+        let dir = test_dir();
+        let target = dir.join("rename_failure_test.txt");
+        fs::write(&target, "old content").unwrap();
+
+        let mut writer = SafeWriter::new(&target).unwrap();
+        let temp_path = writer.temp_path.as_ref().unwrap().clone();
+        write!(writer.as_file_mut(), "new content").unwrap();
+
+        // Prevent deletion/renaming while still allowing the destination metadata to be read.
+        let locked_target = fs::OpenOptions::new()
+            .read(true)
+            .share_mode((FILE_SHARE_READ | FILE_SHARE_WRITE).0)
+            .open(&target)
+            .unwrap();
+
+        assert!(writer.persist().is_err());
+        assert!(!temp_path.exists());
+
+        drop(locked_target);
+        assert_eq!(fs::read_to_string(&target).unwrap(), "old content");
         let _ = fs::remove_file(&target);
     }
 
