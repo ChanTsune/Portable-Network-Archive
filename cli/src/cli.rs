@@ -233,7 +233,7 @@ pub(crate) struct PasswordArgs {
     #[arg(
         long,
         value_name = "FILE",
-        help = "Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password"
+        help = "Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored"
     )]
     pub(crate) password_file: Option<PathBuf>,
     #[arg(

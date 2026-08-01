@@ -8,7 +8,11 @@ pub(crate) use file_id::HardlinkResolver;
 pub(crate) use nodump::is_nodump;
 pub(crate) use owner::*;
 pub(crate) use pna::fs::*;
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io::{self, BufRead},
+    path::Path,
+};
 
 /// Returns the current process umask.
 ///
@@ -160,5 +164,80 @@ pub(crate) fn file_create(path: impl AsRef<Path>, overwrite: bool) -> io::Result
         fs::File::create(path)
     } else {
         fs::File::create_new(path)
+    }
+}
+
+/// Returns the first non-empty line from a file as UTF-8, if any.
+///
+/// Empty lines are skipped. The trailing line terminator (`\n` or `\r\n`)
+/// is not included in the returned string.
+///
+/// # Returns
+///
+/// - `Ok(Some(line))` if a non-empty line was found.
+/// - `Ok(None)` if the file contains no non-empty lines.
+/// - `Err(e)` if an I/O error occurs while opening or reading the file.
+///
+/// # Errors
+///
+/// Propagates any I/O error that occurs while opening or reading the file.
+#[inline]
+pub(crate) fn read_first_non_empty_line<P: AsRef<Path>>(path: P) -> io::Result<Option<String>> {
+    let file = fs::File::open(path)?;
+    let reader = io::BufReader::new(file);
+    for line in reader.lines() {
+        let line = line?;
+        if !line.is_empty() {
+            return Ok(Some(line));
+        }
+    }
+    Ok(None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::read_first_non_empty_line;
+    use crate::utils::env::temp_dir_or_else;
+    use std::{
+        fs,
+        io::Write,
+        path::PathBuf,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    fn temp_path(name: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        temp_dir_or_else(|| ".".as_ref()).join(format!("pna-password-test-{name}-{nanos}"))
+    }
+
+    #[test]
+    fn reads_first_non_empty_line_and_skips_empty_prefix() {
+        let path = temp_path("first-line");
+        let mut file = fs::File::create(&path).unwrap();
+        writeln!(file, "").unwrap();
+        writeln!(file, "secret").unwrap();
+        writeln!(file, "ignored").unwrap();
+
+        let result = read_first_non_empty_line(&path);
+        let _ = fs::remove_file(&path);
+        assert_eq!(result.unwrap().as_deref(), Some("secret"));
+    }
+
+    #[test]
+    fn returns_none_for_empty_or_blank_file() {
+        let empty = temp_path("empty");
+        fs::write(&empty, "").unwrap();
+        let empty_result = read_first_non_empty_line(&empty);
+        let _ = fs::remove_file(&empty);
+        assert_eq!(empty_result.unwrap(), None);
+
+        let blank = temp_path("blank");
+        fs::write(&blank, "\n\n").unwrap();
+        let blank_result = read_first_non_empty_line(&blank);
+        let _ = fs::remove_file(&blank);
+        assert_eq!(blank_result.unwrap(), None);
     }
 }

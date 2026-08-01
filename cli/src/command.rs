@@ -23,7 +23,10 @@ pub mod update;
 pub(crate) mod verify;
 pub mod xattr;
 
-use crate::cli::{Cli, Commands, GlobalContext, PasswordArgs};
+use crate::{
+    cli::{Cli, Commands, GlobalContext, PasswordArgs},
+    utils::fs as utils_fs,
+};
 use std::{fmt, fs, io};
 
 /// Error that maps to a specific process exit code in `main`.
@@ -80,13 +83,13 @@ fn ask_password(args: PasswordArgs) -> io::Result<Option<Vec<u8>>> {
         return Ok(Some(fs::read(path)?));
     }
     if let Some(path) = args.password_file {
-        let password = fs::read(path)?;
-        if password_bytes_need_raw_mode(&password) {
-            log::warn!(
-                "password file contains a newline or is not valid UTF-8; --password-file will change to use only the first non-empty UTF-8 line in a future release. If the full file content is your password, use --password-file-raw instead."
-            );
-        }
-        return Ok(Some(password));
+        return match utils_fs::read_first_non_empty_line(path)? {
+            Some(password) => Ok(Some(password.into_bytes())),
+            None => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "password is empty",
+            )),
+        };
     }
     Ok(match args.password {
         Some(Some(password)) => {
@@ -100,16 +103,6 @@ fn ask_password(args: PasswordArgs) -> io::Result<Option<Vec<u8>>> {
         ),
         None => None,
     })
-}
-
-/// Returns whether `password` will be read differently (or rejected) once
-/// `--password-file` switches to first-non-empty-UTF-8-line semantics.
-#[inline]
-fn password_bytes_need_raw_mode(password: &[u8]) -> bool {
-    match std::str::from_utf8(password) {
-        Ok(text) => text.contains('\n') || text.contains('\r'),
-        Err(_) => true,
-    }
 }
 
 pub(crate) trait Command {
@@ -137,25 +130,5 @@ impl Cli {
             Commands::Compat(cmd) => cmd.execute(ctx),
             Commands::Experimental(cmd) => cmd.execute(ctx),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::password_bytes_need_raw_mode;
-
-    #[test]
-    fn detects_lf_and_cr_as_newline() {
-        assert!(!password_bytes_need_raw_mode(b"secret"));
-        assert!(password_bytes_need_raw_mode(b"secret\n"));
-        assert!(password_bytes_need_raw_mode(b"secret\r\n"));
-        assert!(password_bytes_need_raw_mode(b"secret\r"));
-        assert!(password_bytes_need_raw_mode(b"line1\nline2"));
-    }
-
-    #[test]
-    fn detects_invalid_utf8() {
-        assert!(password_bytes_need_raw_mode(&[0xff, 0xfe, 0xfd]));
-        assert!(!password_bytes_need_raw_mode("secret".as_bytes()));
     }
 }
