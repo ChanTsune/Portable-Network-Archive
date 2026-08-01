@@ -181,28 +181,28 @@ Create archive
 * `--no-keep-dir` — Do not archive directories. This is the inverse option of --keep-dir
 
   Default value: `false`
-* `--keep-timestamp` [alias: `preserve-timestamps`] — Preserve file timestamps
+* `--preserve-timestamps` [alias: `keep-timestamp`] — Preserve file timestamps
 
   Default value: `false`
-* `--no-keep-timestamp` [alias: `no-preserve-timestamps`] — Do not archive timestamp of files. This is the inverse option of --preserve-timestamps
+* `--no-preserve-timestamps` [alias: `no-keep-timestamp`] — Do not archive timestamp of files. This is the inverse option of --preserve-timestamps
 
   Default value: `false`
-* `--keep-permission` [alias: `preserve-permissions`] — Preserve file permissions
+* `--preserve-permissions` [alias: `keep-permission`] — Preserve file permissions
 
   Default value: `false`
-* `--no-keep-permission` [alias: `no-preserve-permissions`] — Do not archive permissions of files. This is the inverse option of --preserve-permissions
+* `--no-preserve-permissions` [alias: `no-keep-permission`] — Do not archive permissions of files. This is the inverse option of --preserve-permissions
 
   Default value: `false`
-* `--keep-xattr` [alias: `preserve-xattrs`] — Preserve extended attributes
+* `--preserve-xattrs` [alias: `keep-xattr`] — Preserve extended attributes
 
   Default value: `false`
-* `--no-keep-xattr` [alias: `no-preserve-xattrs`] — Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs
+* `--no-preserve-xattrs` [alias: `no-keep-xattr`] — Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs
 
   Default value: `false`
-* `--keep-acl` [alias: `preserve-acls`] — Preserve ACLs
+* `--preserve-acls` [alias: `keep-acl`] — Preserve ACLs
 
   Default value: `false`
-* `--no-keep-acl` [alias: `no-preserve-acls`] — Do not archive ACLs. This is the inverse option of --keep-acl
+* `--no-preserve-acls` [alias: `no-keep-acl`] — Do not archive ACLs. This is the inverse option of --preserve-acls
 
   Default value: `false`
 * `--split <size>` — Splits archive by given size in bytes (minimum 64B)
@@ -338,28 +338,28 @@ Append files to archive
 * `--no-keep-dir` — Do not archive directories. This is the inverse option of --keep-dir
 
   Default value: `false`
-* `--keep-timestamp` [alias: `preserve-timestamps`] — Preserve file timestamps
+* `--preserve-timestamps` [alias: `keep-timestamp`] — Preserve file timestamps
 
   Default value: `false`
-* `--no-keep-timestamp` [alias: `no-preserve-timestamps`] — Do not archive timestamp of files. This is the inverse option of --preserve-timestamps
+* `--no-preserve-timestamps` [alias: `no-keep-timestamp`] — Do not archive timestamp of files. This is the inverse option of --preserve-timestamps
 
   Default value: `false`
-* `--keep-permission` [alias: `preserve-permissions`] — Preserve file permissions
+* `--preserve-permissions` [alias: `keep-permission`] — Preserve file permissions
 
   Default value: `false`
-* `--no-keep-permission` [alias: `no-preserve-permissions`] — Do not archive permissions of files. This is the inverse option of --preserve-permissions
+* `--no-preserve-permissions` [alias: `no-keep-permission`] — Do not archive permissions of files. This is the inverse option of --preserve-permissions
 
   Default value: `false`
-* `--keep-xattr` [alias: `preserve-xattrs`] — Preserve extended attributes
+* `--preserve-xattrs` [alias: `keep-xattr`] — Preserve extended attributes
 
   Default value: `false`
-* `--no-keep-xattr` [alias: `no-preserve-xattrs`] — Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs
+* `--no-preserve-xattrs` [alias: `no-keep-xattr`] — Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs
 
   Default value: `false`
-* `--keep-acl` [alias: `preserve-acls`] — Preserve ACLs
+* `--preserve-acls` [alias: `keep-acl`] — Preserve ACLs
 
   Default value: `false`
-* `--no-keep-acl` [alias: `no-preserve-acls`] — Do not archive ACLs. This is the inverse option of --keep-acl
+* `--no-preserve-acls` [alias: `no-keep-acl`] — Do not archive ACLs. This is the inverse option of --preserve-acls
 
   Default value: `false`
 * `--uname <NAME>` — Set user name for archive entries
@@ -489,10 +489,10 @@ Extract files from archive
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
-* `--keep-timestamp` [alias: `preserve-timestamps`] — Restore the timestamp of the files
+* `--preserve-timestamps` [alias: `keep-timestamp`] — Restore the timestamp of the files
 
   Default value: `false`
-* `--no-keep-timestamp` [alias: `no-preserve-timestamps`] — Do not restore timestamp of files. This is the inverse option of --preserve-timestamps
+* `--no-preserve-timestamps` [alias: `no-keep-timestamp`] — Do not restore timestamp of files. This is the inverse option of --preserve-timestamps
 
   Default value: `false`
 * `--mtime <DATETIME>` — Overrides the modification time
@@ -507,22 +507,22 @@ Extract files from archive
 * `--clamp-atime` — Clamp the access time of the entries to the specified time by --atime
 
   Default value: `false`
-* `--keep-permission` [alias: `preserve-permissions`] — Restore the permissions of the files
+* `--preserve-permissions` [alias: `keep-permission`] — Restore the permissions of the files
 
   Default value: `false`
-* `--no-keep-permission` [alias: `no-preserve-permissions`] — Do not restore permissions of files. This is the inverse option of --preserve-permissions
+* `--no-preserve-permissions` [alias: `no-keep-permission`] — Do not restore permissions of files. This is the inverse option of --preserve-permissions
 
   Default value: `false`
-* `--keep-xattr` [alias: `preserve-xattrs`] — Restore the extended attributes of the files
+* `--preserve-xattrs` [alias: `keep-xattr`] — Restore the extended attributes of the files
 
   Default value: `false`
-* `--no-keep-xattr` [alias: `no-preserve-xattrs`] — Do not restore extended attributes of files. This is the inverse option of --preserve-xattrs
+* `--no-preserve-xattrs` [alias: `no-keep-xattr`] — Do not restore extended attributes of files. This is the inverse option of --preserve-xattrs
 
   Default value: `false`
-* `--keep-acl` [alias: `preserve-acls`] — Restore ACLs
+* `--preserve-acls` [alias: `keep-acl`] — Restore ACLs
 
   Default value: `false`
-* `--no-keep-acl` [alias: `no-preserve-acls`] — Do not restore ACLs. This is the inverse option of --keep-acl
+* `--no-preserve-acls` [alias: `no-keep-acl`] — Do not restore ACLs. This is the inverse option of --preserve-acls
 
   Default value: `false`
 * `--uname <NAME>` — Restore user from given name
@@ -861,19 +861,19 @@ Strip entries metadata
 
 ###### **Options:**
 
-* `--keep-timestamp` [alias: `preserve-timestamps`] — Preserve file timestamps
+* `--preserve-timestamps` [alias: `keep-timestamp`] — Preserve file timestamps
 
   Default value: `false`
-* `--keep-permission` [alias: `preserve-permissions`] — Preserve file permissions
+* `--preserve-permissions` [alias: `keep-permission`] — Preserve file permissions
 
   Default value: `false`
-* `--keep-xattr` [alias: `preserve-xattrs`] — Preserve extended attributes
+* `--preserve-xattrs` [alias: `keep-xattr`] — Preserve extended attributes
 
   Default value: `false`
-* `--keep-acl` [alias: `preserve-acls`] — Preserve ACLs
+* `--preserve-acls` [alias: `keep-acl`] — Preserve ACLs
 
   Default value: `false`
-* `--keep-private <CHUNK_TYPE>` [alias: `preserve-private_chunks`] — Keep private chunks. If no CHUNK_TYPE is specified, all private chunks are kept
+* `--preserve-private-chunks <CHUNK_TYPE>` [alias: `keep-private`] — Preserve private chunks. If no CHUNK_TYPE is specified, all private chunks are preserved
 * `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
@@ -1349,10 +1349,10 @@ bsdtar-like CLI semantics for PNA archives
 * `--no-keep-dir` — Do not archive directories. This is the inverse option of --keep-dir
 
   Default value: `false`
-* `--keep-timestamp` [alias: `preserve-timestamps`] — Preserve file timestamps
+* `--preserve-timestamps` [alias: `keep-timestamp`] — Preserve file timestamps
 
   Default value: `false`
-* `-m`, `--no-keep-timestamp` [aliases: `no-preserve-timestamps`, `modification-time`] — Do not archive timestamp of files. This is the inverse option of --preserve-timestamps
+* `-m`, `--no-preserve-timestamps` [aliases: `no-keep-timestamp`, `modification-time`] — Do not archive timestamp of files. This is the inverse option of --preserve-timestamps
 
   Default value: `false`
 * `--no-same-permissions` [aliases: `no-preserve-permissions`, `no-permissions`] — Do not store file permissions (mode bits) in the archive
@@ -1361,22 +1361,22 @@ bsdtar-like CLI semantics for PNA archives
 * `-p`, `--same-permissions` [alias: `preserve-permissions`] — Restore file permissions (mode, ACLs, xattrs, fflags, mac-metadata, but NOT ownership) (extract only)
 
   Default value: `false`
-* `--keep-xattr` [aliases: `preserve-xattrs`, `xattrs`] — Preserve extended attributes
+* `--preserve-xattrs` [aliases: `keep-xattr`, `xattrs`] — Preserve extended attributes
 
   Default value: `false`
-* `--no-keep-xattr` [aliases: `no-preserve-xattrs`, `no-xattrs`] — Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs
+* `--no-preserve-xattrs` [aliases: `no-keep-xattr`, `no-xattrs`] — Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs
 
   Default value: `false`
-* `--keep-acl` [aliases: `preserve-acls`, `acls`] — Preserve ACLs
+* `--preserve-acls` [aliases: `keep-acl`, `acls`] — Preserve ACLs
 
   Default value: `false`
-* `--no-keep-acl` [aliases: `no-preserve-acls`, `no-acls`] — Do not archive ACLs. This is the inverse option of --keep-acl
+* `--no-preserve-acls` [aliases: `no-keep-acl`, `no-acls`] — Do not archive ACLs. This is the inverse option of --preserve-acls
 
   Default value: `false`
-* `--keep-fflags` [aliases: `preserve-fflags`, `fflags`] — Archiving the file flags of the files
+* `--preserve-fflags` [aliases: `keep-fflags`, `fflags`] — Archiving the file flags of the files
 
   Default value: `false`
-* `--no-keep-fflags` [aliases: `no-preserve-fflags`, `no-fflags`] — Do not archive file flags of files. This is the inverse option of --keep-fflags
+* `--no-preserve-fflags` [aliases: `no-keep-fflags`, `no-fflags`] — Do not archive file flags of files. This is the inverse option of --preserve-fflags
 
   Default value: `false`
 * `--mac-metadata` — Archive and extract Mac metadata (extended attributes and ACLs)
@@ -1629,28 +1629,28 @@ Update entries in archive
 * `--no-keep-dir` — Do not archive directories. This is the inverse option of --keep-dir
 
   Default value: `false`
-* `--keep-timestamp` [alias: `preserve-timestamps`] — Preserve file timestamps
+* `--preserve-timestamps` [alias: `keep-timestamp`] — Preserve file timestamps
 
   Default value: `false`
-* `--no-keep-timestamp` [alias: `no-preserve-timestamps`] — Do not archive timestamp of files. This is the inverse option of --preserve-timestamps
+* `--no-preserve-timestamps` [alias: `no-keep-timestamp`] — Do not archive timestamp of files. This is the inverse option of --preserve-timestamps
 
   Default value: `false`
-* `--keep-permission` [alias: `preserve-permissions`] — Preserve file permissions
+* `--preserve-permissions` [alias: `keep-permission`] — Preserve file permissions
 
   Default value: `false`
-* `--no-keep-permission` [alias: `no-preserve-permissions`] — Do not archive permissions of files. This is the inverse option of --preserve-permissions
+* `--no-preserve-permissions` [alias: `no-keep-permission`] — Do not archive permissions of files. This is the inverse option of --preserve-permissions
 
   Default value: `false`
-* `--keep-xattr` [alias: `preserve-xattrs`] — Preserve extended attributes
+* `--preserve-xattrs` [alias: `keep-xattr`] — Preserve extended attributes
 
   Default value: `false`
-* `--no-keep-xattr` [alias: `no-preserve-xattrs`] — Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs
+* `--no-preserve-xattrs` [alias: `no-keep-xattr`] — Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs
 
   Default value: `false`
-* `--keep-acl` [alias: `preserve-acls`] — Preserve ACLs
+* `--preserve-acls` [alias: `keep-acl`] — Preserve ACLs
 
   Default value: `false`
-* `--no-keep-acl` [alias: `no-preserve-acls`] — Do not archive ACLs. This is the inverse option of --keep-acl
+* `--no-preserve-acls` [alias: `no-keep-acl`] — Do not archive ACLs. This is the inverse option of --preserve-acls
 
   Default value: `false`
 * `--uname <NAME>` — Set user name for archive entries
