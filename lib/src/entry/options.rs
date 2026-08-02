@@ -970,8 +970,10 @@ impl TryFrom<u8> for DataKind {
 /// - **Hash Algorithm**: Always use [`HashAlgorithm::argon2id()`] in production for password-based
 ///   encryption. [`HashAlgorithm::pbkdf2_sha256()`] is primarily for compatibility with older
 ///   systems or when Argon2 is not available.
-/// - **Cipher Mode**: CTR mode ([`CipherMode::CTR`]) is recommended over CBC for most use cases
-///   as it allows parallel processing and has simpler security requirements.
+/// - **Cipher Mode**: GCM ([`CipherMode::GCM`]) is the default and recommended mode: it
+///   authenticates the ciphertext, so tampering is detected instead of silently decrypting to
+///   garbage as with CBC/CTR. Use CBC/CTR only when interoperating with tools that require them;
+///   between the two, CTR is preferred over CBC.
 /// - **Per-Entry Randomness**: Each entry receives its own randomly generated encryption
 ///   material — an IV for CBC/CTR, or a salt and nonce prefix for GCM — generated using
 ///   cryptographically secure random number generation. You do not need to provide this yourself.
@@ -1007,7 +1009,7 @@ impl TryFrom<u8> for DataKind {
 ///
 /// let opts = WriteOptions::builder()
 ///     .encryption(Encryption::AES)
-///     .cipher_mode(CipherMode::CTR)
+///     .cipher_mode(CipherMode::GCM)
 ///     .hash_algorithm(HashAlgorithm::argon2id())
 ///     .password(Some("secure_password"))
 ///     .build();
@@ -1020,7 +1022,7 @@ impl TryFrom<u8> for DataKind {
 /// let opts = WriteOptions::builder()
 ///     .compression(Compression::ZSTANDARD)
 ///     .encryption(Encryption::AES)
-///     .cipher_mode(CipherMode::CTR)
+///     .cipher_mode(CipherMode::GCM)
 ///     .hash_algorithm(HashAlgorithm::argon2id())
 ///     .password(Some("secure_password"))
 ///     .build();
@@ -1086,16 +1088,23 @@ impl WriteOptions {
     }
 }
 
+const DEFAULT_CIPHER_MODE: CipherMode = CipherMode::GCM;
+const DEFAULT_HASH_ALGORITHM: HashAlgorithm = HashAlgorithm::argon2id();
+
 /// Builder for [`WriteOptions`].
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct WriteOptionsBuilder {
     compression: Compression,
     compression_level: CompressionLevel,
     encryption: Encryption,
-    cipher_mode: CipherMode,
-    hash_algorithm: HashAlgorithm,
+    /// `None` until a caller picks one, so that the default is resolved in one
+    /// place instead of being baked into every way of making a builder, and so
+    /// that an absence of choice stays absent across a round trip through
+    /// [`WriteOptions`] instead of becoming the fallback its accessors report.
+    cipher_mode: Option<CipherMode>,
+    hash_algorithm: Option<HashAlgorithm>,
     password: Option<Vec<u8>>,
-    segment_size: u32,
+    segment_size: Option<u32>,
 }
 
 impl Default for WriteOptionsBuilder {
@@ -1118,12 +1127,13 @@ impl From<WriteOptions> for WriteOptionsBuilder {
             compression,
             compression_level,
             encryption: value.encryption(),
-            cipher_mode: value.cipher_mode(),
-            hash_algorithm: value.hash_algorithm(),
+            // Unencrypted options carry nothing to inherit for these three, so
+            // leave the choice open rather than adopting the values they report
+            // — those are fallbacks, not decisions the caller made.
+            cipher_mode: value.cipher().map(|it| it.mode),
+            hash_algorithm: value.cipher().map(|it| it.hash_algorithm),
             password: value.password().map(|p| p.to_vec()),
-            segment_size: value
-                .cipher()
-                .map_or(DEFAULT_SEGMENT_SIZE, |it| it.segment_size.get()),
+            segment_size: value.cipher().map(|it| it.segment_size.get()),
         }
     }
 }
@@ -1134,10 +1144,10 @@ impl WriteOptionsBuilder {
             compression: Compression::NO,
             compression_level: CompressionLevel::DEFAULT,
             encryption: Encryption::NO,
-            cipher_mode: CipherMode::CTR,
-            hash_algorithm: HashAlgorithm::argon2id(),
+            cipher_mode: None,
+            hash_algorithm: None,
             password: None,
-            segment_size: DEFAULT_SEGMENT_SIZE,
+            segment_size: None,
         }
     }
 
@@ -1165,14 +1175,14 @@ impl WriteOptionsBuilder {
     /// Sets the [`CipherMode`].
     #[inline]
     pub fn cipher_mode(&mut self, cipher_mode: CipherMode) -> &mut Self {
-        self.cipher_mode = cipher_mode;
+        self.cipher_mode = Some(cipher_mode);
         self
     }
 
     /// Sets the [`HashAlgorithm`].
     #[inline]
     pub fn hash_algorithm(&mut self, algorithm: HashAlgorithm) -> &mut Self {
-        self.hash_algorithm = algorithm;
+        self.hash_algorithm = Some(algorithm);
         self
     }
 
@@ -1201,7 +1211,7 @@ impl WriteOptionsBuilder {
     #[cfg(test)]
     #[inline]
     pub(crate) fn segment_size(&mut self, size: u32) -> &mut Self {
-        self.segment_size = size;
+        self.segment_size = Some(size);
         self
     }
 
@@ -1254,20 +1264,21 @@ impl WriteOptionsBuilder {
             let password = self.password.as_deref().ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidInput, "Password was not provided.")
             })?;
-            let segment_size = SegmentSize::new(self.segment_size).ok_or_else(|| {
+            let requested = self.segment_size.unwrap_or(DEFAULT_SEGMENT_SIZE);
+            let segment_size = SegmentSize::new(requested).ok_or_else(|| {
                 io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    format!("segment size out of range: {}", self.segment_size),
+                    format!("segment size out of range: {requested}"),
                 )
             })?;
-            let hash_algorithm = self.hash_algorithm;
+            let hash_algorithm = self.hash_algorithm.unwrap_or(DEFAULT_HASH_ALGORITHM);
             let derived = derive_key_material(cipher_algorithm, hash_algorithm, password)?;
             Some(Cipher::new(
                 password.into(),
                 derived,
                 hash_algorithm,
                 cipher_algorithm,
-                self.cipher_mode,
+                self.cipher_mode.unwrap_or(DEFAULT_CIPHER_MODE),
                 segment_size,
             ))
         } else {
@@ -1534,6 +1545,61 @@ mod tests {
     fn cipher_mode_gcm_roundtrips_through_byte() {
         let byte = CipherMode::GCM.to_byte();
         assert_eq!(CipherMode::from_byte(byte), CipherMode::GCM);
+    }
+
+    #[test]
+    fn default_cipher_mode_is_gcm() {
+        let options = WriteOptions::builder()
+            .encryption(Encryption::AES)
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .password(Some("password"))
+            .try_build()
+            .unwrap();
+        assert_eq!(options.cipher_mode(), CipherMode::GCM);
+    }
+
+    #[test]
+    fn explicit_hash_algorithm_is_preserved() {
+        let options = WriteOptions::builder()
+            .encryption(Encryption::AES)
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .password(Some("password"))
+            .try_build()
+            .unwrap();
+        assert_eq!(
+            options.hash_algorithm(),
+            HashAlgorithm::pbkdf2_sha256_with(Some(1))
+        );
+    }
+
+    #[test]
+    fn into_builder_of_unencrypted_options_keeps_the_default_cipher_mode() {
+        let options = WriteOptions::store()
+            .into_builder()
+            .encryption(Encryption::AES)
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .password(Some("password"))
+            .try_build()
+            .unwrap();
+        assert_eq!(options.cipher_mode(), CipherMode::GCM);
+    }
+
+    #[test]
+    fn into_builder_preserves_an_explicit_cipher_mode() {
+        let options = WriteOptions::builder()
+            .encryption(Encryption::AES)
+            .cipher_mode(CipherMode::CTR)
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .password(Some("password"))
+            .try_build()
+            .unwrap();
+        let rebuilt = options.into_builder().try_build().unwrap();
+        assert_eq!(rebuilt.cipher_mode(), CipherMode::CTR);
+    }
+
+    #[test]
+    fn unencrypted_options_report_the_ctr_cipher_mode() {
+        assert_eq!(WriteOptions::store().cipher_mode(), CipherMode::CTR);
     }
 
     fn test_output(byte: u8) -> Output {
