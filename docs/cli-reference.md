@@ -269,11 +269,11 @@ Create archive
 * `--xz <level>` — Use xz for compression [possible level: 0-9, min, max]
 * `--aes <cipher mode>` — Use aes for encryption
 
-  Possible values: `cbc`, `ctr`
+  Possible values: `cbc`, `ctr`, `gcm`
 
 * `--camellia <cipher mode>` — Use camellia for encryption
 
-  Possible values: `cbc`, `ctr`
+  Possible values: `cbc`, `ctr`, `gcm`
 
 * `--argon2 <PARAMS>` — Use argon2 for password hashing
 * `--pbkdf2 <PARAMS>` — Use pbkdf2 for password hashing
@@ -425,11 +425,11 @@ Append files to archive
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--aes <cipher mode>` — Use aes for encryption
 
-  Possible values: `cbc`, `ctr`
+  Possible values: `cbc`, `ctr`, `gcm`
 
 * `--camellia <cipher mode>` — Use camellia for encryption
 
-  Possible values: `cbc`, `ctr`
+  Possible values: `cbc`, `ctr`, `gcm`
 
 * `--argon2 <PARAMS>` — Use argon2 for password hashing
 * `--pbkdf2 <PARAMS>` — Use pbkdf2 for password hashing
@@ -1402,11 +1402,11 @@ bsdtar-like CLI semantics for PNA archives
   Default value: `false`
 * `--aes <cipher mode>` — Use aes for encryption
 
-  Possible values: `cbc`, `ctr`
+  Possible values: `cbc`, `ctr`, `gcm`
 
 * `--camellia <cipher mode>` — Use camellia for encryption
 
-  Possible values: `cbc`, `ctr`
+  Possible values: `cbc`, `ctr`, `gcm`
 
 * `--argon2 <PARAMS>` — Use argon2 for password hashing
 * `--pbkdf2 <PARAMS>` — Use pbkdf2 for password hashing
@@ -1705,11 +1705,11 @@ Update entries in archive
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--aes <cipher mode>` — Use aes for encryption
 
-  Possible values: `cbc`, `ctr`
+  Possible values: `cbc`, `ctr`, `gcm`
 
 * `--camellia <cipher mode>` — Use camellia for encryption
 
-  Possible values: `cbc`, `ctr`
+  Possible values: `cbc`, `ctr`, `gcm`
 
 * `--argon2 <PARAMS>` — Use argon2 for password hashing
 * `--pbkdf2 <PARAMS>` — Use pbkdf2 for password hashing
@@ -2208,7 +2208,7 @@ Verify archive integrity
 
 **Usage:** `pna experimental verify [OPTIONS] --file <ARCHIVE>`
 
-Note: for encrypted entries, a wrong password is indistinguishable from corruption.
+Note: for entries encrypted in CBC or CTR mode, a wrong password is indistinguishable from corruption. GCM mode instead reports a key mismatch, meaning the password does not match the key derivation parameters recorded for the entry: either the password is wrong, or those recorded parameters were themselves altered.
 
 ###### **Options:**
 
