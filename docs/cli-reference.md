@@ -554,9 +554,9 @@ Extract files from archive
 * `--strip-components <N>` — Remove the specified number of leading path elements. Path names with fewer elements will be silently skipped
 * `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option
 * `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option
-* `--same-owner` — Try extracting files with the same ownership as exists in the archive
+* `--same-owner` — Try extracting files with the same ownership as exists in the archive (default)
 
-  Default value: `false`
+  Default value: `true`
 * `--no-same-owner` — Extract files as yourself
 
   Default value: `false`
