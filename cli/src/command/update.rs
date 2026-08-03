@@ -24,7 +24,7 @@ use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
 use indexmap::IndexMap;
 use pna::{Archive, EntryName, Metadata, prelude::*};
 use std::{
-    env, fs, io,
+    fs, io,
     path::{Path, PathBuf},
 };
 
@@ -414,7 +414,6 @@ impl Command for UpdateCommand {
 fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
     let transform_strategy = args.transform_strategy.strategy();
     let sync = args.sync;
-    let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     let archive_path = &args.file.archive;
     if !archive_path.exists() {
@@ -500,7 +499,6 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
 
-    let archive_path = current_dir.join(args.file.archive);
     let collect_options = CollectOptions {
         recursive: args.recursive,
         keep_dir: args.keep_dir,
