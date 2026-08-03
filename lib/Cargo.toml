@@ -33,7 +33,7 @@ password-hash = { version = "0.5.0", default-features = false }
 pbkdf2 = { version = "0.12.2", features = ["simple"] }
 rand = "0.8.6"
 rand_chacha = "0.3.1"
-sha2 = "0.10.9"
+sha2 = "0.11.0"
 subtle = { version = "2.5.0", default-features = false }
 time = "0.3.47"
 zstd = { version = "0.13.3", default-features = false }
