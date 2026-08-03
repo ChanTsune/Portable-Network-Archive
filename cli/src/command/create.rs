@@ -23,7 +23,7 @@ use bytesize::ByteSize;
 use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
 use pna::{Archive, SolidEntryBuilder, WriteOptions};
 use std::{
-    env, fs,
+    fs,
     io::{self, prelude::*},
     path::{Path, PathBuf},
     time::Instant,
@@ -416,7 +416,6 @@ impl Command for CreateCommand {
 
 #[hooq::hooq(anyhow)]
 fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
-    let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     let start = Instant::now();
     let archive = &args.file.archive;
@@ -458,7 +457,6 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         args.include.iter().map(|s| s.as_str()),
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
-    let archive_path = current_dir.join(archive);
     let time_filters = TimeFilterResolver {
         newer_ctime_than: args.newer_ctime_than.as_deref(),
         older_ctime_than: args.older_ctime_than.as_deref(),
@@ -489,7 +487,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         .map(CollectedItem::Filesystem)
         .collect::<Vec<_>>();
 
-    if let Some(parent) = archive_path.parent() {
+    if let Some(parent) = archive.parent() {
         fs::create_dir_all(parent)?;
     }
     let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
@@ -538,7 +536,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     };
     if let Some(size) = max_file_size {
         create_archive_with_split(
-            &archive_path,
+            archive,
             creation_context,
             target_items,
             size,
@@ -550,7 +548,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         )?;
     } else {
         create_archive_file(
-            || utils::fs::file_create(&archive_path, args.overwrite),
+            || utils::fs::file_create(archive, args.overwrite),
             creation_context,
             target_items,
             &filter,
