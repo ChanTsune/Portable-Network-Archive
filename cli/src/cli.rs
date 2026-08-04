@@ -384,7 +384,7 @@ mod tests {
             aes: None,
             camellia: Some(Some(CipherMode::Cbc)),
         };
-        assert_eq!(args.algorithm(), pna::Encryption::Camellia);
+        assert_eq!(args.algorithm(), pna::Encryption::CAMELLIA);
     }
 
     #[test]
@@ -393,7 +393,7 @@ mod tests {
             aes: Some(Some(CipherMode::Cbc)),
             camellia: None,
         };
-        assert_eq!(args.algorithm(), pna::Encryption::Aes);
+        assert_eq!(args.algorithm(), pna::Encryption::AES);
     }
 
     #[test]
@@ -402,7 +402,7 @@ mod tests {
             aes: None,
             camellia: None,
         };
-        assert_eq!(args.algorithm(), pna::Encryption::Aes);
+        assert_eq!(args.algorithm(), pna::Encryption::AES);
     }
 
     #[test]
