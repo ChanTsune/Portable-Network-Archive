@@ -41,3 +41,5 @@ updates:
           - "ctr"
           - "cipher"
           - "crypto-common"
+          - "hkdf"
+          - "sha2"
