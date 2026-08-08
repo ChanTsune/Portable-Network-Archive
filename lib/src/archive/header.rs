@@ -2,8 +2,12 @@
 
 use std::io;
 
-/// The magic number of Portable-Network-Archive.
-pub const PNA_HEADER: &[u8; 8] = b"\x89PNA\r\n\x1A\n";
+/// The signature at the beginning of every PNA archive.
+pub const PNA_SIGNATURE: &[u8; 8] = b"\x89PNA\r\n\x1A\n";
+
+/// Alias of [`PNA_SIGNATURE`].
+#[deprecated(since = "TBD", note = "renamed to `PNA_SIGNATURE`")]
+pub const PNA_HEADER: &[u8; 8] = PNA_SIGNATURE;
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ArchiveHeader {
@@ -97,5 +101,11 @@ mod tests {
             ArchiveHeader::from_bytes(&bytes),
             ArchiveHeader::from_bytes(&ArchiveHeader::from_bytes(&bytes).to_bytes()),
         );
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn deprecated_pna_header_alias_matches_signature_bytes() {
+        assert_eq!(PNA_HEADER, b"\x89PNA\r\n\x1A\n");
     }
 }

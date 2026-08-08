@@ -819,7 +819,7 @@ mod tests {
             }
             segments.push(&stream[prev..]);
 
-            let mut out = PNA_HEADER.to_vec();
+            let mut out = PNA_SIGNATURE.to_vec();
             let mut emitted = false;
             for chunk in read_as_chunks(archive).unwrap() {
                 let chunk = chunk.unwrap();
@@ -1185,7 +1185,7 @@ mod tests {
             index: usize,
             f: impl FnOnce(&mut Vec<u8>),
         ) -> Vec<u8> {
-            let mut out = PNA_HEADER.to_vec();
+            let mut out = PNA_SIGNATURE.to_vec();
             let mut f = Some(f);
             let mut seen = 0;
             for chunk in read_as_chunks(archive).unwrap() {
@@ -1225,7 +1225,7 @@ mod tests {
             entry_index: usize,
             f: impl FnOnce(&mut Vec<u8>),
         ) -> Vec<u8> {
-            let mut out = PNA_HEADER.to_vec();
+            let mut out = PNA_SIGNATURE.to_vec();
             let mut f = Some(f);
             let mut current: isize = -1;
             let mut stream: Option<Vec<u8>> = None;
@@ -1273,7 +1273,7 @@ mod tests {
         }
 
         fn tamper_solid_datastream(archive: &[u8], f: impl FnOnce(&mut Vec<u8>)) -> Vec<u8> {
-            let mut out = PNA_HEADER.to_vec();
+            let mut out = PNA_SIGNATURE.to_vec();
             let mut f = Some(f);
             let mut stream: Option<Vec<u8>> = None;
             for chunk in read_as_chunks(archive).unwrap() {
