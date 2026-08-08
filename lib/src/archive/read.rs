@@ -3,7 +3,7 @@
 mod slice;
 
 use crate::{
-    archive::{Archive, ArchiveHeader, PNA_SIGNATURE},
+    archive::{Archive, ArchiveHeader},
     chunk::{Chunk, ChunkReader, ChunkType, RawChunk, read_chunk},
     entry::{Entry, NormalEntry, RawEntry, ReadEntry, ReadOptions},
 };
@@ -16,27 +16,14 @@ use std::{
 };
 
 pub(crate) fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
-    let mut header = [0u8; PNA_SIGNATURE.len()];
-    reader.read_exact(&mut header)?;
-    if &header != PNA_SIGNATURE {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "not a PNA archive",
-        ));
-    }
-    Ok(())
+    crate::io::read_signature(&mut reader)
 }
 
 #[cfg(feature = "unstable-async")]
 async fn read_pna_header_async<R: futures_io::AsyncRead + Unpin>(mut reader: R) -> io::Result<()> {
-    let mut header = [0u8; PNA_SIGNATURE.len()];
-    reader.read_exact(&mut header).await?;
-    if &header != PNA_SIGNATURE {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "not a PNA archive",
-        ));
-    }
+    let mut signature = [0u8; crate::PNA_SIGNATURE.len()];
+    reader.read_exact(&mut signature).await?;
+    crate::bytes::read_signature(&signature)?;
     Ok(())
 }
 
@@ -483,14 +470,14 @@ mod tests {
 
     #[test]
     fn read_header_rejects_non_ahed_first_chunk() {
-        let mut bytes = PNA_SIGNATURE.to_vec();
+        let mut bytes = crate::PNA_SIGNATURE.to_vec();
         bytes.extend_from_slice(&RawChunk::from_data(ChunkType::FEND, Vec::new()).to_bytes());
         let err = Archive::read_header(&bytes[..]).err().unwrap();
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
     }
 
     fn archive_bytes(header: ArchiveHeader) -> Vec<u8> {
-        let mut bytes = PNA_SIGNATURE.to_vec();
+        let mut bytes = crate::PNA_SIGNATURE.to_vec();
         bytes.extend_from_slice(
             &RawChunk::from_data(ChunkType::AHED, header.to_bytes().to_vec()).to_bytes(),
         );
