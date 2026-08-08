@@ -71,7 +71,7 @@ fn list_archive_chunks(args: ListCommand) -> anyhow::Result<()> {
     }
     let include: HashSet<pna::ChunkType> = args.ty.iter().map(|ty| ty.0).collect();
     let exclude: HashSet<pna::ChunkType> = args.exclude_ty.iter().map(|ty| ty.0).collect();
-    let mut offset = pna::PNA_HEADER.len();
+    let mut offset = pna::PNA_SIGNATURE.len();
     let mut idx = 0;
     for chunk in pna::read_as_chunks(archive)? {
         let chunk = chunk?;
