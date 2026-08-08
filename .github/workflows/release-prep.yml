@@ -65,7 +65,42 @@ jobs:
             COMMIT_MSG=':bookmark: Bump version to {{version}}'
           fi
 
-          printf 'pre-release-commit-message = "%s"\n' "$COMMIT_MSG" > "$CONFIG"
+          case "$INPUT_CRATE" in
+            libpna)
+              SEARCH_ROOTS=(lib/src lib/tests lib/examples lib/benches)
+              ;;
+            pna)
+              SEARCH_ROOTS=(pna/src pna/tests pna/examples pna/benches)
+              ;;
+            portable-network-archive)
+              SEARCH_ROOTS=(cli/src cli/tests cli/examples cli/benches)
+              ;;
+            all)
+              SEARCH_ROOTS=(
+                lib/src lib/tests lib/examples lib/benches
+                pna/src pna/tests pna/examples pna/benches
+                cli/src cli/tests cli/examples cli/benches
+              )
+              ;;
+          esac
+
+          {
+            printf 'pre-release-commit-message = "%s"\n' "$COMMIT_MSG"
+            printf 'pre-release-replacements = [\n'
+
+            for root in "${SEARCH_ROOTS[@]}"; do
+              [ -d "$root" ] || continue
+
+              while IFS= read -r file; do
+                printf '  { file = "%s", search = "since = \\\"unreleased\\\"", replace = "since = \\\"{{version}}\\\"" },\n' "$file"
+              done < <(rg -l --glob '*.rs' 'since = "unreleased"' "$root" | sort)
+            done
+
+            printf ']\n'
+          } > "$CONFIG"
+
+          echo 'Generated release config:'
+          cat "$CONFIG"
           echo "config=$CONFIG" >> "$GITHUB_OUTPUT"
 
       - name: Run cargo release (no tag/push)
