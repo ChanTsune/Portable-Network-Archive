@@ -526,6 +526,29 @@ mod tests {
 
     #[cfg(feature = "unstable-async")]
     #[tokio::test]
+    async fn read_header_async_rejects_bad_magic() {
+        use tokio_util::compat::TokioAsyncReadCompatExt;
+
+        let mut bytes = include_bytes!("../../../resources/test/empty.pna").to_vec();
+        bytes[0] ^= 0xFF;
+        let file = io::Cursor::new(bytes).compat();
+        let err = Archive::read_header_async(file).await.err().unwrap();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+    }
+
+    #[cfg(feature = "unstable-async")]
+    #[tokio::test]
+    async fn read_header_async_rejects_truncated_header() {
+        use tokio_util::compat::TokioAsyncReadCompatExt;
+
+        let bytes = include_bytes!("../../../resources/test/empty.pna");
+        let file = io::Cursor::new(&bytes[..4]).compat();
+        let err = Archive::read_header_async(file).await.err().unwrap();
+        assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
+    }
+
+    #[cfg(feature = "unstable-async")]
+    #[tokio::test]
     async fn decode_async() {
         use tokio_util::compat::TokioAsyncReadCompatExt;
 
