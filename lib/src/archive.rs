@@ -12,7 +12,7 @@ use crate::{
 use core::num::NonZeroU32;
 pub use header::*;
 use std::io::prelude::*;
-pub(crate) use {read::*, write::*};
+pub(crate) use write::*;
 
 /// Provides read and write access to a PNA file.
 ///
