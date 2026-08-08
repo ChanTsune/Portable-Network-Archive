@@ -403,7 +403,7 @@ pub fn read_as_chunks<R: Read>(
             }))
         }
     }
-    crate::archive::read_pna_header(&mut archive)?;
+    crate::io::read_signature(&mut archive)?;
 
     Ok(Chunks {
         reader: ChunkReader::new(archive, None),
@@ -460,7 +460,7 @@ pub fn read_chunks_from_slice<'a>(
             }))
         }
     }
-    let archive = crate::archive::read_header_from_slice(archive)?;
+    let archive = crate::bytes::read_signature(archive)?;
 
     Ok(Chunks {
         reader: archive,

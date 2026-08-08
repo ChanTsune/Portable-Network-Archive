@@ -3,43 +3,14 @@
 mod slice;
 
 use crate::{
-    PNA_SIGNATURE,
     archive::{Archive, ArchiveHeader},
     chunk::{Chunk, ChunkReader, ChunkType, RawChunk, read_chunk},
     entry::{Entry, NormalEntry, RawEntry, ReadEntry, ReadOptions},
 };
-#[cfg(feature = "unstable-async")]
-use futures_util::AsyncReadExt;
-pub(crate) use slice::read_header_from_slice;
 use std::{
     io::{self, Read, Seek, SeekFrom},
     mem::swap,
 };
-
-pub(crate) fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
-    let mut header = [0u8; PNA_SIGNATURE.len()];
-    reader.read_exact(&mut header)?;
-    if &header != PNA_SIGNATURE {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "not a PNA archive",
-        ));
-    }
-    Ok(())
-}
-
-#[cfg(feature = "unstable-async")]
-async fn read_pna_header_async<R: futures_io::AsyncRead + Unpin>(mut reader: R) -> io::Result<()> {
-    let mut header = [0u8; PNA_SIGNATURE.len()];
-    reader.read_exact(&mut header).await?;
-    if &header != PNA_SIGNATURE {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "not a PNA archive",
-        ));
-    }
-    Ok(())
-}
 
 impl<R: Read> Archive<R> {
     /// Reads the archive header from the provided reader and returns a new [`Archive`].
@@ -53,7 +24,7 @@ impl<R: Read> Archive<R> {
     }
 
     fn read_header_with_buffer(mut reader: R, buf: Vec<RawChunk>) -> io::Result<Self> {
-        read_pna_header(&mut reader)?;
+        crate::io::read_signature(&mut reader)?;
         let mut chunk_reader = ChunkReader::new(&mut reader, None);
         let chunk = chunk_reader.read_chunk()?;
         if chunk.ty != ChunkType::AHED {
@@ -210,7 +181,7 @@ impl<R: futures_io::AsyncRead + Unpin> Archive<R> {
     }
 
     async fn read_header_with_buffer_async(mut reader: R, buf: Vec<RawChunk>) -> io::Result<Self> {
-        read_pna_header_async(&mut reader).await?;
+        crate::async_io::read_signature(&mut reader).await?;
         let mut chunk_reader = ChunkReader::new(&mut reader, None);
         let chunk = chunk_reader.read_chunk_async().await?;
         if chunk.ty != ChunkType::AHED {
@@ -484,14 +455,14 @@ mod tests {
 
     #[test]
     fn read_header_rejects_non_ahed_first_chunk() {
-        let mut bytes = PNA_SIGNATURE.to_vec();
+        let mut bytes = crate::PNA_SIGNATURE.to_vec();
         bytes.extend_from_slice(&RawChunk::from_data(ChunkType::FEND, Vec::new()).to_bytes());
         let err = Archive::read_header(&bytes[..]).err().unwrap();
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
     }
 
     fn archive_bytes(header: ArchiveHeader) -> Vec<u8> {
-        let mut bytes = PNA_SIGNATURE.to_vec();
+        let mut bytes = crate::PNA_SIGNATURE.to_vec();
         bytes.extend_from_slice(
             &RawChunk::from_data(ChunkType::AHED, header.to_bytes().to_vec()).to_bytes(),
         );

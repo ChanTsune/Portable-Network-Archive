@@ -1,24 +1,11 @@
 //! Slice-based archive reading for memory-mapped access.
 
 use crate::{
-    Archive, Chunk, ChunkType, Entry, NormalEntry, PNA_SIGNATURE, RawChunk, ReadEntry, ReadOptions,
+    Archive, Chunk, ChunkType, Entry, NormalEntry, RawChunk, ReadEntry, ReadOptions,
     archive::ArchiveHeader, chunk::read_chunk_from_slice, entry::RawEntry,
 };
 use std::borrow::Cow;
 use std::io;
-
-pub(crate) fn read_header_from_slice(bytes: &[u8]) -> io::Result<&[u8]> {
-    let (header, body) = bytes
-        .split_at_checked(PNA_SIGNATURE.len())
-        .ok_or(io::ErrorKind::UnexpectedEof)?;
-    if header != PNA_SIGNATURE {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "not a PNA archive",
-        ));
-    }
-    Ok(body)
-}
 
 impl<'d> Archive<&'d [u8]> {
     /// Reads the archive header from the provided bytes and returns a new [`Archive`].
@@ -33,7 +20,7 @@ impl<'d> Archive<&'d [u8]> {
 
     #[inline]
     fn read_header_from_slice_with_buffer(bytes: &'d [u8], buf: Vec<RawChunk>) -> io::Result<Self> {
-        let bytes = read_header_from_slice(bytes)?;
+        let bytes = crate::bytes::read_signature(bytes)?;
         let (chunk, r) = read_chunk_from_slice(bytes)?;
         if chunk.ty != ChunkType::AHED {
             return Err(io::Error::new(
@@ -249,12 +236,6 @@ mod tests {
     use super::*;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
-
-    #[test]
-    fn read_header() {
-        let result = read_header_from_slice(PNA_SIGNATURE).unwrap();
-        assert!(result.is_empty());
-    }
 
     #[test]
     fn decode() {
