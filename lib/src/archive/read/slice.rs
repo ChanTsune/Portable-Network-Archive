@@ -1,7 +1,7 @@
 //! Slice-based archive reading for memory-mapped access.
 
 use crate::{
-    Archive, Chunk, ChunkType, Entry, NormalEntry, PNA_HEADER, RawChunk, ReadEntry, ReadOptions,
+    Archive, Chunk, ChunkType, Entry, NormalEntry, PNA_SIGNATURE, RawChunk, ReadEntry, ReadOptions,
     archive::ArchiveHeader, chunk::read_chunk_from_slice, entry::RawEntry,
 };
 use std::borrow::Cow;
@@ -9,9 +9,9 @@ use std::io;
 
 pub(crate) fn read_header_from_slice(bytes: &[u8]) -> io::Result<&[u8]> {
     let (header, body) = bytes
-        .split_at_checked(PNA_HEADER.len())
+        .split_at_checked(PNA_SIGNATURE.len())
         .ok_or(io::ErrorKind::UnexpectedEof)?;
-    if header != PNA_HEADER {
+    if header != PNA_SIGNATURE {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "not a PNA archive",
@@ -252,7 +252,7 @@ mod tests {
 
     #[test]
     fn read_header() {
-        let result = read_header_from_slice(PNA_HEADER).unwrap();
+        let result = read_header_from_slice(PNA_SIGNATURE).unwrap();
         assert!(result.is_empty());
     }
 

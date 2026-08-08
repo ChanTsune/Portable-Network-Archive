@@ -31,8 +31,8 @@ pub(crate) use path_transformer::PathTransformers;
 use pna::{
     Archive, DataKind, DirEntryBuilder, EntryContent, EntryPart, FileEntryBuilder,
     HardLinkEntryBuilder, LinkTargetType, MIN_CHUNK_BYTES_SIZE, Metadata, NormalEntry,
-    OpaqueEntryBuilder, PNA_HEADER, ReadEntry, ReadOptions, SolidEntryBuilder, SymlinkEntryBuilder,
-    WriteOptions, prelude::*,
+    OpaqueEntryBuilder, PNA_SIGNATURE, ReadEntry, ReadOptions, SolidEntryBuilder,
+    SymlinkEntryBuilder, WriteOptions, prelude::*,
 };
 use std::{
     borrow::Cow,
@@ -62,7 +62,7 @@ pub(crate) enum SourceFormat {
 pub(crate) fn detect_format<R: io::BufRead>(reader: &mut R) -> io::Result<SourceFormat> {
     let buf = reader.fill_buf()?;
 
-    Ok(if buf.starts_with(PNA_HEADER) {
+    Ok(if buf.starts_with(PNA_SIGNATURE) {
         SourceFormat::Pna
     } else {
         SourceFormat::Mtree
@@ -151,9 +151,9 @@ impl TimeFilterResolver<'_> {
     }
 }
 
-/// Overhead for a split archive part in bytes, including PNA header, AHED, ANXT, and AEND chunks.
+/// Overhead for a split archive part in bytes, including PNA signature, AHED, ANXT, and AEND chunks.
 pub(crate) const SPLIT_ARCHIVE_OVERHEAD_BYTES: usize =
-    PNA_HEADER.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8;
+    PNA_SIGNATURE.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8;
 
 /// Minimum bytes required for a split archive part (overhead + one minimal chunk).
 pub(crate) const MIN_SPLIT_PART_BYTES: usize = SPLIT_ARCHIVE_OVERHEAD_BYTES + MIN_CHUNK_BYTES_SIZE;
@@ -1847,7 +1847,6 @@ where
     let mut part_num = 1;
     let mut writer = Archive::write_header(initial_writer)?;
 
-    // NOTE: max_file_size - (PNA_HEADER + AHED + ANXT + AEND)
     let max_file_size = max_file_size - SPLIT_ARCHIVE_OVERHEAD_BYTES;
     let mut written_entry_size = 0;
     for entry in entries {

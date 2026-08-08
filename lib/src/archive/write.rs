@@ -1,7 +1,7 @@
 //! Archive writing and entry serialization.
 
 use crate::{
-    archive::{Archive, ArchiveHeader, PNA_HEADER, SolidArchive},
+    archive::{Archive, ArchiveHeader, PNA_SIGNATURE, SolidArchive},
     chunk::{Chunk, ChunkExt, ChunkStreamWriter, ChunkType, RawChunk},
     cipher::CipherWriter,
     compress::CompressionWriter,
@@ -89,7 +89,7 @@ impl<W: Write> Archive<W> {
 
     #[inline]
     fn write_header_with(mut write: W, header: ArchiveHeader) -> io::Result<Self> {
-        write.write_all(PNA_HEADER)?;
+        write.write_all(PNA_SIGNATURE)?;
         (ChunkType::AHED, header.to_bytes()).write_chunk_in(&mut write)?;
         Ok(Self::new(write, header))
     }
@@ -303,7 +303,7 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
 
     #[inline]
     async fn write_header_with_async(mut write: W, header: ArchiveHeader) -> io::Result<Self> {
-        write.write_all(PNA_HEADER).await?;
+        write.write_all(PNA_SIGNATURE).await?;
         let mut chunk_writer = crate::chunk::ChunkWriter::new(&mut write);
         chunk_writer
             .write_chunk_async((ChunkType::AHED, header.to_bytes()))
