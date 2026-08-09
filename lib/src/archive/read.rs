@@ -25,8 +25,7 @@ impl<R: Read> Archive<R> {
 
     fn read_header_with_buffer(mut reader: R, buf: Vec<RawChunk>) -> io::Result<Self> {
         crate::io::read_signature(&mut reader)?;
-        let mut chunk_reader = ChunkReader::new(&mut reader, None);
-        let chunk = chunk_reader.read_chunk()?;
+        let chunk = crate::io::read_chunk(&mut reader, u32::MAX)?;
         if chunk.ty != ChunkType::AHED {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
