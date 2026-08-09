@@ -182,8 +182,7 @@ impl<R: futures_io::AsyncRead + Unpin> Archive<R> {
 
     async fn read_header_with_buffer_async(mut reader: R, buf: Vec<RawChunk>) -> io::Result<Self> {
         crate::async_io::read_signature(&mut reader).await?;
-        let mut chunk_reader = ChunkReader::new(&mut reader, None);
-        let chunk = chunk_reader.read_chunk_async().await?;
+        let chunk = crate::async_io::read_chunk(&mut reader, u32::MAX).await?;
         if chunk.ty != ChunkType::AHED {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -197,9 +196,9 @@ impl<R: futures_io::AsyncRead + Unpin> Archive<R> {
     async fn next_raw_item_async(&mut self) -> io::Result<Option<RawEntry>> {
         let mut chunks = Vec::new();
         swap(&mut self.buf, &mut chunks);
-        let mut reader = ChunkReader::new(&mut self.inner, self.max_chunk_size);
+        let max_chunk_size = self.max_chunk_size.map_or(u32::MAX, |max| max.get());
         loop {
-            let chunk = reader.read_chunk_async().await?;
+            let chunk = crate::async_io::read_chunk(&mut self.inner, max_chunk_size).await?;
             match chunk.ty {
                 ChunkType::FEND | ChunkType::SEND => {
                     chunks.push(chunk);

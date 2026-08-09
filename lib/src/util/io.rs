@@ -6,6 +6,21 @@ pub(crate) use self::finish::TryIntoInner;
 use crate::chunk::MAX_CHUNK_DATA_LENGTH;
 use std::io;
 
+/// Allocates a zeroed buffer of `len` bytes, reporting allocation failure
+/// instead of aborting the process as `vec![0; len]` would.
+///
+/// # Errors
+///
+/// Returns [`io::ErrorKind::OutOfMemory`] when the allocation fails.
+#[inline]
+pub(crate) fn try_zeroed_vec(len: usize) -> io::Result<Vec<u8>> {
+    let mut buf = Vec::new();
+    buf.try_reserve_exact(len)
+        .map_err(|_| io::Error::from(io::ErrorKind::OutOfMemory))?;
+    buf.resize(len, 0);
+    Ok(buf)
+}
+
 const MIN_CHUNK_BODY_SIZE: usize = 1;
 
 #[inline]
