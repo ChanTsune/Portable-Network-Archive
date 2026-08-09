@@ -31,7 +31,7 @@ use crate::{
     chunk::{
         Chunk, ChunkExt, ChunkReader, ChunkType, MIN_CHUNK_BYTES_SIZE, RawChunk, chunk_data_split,
     },
-    io::ChainReader,
+    util::io::ChainReader,
     util::slice::skip_while,
 };
 use std::{

@@ -9,7 +9,7 @@ use crate::{
         WriteCipher, WriteOption, WriteOptions, get_writer, get_writer_context,
         private::SealedEntryExt,
     },
-    io::{FlattenWriter, TryIntoInner},
+    util::io::{FlattenWriter, TryIntoInner},
 };
 use std::{
     io::{self, prelude::*},

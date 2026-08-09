@@ -6,7 +6,7 @@ use crate::{
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{EntryHeader, EntryName, EntryReference, WriteOption},
-    io::{FlattenWriter, TryIntoInner},
+    util::io::{FlattenWriter, TryIntoInner},
 };
 use std::io::{self, Write};
 

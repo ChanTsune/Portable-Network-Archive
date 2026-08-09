@@ -10,7 +10,7 @@ use crate::{
         SealedEntryExt, SolidHeader, WriteCipher, WriteOption, WriteOptions, get_writer,
         get_writer_context, write_metadata_facets,
     },
-    io::TryIntoInner,
+    util::io::TryIntoInner,
 };
 use core::num::NonZeroU32;
 #[cfg(feature = "unstable-async")]
