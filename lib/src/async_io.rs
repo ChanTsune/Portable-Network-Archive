@@ -1,9 +1,9 @@
 //! Asynchronous I/O primitives for reading and writing PNA archives.
 
-use crate::PNA_SIGNATURE;
+use crate::{ChunkType, PNA_SIGNATURE, RawChunk, util::io::try_zeroed_vec};
 use futures_io::AsyncRead;
 use futures_util::AsyncReadExt;
-use std::io;
+use std::{io, mem};
 
 /// Reads and validates the PNA archive signature asynchronously.
 ///
@@ -23,9 +23,65 @@ pub async fn read_signature<R: AsyncRead + Unpin + ?Sized>(reader: &mut R) -> io
     crate::format::validate_signature(&signature)
 }
 
+/// Reads and validates one PNA chunk from `reader` asynchronously.
+///
+/// The reader must be positioned at the chunk length field. On success, this
+/// function consumes exactly one complete chunk and does not read any bytes
+/// following its CRC. This function does not read the archive signature or
+/// interpret archive-level chunk ordering.
+///
+/// `max_data_len` is an inclusive upper bound for the chunk data length. Pass
+/// [`u32::MAX`] to allow the full range representable by the PNA format.
+///
+/// On failure, an unspecified number of bytes may have been consumed and the
+/// reader is not guaranteed to remain at a chunk boundary.
+///
+/// # Errors
+///
+/// Returns [`io::ErrorKind::UnexpectedEof`] when any chunk field is incomplete,
+/// [`io::ErrorKind::InvalidData`] when the declared data length exceeds
+/// `max_data_len`, the chunk type is invalid, or the stored CRC-32 does not
+/// match the chunk type and data, [`io::ErrorKind::OutOfMemory`] when the chunk
+/// data buffer cannot be allocated, and any other error produced by `reader`.
+#[inline]
+pub async fn read_chunk<R: AsyncRead + Unpin + ?Sized>(
+    reader: &mut R,
+    max_data_len: u32,
+) -> io::Result<RawChunk<Vec<u8>>> {
+    let mut length = [0u8; mem::size_of::<u32>()];
+    reader.read_exact(&mut length).await?;
+    let length = u32::from_be_bytes(length);
+    if length > max_data_len {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("chunk data length {length} exceeds limit {max_data_len}"),
+        ));
+    }
+
+    let mut ty = [0u8; mem::size_of::<ChunkType>()];
+    reader.read_exact(&mut ty).await?;
+    let chunk_type = ChunkType::new(ty)?;
+
+    let mut data = try_zeroed_vec(length as usize)?;
+    reader.read_exact(&mut data).await?;
+
+    let mut crc = [0u8; mem::size_of::<u32>()];
+    reader.read_exact(&mut crc).await?;
+    let crc = u32::from_be_bytes(crc);
+    crate::format::validate_chunk_crc(&ty, &data, crc)?;
+
+    Ok(RawChunk {
+        length,
+        ty: chunk_type,
+        data,
+        crc,
+    })
+}
+
 #[cfg(all(test, not(target_family = "wasm")))]
 mod tests {
     use super::*;
+    use crate::Chunk;
     use futures_util::io::Cursor;
 
     #[tokio::test]
@@ -50,6 +106,103 @@ mod tests {
         let mut reader = Cursor::new(b"xxxxxxxx");
         assert_eq!(
             read_signature(&mut reader).await.unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+    }
+
+    fn valid_chunk_bytes() -> Vec<u8> {
+        vec![
+            0x00, 0x00, 0x00, 0x04, // chunk length
+            b'F', b'D', b'A', b'T', // chunk type
+            0xAA, 0xBB, 0xCC, 0xDD, // chunk data
+            0x47, 0xF3, 0x2B, 0x10, // CRC-32
+        ]
+    }
+
+    fn raw_chunk_bytes(ty: [u8; 4], data: &[u8]) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(data.len() + 12);
+        bytes.extend_from_slice(&(data.len() as u32).to_be_bytes());
+        bytes.extend_from_slice(&ty);
+        bytes.extend_from_slice(data);
+        bytes.extend_from_slice(&crate::format::chunk_crc(&ty, data).to_be_bytes());
+        bytes
+    }
+
+    #[tokio::test]
+    async fn read_chunk_returns_owned_chunk_and_stops_at_its_crc() {
+        let mut input = valid_chunk_bytes();
+        let chunk_len = input.len();
+        input.extend_from_slice(b"following");
+        let mut reader = Cursor::new(input);
+
+        let chunk = read_chunk(&mut reader, u32::MAX).await.unwrap();
+
+        assert_eq!(chunk.ty(), ChunkType::FDAT);
+        assert_eq!(chunk.data(), [0xAA, 0xBB, 0xCC, 0xDD]);
+        assert_eq!(reader.position(), chunk_len as u64);
+    }
+
+    #[tokio::test]
+    async fn read_chunk_enforces_inclusive_data_length_limit() {
+        let mut reader = Cursor::new(raw_chunk_bytes(*b"AEND", &[]));
+        let chunk = read_chunk(&mut reader, 0).await.unwrap();
+        assert_eq!(chunk.ty(), ChunkType::AEND);
+        assert!(chunk.data().is_empty());
+
+        let mut reader = Cursor::new(valid_chunk_bytes());
+        assert_eq!(read_chunk(&mut reader, 4).await.unwrap().length(), 4);
+
+        let mut reader = Cursor::new(valid_chunk_bytes());
+        assert_eq!(
+            read_chunk(&mut reader, 3).await.unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+    }
+
+    #[tokio::test]
+    async fn read_chunk_checks_limit_before_requiring_the_remaining_fields() {
+        let mut reader = Cursor::new(u32::MAX.to_be_bytes());
+        assert_eq!(
+            read_chunk(&mut reader, 1024).await.unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+    }
+
+    #[tokio::test]
+    async fn read_chunk_rejects_every_truncation_boundary() {
+        let bytes = valid_chunk_bytes();
+        for end in 0..bytes.len() {
+            let mut reader = Cursor::new(&bytes[..end]);
+            assert_eq!(
+                read_chunk(&mut reader, u32::MAX).await.unwrap_err().kind(),
+                io::ErrorKind::UnexpectedEof,
+                "truncation at byte {end}",
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn read_chunk_applies_chunk_type_validation_rules() {
+        let mut reader = Cursor::new(raw_chunk_bytes(*b"FD1T", b"data"));
+        assert_eq!(
+            read_chunk(&mut reader, u32::MAX).await.unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+
+        let mut reader = Cursor::new(raw_chunk_bytes(*b"ABcD", b"data"));
+        assert_eq!(
+            read_chunk(&mut reader, u32::MAX).await.unwrap().data(),
+            b"data"
+        );
+    }
+
+    #[tokio::test]
+    async fn read_chunk_rejects_crc_mismatch() {
+        let mut bytes = valid_chunk_bytes();
+        *bytes.last_mut().unwrap() ^= 0xFF;
+        let mut reader = Cursor::new(bytes);
+        assert_eq!(
+            read_chunk(&mut reader, u32::MAX).await.unwrap_err().kind(),
             io::ErrorKind::InvalidData
         );
     }
