@@ -1,9 +1,7 @@
 //! Archive header constants and validation.
 
+use crate::PNA_SIGNATURE;
 use std::io;
-
-/// The signature at the beginning of every PNA archive.
-pub const PNA_SIGNATURE: &[u8; 8] = b"\x89PNA\r\n\x1A\n";
 
 /// Alias of [`PNA_SIGNATURE`].
 #[deprecated(since = "0.37.0", note = "renamed to `PNA_SIGNATURE`")]
