@@ -4,7 +4,7 @@ mod slice;
 
 use crate::{
     archive::{Archive, ArchiveHeader},
-    chunk::{Chunk, ChunkReader, ChunkType, RawChunk, read_chunk},
+    chunk::{Chunk, ChunkReader, ChunkType, RawChunk},
     entry::{Entry, NormalEntry, RawEntry, ReadEntry, ReadOptions},
 };
 use std::{
@@ -46,8 +46,9 @@ impl<R: Read> Archive<R> {
     fn next_raw_item(&mut self) -> io::Result<Option<RawEntry>> {
         let mut chunks = Vec::new();
         swap(&mut self.buf, &mut chunks);
+        let max_chunk_size = self.max_chunk_size.map_or(u32::MAX, |max| max.get());
         loop {
-            let chunk = read_chunk(&mut self.inner, self.max_chunk_size)?;
+            let chunk = crate::io::read_chunk(&mut self.inner, max_chunk_size)?;
             match chunk.ty {
                 ChunkType::FEND | ChunkType::SEND => {
                     chunks.push(chunk);
@@ -407,7 +408,7 @@ impl<R: Read + Seek> Archive<R> {
     /// ```
     #[inline]
     pub fn seek_to_end(&mut self) -> io::Result<()> {
-        let mut reader = ChunkReader::new(&mut self.inner, self.max_chunk_size);
+        let mut reader = ChunkReader::new(&mut self.inner);
         let byte = loop {
             let (ty, byte_length) = reader.skip_chunk()?;
             if ty == ChunkType::AEND {
