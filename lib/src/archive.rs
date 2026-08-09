@@ -95,11 +95,13 @@ impl<T> Archive<T> {
     /// When set, this limit affects both reading and writing:
     /// - **Reading**: Chunks larger than this size will be rejected with an error,
     ///   protecting against maliciously crafted archives with extremely large chunks.
-    /// - **Writing**: Data written via [`write_file()`](Archive::write_file) will be
-    ///   split into chunks no larger than this size.
+    /// - **Writing**: Data written via [`write_file()`](Archive::write_file) or
+    ///   [`write_opaque()`](Archive::write_opaque) will be split into chunks no
+    ///   larger than this size.
     ///
     /// **Note**: This setting only affects the streaming write path
-    /// ([`write_file()`](Archive::write_file)). Pre-built entries added via
+    /// ([`write_file()`](Archive::write_file) and
+    /// [`write_opaque()`](Archive::write_opaque)). Pre-built entries added via
     /// [`add_entry()`](Archive::add_entry) use their own chunk size configured
     /// through [`FileEntryBuilder::max_chunk_size()`](crate::FileEntryBuilder::max_chunk_size).
     ///

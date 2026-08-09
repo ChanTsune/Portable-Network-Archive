@@ -1,8 +1,8 @@
 //! Metadata and permission types for archive entries.
 
-use crate::entry::ExtendedAttribute;
 use crate::util::bounded::{LengthExceeded, str::BoundedString};
 use crate::{Duration, UnknownValueError};
+use crate::{RawChunk, entry::ExtendedAttribute};
 use std::io::{self, Read};
 use std::ops::Deref;
 use std::str;
@@ -40,6 +40,55 @@ pub struct Metadata {
     pub(crate) owner_group_sid: Option<OwnerGroupSid>,
     pub(crate) permission_mode: Option<PermissionMode>,
     pub(crate) xattrs: Vec<ExtendedAttribute>,
+}
+
+/// Attributes known before streaming an entry payload.
+///
+/// This type combines structured [`Metadata`] with raw extra chunks. Extra
+/// chunks are written in insertion order immediately after the entry header,
+/// matching the placement used by entry builders. Extra chunk types are not
+/// validated; even structural or critical chunks are written as supplied.
+///
+/// Streaming entry methods do not generate an `fSIZ` chunk from [`Metadata`]
+/// size fields. A caller-supplied raw `fSIZ` extra chunk is still written like
+/// any other extra chunk.
+pub struct EntryWriteAttributes {
+    pub(crate) metadata: Metadata,
+    pub(crate) extra_chunks: Vec<RawChunk>,
+}
+
+impl EntryWriteAttributes {
+    /// Creates streaming entry attributes from structured metadata.
+    #[inline]
+    pub fn new(metadata: Metadata) -> Self {
+        Self {
+            metadata,
+            extra_chunks: Vec::new(),
+        }
+    }
+
+    /// Returns the structured metadata.
+    #[inline]
+    pub const fn metadata(&self) -> &Metadata {
+        &self.metadata
+    }
+
+    /// Adds a raw extra chunk, preserving insertion order.
+    #[inline]
+    pub fn add_extra_chunk<T>(&mut self, chunk: T) -> &mut Self
+    where
+        T: Into<RawChunk>,
+    {
+        self.extra_chunks.push(chunk.into());
+        self
+    }
+}
+
+impl From<Metadata> for EntryWriteAttributes {
+    #[inline]
+    fn from(metadata: Metadata) -> Self {
+        Self::new(metadata)
+    }
 }
 
 impl Metadata {

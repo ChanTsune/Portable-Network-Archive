@@ -1,12 +1,13 @@
 use super::prepend_data_prefix;
 use crate::{
-    archive::{InternalArchiveDataWriter, InternalDataWriter, write_file_entry},
+    archive::{InternalArchiveDataWriter, InternalDataWriter, write_stream_entry},
     chunk::{ChunkType, RawChunk},
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{
-        Entry, EntryName, Metadata, NormalEntry, SolidEntry, SolidHeader, WriteCipher, WriteOption,
-        WriteOptions, get_writer, get_writer_context, private::SealedEntryExt,
+        DataKind, Entry, EntryName, EntryWriteAttributes, NormalEntry, SolidEntry, SolidHeader,
+        WriteCipher, WriteOption, WriteOptions, get_writer, get_writer_context,
+        private::SealedEntryExt,
     },
     io::{FlattenWriter, TryIntoInner},
 };
@@ -15,11 +16,11 @@ use std::{
     num::NonZeroU32,
 };
 
-/// A writer for adding data to a file within a [`SolidEntryBuilder`].
+/// A writer for adding an entry payload within a [`SolidEntryBuilder`].
 ///
-/// This struct provides a `Write` interface for adding content to a file that is
-/// being created within a solid entry. It is passed to the closure in the
-/// [`SolidEntryBuilder::write_file`] method.
+/// This struct provides a `Write` interface for adding content to an entry that
+/// is being created within a solid entry. It is passed to the closure in
+/// [`SolidEntryBuilder::write_file`] or [`SolidEntryBuilder::write_opaque`].
 pub struct SolidEntryDataWriter<'a>(
     InternalArchiveDataWriter<&'a mut InternalDataWriter<FlattenWriter>>,
 );
@@ -142,7 +143,9 @@ impl SolidEntryBuilder {
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while writing the entry,
-    /// or if the closure returns an error.
+    /// or if the closure returns an error. If this method returns an error, the
+    /// builder may contain a partial entry and must be discarded without
+    /// further use.
     ///
     /// # Examples
     ///
@@ -162,16 +165,61 @@ impl SolidEntryBuilder {
     /// # }
     /// ```
     #[inline]
-    pub fn write_file<F>(&mut self, name: EntryName, metadata: Metadata, mut f: F) -> io::Result<()>
+    pub fn write_file<F>(
+        &mut self,
+        name: EntryName,
+        attributes: impl Into<EntryWriteAttributes>,
+        f: F,
+    ) -> io::Result<()>
     where
-        F: FnMut(&mut SolidEntryDataWriter) -> io::Result<()>,
+        F: FnOnce(&mut SolidEntryDataWriter) -> io::Result<()>,
     {
         let option = WriteOptions::store();
-        write_file_entry(
+        write_stream_entry(
             &mut self.data,
             name,
-            metadata,
+            DataKind::FILE,
+            attributes.into(),
             option,
+            self.max_file_chunk_size,
+            |w| {
+                let mut writer = SolidEntryDataWriter(w);
+                f(&mut writer)?;
+                Ok(writer.0)
+            },
+        )
+    }
+
+    /// Writes an opaque entry payload to the solid entry.
+    ///
+    /// The inner entry always uses STORE; compression and encryption are
+    /// provided only by the outer solid stream. No validation is performed
+    /// between `kind` and the payload. Prefer kind-specific APIs for data kinds
+    /// defined by the PNA specification.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing the entry, or if
+    /// the closure returns an error. If this method returns an error, the
+    /// builder may contain a partial entry and must be discarded without
+    /// further use.
+    #[inline]
+    pub fn write_opaque<F>(
+        &mut self,
+        name: EntryName,
+        kind: DataKind,
+        attributes: impl Into<EntryWriteAttributes>,
+        f: F,
+    ) -> io::Result<()>
+    where
+        F: FnOnce(&mut SolidEntryDataWriter) -> io::Result<()>,
+    {
+        write_stream_entry(
+            &mut self.data,
+            name,
+            kind,
+            attributes.into(),
+            WriteOptions::store(),
             self.max_file_chunk_size,
             |w| {
                 let mut writer = SolidEntryDataWriter(w);
@@ -219,8 +267,9 @@ impl SolidEntryBuilder {
         self
     }
 
-    /// Sets the maximum chunk size for file data (FDAT) written via
-    /// [`write_file()`](SolidEntryBuilder::write_file).
+    /// Sets the maximum chunk size for entry data (FDAT) written via
+    /// [`write_file()`](SolidEntryBuilder::write_file) or
+    /// [`write_opaque()`](SolidEntryBuilder::write_opaque).
     ///
     /// This is independent of [`max_chunk_size()`](SolidEntryBuilder::max_chunk_size),
     /// which controls the outer data chunking.
@@ -275,7 +324,9 @@ impl SolidEntryBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ChunkType, CipherMode, Encryption, HashAlgorithm, ReadOptions};
+    use crate::{
+        ChunkType, CipherMode, Compression, Encryption, HashAlgorithm, Metadata, ReadOptions,
+    };
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
@@ -363,6 +414,35 @@ mod tests {
         reader.read_to_end(&mut buf).unwrap();
 
         assert_eq!("テストデータ".as_bytes(), &buf[..]);
+    }
+
+    #[test]
+    fn solid_entry_builder_write_opaque_uses_store() {
+        let kind = DataKind::new_private(202).unwrap();
+        let mut builder = SolidEntryBuilder::new(
+            WriteOptions::builder()
+                .compression(Compression::ZSTANDARD)
+                .build(),
+        )
+        .unwrap();
+        builder
+            .write_opaque("entry".into(), kind, Metadata::new(), |writer| {
+                writer.write_all(b"opaque")
+            })
+            .unwrap();
+        let solid_entry = builder.build_as_entry().unwrap();
+
+        let mut entries = solid_entry.entries(ReadOptions::builder().build()).unwrap();
+        let entry = entries.next().unwrap().unwrap();
+        assert_eq!(entry.header().data_kind(), kind);
+        assert_eq!(entry.header().compression(), Compression::NO);
+        let mut data = Vec::new();
+        entry
+            .reader(ReadOptions::builder().build())
+            .unwrap()
+            .read_to_end(&mut data)
+            .unwrap();
+        assert_eq!(data, b"opaque");
     }
 
     #[test]
