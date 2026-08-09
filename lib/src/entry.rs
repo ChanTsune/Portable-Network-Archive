@@ -67,6 +67,88 @@ fn chunks_write_in<W: Write>(
     Ok(total)
 }
 
+#[allow(deprecated)]
+pub(crate) fn metadata_facet_chunks(metadata: &Metadata) -> Vec<RawChunk> {
+    let mut chunks = Vec::new();
+    if let Some(value) = metadata.created {
+        chunks.push(RawChunk::from_data(
+            ChunkType::cTIM,
+            value.whole_seconds().to_be_bytes(),
+        ));
+        if value.subsec_nanoseconds() != 0 {
+            chunks.push(RawChunk::from_data(
+                ChunkType::cTNS,
+                value.subsec_nanoseconds().to_be_bytes(),
+            ));
+        }
+    }
+    if let Some(value) = metadata.modified {
+        chunks.push(RawChunk::from_data(
+            ChunkType::mTIM,
+            value.whole_seconds().to_be_bytes(),
+        ));
+        if value.subsec_nanoseconds() != 0 {
+            chunks.push(RawChunk::from_data(
+                ChunkType::mTNS,
+                value.subsec_nanoseconds().to_be_bytes(),
+            ));
+        }
+    }
+    if let Some(value) = metadata.accessed {
+        chunks.push(RawChunk::from_data(
+            ChunkType::aTIM,
+            value.whole_seconds().to_be_bytes(),
+        ));
+        if value.subsec_nanoseconds() != 0 {
+            chunks.push(RawChunk::from_data(
+                ChunkType::aTNS,
+                value.subsec_nanoseconds().to_be_bytes(),
+            ));
+        }
+    }
+    if let Some(value) = &metadata.permission {
+        chunks.push(RawChunk::from_data(ChunkType::fPRM, value.to_bytes()));
+    }
+    if let Some(value) = metadata.owner_uid {
+        chunks.push(RawChunk::from_data(ChunkType::fUId, value.to_bytes()));
+    }
+    if let Some(value) = metadata.owner_gid {
+        chunks.push(RawChunk::from_data(ChunkType::fGId, value.to_bytes()));
+    }
+    if let Some(value) = &metadata.owner_user_name {
+        chunks.push(RawChunk::from_data(ChunkType::fONm, value.to_bytes()));
+    }
+    if let Some(value) = &metadata.owner_group_name {
+        chunks.push(RawChunk::from_data(ChunkType::fGNm, value.to_bytes()));
+    }
+    if let Some(value) = &metadata.owner_user_sid {
+        chunks.push(RawChunk::from_data(ChunkType::fOSi, value.to_bytes()));
+    }
+    if let Some(value) = &metadata.owner_group_sid {
+        chunks.push(RawChunk::from_data(ChunkType::fGSi, value.to_bytes()));
+    }
+    if let Some(value) = metadata.permission_mode {
+        chunks.push(RawChunk::from_data(ChunkType::fMOd, value.to_bytes()));
+    }
+    if let Some(value) = metadata.link_target_type {
+        chunks.push(RawChunk::from_data(ChunkType::fLTP, value.to_bytes()));
+    }
+    chunks.extend(
+        metadata
+            .xattrs
+            .iter()
+            .map(|value| RawChunk::from_data(ChunkType::xATR, value.to_bytes())),
+    );
+    chunks
+}
+
+pub(crate) fn write_metadata_facets<W: Write>(
+    writer: &mut W,
+    metadata: &Metadata,
+) -> io::Result<usize> {
+    chunks_write_in(metadata_facet_chunks(metadata).iter(), writer)
+}
+
 impl<T> SealedEntryExt for RawEntry<T>
 where
     RawChunk<T>: Chunk + Into<RawChunk>,
@@ -815,87 +897,18 @@ where
     fn chunks_write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         let mut total = 0;
 
-        let Metadata {
-            raw_file_size,
-            compressed_size: _,
-            created,
-            modified,
-            accessed,
-            permission,
-            link_target_type,
-            owner_uid,
-            owner_gid,
-            owner_user_name,
-            owner_group_name,
-            owner_user_sid,
-            owner_group_sid,
-            permission_mode,
-            xattrs,
-        } = &self.metadata;
-
         total += (ChunkType::FHED, self.header.to_bytes()).write_chunk_in(writer)?;
         for ex in &self.extra {
             total += ex.write_chunk_in(writer)?;
         }
-        if let Some(raw_file_size) = raw_file_size {
+        if let Some(raw_file_size) = self.metadata.raw_file_size {
             total += (
                 ChunkType::fSIZ,
                 skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
             )
                 .write_chunk_in(writer)?;
         }
-
-        if let Some(c) = created {
-            total += (ChunkType::cTIM, c.whole_seconds().to_be_bytes()).write_chunk_in(writer)?;
-            if c.subsec_nanoseconds() != 0 {
-                total += (ChunkType::cTNS, c.subsec_nanoseconds().to_be_bytes())
-                    .write_chunk_in(writer)?;
-            }
-        }
-        if let Some(d) = modified {
-            total += (ChunkType::mTIM, d.whole_seconds().to_be_bytes()).write_chunk_in(writer)?;
-            if d.subsec_nanoseconds() != 0 {
-                total += (ChunkType::mTNS, d.subsec_nanoseconds().to_be_bytes())
-                    .write_chunk_in(writer)?;
-            }
-        }
-        if let Some(a) = accessed {
-            total += (ChunkType::aTIM, a.whole_seconds().to_be_bytes()).write_chunk_in(writer)?;
-            if a.subsec_nanoseconds() != 0 {
-                total += (ChunkType::aTNS, a.subsec_nanoseconds().to_be_bytes())
-                    .write_chunk_in(writer)?;
-            }
-        }
-        if let Some(p) = permission {
-            total += (ChunkType::fPRM, p.to_bytes()).write_chunk_in(writer)?;
-        }
-        if let Some(v) = owner_uid {
-            total += (ChunkType::fUId, v.to_bytes()).write_chunk_in(writer)?;
-        }
-        if let Some(v) = owner_gid {
-            total += (ChunkType::fGId, v.to_bytes()).write_chunk_in(writer)?;
-        }
-        if let Some(v) = owner_user_name {
-            total += (ChunkType::fONm, v.to_bytes()).write_chunk_in(writer)?;
-        }
-        if let Some(v) = owner_group_name {
-            total += (ChunkType::fGNm, v.to_bytes()).write_chunk_in(writer)?;
-        }
-        if let Some(v) = owner_user_sid {
-            total += (ChunkType::fOSi, v.to_bytes()).write_chunk_in(writer)?;
-        }
-        if let Some(v) = owner_group_sid {
-            total += (ChunkType::fGSi, v.to_bytes()).write_chunk_in(writer)?;
-        }
-        if let Some(v) = permission_mode {
-            total += (ChunkType::fMOd, v.to_bytes()).write_chunk_in(writer)?;
-        }
-        if let Some(ltp) = link_target_type {
-            total += (ChunkType::fLTP, ltp.to_bytes()).write_chunk_in(writer)?;
-        }
-        for xattr in xattrs {
-            total += (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(writer)?;
-        }
+        total += write_metadata_facets(writer, &self.metadata)?;
         if let Some(p) = &self.phsf {
             total += (ChunkType::PHSF, p.as_bytes()).write_chunk_in(writer)?;
         }
@@ -914,23 +927,8 @@ where
 {
     #[allow(deprecated)]
     fn into_chunks(self) -> Vec<RawChunk> {
-        let Metadata {
-            raw_file_size,
-            compressed_size: _,
-            created,
-            modified,
-            accessed,
-            permission,
-            link_target_type,
-            owner_uid,
-            owner_gid,
-            owner_user_name,
-            owner_group_name,
-            owner_user_sid,
-            owner_group_sid,
-            permission_mode,
-            xattrs,
-        } = self.metadata;
+        let metadata_chunks = metadata_facet_chunks(&self.metadata);
+        let raw_file_size = self.metadata.raw_file_size;
         let mut vec = Vec::new();
         vec.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
         vec.extend(self.extra.into_iter().map(Into::into));
@@ -940,73 +938,7 @@ where
                 skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
             ));
         }
-
-        if let Some(c) = created {
-            vec.push(RawChunk::from_data(
-                ChunkType::cTIM,
-                c.whole_seconds().to_be_bytes(),
-            ));
-            if c.subsec_nanoseconds() != 0 {
-                vec.push(RawChunk::from_data(
-                    ChunkType::cTNS,
-                    c.subsec_nanoseconds().to_be_bytes(),
-                ));
-            }
-        }
-        if let Some(d) = modified {
-            vec.push(RawChunk::from_data(
-                ChunkType::mTIM,
-                d.whole_seconds().to_be_bytes(),
-            ));
-            if d.subsec_nanoseconds() != 0 {
-                vec.push(RawChunk::from_data(
-                    ChunkType::mTNS,
-                    d.subsec_nanoseconds().to_be_bytes(),
-                ));
-            }
-        }
-        if let Some(a) = accessed {
-            vec.push(RawChunk::from_data(
-                ChunkType::aTIM,
-                a.whole_seconds().to_be_bytes(),
-            ));
-            if a.subsec_nanoseconds() != 0 {
-                vec.push(RawChunk::from_data(
-                    ChunkType::aTNS,
-                    a.subsec_nanoseconds().to_be_bytes(),
-                ));
-            }
-        }
-        if let Some(p) = permission {
-            vec.push(RawChunk::from_data(ChunkType::fPRM, p.to_bytes()));
-        }
-        if let Some(v) = owner_uid {
-            vec.push(RawChunk::from_data(ChunkType::fUId, v.to_bytes()));
-        }
-        if let Some(v) = owner_gid {
-            vec.push(RawChunk::from_data(ChunkType::fGId, v.to_bytes()));
-        }
-        if let Some(v) = owner_user_name {
-            vec.push(RawChunk::from_data(ChunkType::fONm, v.to_bytes()));
-        }
-        if let Some(v) = owner_group_name {
-            vec.push(RawChunk::from_data(ChunkType::fGNm, v.to_bytes()));
-        }
-        if let Some(v) = owner_user_sid {
-            vec.push(RawChunk::from_data(ChunkType::fOSi, v.to_bytes()));
-        }
-        if let Some(v) = owner_group_sid {
-            vec.push(RawChunk::from_data(ChunkType::fGSi, v.to_bytes()));
-        }
-        if let Some(v) = permission_mode {
-            vec.push(RawChunk::from_data(ChunkType::fMOd, v.to_bytes()));
-        }
-        if let Some(ltp) = link_target_type {
-            vec.push(RawChunk::from_data(ChunkType::fLTP, ltp.to_bytes()));
-        }
-        for xattr in xattrs {
-            vec.push(RawChunk::from_data(ChunkType::xATR, xattr.to_bytes()));
-        }
+        vec.extend(metadata_chunks);
         if let Some(p) = self.phsf {
             vec.push(RawChunk::from_data(ChunkType::PHSF, p.into_bytes()));
         }
