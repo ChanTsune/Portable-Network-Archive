@@ -6,8 +6,9 @@ use crate::{
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{
-        Entry, EntryHeader, EntryName, EntryPart, Metadata, NormalEntry, SealedEntryExt,
-        SolidHeader, WriteCipher, WriteOption, WriteOptions, get_writer, get_writer_context,
+        DataKind, Entry, EntryHeader, EntryName, EntryPart, EntryWriteAttributes, NormalEntry,
+        SealedEntryExt, SolidHeader, WriteCipher, WriteOption, WriteOptions, get_writer,
+        get_writer_context, write_metadata_facets,
     },
     io::TryIntoInner,
 };
@@ -24,7 +25,7 @@ pub(crate) type InternalDataWriter<W> = CompressionWriter<CipherWriter<W>>;
 /// Internal Writer type alias.
 pub(crate) type InternalArchiveDataWriter<W> = InternalDataWriter<ChunkStreamWriter<W>>;
 
-/// Writer that compresses and encrypts according to the given options.
+/// Writer for an entry payload, compressed and encrypted according to the given options.
 pub struct EntryDataWriter<W: Write>(InternalArchiveDataWriter<W>);
 
 impl<W: Write> Write for EntryDataWriter<W> {
@@ -39,11 +40,12 @@ impl<W: Write> Write for EntryDataWriter<W> {
     }
 }
 
-/// A writer for individual file entries within a solid archive.
+/// A writer for individual entry payloads within a solid archive.
 ///
-/// This type is passed by mutable reference to the closure in [`SolidArchive::write_file`] and implements
-/// [`Write`](std::io::Write), allowing callers to stream file data into the solid
-/// archive's shared compression and encryption pipeline.
+/// This type is passed by mutable reference to the closure in
+/// [`SolidArchive::write_file`] or [`SolidArchive::write_opaque`] and implements
+/// [`Write`](std::io::Write), allowing callers to stream entry data into the
+/// solid archive's shared compression and encryption pipeline.
 pub struct SolidArchiveEntryDataWriter<'w, W: Write>(
     InternalArchiveDataWriter<&'w mut InternalArchiveDataWriter<W>>,
 );
@@ -99,6 +101,8 @@ impl<W: Write> Archive<W> {
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while writing the entry, or if the closure returns an error.
+    /// If this method returns an error, the archive may contain a partial entry
+    /// and must be discarded without further use.
     ///
     /// # Examples
     /// ```no_run
@@ -124,17 +128,58 @@ impl<W: Write> Archive<W> {
     pub fn write_file<F>(
         &mut self,
         name: EntryName,
-        metadata: Metadata,
+        attributes: impl Into<EntryWriteAttributes>,
         option: impl WriteOption,
-        mut f: F,
+        f: F,
     ) -> io::Result<()>
     where
-        F: FnMut(&mut EntryDataWriter<&mut W>) -> io::Result<()>,
+        F: FnOnce(&mut EntryDataWriter<&mut W>) -> io::Result<()>,
     {
-        write_file_entry(
+        write_stream_entry(
             &mut self.inner,
             name,
-            metadata,
+            DataKind::FILE,
+            attributes.into(),
+            option,
+            self.max_chunk_size,
+            |w| {
+                let mut w = EntryDataWriter(w);
+                f(&mut w)?;
+                Ok(w.0)
+            },
+        )
+    }
+
+    /// Writes an opaque entry payload with the declared data kind.
+    ///
+    /// No validation is performed between `kind` and the payload written by
+    /// the closure. Prefer the kind-specific builder or [`Self::write_file`]
+    /// for data kinds defined by the PNA specification; this method is a
+    /// low-level escape hatch for private, reserved, or experimental kinds.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing the entry, or if
+    /// the closure returns an error. If this method returns an error, the
+    /// archive may contain a partial entry and must be discarded without
+    /// further use.
+    #[inline]
+    pub fn write_opaque<F>(
+        &mut self,
+        name: EntryName,
+        kind: DataKind,
+        attributes: impl Into<EntryWriteAttributes>,
+        option: impl WriteOption,
+        f: F,
+    ) -> io::Result<()>
+    where
+        F: FnOnce(&mut EntryDataWriter<&mut W>) -> io::Result<()>,
+    {
+        write_stream_entry(
+            &mut self.inner,
+            name,
+            kind,
+            attributes.into(),
             option,
             self.max_chunk_size,
             |w| {
@@ -435,6 +480,8 @@ impl<W: Write> SolidArchive<W> {
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while writing the entry, or if the closure returns an error.
+    /// If this method returns an error, the solid archive may contain a partial
+    /// entry and must be discarded without further use.
     ///
     /// # Examples
     /// ```no_run
@@ -455,15 +502,21 @@ impl<W: Write> SolidArchive<W> {
     /// # }
     /// ```
     #[inline]
-    pub fn write_file<F>(&mut self, name: EntryName, metadata: Metadata, mut f: F) -> io::Result<()>
+    pub fn write_file<F>(
+        &mut self,
+        name: EntryName,
+        attributes: impl Into<EntryWriteAttributes>,
+        f: F,
+    ) -> io::Result<()>
     where
-        F: FnMut(&mut SolidArchiveEntryDataWriter<W>) -> io::Result<()>,
+        F: FnOnce(&mut SolidArchiveEntryDataWriter<W>) -> io::Result<()>,
     {
         let option = WriteOptions::store();
-        write_file_entry(
+        write_stream_entry(
             &mut self.inner,
             name,
-            metadata,
+            DataKind::FILE,
+            attributes.into(),
             option,
             self.max_chunk_size,
             |w| {
@@ -474,8 +527,48 @@ impl<W: Write> SolidArchive<W> {
         )
     }
 
-    /// Sets the maximum chunk size for file data (FDAT) written via
-    /// [`write_file()`](SolidArchive::write_file).
+    /// Writes an opaque entry payload into the solid archive.
+    ///
+    /// The inner entry always uses STORE; compression and encryption are
+    /// provided only by the outer solid stream. No validation is performed
+    /// between `kind` and the payload. Prefer kind-specific APIs for data kinds
+    /// defined by the PNA specification.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing the entry, or if
+    /// the closure returns an error. If this method returns an error, the solid
+    /// archive may contain a partial entry and must be discarded without
+    /// further use.
+    #[inline]
+    pub fn write_opaque<F>(
+        &mut self,
+        name: EntryName,
+        kind: DataKind,
+        attributes: impl Into<EntryWriteAttributes>,
+        f: F,
+    ) -> io::Result<()>
+    where
+        F: FnOnce(&mut SolidArchiveEntryDataWriter<W>) -> io::Result<()>,
+    {
+        write_stream_entry(
+            &mut self.inner,
+            name,
+            kind,
+            attributes.into(),
+            WriteOptions::store(),
+            self.max_chunk_size,
+            |w| {
+                let mut w = SolidArchiveEntryDataWriter(w);
+                f(&mut w)?;
+                Ok(w.0)
+            },
+        )
+    }
+
+    /// Sets the maximum chunk size for entry data (FDAT) written via
+    /// [`write_file()`](SolidArchive::write_file) or
+    /// [`write_opaque()`](SolidArchive::write_opaque).
     ///
     /// This controls the inner FDAT chunk splitting for individual entries within
     /// the solid stream. The outer SDAT chunk size is fixed when `SolidArchive` is
@@ -530,72 +623,37 @@ impl<W: Write> SolidArchive<W> {
     }
 }
 
-#[allow(deprecated)]
-pub(crate) fn write_file_entry<W, F>(
+pub(crate) fn write_stream_entry<W, F>(
     inner: &mut W,
     name: EntryName,
-    metadata: Metadata,
+    kind: DataKind,
+    attributes: EntryWriteAttributes,
     option: impl WriteOption,
     max_chunk_size: Option<NonZeroU32>,
-    mut f: F,
+    f: F,
 ) -> io::Result<()>
 where
     W: Write,
-    F: FnMut(InternalArchiveDataWriter<&mut W>) -> io::Result<InternalArchiveDataWriter<&mut W>>,
+    F: FnOnce(InternalArchiveDataWriter<&mut W>) -> io::Result<InternalArchiveDataWriter<&mut W>>,
 {
-    let header = EntryHeader::for_file(
+    let EntryWriteAttributes {
+        metadata,
+        extra_chunks,
+    } = attributes;
+    let header = EntryHeader::new_with_options(
+        kind,
         option.compression(),
         option.encryption(),
         option.cipher_mode(),
         name,
     );
-    (ChunkType::FHED, header.to_bytes()).write_chunk_in(inner)?;
-    if let Some(c) = metadata.created {
-        (ChunkType::cTIM, c.whole_seconds().to_be_bytes()).write_chunk_in(inner)?;
-        if c.subsec_nanoseconds() != 0 {
-            (ChunkType::cTNS, c.subsec_nanoseconds().to_be_bytes()).write_chunk_in(inner)?;
-        }
+    let header_bytes = header.to_bytes();
+    (ChunkType::FHED, &header_bytes).write_chunk_in(inner)?;
+    for chunk in extra_chunks {
+        chunk.write_chunk_in(inner)?;
     }
-    if let Some(m) = metadata.modified {
-        (ChunkType::mTIM, m.whole_seconds().to_be_bytes()).write_chunk_in(inner)?;
-        if m.subsec_nanoseconds() != 0 {
-            (ChunkType::mTNS, m.subsec_nanoseconds().to_be_bytes()).write_chunk_in(inner)?;
-        }
-    }
-    if let Some(a) = metadata.accessed {
-        (ChunkType::aTIM, a.whole_seconds().to_be_bytes()).write_chunk_in(inner)?;
-        if a.subsec_nanoseconds() != 0 {
-            (ChunkType::aTNS, a.subsec_nanoseconds().to_be_bytes()).write_chunk_in(inner)?;
-        }
-    }
-    if let Some(p) = metadata.permission {
-        (ChunkType::fPRM, p.to_bytes()).write_chunk_in(inner)?;
-    }
-    if let Some(v) = metadata.owner_uid {
-        (ChunkType::fUId, v.to_bytes()).write_chunk_in(inner)?;
-    }
-    if let Some(v) = metadata.owner_gid {
-        (ChunkType::fGId, v.to_bytes()).write_chunk_in(inner)?;
-    }
-    if let Some(v) = metadata.owner_user_name {
-        (ChunkType::fONm, v.to_bytes()).write_chunk_in(inner)?;
-    }
-    if let Some(v) = metadata.owner_group_name {
-        (ChunkType::fGNm, v.to_bytes()).write_chunk_in(inner)?;
-    }
-    if let Some(v) = metadata.owner_user_sid {
-        (ChunkType::fOSi, v.to_bytes()).write_chunk_in(inner)?;
-    }
-    if let Some(v) = metadata.owner_group_sid {
-        (ChunkType::fGSi, v.to_bytes()).write_chunk_in(inner)?;
-    }
-    if let Some(v) = metadata.permission_mode {
-        (ChunkType::fMOd, v.to_bytes()).write_chunk_in(inner)?;
-    }
-    for xattr in metadata.xattrs {
-        (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(inner)?;
-    }
-    let context = get_writer_context(option, ChunkType::FHED, &header.to_bytes())?;
+    write_metadata_facets(inner, &metadata)?;
+    let context = get_writer_context(option, ChunkType::FHED, &header_bytes)?;
     if let Some(WriteCipher { context: c, .. }) = &context.cipher {
         (ChunkType::PHSF, c.phsf.as_bytes()).write_chunk_in(inner)?;
     }
@@ -616,7 +674,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CipherMode, Encryption, HashAlgorithm, ReadOptions};
+    use crate::{
+        CipherMode, Compression, Encryption, HashAlgorithm, LinkTargetType, Metadata, ReadOptions,
+    };
     use std::io::Read;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
@@ -656,6 +716,161 @@ mod tests {
             .read_to_end(&mut data)
             .expect("failed to read data");
         assert_eq!(&data[..], b"text");
+    }
+
+    #[test]
+    fn archive_write_file_accepts_attributes_without_generating_file_size() {
+        let extra_type = ChunkType::private(*b"exTr").unwrap();
+        let extra = RawChunk::from_data(extra_type, b"extra".to_vec());
+        let mut attributes = EntryWriteAttributes::new(
+            Metadata::new().with_link_target_type(Some(LinkTargetType::Directory)),
+        );
+        attributes.add_extra_chunk(extra);
+        let payload = b"streamed".to_vec();
+
+        let mut writer = Archive::write_header(Vec::new()).unwrap();
+        writer
+            .write_file(
+                EntryName::from_lossy("text.txt"),
+                attributes,
+                WriteOptions::store(),
+                move |writer| {
+                    let payload = payload;
+                    writer.write_all(&payload)
+                },
+            )
+            .unwrap();
+        let archive = writer.finalize().unwrap();
+
+        assert_eq!(count_chunks(&archive, ChunkType::fSIZ), 0);
+        let chunk_types = crate::chunk::read_chunks_from_slice(&archive)
+            .unwrap()
+            .map(|chunk| chunk.unwrap().ty())
+            .collect::<Vec<_>>();
+        let header_index = chunk_types
+            .iter()
+            .position(|&ty| ty == ChunkType::FHED)
+            .unwrap();
+        assert_eq!(chunk_types[header_index + 1], extra_type);
+        assert_eq!(chunk_types[header_index + 2], ChunkType::fLTP);
+        let mut reader = Archive::read_header(archive.as_slice()).unwrap();
+        let entry = reader.entries().skip_solid().next().unwrap().unwrap();
+        assert_eq!(entry.metadata().raw_file_size(), None);
+        assert_eq!(
+            entry.metadata().link_target_type(),
+            Some(LinkTargetType::Directory)
+        );
+        assert_eq!(entry.extra_chunks().len(), 1);
+        assert_eq!(entry.extra_chunks()[0].ty(), extra_type);
+        assert_eq!(entry.extra_chunks()[0].data(), b"extra");
+        let mut data = Vec::new();
+        entry
+            .reader(ReadOptions::builder().build())
+            .unwrap()
+            .read_to_end(&mut data)
+            .unwrap();
+        assert_eq!(data, b"streamed");
+    }
+
+    #[test]
+    fn archive_write_opaque_round_trips_private_kind() {
+        let kind = DataKind::new_private(200).unwrap();
+        let extra_type = ChunkType::private(*b"opAq").unwrap();
+        let mut attributes = EntryWriteAttributes::new(
+            Metadata::new().with_modified(Some(crate::Duration::seconds(42))),
+        );
+        attributes.add_extra_chunk(RawChunk::from_data(extra_type, b"metadata".to_vec()));
+        let mut writer = Archive::write_header(Vec::new()).unwrap();
+        writer
+            .write_opaque(
+                EntryName::from_lossy("private"),
+                kind,
+                attributes,
+                WriteOptions::store(),
+                |writer| writer.write_all(b"opaque"),
+            )
+            .unwrap();
+        let archive = writer.finalize().unwrap();
+
+        let mut reader = Archive::read_header(archive.as_slice()).unwrap();
+        let entry = reader.entries().skip_solid().next().unwrap().unwrap();
+        assert_eq!(entry.header().data_kind(), kind);
+        assert_eq!(
+            entry.metadata().modified(),
+            Some(crate::Duration::seconds(42))
+        );
+        assert_eq!(entry.extra_chunks()[0].ty(), extra_type);
+        let mut data = Vec::new();
+        entry
+            .reader(ReadOptions::builder().build())
+            .unwrap()
+            .read_to_end(&mut data)
+            .unwrap();
+        assert_eq!(data, b"opaque");
+    }
+
+    #[test]
+    fn archive_write_opaque_accepts_standard_kind() {
+        let mut writer = Archive::write_header(Vec::new()).unwrap();
+        writer
+            .write_opaque(
+                EntryName::from_lossy("declared-directory"),
+                DataKind::DIRECTORY,
+                Metadata::new(),
+                WriteOptions::store(),
+                |writer| writer.write_all(b"unchecked payload"),
+            )
+            .unwrap();
+        let archive = writer.finalize().unwrap();
+
+        let mut reader = Archive::read_header(archive.as_slice()).unwrap();
+        let entry = reader.entries().skip_solid().next().unwrap().unwrap();
+        assert_eq!(entry.header().data_kind(), DataKind::DIRECTORY);
+        let mut data = Vec::new();
+        entry
+            .reader(ReadOptions::builder().build())
+            .unwrap()
+            .read_to_end(&mut data)
+            .unwrap();
+        assert_eq!(data, b"unchecked payload");
+    }
+
+    #[test]
+    fn solid_archive_write_opaque_uses_store_for_inner_entry() {
+        let kind = DataKind::new_private(201).unwrap();
+        let mut writer = Archive::write_solid_header(
+            Vec::new(),
+            WriteOptions::builder()
+                .compression(Compression::ZSTANDARD)
+                .build(),
+        )
+        .unwrap();
+        writer
+            .write_opaque(
+                EntryName::from_lossy("private"),
+                kind,
+                Metadata::new(),
+                |writer| writer.write_all(b"solid opaque"),
+            )
+            .unwrap();
+        let archive = writer.finalize().unwrap();
+
+        let mut reader = Archive::read_header(archive.as_slice()).unwrap();
+        let entry = reader
+            .entries()
+            .extract_solid_entries(&ReadOptions::builder().build())
+            .next()
+            .unwrap()
+            .unwrap();
+        assert_eq!(entry.header().data_kind(), kind);
+        assert_eq!(entry.header().compression(), Compression::NO);
+        let mut data = Vec::new();
+        entry
+            .reader(ReadOptions::builder().build())
+            .unwrap()
+            .read_to_end(&mut data)
+            .unwrap();
+        assert_eq!(data, b"solid opaque");
     }
 
     fn owner_facet_metadata() -> Metadata {

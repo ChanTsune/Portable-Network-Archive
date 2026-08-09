@@ -115,6 +115,7 @@
 //! - [`FileEntryBuilder`] / [`DirEntryBuilder`] / [`SymlinkEntryBuilder`] / [`HardLinkEntryBuilder`] - Kind-specific entry builders
 //! - [`OpaqueEntryBuilder`] - Escape-hatch builder for entry kinds without a dedicated builder
 //! - [`SolidEntryBuilder`] - Builder for creating solid (multi-file) entries
+//! - [`EntryWriteAttributes`] - Metadata and extra chunks for streaming entry writes
 //! - [`WriteOptions`] - Configuration for compression and encryption when writing
 //! - [`ReadOptions`] - Configuration (password) for reading encrypted entries
 //! - [`NormalEntry`] / [`SolidEntry`] / [`ReadEntry`] - Entry types for reading
