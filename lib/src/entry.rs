@@ -28,9 +28,7 @@ pub use self::{
 pub(crate) use self::{private::*, read::*, write::*};
 use crate::{
     Duration,
-    chunk::{
-        Chunk, ChunkExt, ChunkReader, ChunkType, MIN_CHUNK_BYTES_SIZE, RawChunk, chunk_data_split,
-    },
+    chunk::{Chunk, ChunkExt, ChunkType, MIN_CHUNK_BYTES_SIZE, RawChunk, chunk_data_split},
     util::io::ChainReader,
     util::slice::skip_while,
 };
@@ -380,10 +378,9 @@ pub(crate) struct EntryIterator<'s>(EntryReader<EncodedDataReader<'s>>);
 
 #[inline]
 fn read_next_normal_entry_from_stream<R: Read>(reader: &mut R) -> Option<io::Result<NormalEntry>> {
-    let mut chunk_reader = ChunkReader::new(reader, None);
     let mut chunks = Vec::new();
     loop {
-        let chunk = chunk_reader.read_chunk();
+        let chunk = crate::io::read_chunk(reader, u32::MAX);
         match chunk {
             Ok(chunk) => match chunk.ty {
                 ChunkType::FEND => {

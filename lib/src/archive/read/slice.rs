@@ -2,7 +2,7 @@
 
 use crate::{
     Archive, Chunk, ChunkType, Entry, NormalEntry, RawChunk, ReadEntry, ReadOptions,
-    archive::ArchiveHeader, chunk::read_chunk_from_slice, entry::RawEntry,
+    archive::ArchiveHeader, entry::RawEntry,
 };
 use std::borrow::Cow;
 use std::io;
@@ -44,7 +44,7 @@ impl<'d> Archive<&'d [u8]> {
         std::mem::swap(&mut self.buf, &mut chunks);
         let mut chunks = chunks.into_iter().map(Into::into).collect::<Vec<_>>();
         loop {
-            let (chunk, r) = read_chunk_from_slice(self.inner)?;
+            let (chunk, r) = crate::bytes::read_chunk(self.inner, u32::MAX)?;
             self.inner = r;
             match chunk.ty {
                 ChunkType::FEND | ChunkType::SEND => {
