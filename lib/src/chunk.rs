@@ -386,7 +386,7 @@ pub fn read_as_chunks<R: Read>(
     mut archive: R,
 ) -> io::Result<impl Iterator<Item = io::Result<impl Chunk>>> {
     struct Chunks<R> {
-        reader: ChunkReader<R>,
+        reader: R,
         eoa: bool,
     }
     impl<R: Read> Iterator for Chunks<R> {
@@ -396,15 +396,17 @@ pub fn read_as_chunks<R: Read>(
             if self.eoa {
                 return None;
             }
-            Some(self.reader.read_chunk().inspect(|chunk| {
-                self.eoa = chunk.ty() == ChunkType::AEND;
-            }))
+            Some(
+                crate::io::read_chunk(&mut self.reader, u32::MAX).inspect(|chunk| {
+                    self.eoa = chunk.ty() == ChunkType::AEND;
+                }),
+            )
         }
     }
     crate::io::read_signature(&mut archive)?;
 
     Ok(Chunks {
-        reader: ChunkReader::new(archive, None),
+        reader: archive,
         eoa: false,
     })
 }
@@ -451,11 +453,13 @@ pub fn read_chunks_from_slice<'a>(
             if self.eoa {
                 return None;
             }
-            Some(read_chunk_from_slice(self.reader).map(|(chunk, bytes)| {
-                self.eoa = chunk.ty() == ChunkType::AEND;
-                self.reader = bytes;
-                chunk
-            }))
+            Some(
+                crate::bytes::read_chunk(self.reader, u32::MAX).map(|(chunk, bytes)| {
+                    self.eoa = chunk.ty() == ChunkType::AEND;
+                    self.reader = bytes;
+                    chunk
+                }),
+            )
         }
     }
     let archive = crate::bytes::read_signature(archive)?;
