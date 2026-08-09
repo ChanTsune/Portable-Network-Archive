@@ -21,7 +21,7 @@ impl<'d> Archive<&'d [u8]> {
     #[inline]
     fn read_header_from_slice_with_buffer(bytes: &'d [u8], buf: Vec<RawChunk>) -> io::Result<Self> {
         let bytes = crate::bytes::read_signature(bytes)?;
-        let (chunk, r) = read_chunk_from_slice(bytes)?;
+        let (chunk, r) = crate::bytes::read_chunk(bytes, u32::MAX)?;
         if chunk.ty != ChunkType::AHED {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
