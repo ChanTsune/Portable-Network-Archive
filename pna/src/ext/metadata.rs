@@ -260,6 +260,10 @@ impl MetadataTimeExt for Metadata {
 pub trait MetadataFsExt: private::Sealed {
     /// Creates a new [`Metadata`] from the given [`fs::Metadata`].
     ///
+    /// Available creation, modification, and access times are preserved on all
+    /// platforms. On Unix, numeric user and group IDs and POSIX permission bits
+    /// are preserved as owner facets as well.
+    ///
     /// # Errors
     /// Returns an error if converting from [`fs::Metadata`] fails.
     fn from_metadata(metadata: &fs::Metadata) -> io::Result<Self>
@@ -269,6 +273,10 @@ pub trait MetadataFsExt: private::Sealed {
 
 impl MetadataFsExt for Metadata {
     /// Creates a new [`Metadata`] from the given [`fs::Metadata`].
+    ///
+    /// Available creation, modification, and access times are preserved on all
+    /// platforms. On Unix, numeric user and group IDs and POSIX permission bits
+    /// are preserved as owner facets as well.
     ///
     /// # Examples
     ///
@@ -361,10 +369,21 @@ impl MetadataPathExt for Metadata {
 
 #[inline]
 fn fs_metadata_to_metadata(meta: &fs::Metadata) -> io::Result<Metadata> {
-    Ok(Metadata::new()
+    let metadata = Metadata::new()
         .with_accessed_time(meta.accessed().ok())
         .with_created_time(meta.created().ok())
-        .with_modified_time(meta.modified().ok()))
+        .with_modified_time(meta.modified().ok());
+    #[cfg(unix)]
+    let metadata = {
+        use std::os::unix::fs::MetadataExt;
+        metadata
+            .with_owner_uid(Some(libpna::OwnerUid::from(u64::from(meta.uid()))))
+            .with_owner_gid(Some(libpna::OwnerGid::from(u64::from(meta.gid()))))
+            .with_permission_mode(Some(libpna::PermissionMode::from(
+                (meta.mode() & 0o7777) as u16,
+            )))
+    };
+    Ok(metadata)
 }
 
 #[cfg(test)]
@@ -398,5 +417,29 @@ mod time_ext_tests {
     #[test]
     fn saturating_modified_time_absent_is_none() {
         assert_eq!(Metadata::new().saturating_modified_time(), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn filesystem_metadata_includes_unix_owner_and_mode() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+        let file = tempfile::NamedTempFile::new().unwrap();
+        fs::set_permissions(file.path(), fs::Permissions::from_mode(0o764)).unwrap();
+        let fs_metadata = fs::metadata(file.path()).unwrap();
+        let metadata = Metadata::from_metadata(&fs_metadata).unwrap();
+
+        assert_eq!(
+            metadata.owner_uid().map(libpna::OwnerUid::get),
+            Some(u64::from(fs_metadata.uid()))
+        );
+        assert_eq!(
+            metadata.owner_gid().map(libpna::OwnerGid::get),
+            Some(u64::from(fs_metadata.gid()))
+        );
+        assert_eq!(
+            metadata.permission_mode().map(libpna::PermissionMode::get),
+            Some(0o764)
+        );
     }
 }
