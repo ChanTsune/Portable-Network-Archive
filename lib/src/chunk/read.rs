@@ -1,6 +1,9 @@
 //! Chunk reading and deserialization from byte streams and slices.
 
-use crate::chunk::{ChunkType, MIN_CHUNK_BYTES_SIZE, RawChunk, crc::Crc32};
+use crate::{
+    chunk::{ChunkType, MIN_CHUNK_BYTES_SIZE, RawChunk},
+    format::validate_chunk_crc,
+};
 use core::num::NonZeroU32;
 #[cfg(feature = "unstable-async")]
 use futures_io::AsyncRead;
@@ -58,8 +61,6 @@ impl<R: Read> ChunkReader<R> {
 #[cfg(feature = "unstable-async")]
 impl<R: AsyncRead + Unpin> ChunkReader<R> {
     pub(crate) async fn read_chunk_async(&mut self) -> io::Result<RawChunk> {
-        let mut crc_hasher = Crc32::new();
-
         // read chunk length
         let mut length = [0u8; mem::size_of::<u32>()];
         self.r.read_exact(&mut length).await?;
@@ -69,22 +70,16 @@ impl<R: AsyncRead + Unpin> ChunkReader<R> {
         let mut ty = [0u8; mem::size_of::<ChunkType>()];
         self.r.read_exact(&mut ty).await?;
 
-        crc_hasher.update(&ty);
-
         // read chunk data
         let mut data = allocate_chunk_data(length, self.max_chunk_size)?;
         self.r.read_exact(&mut data).await?;
-
-        crc_hasher.update(&data);
 
         // read crc sum
         let mut crc = [0u8; mem::size_of::<u32>()];
         self.r.read_exact(&mut crc).await?;
         let crc = u32::from_be_bytes(crc);
 
-        if crc != crc_hasher.finalize() {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "broken chunk"));
-        }
+        validate_chunk_crc(&ty, &data, crc)?;
         let ty = ChunkType::new(ty)?;
         Ok(RawChunk {
             length,
@@ -126,8 +121,6 @@ pub(crate) fn read_chunk<R: Read>(
     mut r: R,
     max_chunk_size: Option<NonZeroU32>,
 ) -> io::Result<RawChunk> {
-    let mut crc_hasher = Crc32::new();
-
     // read chunk length
     let mut length = [0u8; mem::size_of::<u32>()];
     r.read_exact(&mut length)?;
@@ -137,22 +130,16 @@ pub(crate) fn read_chunk<R: Read>(
     let mut ty = [0u8; mem::size_of::<ChunkType>()];
     r.read_exact(&mut ty)?;
 
-    crc_hasher.update(&ty);
-
     // read chunk data
     let mut data = allocate_chunk_data(length, max_chunk_size)?;
     r.read_exact(&mut data)?;
-
-    crc_hasher.update(&data);
 
     // read crc sum
     let mut crc = [0u8; mem::size_of::<u32>()];
     r.read_exact(&mut crc)?;
     let crc = u32::from_be_bytes(crc);
 
-    if crc != crc_hasher.finalize() {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "broken chunk"));
-    }
+    validate_chunk_crc(&ty, &data, crc)?;
     let ty = ChunkType::new(ty)?;
     Ok(RawChunk {
         length,
@@ -163,8 +150,6 @@ pub(crate) fn read_chunk<R: Read>(
 }
 
 pub(crate) fn read_chunk_from_slice(bytes: &[u8]) -> io::Result<(RawChunk<&[u8]>, &[u8])> {
-    let mut crc_hasher = Crc32::new();
-
     // read chunk length
     let (length, r) = bytes
         .split_first_chunk::<{ mem::size_of::<u32>() }>()
@@ -175,23 +160,17 @@ pub(crate) fn read_chunk_from_slice(bytes: &[u8]) -> io::Result<(RawChunk<&[u8]>
     let (ty, r) = r
         .split_first_chunk::<{ mem::size_of::<ChunkType>() }>()
         .ok_or(io::ErrorKind::UnexpectedEof)?;
-    crc_hasher.update(&ty[..]);
-
     // read chunk data
     let (data, r) = r
         .split_at_checked(length as usize)
         .ok_or(io::ErrorKind::UnexpectedEof)?;
-    crc_hasher.update(data);
-
     // read crc sum
     let (crc, r) = r
         .split_first_chunk::<{ mem::size_of::<u32>() }>()
         .ok_or(io::ErrorKind::UnexpectedEof)?;
     let crc = u32::from_be_bytes(*crc);
 
-    if crc != crc_hasher.finalize() {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "broken chunk"));
-    }
+    validate_chunk_crc(ty, data, crc)?;
     let ty = ChunkType::new(*ty)?;
     Ok((
         RawChunk {
