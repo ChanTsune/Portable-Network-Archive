@@ -135,13 +135,18 @@
     clippy::missing_safety_doc
 )]
 pub(crate) mod archive;
+#[cfg(feature = "unstable-async")]
+pub mod async_io;
+pub mod bytes;
 pub(crate) mod chunk;
 pub(crate) mod cipher;
 pub(crate) mod compress;
 pub(crate) mod entry;
 pub(crate) mod error;
 mod ext;
+mod format;
 pub(crate) mod hash;
+pub mod io;
 pub mod prelude;
 pub(crate) mod random;
 pub(crate) mod util;
@@ -150,6 +155,7 @@ pub use archive::*;
 pub use chunk::*;
 pub use entry::*;
 pub use error::UnknownValueError;
+pub use format::PNA_SIGNATURE;
 pub use time::Duration;
 pub use util::bounded::LengthExceeded;
 

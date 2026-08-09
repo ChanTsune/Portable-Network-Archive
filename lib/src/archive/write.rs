@@ -1,7 +1,8 @@
 //! Archive writing and entry serialization.
 
 use crate::{
-    archive::{Archive, ArchiveHeader, PNA_SIGNATURE, SolidArchive},
+    PNA_SIGNATURE,
+    archive::{Archive, ArchiveHeader, SolidArchive},
     chunk::{Chunk, ChunkExt, ChunkStreamWriter, ChunkType, RawChunk},
     cipher::CipherWriter,
     compress::CompressionWriter,

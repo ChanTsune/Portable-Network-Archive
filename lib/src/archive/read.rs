@@ -3,7 +3,8 @@
 mod slice;
 
 use crate::{
-    archive::{Archive, ArchiveHeader, PNA_SIGNATURE},
+    PNA_SIGNATURE,
+    archive::{Archive, ArchiveHeader},
     chunk::{Chunk, ChunkReader, ChunkType, RawChunk, read_chunk},
     entry::{Entry, NormalEntry, RawEntry, ReadEntry, ReadOptions},
 };
