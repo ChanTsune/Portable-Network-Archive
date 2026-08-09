@@ -1,6 +1,6 @@
 //! Chunk trait defining the interface for PNA archive chunks.
 
-use super::{ChunkType, Crc32};
+use super::ChunkType;
 
 /// A trait representing a chunk in a PNA archive.
 ///
@@ -47,9 +47,6 @@ pub trait Chunk {
     /// this method to return its stored `crc` field.
     #[inline]
     fn crc(&self) -> u32 {
-        let mut crc = Crc32::new();
-        crc.update(self.ty().as_bytes());
-        crc.update(self.data());
-        crc.finalize()
+        crate::format::chunk_crc(self.ty().as_bytes(), self.data())
     }
 }
