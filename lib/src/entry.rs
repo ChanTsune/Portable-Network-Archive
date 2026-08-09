@@ -37,6 +37,7 @@ use crate::{
 use std::{
     borrow::Cow,
     collections::VecDeque,
+    convert::Infallible,
     io::{self, Read, Write},
 };
 
@@ -68,85 +69,97 @@ fn chunks_write_in<W: Write>(
 }
 
 #[allow(deprecated)]
-pub(crate) fn metadata_facet_chunks(metadata: &Metadata) -> Vec<RawChunk> {
-    let mut chunks = Vec::new();
+fn try_for_each_metadata_facet<E>(
+    metadata: &Metadata,
+    mut f: impl FnMut(RawChunk) -> Result<(), E>,
+) -> Result<(), E> {
     if let Some(value) = metadata.created {
-        chunks.push(RawChunk::from_data(
+        f(RawChunk::from_data(
             ChunkType::cTIM,
             value.whole_seconds().to_be_bytes(),
-        ));
+        ))?;
         if value.subsec_nanoseconds() != 0 {
-            chunks.push(RawChunk::from_data(
+            f(RawChunk::from_data(
                 ChunkType::cTNS,
                 value.subsec_nanoseconds().to_be_bytes(),
-            ));
+            ))?;
         }
     }
     if let Some(value) = metadata.modified {
-        chunks.push(RawChunk::from_data(
+        f(RawChunk::from_data(
             ChunkType::mTIM,
             value.whole_seconds().to_be_bytes(),
-        ));
+        ))?;
         if value.subsec_nanoseconds() != 0 {
-            chunks.push(RawChunk::from_data(
+            f(RawChunk::from_data(
                 ChunkType::mTNS,
                 value.subsec_nanoseconds().to_be_bytes(),
-            ));
+            ))?;
         }
     }
     if let Some(value) = metadata.accessed {
-        chunks.push(RawChunk::from_data(
+        f(RawChunk::from_data(
             ChunkType::aTIM,
             value.whole_seconds().to_be_bytes(),
-        ));
+        ))?;
         if value.subsec_nanoseconds() != 0 {
-            chunks.push(RawChunk::from_data(
+            f(RawChunk::from_data(
                 ChunkType::aTNS,
                 value.subsec_nanoseconds().to_be_bytes(),
-            ));
+            ))?;
         }
     }
     if let Some(value) = &metadata.permission {
-        chunks.push(RawChunk::from_data(ChunkType::fPRM, value.to_bytes()));
+        f(RawChunk::from_data(ChunkType::fPRM, value.to_bytes()))?;
     }
     if let Some(value) = metadata.owner_uid {
-        chunks.push(RawChunk::from_data(ChunkType::fUId, value.to_bytes()));
+        f(RawChunk::from_data(ChunkType::fUId, value.to_bytes()))?;
     }
     if let Some(value) = metadata.owner_gid {
-        chunks.push(RawChunk::from_data(ChunkType::fGId, value.to_bytes()));
+        f(RawChunk::from_data(ChunkType::fGId, value.to_bytes()))?;
     }
     if let Some(value) = &metadata.owner_user_name {
-        chunks.push(RawChunk::from_data(ChunkType::fONm, value.to_bytes()));
+        f(RawChunk::from_data(ChunkType::fONm, value.to_bytes()))?;
     }
     if let Some(value) = &metadata.owner_group_name {
-        chunks.push(RawChunk::from_data(ChunkType::fGNm, value.to_bytes()));
+        f(RawChunk::from_data(ChunkType::fGNm, value.to_bytes()))?;
     }
     if let Some(value) = &metadata.owner_user_sid {
-        chunks.push(RawChunk::from_data(ChunkType::fOSi, value.to_bytes()));
+        f(RawChunk::from_data(ChunkType::fOSi, value.to_bytes()))?;
     }
     if let Some(value) = &metadata.owner_group_sid {
-        chunks.push(RawChunk::from_data(ChunkType::fGSi, value.to_bytes()));
+        f(RawChunk::from_data(ChunkType::fGSi, value.to_bytes()))?;
     }
     if let Some(value) = metadata.permission_mode {
-        chunks.push(RawChunk::from_data(ChunkType::fMOd, value.to_bytes()));
+        f(RawChunk::from_data(ChunkType::fMOd, value.to_bytes()))?;
     }
     if let Some(value) = metadata.link_target_type {
-        chunks.push(RawChunk::from_data(ChunkType::fLTP, value.to_bytes()));
+        f(RawChunk::from_data(ChunkType::fLTP, value.to_bytes()))?;
     }
-    chunks.extend(
-        metadata
-            .xattrs
-            .iter()
-            .map(|value| RawChunk::from_data(ChunkType::xATR, value.to_bytes())),
-    );
-    chunks
+    for value in &metadata.xattrs {
+        f(RawChunk::from_data(ChunkType::xATR, value.to_bytes()))?;
+    }
+    Ok(())
+}
+
+fn append_metadata_facets(chunks: &mut Vec<RawChunk>, metadata: &Metadata) {
+    try_for_each_metadata_facet(metadata, |chunk| {
+        chunks.push(chunk);
+        Ok::<(), Infallible>(())
+    })
+    .expect("metadata facet collection is infallible");
 }
 
 pub(crate) fn write_metadata_facets<W: Write>(
     writer: &mut W,
     metadata: &Metadata,
 ) -> io::Result<usize> {
-    chunks_write_in(metadata_facet_chunks(metadata).iter(), writer)
+    let mut total = 0;
+    try_for_each_metadata_facet(metadata, |chunk| {
+        total += chunk.write_chunk_in(writer)?;
+        Ok::<(), io::Error>(())
+    })?;
+    Ok(total)
 }
 
 impl<T> SealedEntryExt for RawEntry<T>
@@ -927,7 +940,6 @@ where
 {
     #[allow(deprecated)]
     fn into_chunks(self) -> Vec<RawChunk> {
-        let metadata_chunks = metadata_facet_chunks(&self.metadata);
         let raw_file_size = self.metadata.raw_file_size;
         let mut vec = Vec::new();
         vec.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
@@ -938,7 +950,7 @@ where
                 skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
             ));
         }
-        vec.extend(metadata_chunks);
+        append_metadata_facets(&mut vec, &self.metadata);
         if let Some(p) = self.phsf {
             vec.push(RawChunk::from_data(ChunkType::PHSF, p.into_bytes()));
         }
