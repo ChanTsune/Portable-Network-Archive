@@ -142,7 +142,6 @@ pub(crate) mod entry;
 pub(crate) mod error;
 mod ext;
 pub(crate) mod hash;
-pub(crate) mod io;
 pub mod prelude;
 pub(crate) mod random;
 pub(crate) mod util;

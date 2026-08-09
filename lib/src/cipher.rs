@@ -5,7 +5,7 @@ mod block;
 mod gcm;
 mod stream;
 
-use crate::io::TryIntoInner;
+use crate::util::io::TryIntoInner;
 pub(crate) use aead::{
     DEFAULT_SEGMENT_SIZE, STREAM_HEADER_LEN, SegmentSize, StreamHeader, StreamKey,
     derive_stream_key, key_confirmation,

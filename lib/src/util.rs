@@ -2,6 +2,7 @@
 //!
 //! The contents of this module are crate-internal.
 pub(crate) mod bounded;
+pub(crate) mod io;
 pub(crate) mod str;
 pub(crate) mod utf8path;
 

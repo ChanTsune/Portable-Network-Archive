@@ -110,7 +110,7 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::TryIntoInner;
+    use crate::util::io::TryIntoInner;
     use std::io::Write;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
@@ -286,7 +286,7 @@ mod tests {
         entry.header.cipher_mode = options.cipher_mode();
         let context =
             get_writer_context(&options, ChunkType::FHED, &entry.header.to_bytes()).unwrap();
-        let mut writer = get_writer(crate::io::FlattenWriter::new(), &context).unwrap();
+        let mut writer = get_writer(crate::util::io::FlattenWriter::new(), &context).unwrap();
         writer.write_all(target.as_bytes()).unwrap();
         let mut data = writer
             .try_into_inner()

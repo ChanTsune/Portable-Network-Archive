@@ -21,7 +21,7 @@ use crate::{
         OwnerUserSid, PermissionMode, WriteCipher, WriteOption, WriteOptions, get_writer,
         get_writer_context,
     },
-    io::{FlattenWriter, TryIntoInner},
+    util::io::{FlattenWriter, TryIntoInner},
 };
 
 #[cfg(feature = "unstable-async")]

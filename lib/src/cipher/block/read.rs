@@ -119,7 +119,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::tests::PartialReader;
+    use crate::util::io::tests::PartialReader;
     use cipher::block_padding::Pkcs7;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;

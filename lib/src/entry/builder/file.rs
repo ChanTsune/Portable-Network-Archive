@@ -6,7 +6,7 @@ use crate::{
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{EntryHeader, EntryName, WriteOption},
-    io::{FlattenWriter, TryIntoInner},
+    util::io::{FlattenWriter, TryIntoInner},
 };
 #[cfg(feature = "unstable-async")]
 use futures_io::AsyncWrite;
