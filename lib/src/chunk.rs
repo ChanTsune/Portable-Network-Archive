@@ -387,27 +387,32 @@ pub fn read_as_chunks<R: Read>(
 ) -> io::Result<impl Iterator<Item = io::Result<impl Chunk>>> {
     struct Chunks<R> {
         reader: R,
-        eoa: bool,
+        done: bool,
     }
     impl<R: Read> Iterator for Chunks<R> {
         type Item = io::Result<RawChunk>;
         #[inline]
         fn next(&mut self) -> Option<Self::Item> {
-            if self.eoa {
+            if self.done {
                 return None;
             }
-            Some(
-                crate::io::read_chunk(&mut self.reader, u32::MAX).inspect(|chunk| {
-                    self.eoa = chunk.ty() == ChunkType::AEND;
-                }),
-            )
+            Some(match crate::io::read_chunk(&mut self.reader, u32::MAX) {
+                Ok(chunk) => {
+                    self.done = chunk.ty() == ChunkType::AEND;
+                    Ok(chunk)
+                }
+                Err(error) => {
+                    self.done = true;
+                    Err(error)
+                }
+            })
         }
     }
     crate::io::read_signature(&mut archive)?;
 
     Ok(Chunks {
         reader: archive,
-        eoa: false,
+        done: false,
     })
 }
 
@@ -444,29 +449,33 @@ pub fn read_chunks_from_slice<'a>(
 ) -> io::Result<impl Iterator<Item = io::Result<impl Chunk + 'a>>> {
     struct Chunks<'a> {
         reader: &'a [u8],
-        eoa: bool,
+        done: bool,
     }
     impl<'a> Iterator for Chunks<'a> {
         type Item = io::Result<RawChunk<&'a [u8]>>;
         #[inline]
         fn next(&mut self) -> Option<Self::Item> {
-            if self.eoa {
+            if self.done {
                 return None;
             }
-            Some(
-                crate::bytes::read_chunk(self.reader, u32::MAX).map(|(chunk, bytes)| {
-                    self.eoa = chunk.ty() == ChunkType::AEND;
+            Some(match crate::bytes::read_chunk(self.reader, u32::MAX) {
+                Ok((chunk, bytes)) => {
+                    self.done = chunk.ty() == ChunkType::AEND;
                     self.reader = bytes;
-                    chunk
-                }),
-            )
+                    Ok(chunk)
+                }
+                Err(error) => {
+                    self.done = true;
+                    Err(error)
+                }
+            })
         }
     }
     let archive = crate::bytes::read_signature(archive)?;
 
     Ok(Chunks {
         reader: archive,
-        eoa: false,
+        done: false,
     })
 }
 
@@ -590,5 +599,31 @@ mod tests {
                 None,
             )
         )
+    }
+
+    fn archive_with_broken_chunk() -> Vec<u8> {
+        let mut archive = crate::PNA_SIGNATURE.to_vec();
+        let mut chunk = RawChunk::from_data(ChunkType::FDAT, b"data").to_bytes();
+        *chunk.last_mut().unwrap() ^= 0xFF;
+        archive.extend_from_slice(&chunk);
+        archive
+    }
+
+    #[test]
+    fn read_as_chunks_stops_after_parsing_error() {
+        let archive = archive_with_broken_chunk();
+        let mut chunks = read_as_chunks(&archive[..]).unwrap();
+
+        assert!(matches!(chunks.next(), Some(Err(_))));
+        assert!(chunks.next().is_none());
+    }
+
+    #[test]
+    fn read_chunks_from_slice_stops_after_parsing_error() {
+        let archive = archive_with_broken_chunk();
+        let mut chunks = read_chunks_from_slice(&archive).unwrap();
+
+        assert!(matches!(chunks.next(), Some(Err(_))));
+        assert!(chunks.next().is_none());
     }
 }
