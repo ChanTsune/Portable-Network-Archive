@@ -1,8 +1,10 @@
 //! Asynchronous I/O primitives for reading and writing PNA archives.
 
-use crate::{ChunkType, MIN_CHUNK_BYTES_SIZE, PNA_SIGNATURE, RawChunk, util::io::try_zeroed_vec};
-use futures_io::{AsyncRead, AsyncSeek};
-use futures_util::{AsyncReadExt, AsyncSeekExt};
+use crate::{
+    Chunk, ChunkType, MIN_CHUNK_BYTES_SIZE, PNA_SIGNATURE, RawChunk, util::io::try_zeroed_vec,
+};
+use futures_io::{AsyncRead, AsyncSeek, AsyncWrite};
+use futures_util::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use std::{
     io::{self, SeekFrom},
     mem,
@@ -79,6 +81,44 @@ pub async fn read_chunk<R: AsyncRead + Unpin + ?Sized>(
         data,
         crc,
     })
+}
+
+/// Writes one PNA chunk to `writer` asynchronously.
+///
+/// This function writes the values reported by [`Chunk::length`],
+/// [`Chunk::ty`], [`Chunk::data`], and [`Chunk::crc`] without validating or
+/// recalculating them. To derive the default length and CRC from a type and
+/// data, pass a `(ChunkType, data)` tuple.
+///
+/// The archive signature and archive-level chunk ordering are not written or
+/// interpreted. This function does not flush `writer`.
+///
+/// On success, the returned value is the number of bytes actually written,
+/// based on the size of [`Chunk::data`] rather than [`Chunk::length`]. On
+/// failure, a prefix of the chunk may already have been written.
+///
+/// # Errors
+///
+/// Returns [`io::ErrorKind::InvalidInput`] if the actual output length cannot
+/// be represented by [`usize`], and any error produced by `writer`.
+#[inline]
+pub async fn write_chunk<W: AsyncWrite + Unpin + ?Sized>(
+    writer: &mut W,
+    chunk: impl Chunk,
+) -> io::Result<usize> {
+    let length = chunk.length().to_be_bytes();
+    let ty = chunk.ty();
+    let data = chunk.data();
+    let crc = chunk.crc().to_be_bytes();
+    let bytes_len = MIN_CHUNK_BYTES_SIZE
+        .checked_add(data.len())
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "chunk byte length overflow"))?;
+
+    writer.write_all(&length).await?;
+    writer.write_all(ty.as_bytes()).await?;
+    writer.write_all(data).await?;
+    writer.write_all(&crc).await?;
+    Ok(bytes_len)
 }
 
 /// Skips one PNA chunk on `reader` asynchronously.
@@ -249,6 +289,40 @@ mod tests {
         assert_eq!(
             read_chunk(&mut reader, u32::MAX).await.unwrap_err().kind(),
             io::ErrorKind::InvalidData
+        );
+    }
+
+    #[tokio::test]
+    async fn write_chunk_preserves_reported_fields() {
+        struct StoredChunk;
+
+        impl Chunk for StoredChunk {
+            fn length(&self) -> u32 {
+                1
+            }
+
+            fn ty(&self) -> ChunkType {
+                ChunkType::FDAT
+            }
+
+            fn data(&self) -> &[u8] {
+                b"abc"
+            }
+
+            fn crc(&self) -> u32 {
+                0x0102_0304
+            }
+        }
+
+        let mut output = Cursor::new(Vec::new());
+        let written = write_chunk(&mut output, StoredChunk).await.unwrap();
+
+        assert_eq!(written, 15);
+        assert_eq!(
+            output.into_inner(),
+            [
+                0, 0, 0, 1, b'F', b'D', b'A', b'T', b'a', b'b', b'c', 1, 2, 3, 4
+            ]
         );
     }
 

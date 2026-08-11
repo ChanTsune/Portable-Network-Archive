@@ -1,6 +1,8 @@
 //! I/O primitives for reading and writing PNA archives.
 
-use crate::{ChunkType, MIN_CHUNK_BYTES_SIZE, PNA_SIGNATURE, RawChunk, util::io::try_zeroed_vec};
+use crate::{
+    Chunk, ChunkType, MIN_CHUNK_BYTES_SIZE, PNA_SIGNATURE, RawChunk, util::io::try_zeroed_vec,
+};
 use std::{io, mem};
 
 /// Reads and validates the PNA archive signature.
@@ -74,6 +76,54 @@ pub fn read_chunk<R: io::Read + ?Sized>(
         data,
         crc,
     })
+}
+
+/// Writes one PNA chunk to `writer`.
+///
+/// This function writes the values reported by [`Chunk::length`],
+/// [`Chunk::ty`], [`Chunk::data`], and [`Chunk::crc`] without validating or
+/// recalculating them. To derive the default length and CRC from a type and
+/// data, pass a `(ChunkType, data)` tuple.
+///
+/// The archive signature and archive-level chunk ordering are not written or
+/// interpreted. This function does not flush `writer`.
+///
+/// On success, the returned value is the number of bytes actually written,
+/// based on the size of [`Chunk::data`] rather than [`Chunk::length`]. On
+/// failure, a prefix of the chunk may already have been written.
+///
+/// # Errors
+///
+/// Returns [`io::ErrorKind::InvalidInput`] if the actual output length cannot
+/// be represented by [`usize`], and any error produced by `writer`.
+///
+/// # Examples
+///
+/// ```
+/// use libpna::{ChunkType, io};
+///
+/// let mut output = Vec::new();
+/// let written = io::write_chunk(&mut output, (ChunkType::AEND, []))?;
+///
+/// assert_eq!(written, 12);
+/// assert_eq!(output, [0, 0, 0, 0, b'A', b'E', b'N', b'D', 107, 246, 72, 109]);
+/// # Ok::<(), std::io::Error>(())
+/// ```
+#[inline]
+pub fn write_chunk<W: io::Write + ?Sized>(writer: &mut W, chunk: impl Chunk) -> io::Result<usize> {
+    let length = chunk.length().to_be_bytes();
+    let ty = chunk.ty();
+    let data = chunk.data();
+    let crc = chunk.crc().to_be_bytes();
+    let bytes_len = MIN_CHUNK_BYTES_SIZE
+        .checked_add(data.len())
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "chunk byte length overflow"))?;
+
+    writer.write_all(&length)?;
+    writer.write_all(ty.as_bytes())?;
+    writer.write_all(data)?;
+    writer.write_all(&crc)?;
+    Ok(bytes_len)
 }
 
 /// Skips one PNA chunk on `reader`.
@@ -253,6 +303,40 @@ mod tests {
         assert_eq!(
             read_chunk(&mut reader, u32::MAX).unwrap_err().kind(),
             io::ErrorKind::InvalidData
+        );
+    }
+
+    #[test]
+    fn write_chunk_preserves_reported_fields() {
+        struct StoredChunk;
+
+        impl Chunk for StoredChunk {
+            fn length(&self) -> u32 {
+                1
+            }
+
+            fn ty(&self) -> ChunkType {
+                ChunkType::FDAT
+            }
+
+            fn data(&self) -> &[u8] {
+                b"abc"
+            }
+
+            fn crc(&self) -> u32 {
+                0x0102_0304
+            }
+        }
+
+        let mut output = Vec::new();
+        let written = write_chunk(&mut output, StoredChunk).unwrap();
+
+        assert_eq!(written, 15);
+        assert_eq!(
+            output,
+            [
+                0, 0, 0, 1, b'F', b'D', b'A', b'T', b'a', b'b', b'c', 1, 2, 3, 4
+            ]
         );
     }
 
