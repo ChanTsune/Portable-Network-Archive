@@ -292,7 +292,12 @@ impl<T: AsRef<[u8]>> Chunk for (ChunkType, T) {
     }
 }
 
-impl<T: Chunk> Chunk for &T {
+impl<T: Chunk + ?Sized> Chunk for &T {
+    #[inline]
+    fn length(&self) -> u32 {
+        T::length(*self)
+    }
+
     #[inline]
     fn ty(&self) -> ChunkType {
         T::ty(*self)
@@ -301,10 +306,20 @@ impl<T: Chunk> Chunk for &T {
     #[inline]
     fn data(&self) -> &[u8] {
         T::data(*self)
+    }
+
+    #[inline]
+    fn crc(&self) -> u32 {
+        T::crc(*self)
     }
 }
 
-impl<T: Chunk> Chunk for &mut T {
+impl<T: Chunk + ?Sized> Chunk for &mut T {
+    #[inline]
+    fn length(&self) -> u32 {
+        T::length(*self)
+    }
+
     #[inline]
     fn ty(&self) -> ChunkType {
         T::ty(*self)
@@ -313,6 +328,11 @@ impl<T: Chunk> Chunk for &mut T {
     #[inline]
     fn data(&self) -> &[u8] {
         T::data(*self)
+    }
+
+    #[inline]
+    fn crc(&self) -> u32 {
+        T::crc(*self)
     }
 }
 
@@ -453,6 +473,40 @@ mod tests {
     use super::*;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
+
+    #[test]
+    fn chunk_references_preserve_fields() {
+        struct StoredChunk;
+
+        impl Chunk for StoredChunk {
+            fn length(&self) -> u32 {
+                1
+            }
+
+            fn ty(&self) -> ChunkType {
+                ChunkType::FDAT
+            }
+
+            fn data(&self) -> &[u8] {
+                b"abc"
+            }
+
+            fn crc(&self) -> u32 {
+                0x0102_0304
+            }
+        }
+
+        fn assert_fields(chunk: impl Chunk) {
+            assert_eq!(chunk.length(), 1);
+            assert_eq!(chunk.ty(), ChunkType::FDAT);
+            assert_eq!(chunk.data(), b"abc");
+            assert_eq!(chunk.crc(), 0x0102_0304);
+        }
+
+        let mut chunk = StoredChunk;
+        assert_fields(&chunk);
+        assert_fields(&mut chunk);
+    }
 
     #[test]
     fn chunk_trait_bounds() {
