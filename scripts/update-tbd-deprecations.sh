@@ -24,11 +24,6 @@ if [[ ! -d "$crate_root" ]]; then
   exit 1
 fi
 
-if ! command -v rg >/dev/null 2>&1; then
-  echo "ripgrep (rg) is required" >&2
-  exit 1
-fi
-
 search_roots=()
 for relative_root in src tests examples benches; do
   candidate="$crate_root/$relative_root"
@@ -43,18 +38,25 @@ if [[ ${#search_roots[@]} -eq 0 ]]; then
 fi
 
 matches_file=$(mktemp "${TMPDIR:-/tmp}/pna-release-matches.XXXXXX")
-trap 'rm -f "$matches_file"' EXIT
+candidates_file=""
+trap 'rm -f "$matches_file" "$candidates_file"' EXIT
+candidates_file=$(mktemp "${TMPDIR:-/tmp}/pna-release-candidates.XXXXXX")
 
-set +e
-rg -l -0 --glob '*.rs' --fixed-strings 'since = "TBD"' \
-  "${search_roots[@]}" > "$matches_file"
-rg_status=$?
-set -e
-
-if [[ $rg_status -gt 1 ]]; then
-  echo "Failed to search for TBD deprecation markers" >&2
-  exit "$rg_status"
+if ! find "${search_roots[@]}" -type f -name '*.rs' -print0 > "$candidates_file"; then
+  echo "Failed to find Rust files under $crate_root" >&2
+  exit 1
 fi
+
+while IFS= read -r -d '' file; do
+  grep_status=0
+  grep -Fq -- 'since = "TBD"' "$file" || grep_status=$?
+  if [[ $grep_status -eq 0 ]]; then
+    printf '%s\0' "$file" >> "$matches_file"
+  elif [[ $grep_status -gt 1 ]]; then
+    echo "Failed to search $file for TBD deprecation markers" >&2
+    exit "$grep_status"
+  fi
+done < "$candidates_file"
 
 if [[ ! -s "$matches_file" ]]; then
   echo "No TBD deprecation markers found under $crate_root"
@@ -83,18 +85,16 @@ if [[ "$dry_run" == "true" ]]; then
   exit 0
 fi
 
-set +e
-rg --glob '*.rs' --fixed-strings 'since = "TBD"' "${search_roots[@]}" >/dev/null
-remaining_status=$?
-set -e
-
-if [[ $remaining_status -eq 0 ]]; then
-  echo "TBD deprecation markers remain under $crate_root" >&2
-  exit 1
-fi
-if [[ $remaining_status -gt 1 ]]; then
-  echo "Failed to verify deprecation replacements" >&2
-  exit "$remaining_status"
-fi
+while IFS= read -r -d '' file; do
+  grep_status=0
+  grep -Fq -- 'since = "TBD"' "$file" || grep_status=$?
+  if [[ $grep_status -eq 0 ]]; then
+    echo "TBD deprecation markers remain under $crate_root" >&2
+    exit 1
+  elif [[ $grep_status -gt 1 ]]; then
+    echo "Failed to verify deprecation replacements in $file" >&2
+    exit "$grep_status"
+  fi
+done < "$candidates_file"
 
 echo "Updated $updated_files Rust file(s) for version $version"
