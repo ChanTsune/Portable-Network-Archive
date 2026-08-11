@@ -12,7 +12,7 @@ pub(crate) use self::write::*;
 pub use self::{traits::*, types::*};
 use std::{
     borrow::Cow,
-    io::{self, prelude::*},
+    io::{self, Read},
     mem,
 };
 
@@ -30,9 +30,7 @@ pub(crate) const MAX_CHUNK_DATA_LENGTH: usize = u32::MAX as usize;
 /// An extension trait for [`Chunk`] that provides common operations.
 ///
 /// This trait is automatically implemented for any type that implements [`Chunk`],
-/// offering a set of convenient methods for working with chunks, such as
-/// calculating their total byte length, writing them to a writer, and converting
-/// them to a byte vector.
+/// offering convenient methods for inspecting chunk properties.
 pub(crate) trait ChunkExt: Chunk {
     /// Calculates the total size of the chunk in bytes.
     ///
@@ -50,38 +48,6 @@ pub(crate) trait ChunkExt: Chunk {
     #[inline]
     fn is_stream_chunk(&self) -> bool {
         self.ty() == ChunkType::FDAT || self.ty() == ChunkType::SDAT
-    }
-
-    /// Writes the entire chunk to a given writer.
-    ///
-    /// This method serializes the chunk, including its length, type, data, and
-    /// CRC, and writes the resulting bytes to the specified writer.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if any part of the write operation fails.
-    #[inline]
-    fn write_chunk_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        writer.write_all(&self.length().to_be_bytes())?;
-        writer.write_all(self.ty().as_bytes())?;
-        writer.write_all(self.data())?;
-        writer.write_all(&self.crc().to_be_bytes())?;
-        Ok(self.bytes_len())
-    }
-
-    /// Converts the chunk into a `Vec<u8>`.
-    ///
-    /// This method serializes the entire chunk into a byte vector, which can be
-    /// useful for buffering or network transmission.
-    #[allow(dead_code)]
-    #[inline]
-    fn to_bytes(&self) -> Vec<u8> {
-        let mut vec = Vec::with_capacity(self.bytes_len());
-        vec.extend_from_slice(&self.length().to_be_bytes());
-        vec.extend_from_slice(self.ty().as_bytes());
-        vec.extend_from_slice(self.data());
-        vec.extend_from_slice(&self.crc().to_be_bytes());
-        vec
     }
 }
 
@@ -528,24 +494,6 @@ mod tests {
     }
 
     #[test]
-    fn to_bytes() {
-        let data = vec![0xAA, 0xBB, 0xCC, 0xDD];
-        let chunk = RawChunk::from_data(ChunkType::FDAT, data);
-
-        let bytes = chunk.to_bytes();
-
-        assert_eq!(
-            bytes,
-            vec![
-                0x00, 0x00, 0x00, 0x04, // chunk length (4)
-                0x46, 0x44, 0x41, 0x54, // chunk type ("FDAT")
-                0xAA, 0xBB, 0xCC, 0xDD, // data bytes
-                0x47, 0xf3, 0x2b, 0x10, // CRC32 (calculated from chunk type and data)
-            ]
-        );
-    }
-
-    #[test]
     fn data_split_at_zero() {
         let data = vec![0xAA, 0xBB, 0xCC, 0xDD];
         let chunk = RawChunk::from_data(ChunkType::FDAT, data);
@@ -602,7 +550,8 @@ mod tests {
 
     fn archive_with_broken_chunk() -> Vec<u8> {
         let mut archive = crate::PNA_SIGNATURE.to_vec();
-        let mut chunk = RawChunk::from_data(ChunkType::FDAT, b"data").to_bytes();
+        let mut chunk = Vec::new();
+        crate::io::write_chunk(&mut chunk, (ChunkType::FDAT, b"data")).unwrap();
         *chunk.last_mut().unwrap() ^= 0xFF;
         archive.extend_from_slice(&chunk);
         archive
