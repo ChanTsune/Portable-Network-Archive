@@ -4,11 +4,11 @@ mod slice;
 
 use crate::{
     archive::{Archive, ArchiveHeader},
-    chunk::{Chunk, ChunkReader, ChunkType, RawChunk},
+    chunk::{Chunk, ChunkType, RawChunk},
     entry::{Entry, NormalEntry, RawEntry, ReadEntry, ReadOptions},
 };
 use std::{
-    io::{self, Read, Seek, SeekFrom},
+    io::{self, Read, Seek},
     mem::swap,
 };
 
@@ -385,7 +385,9 @@ impl<R: Read + Seek> Archive<R> {
     /// Seeks the cursor to the start of the end-of-archive marker.
     ///
     /// # Errors
-    /// Returns an error if seeking fails or the archive contains a broken chunk.
+    /// Returns an error if seeking fails, a chunk type is invalid, or the
+    /// archive ends before the trailing CRC of a chunk. Chunk data and CRC
+    /// values are not validated while seeking.
     ///
     /// # Examples
     /// For appending entry to the existing archive.
@@ -408,16 +410,16 @@ impl<R: Read + Seek> Archive<R> {
     /// ```
     #[inline]
     pub fn seek_to_end(&mut self) -> io::Result<()> {
-        let mut reader = ChunkReader::new(&mut self.inner);
-        let byte = loop {
-            let (ty, byte_length) = reader.skip_chunk()?;
+        let consumed = loop {
+            let (ty, consumed) = crate::io::skip_chunk(&mut self.inner)?;
             if ty == ChunkType::AEND {
-                break byte_length;
+                break consumed;
             } else if ty == ChunkType::ANXT {
                 self.next_archive = true;
             }
         };
-        self.inner.seek(SeekFrom::Current(-(byte as i64)))?;
+        // `consumed` is at most `u32::MAX + MIN_CHUNK_BYTES_SIZE`, which fits in i64.
+        self.inner.seek_relative(-(consumed as i64))?;
         Ok(())
     }
 }
@@ -565,5 +567,36 @@ mod tests {
             }
         }
         Ok(())
+    }
+
+    #[test]
+    fn seek_to_end_detects_next_archive_marker() {
+        let mut part1 = Vec::new();
+        let archive = Archive::write_header(&mut part1).unwrap();
+        let archive = archive.split_to_next_archive(Vec::new()).unwrap();
+        archive.finalize().unwrap();
+
+        let mut archive = Archive::read_header(io::Cursor::new(part1)).unwrap();
+        archive.seek_to_end().unwrap();
+        assert!(archive.has_next_archive());
+    }
+
+    #[test]
+    fn seek_to_end_rejects_archives_truncated_inside_the_tail_chunk() {
+        let mut bytes = Vec::new();
+        Archive::write_header(&mut bytes)
+            .unwrap()
+            .finalize()
+            .unwrap();
+
+        for cut in 1..=8 {
+            let truncated = &bytes[..bytes.len() - cut];
+            let mut archive = Archive::read_header(io::Cursor::new(truncated)).unwrap();
+            assert_eq!(
+                archive.seek_to_end().unwrap_err().kind(),
+                io::ErrorKind::UnexpectedEof,
+                "cut {cut} bytes",
+            );
+        }
     }
 }

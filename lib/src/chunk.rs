@@ -4,12 +4,11 @@
 //! chunk types, reading/writing utilities, and CRC calculation needed to parse
 //! and emit well-formed streams. Higher-level modules (archive/entry) build on
 //! these primitives.
-mod read;
 mod traits;
 mod types;
 mod write;
 
-pub(crate) use self::{read::*, write::*};
+pub(crate) use self::write::*;
 pub use self::{traits::*, types::*};
 use std::{
     borrow::Cow,
