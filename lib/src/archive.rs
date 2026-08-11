@@ -756,7 +756,7 @@ mod tests {
 
     mod gcm_roundtrip {
         use super::*;
-        use crate::chunk::{Chunk, ChunkExt, ChunkType, RawChunk, read_as_chunks};
+        use crate::chunk::{Chunk, ChunkType, read_as_chunks};
         use std::num::NonZeroU32;
         #[cfg(all(target_family = "wasm", target_os = "unknown"))]
         use wasm_bindgen_test::wasm_bindgen_test as test;
@@ -828,17 +828,13 @@ mod tests {
                 if chunk.ty() == ChunkType::FDAT {
                     if !emitted {
                         for segment in &segments {
-                            RawChunk::from_data(ChunkType::FDAT, segment.to_vec())
-                                .write_chunk_in(&mut out)
-                                .unwrap();
+                            crate::io::write_chunk(&mut out, (ChunkType::FDAT, *segment)).unwrap();
                         }
                         emitted = true;
                     }
                     continue;
                 }
-                RawChunk::from_data(chunk.ty(), chunk.data().to_vec())
-                    .write_chunk_in(&mut out)
-                    .unwrap();
+                crate::io::write_chunk(&mut out, chunk).unwrap();
             }
             out
         }
@@ -1112,7 +1108,7 @@ mod tests {
 
     mod gcm_negative {
         use super::*;
-        use crate::chunk::{Chunk, ChunkExt, ChunkType, RawChunk, read_as_chunks};
+        use crate::chunk::{Chunk, ChunkType, read_as_chunks};
         use crate::error::AeadError;
         #[cfg(all(target_family = "wasm", target_os = "unknown"))]
         use wasm_bindgen_test::wasm_bindgen_test as test;
@@ -1199,9 +1195,7 @@ mod tests {
                     }
                     seen += 1;
                 }
-                RawChunk::from_data(chunk.ty(), data)
-                    .write_chunk_in(&mut out)
-                    .unwrap();
+                crate::io::write_chunk(&mut out, (chunk.ty(), data)).unwrap();
             }
             assert!(f.is_none(), "target chunk was found and tampered");
             out
@@ -1245,13 +1239,9 @@ mod tests {
                 }
                 if let Some(mut data) = stream.take() {
                     (f.take().expect("target datastream is tampered once"))(&mut data);
-                    RawChunk::from_data(ChunkType::FDAT, data)
-                        .write_chunk_in(&mut out)
-                        .unwrap();
+                    crate::io::write_chunk(&mut out, (ChunkType::FDAT, data)).unwrap();
                 }
-                RawChunk::from_data(ty, chunk.data().to_vec())
-                    .write_chunk_in(&mut out)
-                    .unwrap();
+                crate::io::write_chunk(&mut out, chunk).unwrap();
             }
             assert!(f.is_none(), "target datastream was found and tampered");
             out
@@ -1289,13 +1279,9 @@ mod tests {
                 }
                 if let Some(mut data) = stream.take() {
                     (f.take().expect("target datastream is tampered once"))(&mut data);
-                    RawChunk::from_data(ChunkType::SDAT, data)
-                        .write_chunk_in(&mut out)
-                        .unwrap();
+                    crate::io::write_chunk(&mut out, (ChunkType::SDAT, data)).unwrap();
                 }
-                RawChunk::from_data(ty, chunk.data().to_vec())
-                    .write_chunk_in(&mut out)
-                    .unwrap();
+                crate::io::write_chunk(&mut out, chunk).unwrap();
             }
             assert!(f.is_none(), "target datastream was found and tampered");
             out

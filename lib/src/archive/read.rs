@@ -427,9 +427,14 @@ impl<R: Read + Seek> Archive<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chunk::ChunkExt;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
+
+    fn chunk_bytes(chunk: impl Chunk) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        crate::io::write_chunk(&mut bytes, chunk).unwrap();
+        bytes
+    }
 
     #[test]
     fn decode() {
@@ -457,17 +462,15 @@ mod tests {
     #[test]
     fn read_header_rejects_non_ahed_first_chunk() {
         let mut bytes = crate::PNA_SIGNATURE.to_vec();
-        bytes.extend_from_slice(&RawChunk::from_data(ChunkType::FEND, Vec::new()).to_bytes());
+        bytes.extend_from_slice(&chunk_bytes((ChunkType::FEND, [])));
         let err = Archive::read_header(&bytes[..]).err().unwrap();
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
     }
 
     fn archive_bytes(header: ArchiveHeader) -> Vec<u8> {
         let mut bytes = crate::PNA_SIGNATURE.to_vec();
-        bytes.extend_from_slice(
-            &RawChunk::from_data(ChunkType::AHED, header.to_bytes().to_vec()).to_bytes(),
-        );
-        bytes.extend_from_slice(&RawChunk::from_data(ChunkType::AEND, Vec::new()).to_bytes());
+        bytes.extend_from_slice(&chunk_bytes((ChunkType::AHED, header.to_bytes())));
+        bytes.extend_from_slice(&chunk_bytes((ChunkType::AEND, [])));
         bytes
     }
 

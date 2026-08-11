@@ -61,7 +61,7 @@ fn chunks_write_in<W: Write>(
 ) -> io::Result<usize> {
     let mut total = 0;
     for chunk in chunks {
-        total += chunk.write_chunk_in(writer)?;
+        total += crate::io::write_chunk(writer, chunk)?;
     }
     Ok(total)
 }
@@ -154,7 +154,7 @@ pub(crate) fn write_metadata_facets<W: Write>(
 ) -> io::Result<usize> {
     let mut total = 0;
     try_for_each_metadata_facet(metadata, |chunk| {
-        total += chunk.write_chunk_in(writer)?;
+        total += crate::io::write_chunk(writer, chunk)?;
         Ok::<(), io::Error>(())
     })?;
     Ok(total)
@@ -451,17 +451,17 @@ where
     #[inline]
     fn chunks_write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         let mut total = 0;
-        total += (ChunkType::SHED, self.header.to_bytes()).write_chunk_in(writer)?;
+        total += crate::io::write_chunk(writer, (ChunkType::SHED, self.header.to_bytes()))?;
         for extra_chunk in &self.extra {
-            total += extra_chunk.write_chunk_in(writer)?;
+            total += crate::io::write_chunk(writer, extra_chunk)?;
         }
         if let Some(phsf) = &self.phsf {
-            total += (ChunkType::PHSF, phsf.as_bytes()).write_chunk_in(writer)?;
+            total += crate::io::write_chunk(writer, (ChunkType::PHSF, phsf.as_bytes()))?;
         }
         for data in &self.data {
-            total += (ChunkType::SDAT, data).write_chunk_in(writer)?;
+            total += crate::io::write_chunk(writer, (ChunkType::SDAT, data))?;
         }
-        total += (ChunkType::SEND, []).write_chunk_in(writer)?;
+        total += crate::io::write_chunk(writer, (ChunkType::SEND, []))?;
         Ok(total)
     }
 }
@@ -907,25 +907,27 @@ where
     fn chunks_write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         let mut total = 0;
 
-        total += (ChunkType::FHED, self.header.to_bytes()).write_chunk_in(writer)?;
+        total += crate::io::write_chunk(writer, (ChunkType::FHED, self.header.to_bytes()))?;
         for ex in &self.extra {
-            total += ex.write_chunk_in(writer)?;
+            total += crate::io::write_chunk(writer, ex)?;
         }
         if let Some(raw_file_size) = self.metadata.raw_file_size {
-            total += (
-                ChunkType::fSIZ,
-                skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
-            )
-                .write_chunk_in(writer)?;
+            total += crate::io::write_chunk(
+                writer,
+                (
+                    ChunkType::fSIZ,
+                    skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
+                ),
+            )?;
         }
         total += write_metadata_facets(writer, &self.metadata)?;
         if let Some(p) = &self.phsf {
-            total += (ChunkType::PHSF, p.as_bytes()).write_chunk_in(writer)?;
+            total += crate::io::write_chunk(writer, (ChunkType::PHSF, p.as_bytes()))?;
         }
         for data_chunk in &self.data {
-            total += (ChunkType::FDAT, data_chunk).write_chunk_in(writer)?;
+            total += crate::io::write_chunk(writer, (ChunkType::FDAT, data_chunk))?;
         }
-        total += (ChunkType::FEND, []).write_chunk_in(writer)?;
+        total += crate::io::write_chunk(writer, (ChunkType::FEND, []))?;
         Ok(total)
     }
 }
