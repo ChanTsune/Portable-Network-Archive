@@ -24,10 +24,11 @@ use super::{ChunkType, Crc32};
 /// assert_eq!(chunk.crc(), 2776590148);
 /// ```
 pub trait Chunk {
-    /// Returns the length of the chunk's data payload in bytes.
+    /// Returns the chunk's represented data length.
     ///
-    /// This value corresponds to the `length` field stored in the chunk structure
-    /// and indicates the size of the data returned by the `data()` method.
+    /// The default implementation derives the length from [`Chunk::data`].
+    /// Implementations that preserve an encoded chunk may override this method to
+    /// return its stored `length` field.
     #[inline]
     fn length(&self) -> u32 {
         self.data().len() as u32
@@ -39,7 +40,11 @@ pub trait Chunk {
     /// Returns the data of the chunk.
     fn data(&self) -> &[u8];
 
-    /// Returns the CRC32 checksum calculated over the chunk's type and data fields.
+    /// Returns the chunk's represented CRC32 checksum.
+    ///
+    /// The default implementation calculates the checksum over [`Chunk::ty`] and
+    /// [`Chunk::data`]. Implementations that preserve an encoded chunk may override
+    /// this method to return its stored `crc` field.
     #[inline]
     fn crc(&self) -> u32 {
         let mut crc = Crc32::new();
