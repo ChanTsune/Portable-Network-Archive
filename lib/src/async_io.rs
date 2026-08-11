@@ -1,9 +1,12 @@
 //! Asynchronous I/O primitives for reading and writing PNA archives.
 
-use crate::{ChunkType, PNA_SIGNATURE, RawChunk, util::io::try_zeroed_vec};
-use futures_io::AsyncRead;
-use futures_util::AsyncReadExt;
-use std::{io, mem};
+use crate::{ChunkType, MIN_CHUNK_BYTES_SIZE, PNA_SIGNATURE, RawChunk, util::io::try_zeroed_vec};
+use futures_io::{AsyncRead, AsyncSeek};
+use futures_util::{AsyncReadExt, AsyncSeekExt};
+use std::{
+    io::{self, SeekFrom},
+    mem,
+};
 
 /// Reads and validates the PNA archive signature asynchronously.
 ///
@@ -78,11 +81,53 @@ pub async fn read_chunk<R: AsyncRead + Unpin + ?Sized>(
     })
 }
 
+/// Skips one PNA chunk on `reader` asynchronously.
+///
+/// The reader must be positioned at the chunk length field. On success, this
+/// function consumes exactly one complete chunk and does not read any bytes
+/// following its CRC. The chunk data is skipped based on the declared data
+/// length, and neither the data nor the CRC is validated. This function does
+/// not read the archive signature or interpret archive-level chunk ordering.
+///
+/// Returns the chunk type and the number of bytes consumed, which is
+/// [`MIN_CHUNK_BYTES_SIZE`] plus the declared data length.
+///
+/// On failure, an unspecified number of bytes may have been consumed and the
+/// reader is not guaranteed to remain at a chunk boundary.
+///
+/// # Errors
+///
+/// Returns [`io::ErrorKind::UnexpectedEof`] when the length or type field
+/// cannot be fully read, or when the CRC field cannot be read after skipping
+/// the data, [`io::ErrorKind::InvalidData`] when the chunk type is invalid,
+/// and any other error produced by `reader`.
+#[inline]
+pub async fn skip_chunk<R: AsyncRead + AsyncSeek + Unpin + ?Sized>(
+    reader: &mut R,
+) -> io::Result<(ChunkType, u64)> {
+    let mut length = [0u8; mem::size_of::<u32>()];
+    reader.read_exact(&mut length).await?;
+    let length = u32::from_be_bytes(length);
+
+    let mut ty = [0u8; mem::size_of::<ChunkType>()];
+    reader.read_exact(&mut ty).await?;
+    let ty = ChunkType::new(ty)?;
+
+    reader.seek(SeekFrom::Current(length.into())).await?;
+
+    let mut crc = [0u8; mem::size_of::<u32>()];
+    reader.read_exact(&mut crc).await?;
+
+    Ok((ty, MIN_CHUNK_BYTES_SIZE as u64 + u64::from(length)))
+}
+
 #[cfg(all(test, not(target_family = "wasm")))]
 mod tests {
     use super::*;
     use crate::Chunk;
     use futures_util::io::Cursor;
+    use std::pin::Pin;
+    use std::task::{Context, Poll, ready};
 
     #[tokio::test]
     async fn read_signature_consumes_exactly_the_signature() {
@@ -205,5 +250,150 @@ mod tests {
             read_chunk(&mut reader, u32::MAX).await.unwrap_err().kind(),
             io::ErrorKind::InvalidData
         );
+    }
+
+    struct CountingReader<R> {
+        inner: R,
+        read_bytes: usize,
+    }
+
+    impl<R: AsyncRead + Unpin> AsyncRead for CountingReader<R> {
+        fn poll_read(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &mut [u8],
+        ) -> Poll<io::Result<usize>> {
+            let this = self.get_mut();
+            let n = ready!(Pin::new(&mut this.inner).poll_read(cx, buf))?;
+            this.read_bytes += n;
+            Poll::Ready(Ok(n))
+        }
+    }
+
+    impl<R: AsyncSeek + Unpin> AsyncSeek for CountingReader<R> {
+        fn poll_seek(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            pos: io::SeekFrom,
+        ) -> Poll<io::Result<u64>> {
+            Pin::new(&mut self.get_mut().inner).poll_seek(cx, pos)
+        }
+    }
+
+    /// Supplies fixed-size fields without holding a data buffer and records
+    /// the requested seek distance.
+    struct RecordingSeekReader {
+        header: Vec<u8>,
+        pos: usize,
+        trailer_left: usize,
+        seek_from: Option<io::SeekFrom>,
+    }
+
+    impl AsyncRead for RecordingSeekReader {
+        fn poll_read(
+            self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+            buf: &mut [u8],
+        ) -> Poll<io::Result<usize>> {
+            let this = self.get_mut();
+            if this.pos < this.header.len() {
+                let n = buf.len().min(this.header.len() - this.pos);
+                buf[..n].copy_from_slice(&this.header[this.pos..this.pos + n]);
+                this.pos += n;
+                Poll::Ready(Ok(n))
+            } else if this.trailer_left > 0 {
+                let n = buf.len().min(this.trailer_left);
+                buf[..n].fill(0);
+                this.trailer_left -= n;
+                Poll::Ready(Ok(n))
+            } else {
+                Poll::Ready(Ok(0))
+            }
+        }
+    }
+
+    impl AsyncSeek for RecordingSeekReader {
+        fn poll_seek(
+            self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+            pos: io::SeekFrom,
+        ) -> Poll<io::Result<u64>> {
+            self.get_mut().seek_from = Some(pos);
+            Poll::Ready(Ok(0))
+        }
+    }
+
+    #[tokio::test]
+    async fn skip_chunk_returns_type_and_size_without_reading_data() {
+        let mut input = valid_chunk_bytes();
+        let chunk_len = input.len();
+        input.extend_from_slice(b"following");
+        let mut reader = CountingReader {
+            inner: Cursor::new(input),
+            read_bytes: 0,
+        };
+
+        let (ty, consumed) = skip_chunk(&mut reader).await.unwrap();
+
+        assert_eq!(ty, ChunkType::FDAT);
+        assert_eq!(consumed, chunk_len as u64);
+        assert_eq!(reader.inner.position(), consumed);
+        assert_eq!(reader.read_bytes, MIN_CHUNK_BYTES_SIZE);
+    }
+
+    #[tokio::test]
+    async fn skip_chunk_seeks_over_the_maximum_data_length() {
+        let mut reader = RecordingSeekReader {
+            header: [&u32::MAX.to_be_bytes()[..], b"FDAT"].concat(),
+            pos: 0,
+            trailer_left: 4,
+            seek_from: None,
+        };
+        let (ty, consumed) = skip_chunk(&mut reader).await.unwrap();
+        assert_eq!(ty, ChunkType::FDAT);
+        assert_eq!(consumed, u64::from(u32::MAX) + MIN_CHUNK_BYTES_SIZE as u64);
+        assert_eq!(
+            reader.seek_from,
+            Some(io::SeekFrom::Current(i64::from(u32::MAX)))
+        );
+    }
+
+    #[tokio::test]
+    async fn skip_chunk_rejects_invalid_chunk_type_before_seeking() {
+        let mut reader = Cursor::new([&4u32.to_be_bytes()[..], b"FD1T"].concat());
+        assert_eq!(
+            skip_chunk(&mut reader).await.unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+        assert_eq!(reader.position(), 8);
+    }
+
+    #[tokio::test]
+    async fn skip_chunk_rejects_every_truncation_boundary() {
+        let bytes = valid_chunk_bytes();
+        for end in 0..bytes.len() {
+            let mut reader = Cursor::new(&bytes[..end]);
+            assert_eq!(
+                skip_chunk(&mut reader).await.unwrap_err().kind(),
+                io::ErrorKind::UnexpectedEof,
+                "truncation at byte {end}",
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn skip_chunk_handles_empty_data() {
+        let mut reader = Cursor::new(raw_chunk_bytes(*b"AEND", &[]));
+        let (ty, consumed) = skip_chunk(&mut reader).await.unwrap();
+        assert_eq!(ty, ChunkType::AEND);
+        assert_eq!(consumed, MIN_CHUNK_BYTES_SIZE as u64);
+    }
+
+    #[tokio::test]
+    async fn skip_chunk_does_not_validate_crc() {
+        let mut bytes = valid_chunk_bytes();
+        *bytes.last_mut().unwrap() ^= 0xFF;
+        let mut reader = Cursor::new(bytes);
+        assert_eq!(skip_chunk(&mut reader).await.unwrap().0, ChunkType::FDAT);
     }
 }

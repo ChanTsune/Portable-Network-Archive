@@ -74,6 +74,41 @@ pub fn read_chunk(bytes: &[u8], max_data_len: u32) -> io::Result<(RawChunk<&[u8]
     ))
 }
 
+/// Skips one PNA chunk at the beginning of `bytes`.
+///
+/// Returns the chunk type and the bytes following the chunk. The input must
+/// start at the chunk length field. The chunk data and CRC are skipped based
+/// on the declared data length and are not validated. This function does not
+/// read the archive signature or interpret archive-level chunk ordering.
+///
+/// # Errors
+///
+/// Returns [`io::ErrorKind::UnexpectedEof`] when any chunk field does not fit
+/// in `bytes`, or [`io::ErrorKind::InvalidData`] when the chunk type is
+/// invalid.
+#[inline]
+pub fn skip_chunk(bytes: &[u8]) -> io::Result<(ChunkType, &[u8])> {
+    let (length, bytes) = bytes
+        .split_first_chunk::<{ mem::size_of::<u32>() }>()
+        .ok_or(io::ErrorKind::UnexpectedEof)?;
+    let length = u32::from_be_bytes(*length);
+
+    let (ty, bytes) = bytes
+        .split_first_chunk::<{ mem::size_of::<ChunkType>() }>()
+        .ok_or(io::ErrorKind::UnexpectedEof)?;
+    let ty = ChunkType::new(*ty)?;
+
+    let (_, bytes) = bytes
+        .split_at_checked(length as usize)
+        .ok_or(io::ErrorKind::UnexpectedEof)?;
+
+    let (_, bytes) = bytes
+        .split_first_chunk::<{ mem::size_of::<u32>() }>()
+        .ok_or(io::ErrorKind::UnexpectedEof)?;
+
+    Ok((ty, bytes))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -195,5 +230,63 @@ mod tests {
             read_chunk(&bytes, u32::MAX).unwrap_err().kind(),
             io::ErrorKind::InvalidData
         );
+    }
+
+    #[test]
+    fn skip_chunk_returns_type_and_remainder() {
+        let mut input = valid_chunk_bytes();
+        input.extend_from_slice(b"following");
+
+        let (ty, rest) = skip_chunk(&input).unwrap();
+
+        assert_eq!(ty, ChunkType::FDAT);
+        assert_eq!(rest, b"following");
+        assert_eq!(rest.as_ptr(), input[16..].as_ptr());
+        assert_eq!(input.len() - rest.len(), 16);
+    }
+
+    #[test]
+    fn skip_chunk_reports_eof_when_the_data_is_missing() {
+        let input = [&u32::MAX.to_be_bytes()[..], b"FDAT"].concat();
+        assert_eq!(
+            skip_chunk(&input).unwrap_err().kind(),
+            io::ErrorKind::UnexpectedEof
+        );
+    }
+
+    #[test]
+    fn skip_chunk_rejects_invalid_chunk_type_before_checking_the_data() {
+        let input = [&4u32.to_be_bytes()[..], b"FD1T"].concat();
+        assert_eq!(
+            skip_chunk(&input).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+    }
+
+    #[test]
+    fn skip_chunk_rejects_every_truncation_boundary() {
+        let bytes = valid_chunk_bytes();
+        for end in 0..bytes.len() {
+            assert_eq!(
+                skip_chunk(&bytes[..end]).unwrap_err().kind(),
+                io::ErrorKind::UnexpectedEof,
+                "truncation at byte {end}",
+            );
+        }
+    }
+
+    #[test]
+    fn skip_chunk_handles_empty_data() {
+        let bytes = raw_chunk_bytes(*b"AEND", &[]);
+        let (ty, rest) = skip_chunk(&bytes).unwrap();
+        assert_eq!(ty, ChunkType::AEND);
+        assert!(rest.is_empty());
+    }
+
+    #[test]
+    fn skip_chunk_does_not_validate_crc() {
+        let mut bytes = valid_chunk_bytes();
+        *bytes.last_mut().unwrap() ^= 0xFF;
+        assert_eq!(skip_chunk(&bytes).unwrap().0, ChunkType::FDAT);
     }
 }

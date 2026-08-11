@@ -1,6 +1,6 @@
 //! I/O primitives for reading and writing PNA archives.
 
-use crate::{ChunkType, PNA_SIGNATURE, RawChunk, util::io::try_zeroed_vec};
+use crate::{ChunkType, MIN_CHUNK_BYTES_SIZE, PNA_SIGNATURE, RawChunk, util::io::try_zeroed_vec};
 use std::{io, mem};
 
 /// Reads and validates the PNA archive signature.
@@ -76,10 +76,49 @@ pub fn read_chunk<R: io::Read + ?Sized>(
     })
 }
 
+/// Skips one PNA chunk on `reader`.
+///
+/// The reader must be positioned at the chunk length field. On success, this
+/// function consumes exactly one complete chunk and does not read any bytes
+/// following its CRC. The chunk data is skipped based on the declared data
+/// length, and neither the data nor the CRC is validated. This function does
+/// not read the archive signature or interpret archive-level chunk ordering.
+///
+/// Returns the chunk type and the number of bytes consumed, which is
+/// [`MIN_CHUNK_BYTES_SIZE`] plus the declared data length.
+///
+/// On failure, an unspecified number of bytes may have been consumed and the
+/// reader is not guaranteed to remain at a chunk boundary.
+///
+/// # Errors
+///
+/// Returns [`io::ErrorKind::UnexpectedEof`] when the length or type field
+/// cannot be fully read, or when the CRC field cannot be read after skipping
+/// the data, [`io::ErrorKind::InvalidData`] when the chunk type is invalid,
+/// and any other error produced by `reader`.
+#[inline]
+pub fn skip_chunk<R: io::Read + io::Seek + ?Sized>(reader: &mut R) -> io::Result<(ChunkType, u64)> {
+    let mut length = [0u8; mem::size_of::<u32>()];
+    reader.read_exact(&mut length)?;
+    let length = u32::from_be_bytes(length);
+
+    let mut ty = [0u8; mem::size_of::<ChunkType>()];
+    reader.read_exact(&mut ty)?;
+    let ty = ChunkType::new(ty)?;
+
+    reader.seek_relative(length.into())?;
+
+    let mut crc = [0u8; mem::size_of::<u32>()];
+    reader.read_exact(&mut crc)?;
+
+    Ok((ty, MIN_CHUNK_BYTES_SIZE as u64 + u64::from(length)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{Chunk, util::io::tests::PartialReader};
+    use std::io::{Read, Seek};
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
@@ -215,5 +254,154 @@ mod tests {
             read_chunk(&mut reader, u32::MAX).unwrap_err().kind(),
             io::ErrorKind::InvalidData
         );
+    }
+
+    struct CountingReader<R> {
+        inner: R,
+        read_bytes: usize,
+        seeks: usize,
+    }
+
+    impl<R: Read> Read for CountingReader<R> {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            let n = self.inner.read(buf)?;
+            self.read_bytes += n;
+            Ok(n)
+        }
+    }
+
+    impl<R: Seek> Seek for CountingReader<R> {
+        fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+            self.seeks += 1;
+            self.inner.seek(pos)
+        }
+    }
+
+    /// Supplies fixed-size fields without holding a data buffer and records
+    /// the requested seek distance.
+    struct RecordingSeekReader {
+        header: Vec<u8>,
+        pos: usize,
+        trailer_left: usize,
+        seek_from: Option<io::SeekFrom>,
+    }
+
+    impl Read for RecordingSeekReader {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            if self.pos < self.header.len() {
+                let n = buf.len().min(self.header.len() - self.pos);
+                buf[..n].copy_from_slice(&self.header[self.pos..self.pos + n]);
+                self.pos += n;
+                Ok(n)
+            } else if self.trailer_left > 0 {
+                let n = buf.len().min(self.trailer_left);
+                buf[..n].fill(0);
+                self.trailer_left -= n;
+                Ok(n)
+            } else {
+                Ok(0)
+            }
+        }
+    }
+
+    impl Seek for RecordingSeekReader {
+        fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+            self.seek_from = Some(pos);
+            Ok(0)
+        }
+    }
+
+    #[test]
+    fn skip_chunk_returns_type_and_size_without_reading_data() {
+        let mut input = valid_chunk_bytes();
+        let chunk_len = input.len();
+        input.extend_from_slice(b"following");
+        let mut reader = CountingReader {
+            inner: io::Cursor::new(input),
+            read_bytes: 0,
+            seeks: 0,
+        };
+
+        let (ty, consumed) = skip_chunk(&mut reader).unwrap();
+
+        assert_eq!(ty, ChunkType::FDAT);
+        assert_eq!(consumed, chunk_len as u64);
+        assert_eq!(reader.inner.position(), consumed);
+        assert_eq!(reader.read_bytes, MIN_CHUNK_BYTES_SIZE);
+    }
+
+    #[test]
+    fn skip_chunk_seeks_over_the_maximum_data_length() {
+        let mut reader = RecordingSeekReader {
+            header: [&u32::MAX.to_be_bytes()[..], b"FDAT"].concat(),
+            pos: 0,
+            trailer_left: 4,
+            seek_from: None,
+        };
+        let (ty, consumed) = skip_chunk(&mut reader).unwrap();
+        assert_eq!(ty, ChunkType::FDAT);
+        assert_eq!(consumed, u64::from(u32::MAX) + MIN_CHUNK_BYTES_SIZE as u64);
+        assert_eq!(
+            reader.seek_from,
+            Some(io::SeekFrom::Current(i64::from(u32::MAX)))
+        );
+    }
+
+    #[test]
+    fn skip_chunk_rejects_invalid_chunk_type_before_seeking() {
+        let mut reader = io::Cursor::new([&4u32.to_be_bytes()[..], b"FD1T"].concat());
+        assert_eq!(
+            skip_chunk(&mut reader).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+        assert_eq!(reader.position(), 8);
+    }
+
+    #[test]
+    fn skip_chunk_rejects_every_truncation_boundary() {
+        let bytes = valid_chunk_bytes();
+        for end in 0..bytes.len() {
+            let mut reader = io::Cursor::new(&bytes[..end]);
+            assert_eq!(
+                skip_chunk(&mut reader).unwrap_err().kind(),
+                io::ErrorKind::UnexpectedEof,
+                "truncation at byte {end}",
+            );
+        }
+    }
+
+    #[test]
+    fn skip_chunk_handles_empty_data() {
+        let mut reader = io::Cursor::new(raw_chunk_bytes(*b"AEND", &[]));
+        let (ty, consumed) = skip_chunk(&mut reader).unwrap();
+        assert_eq!(ty, ChunkType::AEND);
+        assert_eq!(consumed, MIN_CHUNK_BYTES_SIZE as u64);
+    }
+
+    #[test]
+    fn skip_chunk_does_not_validate_crc() {
+        let mut bytes = valid_chunk_bytes();
+        *bytes.last_mut().unwrap() ^= 0xFF;
+        let mut reader = io::Cursor::new(bytes);
+        assert_eq!(skip_chunk(&mut reader).unwrap().0, ChunkType::FDAT);
+    }
+
+    #[test]
+    fn skip_chunk_walks_consecutive_chunks_through_a_buf_reader() {
+        let mut input = valid_chunk_bytes();
+        input.extend_from_slice(&raw_chunk_bytes(*b"AEND", &[]));
+        let total = input.len() as u64;
+        let mut reader = io::BufReader::with_capacity(
+            64,
+            CountingReader {
+                inner: io::Cursor::new(input),
+                read_bytes: 0,
+                seeks: 0,
+            },
+        );
+        assert_eq!(skip_chunk(&mut reader).unwrap().0, ChunkType::FDAT);
+        assert_eq!(skip_chunk(&mut reader).unwrap().0, ChunkType::AEND);
+        assert_eq!(reader.get_ref().seeks, 0);
+        assert_eq!(reader.stream_position().unwrap(), total);
     }
 }
