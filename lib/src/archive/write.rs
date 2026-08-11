@@ -3,7 +3,7 @@
 use crate::{
     PNA_SIGNATURE,
     archive::{Archive, ArchiveHeader, SolidArchive},
-    chunk::{Chunk, ChunkExt, ChunkStreamWriter, ChunkType, RawChunk},
+    chunk::{Chunk, ChunkStreamWriter, ChunkType, RawChunk},
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{
@@ -93,7 +93,7 @@ impl<W: Write> Archive<W> {
     #[inline]
     fn write_header_with(mut write: W, header: ArchiveHeader) -> io::Result<Self> {
         write.write_all(PNA_SIGNATURE)?;
-        (ChunkType::AHED, header.to_bytes()).write_chunk_in(&mut write)?;
+        crate::io::write_chunk(&mut write, (ChunkType::AHED, header.to_bytes()))?;
         Ok(Self::new(write, header))
     }
 
@@ -254,14 +254,14 @@ impl<W: Write> Archive<W> {
     {
         let mut written_len = 0;
         for chunk in entry_part.0 {
-            written_len += chunk.write_chunk_in(&mut self.inner)?;
+            written_len += crate::io::write_chunk(&mut self.inner, chunk)?;
         }
         Ok(written_len)
     }
 
     #[inline]
     fn add_next_archive_marker(&mut self) -> io::Result<usize> {
-        (ChunkType::ANXT, []).write_chunk_in(&mut self.inner)
+        crate::io::write_chunk(&mut self.inner, (ChunkType::ANXT, []))
     }
 
     /// Splits to the next archive.
@@ -328,7 +328,7 @@ impl<W: Write> Archive<W> {
     #[inline]
     #[must_use = "archive is not complete until finalize succeeds"]
     pub fn finalize(mut self) -> io::Result<W> {
-        (ChunkType::AEND, []).write_chunk_in(&mut self.inner)?;
+        crate::io::write_chunk(&mut self.inner, (ChunkType::AEND, []))?;
         Ok(self.inner)
     }
 }
@@ -350,10 +350,7 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
     #[inline]
     async fn write_header_with_async(mut write: W, header: ArchiveHeader) -> io::Result<Self> {
         write.write_all(PNA_SIGNATURE).await?;
-        let mut chunk_writer = crate::chunk::ChunkWriter::new(&mut write);
-        chunk_writer
-            .write_chunk_async((ChunkType::AHED, header.to_bytes()))
-            .await?;
+        crate::async_io::write_chunk(&mut write, (ChunkType::AHED, header.to_bytes())).await?;
         Ok(Self::new(write, header))
     }
 
@@ -379,10 +376,7 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
     /// Returns an error if writing the end-of-archive marker fails.
     #[inline]
     pub async fn finalize_async(mut self) -> io::Result<W> {
-        let mut chunk_writer = crate::chunk::ChunkWriter::new(&mut self.inner);
-        chunk_writer
-            .write_chunk_async((ChunkType::AEND, []))
-            .await?;
+        crate::async_io::write_chunk(&mut self.inner, (ChunkType::AEND, [])).await?;
         Ok(self.inner)
     }
 }
@@ -425,9 +419,9 @@ impl<W: Write> Archive<W> {
         );
         let context = get_writer_context(option, ChunkType::SHED, &header.to_bytes())?;
 
-        (ChunkType::SHED, header.to_bytes()).write_chunk_in(&mut self.inner)?;
+        crate::io::write_chunk(&mut self.inner, (ChunkType::SHED, header.to_bytes()))?;
         if let Some(WriteCipher { context: c, .. }) = &context.cipher {
-            (ChunkType::PHSF, c.phsf.as_bytes()).write_chunk_in(&mut self.inner)?;
+            crate::io::write_chunk(&mut self.inner, (ChunkType::PHSF, c.phsf.as_bytes()))?;
         }
         self.inner.flush()?;
         let max_chunk_size = self.max_chunk_size;
@@ -619,7 +613,7 @@ impl<W: Write> SolidArchive<W> {
     fn finalize_solid_entry(mut self) -> io::Result<Archive<W>> {
         self.inner.flush()?;
         let mut inner = self.inner.try_into_inner()?.try_into_inner()?.into_inner();
-        (ChunkType::SEND, []).write_chunk_in(&mut inner)?;
+        crate::io::write_chunk(&mut inner, (ChunkType::SEND, []))?;
         Ok(Archive::new(inner, self.archive_header))
     }
 }
@@ -649,14 +643,14 @@ where
         name,
     );
     let header_bytes = header.to_bytes();
-    (ChunkType::FHED, &header_bytes).write_chunk_in(inner)?;
+    crate::io::write_chunk(inner, (ChunkType::FHED, &header_bytes))?;
     for chunk in extra_chunks {
-        chunk.write_chunk_in(inner)?;
+        crate::io::write_chunk(inner, chunk)?;
     }
     write_metadata_facets(inner, &metadata)?;
     let context = get_writer_context(option, ChunkType::FHED, &header_bytes)?;
     if let Some(WriteCipher { context: c, .. }) = &context.cipher {
-        (ChunkType::PHSF, c.phsf.as_bytes()).write_chunk_in(inner)?;
+        crate::io::write_chunk(inner, (ChunkType::PHSF, c.phsf.as_bytes()))?;
     }
     let inner = {
         let mut writer = ChunkStreamWriter::new(ChunkType::FDAT, inner, max_chunk_size);
@@ -668,7 +662,7 @@ where
         writer.flush()?;
         writer.try_into_inner()?.try_into_inner()?.into_inner()
     };
-    (ChunkType::FEND, Vec::<u8>::new()).write_chunk_in(inner)?;
+    crate::io::write_chunk(inner, (ChunkType::FEND, Vec::<u8>::new()))?;
     Ok(())
 }
 
