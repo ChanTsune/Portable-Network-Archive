@@ -2,6 +2,7 @@
 
 mod header;
 mod read;
+mod stream;
 mod write;
 
 use crate::{
@@ -12,6 +13,7 @@ use crate::{
 use core::num::NonZeroU32;
 pub use header::*;
 use std::io::prelude::*;
+pub use stream::*;
 pub(crate) use write::*;
 
 /// Provides read and write access to a PNA file.
