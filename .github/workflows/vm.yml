@@ -61,7 +61,7 @@ jobs:
             chown -R $(whoami):$(id -gn) ./
             chmod -R a+rw ./
             cargo install -f cargo-hack@0.6.33 --locked
-            cargo hack test --locked --release --feature-powerset --exclude-features wasm
+            cargo hack test --locked --release --each-feature --exclude-features wasm -p libpna -p pna -p portable-network-archive
 
   NetBSD-test:
     runs-on: ubuntu-latest
@@ -91,7 +91,7 @@ jobs:
             chown -R $(whoami):$(id -gn) ./
             chmod -R a+rw ./
             cargo install -f cargo-hack --locked
-            cargo hack test --locked --release --feature-powerset --exclude-features wasm
+            cargo hack test --locked --release --each-feature --exclude-features wasm -p libpna -p pna -p portable-network-archive
 
   FreeBSD-test:
     runs-on: ubuntu-latest
@@ -153,7 +153,7 @@ jobs:
             chown -R $(whoami):$(id -gn) ./
             chmod -R a+rw ./
             cargo install -f cargo-hack --locked
-            cargo hack test --locked --release --feature-powerset --exclude-features wasm
+            cargo hack test --locked --release --each-feature --exclude-features wasm -p libpna -p pna -p portable-network-archive
 
   OpenBSD-test:
     runs-on: ubuntu-latest
@@ -182,7 +182,7 @@ jobs:
             chmod -R a+rw ./
             cargo install -f cargo-hack --locked
             ulimit -n 2048
-            cargo hack test --locked --release --feature-powerset --exclude-features wasm
+            cargo hack test --locked --release --each-feature --exclude-features wasm -p libpna -p pna -p portable-network-archive
 
 #  DragonflyBSD-test:
 #    runs-on: ubuntu-latest
@@ -207,7 +207,7 @@ jobs:
 #            chown -R $(whoami):$(id -gn) ./
 #            chmod -R a+rw ./
 #            cargo install -f cargo-hack --locked
-#            cargo hack test --locked --release --feature-powerset --exclude-features wasm
+#            cargo hack test --locked --release --each-feature --exclude-features wasm -p libpna -p pna -p portable-network-archive
 
   OmniOS-test:
     runs-on: ubuntu-latest
@@ -236,4 +236,4 @@ jobs:
             chown -R $(whoami):$(id -gn) ./
             chmod -R a+rw ./
             cargo install -f cargo-hack --locked
-            cargo hack test --locked --release --feature-powerset --exclude-features wasm,zlib-ng
+            cargo hack test --locked --release --each-feature --exclude-features wasm,zlib-ng -p libpna -p pna -p portable-network-archive
