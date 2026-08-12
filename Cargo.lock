@@ -843,12 +843,12 @@ dependencies = [
 
 [[package]]
 name = "filetime"
-version = "0.2.27"
-source = "git+https://github.com/ChanTsune/filetime.git?branch=fix-failed-to-set_file_mtime-on-solaris#34f26b4d6816ecdd5d250549d42920f3ee62e202"
+version = "0.2.29"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c287a33c7f0a620c38e641e7f60827713987b3c0f26e8ddc9462cc69cf75759"
 dependencies = [
  "cfg-if",
  "libc",
- "libredox",
 ]
 
 [[package]]
@@ -1555,17 +1555,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "libredox"
-version = "0.1.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d0b95e02c851351f877147b7deea7b1afb1df71b63aa5f8270716e0c5720616"
-dependencies = [
- "bitflags 2.13.1",
- "libc",
- "redox_syscall 0.7.0",
-]
-
-[[package]]
 name = "libz-ng-sys"
 version = "1.1.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1820,7 +1809,7 @@ checksum = "bc838d2a56b5b1a6c25f55575dfc605fabb63bb2365f6c2353ef9159aa69e4a5"
 dependencies = [
  "cfg-if",
  "libc",
- "redox_syscall 0.5.10",
+ "redox_syscall",
  "smallvec",
  "windows-targets",
 ]
@@ -2235,15 +2224,6 @@ name = "redox_syscall"
 version = "0.5.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b8c0c260b63a8219631167be35e6a988e9554dbd323f8bd08439c8ed1302bd1"
-dependencies = [
- "bitflags 2.13.1",
-]
-
-[[package]]
-name = "redox_syscall"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49f3fe0889e69e2ae9e41f4d6c4c0181701d00e4697b356fb1f74173a5e0ee27"
 dependencies = [
  "bitflags 2.13.1",
 ]
