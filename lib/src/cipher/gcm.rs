@@ -159,6 +159,11 @@ where
         }
     }
 
+    #[inline]
+    pub(crate) fn into_inner(self) -> R {
+        self.r
+    }
+
     fn fail(&mut self, e: AeadError) -> io::Error {
         self.fuse = Some(Stopped::Aead(e.clone()));
         e.into()
