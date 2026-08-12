@@ -13,6 +13,3 @@ members = [
 inherits = "release"
 codegen-units = 1
 lto = "thin"
-
-[patch.crates-io]
-filetime = { git = "https://github.com/ChanTsune/filetime.git", branch = "fix-failed-to-set_file_mtime-on-solaris" }
