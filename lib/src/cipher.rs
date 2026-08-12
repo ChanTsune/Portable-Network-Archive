@@ -172,6 +172,51 @@ impl<R: Read> Read for DecryptReader<R> {
     }
 }
 
+impl<R: Read> DecryptReader<R> {
+    /// Discards cipher state and returns the encoded source without verifying
+    /// padding or authentication.
+    pub(crate) fn into_inner_unchecked(self) -> R {
+        match self {
+            Self::No(r) => r,
+            Self::CbcAes(r) => r.into_inner(),
+            Self::CbcCamellia(r) => r.into_inner(),
+            Self::CtrAes(r) => r.into_inner(),
+            Self::CtrCamellia(r) => r.into_inner(),
+            Self::GcmAes(r) => r.into_inner(),
+            Self::GcmCamellia(r) => r.into_inner(),
+        }
+    }
+}
+
+impl<R: Read> TryIntoInner<R> for DecryptReader<R> {
+    fn try_into_inner(mut self) -> io::Result<R> {
+        let mut byte = [0u8; 1];
+        loop {
+            match self.read(&mut byte) {
+                Ok(0) => break,
+                Ok(_) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "decryption reader still contains unread data",
+                    ));
+                }
+                Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+                Err(e) => return Err(e),
+            }
+        }
+
+        Ok(match self {
+            Self::No(r) => r,
+            Self::CbcAes(r) => r.into_inner(),
+            Self::CbcCamellia(r) => r.into_inner(),
+            Self::CtrAes(r) => r.into_inner(),
+            Self::CtrCamellia(r) => r.into_inner(),
+            Self::GcmAes(r) => r.into_inner(),
+            Self::GcmCamellia(r) => r.into_inner(),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -307,5 +352,27 @@ mod tests {
         if let Ok(recovered) = decrypt_camellia256_cbc(&wrong_key, &ct) {
             assert_ne!(recovered.as_slice(), KAT_PLAINTEXT.as_slice())
         }
+    }
+
+    #[test]
+    fn decrypt_reader_try_into_inner_recovers_reader_after_eof() {
+        let encrypted = encrypt_aes256_cbc(&KAT_KEY, &KAT_IV, KAT_PLAINTEXT).unwrap();
+        let ciphertext = encrypted[KAT_IV.len()..].to_vec();
+        let mut reader = DecryptReader::CbcAes(
+            DecryptCbcAes256Reader::new(io::Cursor::new(ciphertext), &KAT_KEY, &KAT_IV).unwrap(),
+        );
+        let mut plain = Vec::new();
+        reader.read_to_end(&mut plain).unwrap();
+        assert_eq!(plain, KAT_PLAINTEXT);
+
+        let inner = reader.try_into_inner().unwrap();
+        assert_eq!(inner.position(), inner.get_ref().len() as u64);
+    }
+
+    #[test]
+    fn decrypt_reader_try_into_inner_rejects_unread_plaintext() {
+        let reader = DecryptReader::No(io::Cursor::new(b"unread".to_vec()));
+        let error = reader.try_into_inner().unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
     }
 }
