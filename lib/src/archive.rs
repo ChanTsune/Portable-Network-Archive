@@ -3,6 +3,7 @@
 mod header;
 mod read;
 mod split_parts;
+mod stream;
 mod write;
 
 use crate::{
@@ -16,6 +17,7 @@ use core::num::NonZeroU32;
 pub use header::*;
 pub use split_parts::{MIN_SPLIT_PART_BYTES, SplitParts};
 use std::io::{self, Write};
+pub use stream::*;
 pub(crate) use write::*;
 
 fn write_archive_framing<W: Write>(writer: &mut W, header: &ArchiveHeader) -> io::Result<()> {
