@@ -6,7 +6,7 @@ use std::io;
 pub const PNA_SIGNATURE: &[u8; 8] = b"\x89PNA\r\n\x1A\n";
 
 /// Alias of [`PNA_SIGNATURE`].
-#[deprecated(since = "TBD", note = "renamed to `PNA_SIGNATURE`")]
+#[deprecated(since = "0.37.0", note = "renamed to `PNA_SIGNATURE`")]
 pub const PNA_HEADER: &[u8; 8] = PNA_SIGNATURE;
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
