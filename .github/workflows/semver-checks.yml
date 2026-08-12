@@ -11,7 +11,6 @@ on:
       - "Cargo.lock"
       - ".cargo/config.toml"
       - "rust-toolchain.toml"
-      - ".github/actions/**"
       - ".github/workflows/semver-checks.yml"
   pull_request:
     branches: ["*"]
@@ -23,7 +22,6 @@ on:
       - "Cargo.lock"
       - ".cargo/config.toml"
       - "rust-toolchain.toml"
-      - ".github/actions/**"
       - ".github/workflows/semver-checks.yml"
 
 jobs:
@@ -32,18 +30,17 @@ jobs:
     permissions:
       contents: read # checkout
       pull-requests: write # add/remove 'break' label
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-rust
       - name: install dependencies
         run: |
           sudo apt update
-          sudo apt install -y libacl1-dev
+          sudo apt install -y libacl1-dev cmake
       - name: Check semver
         uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2.9
         with:
