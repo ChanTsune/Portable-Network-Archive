@@ -70,65 +70,65 @@ fn chunks_write_in<W: Write>(
 #[allow(deprecated)]
 fn try_for_each_metadata_facet<E>(
     metadata: &Metadata,
-    mut f: impl FnMut(RawChunk) -> Result<(), E>,
+    mut f: impl FnMut(ChunkType, Cow<[u8]>) -> Result<(), E>,
 ) -> Result<(), E> {
     if let Some(value) = metadata.created {
         let (seconds, nanos) = value.to_seconds_nanos();
-        f(RawChunk::from_data(ChunkType::cTIM, seconds.to_be_bytes()))?;
+        f(ChunkType::cTIM, Cow::Borrowed(&seconds.to_be_bytes()))?;
         if nanos != 0 {
-            f(RawChunk::from_data(ChunkType::cTNS, nanos.to_be_bytes()))?;
+            f(ChunkType::cTNS, Cow::Borrowed(&nanos.to_be_bytes()))?;
         }
     }
     if let Some(value) = metadata.modified {
         let (seconds, nanos) = value.to_seconds_nanos();
-        f(RawChunk::from_data(ChunkType::mTIM, seconds.to_be_bytes()))?;
+        f(ChunkType::mTIM, Cow::Borrowed(&seconds.to_be_bytes()))?;
         if nanos != 0 {
-            f(RawChunk::from_data(ChunkType::mTNS, nanos.to_be_bytes()))?;
+            f(ChunkType::mTNS, Cow::Borrowed(&nanos.to_be_bytes()))?;
         }
     }
     if let Some(value) = metadata.accessed {
         let (seconds, nanos) = value.to_seconds_nanos();
-        f(RawChunk::from_data(ChunkType::aTIM, seconds.to_be_bytes()))?;
+        f(ChunkType::aTIM, Cow::Borrowed(&seconds.to_be_bytes()))?;
         if nanos != 0 {
-            f(RawChunk::from_data(ChunkType::aTNS, nanos.to_be_bytes()))?;
+            f(ChunkType::aTNS, Cow::Borrowed(&nanos.to_be_bytes()))?;
         }
     }
     if let Some(value) = &metadata.permission {
-        f(RawChunk::from_data(ChunkType::fPRM, value.to_bytes()))?;
+        f(ChunkType::fPRM, Cow::Owned(value.to_bytes()))?;
     }
     if let Some(value) = metadata.owner_uid {
-        f(RawChunk::from_data(ChunkType::fUId, value.to_bytes()))?;
+        f(ChunkType::fUId, Cow::Borrowed(&value.to_bytes()))?;
     }
     if let Some(value) = metadata.owner_gid {
-        f(RawChunk::from_data(ChunkType::fGId, value.to_bytes()))?;
+        f(ChunkType::fGId, Cow::Borrowed(&value.to_bytes()))?;
     }
     if let Some(value) = &metadata.owner_user_name {
-        f(RawChunk::from_data(ChunkType::fONm, value.to_bytes()))?;
+        f(ChunkType::fONm, Cow::Owned(value.to_bytes()))?;
     }
     if let Some(value) = &metadata.owner_group_name {
-        f(RawChunk::from_data(ChunkType::fGNm, value.to_bytes()))?;
+        f(ChunkType::fGNm, Cow::Owned(value.to_bytes()))?;
     }
     if let Some(value) = &metadata.owner_user_sid {
-        f(RawChunk::from_data(ChunkType::fOSi, value.to_bytes()))?;
+        f(ChunkType::fOSi, Cow::Owned(value.to_bytes()))?;
     }
     if let Some(value) = &metadata.owner_group_sid {
-        f(RawChunk::from_data(ChunkType::fGSi, value.to_bytes()))?;
+        f(ChunkType::fGSi, Cow::Owned(value.to_bytes()))?;
     }
     if let Some(value) = metadata.permission_mode {
-        f(RawChunk::from_data(ChunkType::fMOd, value.to_bytes()))?;
+        f(ChunkType::fMOd, Cow::Borrowed(&value.to_bytes()))?;
     }
     if let Some(value) = metadata.link_target_type {
-        f(RawChunk::from_data(ChunkType::fLTP, value.to_bytes()))?;
+        f(ChunkType::fLTP, Cow::Borrowed(&value.to_bytes()))?;
     }
     for value in &metadata.xattrs {
-        f(RawChunk::from_data(ChunkType::xATR, value.to_bytes()))?;
+        f(ChunkType::xATR, Cow::Owned(value.to_bytes()))?;
     }
     Ok(())
 }
 
 fn append_metadata_facets(chunks: &mut Vec<RawChunk>, metadata: &Metadata) {
-    try_for_each_metadata_facet(metadata, |chunk| {
-        chunks.push(chunk);
+    try_for_each_metadata_facet(metadata, |ty, data| {
+        chunks.push(RawChunk::from_data(ty, data.into_owned()));
         Ok::<(), Infallible>(())
     })
     .expect("metadata facet collection is infallible");
@@ -139,8 +139,8 @@ pub(crate) fn write_metadata_facets<W: Write>(
     metadata: &Metadata,
 ) -> io::Result<usize> {
     let mut total = 0;
-    try_for_each_metadata_facet(metadata, |chunk| {
-        total += crate::io::write_chunk(writer, chunk)?;
+    try_for_each_metadata_facet(metadata, |ty, data| {
+        total += crate::io::write_chunk(writer, (ty, data))?;
         Ok::<(), io::Error>(())
     })?;
     Ok(total)
