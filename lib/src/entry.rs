@@ -42,9 +42,40 @@ use std::{
 
 mod private {
     use super::*;
+
+    pub trait EntryChunkSink {
+        type Error;
+
+        fn write_chunk<C>(&mut self, chunk: C) -> Result<(), Self::Error>
+        where
+            C: Chunk + Into<RawChunk>;
+    }
+
     pub trait SealedEntryExt {
-        fn into_chunks(self) -> Vec<RawChunk>;
-        fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize>;
+        /// Emits every chunk of this entry in wire order.
+        fn write_chunks_to<S: EntryChunkSink>(self, sink: &mut S) -> Result<(), S::Error>;
+
+        fn into_chunks(self) -> Vec<RawChunk>
+        where
+            Self: Sized,
+        {
+            let mut sink = RawChunkCollector(Vec::new());
+            self.write_chunks_to(&mut sink)
+                .expect("raw chunk collection is infallible");
+            sink.0
+        }
+
+        fn write_in<W: Write>(self, writer: &mut W) -> io::Result<usize>
+        where
+            Self: Sized,
+        {
+            let mut sink = EntryChunkWriter {
+                writer,
+                written_len: 0,
+            };
+            self.write_chunks_to(&mut sink)?;
+            Ok(sink.written_len)
+        }
     }
 }
 
@@ -55,16 +86,37 @@ pub trait Entry: SealedEntryExt {}
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct RawEntry<T = Vec<u8>>(pub(crate) Vec<RawChunk<T>>);
 
-#[inline]
-fn chunks_write_in<W: Write>(
-    chunks: impl Iterator<Item = impl Chunk>,
-    writer: &mut W,
-) -> io::Result<usize> {
-    let mut total = 0;
-    for chunk in chunks {
-        total += crate::io::write_chunk(writer, chunk)?;
+struct RawChunkCollector(Vec<RawChunk>);
+
+impl EntryChunkSink for RawChunkCollector {
+    type Error = Infallible;
+
+    #[inline]
+    fn write_chunk<C>(&mut self, chunk: C) -> Result<(), Self::Error>
+    where
+        C: Chunk + Into<RawChunk>,
+    {
+        self.0.push(chunk.into());
+        Ok(())
     }
-    Ok(total)
+}
+
+struct EntryChunkWriter<'w, W> {
+    writer: &'w mut W,
+    written_len: usize,
+}
+
+impl<W: Write> EntryChunkSink for EntryChunkWriter<'_, W> {
+    type Error = io::Error;
+
+    #[inline]
+    fn write_chunk<C>(&mut self, chunk: C) -> Result<(), Self::Error>
+    where
+        C: Chunk + Into<RawChunk>,
+    {
+        self.written_len += crate::io::write_chunk(self.writer, chunk)?;
+        Ok(())
+    }
 }
 
 #[allow(deprecated)]
@@ -126,14 +178,6 @@ fn try_for_each_metadata_facet<E>(
     Ok(())
 }
 
-fn append_metadata_facets(chunks: &mut Vec<RawChunk>, metadata: &Metadata) {
-    try_for_each_metadata_facet(metadata, |ty, data| {
-        chunks.push(RawChunk::from_data(ty, data.into_owned()));
-        Ok::<(), Infallible>(())
-    })
-    .expect("metadata facet collection is infallible");
-}
-
 pub(crate) fn write_metadata_facets<W: Write>(
     writer: &mut W,
     metadata: &Metadata,
@@ -151,13 +195,11 @@ where
     RawChunk<T>: Chunk + Into<RawChunk>,
 {
     #[inline]
-    fn into_chunks(self) -> Vec<RawChunk> {
-        self.0.into_iter().map(Into::into).collect()
-    }
-
-    #[inline]
-    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        chunks_write_in(self.0.iter(), writer)
+    fn write_chunks_to<S: EntryChunkSink>(self, sink: &mut S) -> Result<(), S::Error> {
+        for chunk in self.0 {
+            sink.write_chunk(chunk)?;
+        }
+        Ok(())
     }
 }
 
@@ -268,18 +310,10 @@ where
     SolidEntry<T>: SealedEntryExt,
 {
     #[inline]
-    fn into_chunks(self) -> Vec<RawChunk> {
+    fn write_chunks_to<S: EntryChunkSink>(self, sink: &mut S) -> Result<(), S::Error> {
         match self {
-            Self::Normal(r) => r.into_chunks(),
-            Self::Solid(s) => s.into_chunks(),
-        }
-    }
-
-    #[inline]
-    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        match self {
-            ReadEntry::Normal(r) => r.write_in(writer),
-            ReadEntry::Solid(s) => s.write_in(writer),
+            Self::Normal(r) => r.write_chunks_to(sink),
+            Self::Solid(s) => s.write_chunks_to(sink),
         }
     }
 }
@@ -429,52 +463,24 @@ pub struct SolidEntry<T = Vec<u8>> {
     extra: Vec<RawChunk<T>>,
 }
 
-impl<T> SolidEntry<T>
-where
-    RawChunk<T>: Chunk,
-    T: AsRef<[u8]>,
-{
-    #[inline]
-    fn chunks_write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        let mut total = 0;
-        total += crate::io::write_chunk(writer, (ChunkType::SHED, self.header.to_bytes()))?;
-        for extra_chunk in &self.extra {
-            total += crate::io::write_chunk(writer, extra_chunk)?;
-        }
-        if let Some(phsf) = &self.phsf {
-            total += crate::io::write_chunk(writer, (ChunkType::PHSF, phsf.as_bytes()))?;
-        }
-        for data in &self.data {
-            total += crate::io::write_chunk(writer, (ChunkType::SDAT, data))?;
-        }
-        total += crate::io::write_chunk(writer, (ChunkType::SEND, []))?;
-        Ok(total)
-    }
-}
-
 impl<T> SealedEntryExt for SolidEntry<T>
 where
-    T: AsRef<[u8]>,
     RawChunk<T>: Chunk + Into<RawChunk>,
+    (ChunkType, T): Chunk + Into<RawChunk>,
 {
-    fn into_chunks(self) -> Vec<RawChunk> {
-        let mut chunks = vec![];
-        chunks.push(RawChunk::from_data(ChunkType::SHED, self.header.to_bytes()));
-        chunks.extend(self.extra.into_iter().map(Into::into));
-
+    #[inline]
+    fn write_chunks_to<S: EntryChunkSink>(self, sink: &mut S) -> Result<(), S::Error> {
+        sink.write_chunk((ChunkType::SHED, self.header.to_bytes()))?;
+        for extra_chunk in self.extra {
+            sink.write_chunk(extra_chunk)?;
+        }
         if let Some(phsf) = self.phsf {
-            chunks.push(RawChunk::from_data(ChunkType::PHSF, phsf.into_bytes()));
+            sink.write_chunk((ChunkType::PHSF, phsf.into_bytes()))?;
         }
         for data in self.data {
-            chunks.push(RawChunk::from((ChunkType::SDAT, data)).into());
+            sink.write_chunk((ChunkType::SDAT, data))?;
         }
-        chunks.push(RawChunk::from_data(ChunkType::SEND, Vec::new()));
-        chunks
-    }
-
-    #[inline]
-    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        self.chunks_write_in(writer)
+        sink.write_chunk((ChunkType::SEND, []))
     }
 }
 
@@ -880,72 +886,30 @@ where
     }
 }
 
-impl<T> NormalEntry<T>
-where
-    RawChunk<T>: Chunk,
-    T: AsRef<[u8]>,
-{
-    #[allow(deprecated)]
-    #[inline]
-    fn chunks_write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        let mut total = 0;
-
-        total += crate::io::write_chunk(writer, (ChunkType::FHED, self.header.to_bytes()))?;
-        for ex in &self.extra {
-            total += crate::io::write_chunk(writer, ex)?;
-        }
-        if let Some(raw_file_size) = self.metadata.raw_file_size {
-            total += crate::io::write_chunk(
-                writer,
-                (
-                    ChunkType::fSIZ,
-                    skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
-                ),
-            )?;
-        }
-        total += write_metadata_facets(writer, &self.metadata)?;
-        if let Some(p) = &self.phsf {
-            total += crate::io::write_chunk(writer, (ChunkType::PHSF, p.as_bytes()))?;
-        }
-        for data_chunk in &self.data {
-            total += crate::io::write_chunk(writer, (ChunkType::FDAT, data_chunk))?;
-        }
-        total += crate::io::write_chunk(writer, (ChunkType::FEND, []))?;
-        Ok(total)
-    }
-}
-
 impl<T> SealedEntryExt for NormalEntry<T>
 where
-    T: AsRef<[u8]>,
     RawChunk<T>: Chunk + Into<RawChunk>,
+    (ChunkType, T): Chunk + Into<RawChunk>,
 {
     #[allow(deprecated)]
-    fn into_chunks(self) -> Vec<RawChunk> {
-        let raw_file_size = self.metadata.raw_file_size;
-        let mut vec = Vec::new();
-        vec.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
-        vec.extend(self.extra.into_iter().map(Into::into));
-        if let Some(raw_file_size) = raw_file_size {
-            vec.push(RawChunk::from_data(
-                ChunkType::fSIZ,
-                skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
-            ));
+    #[inline]
+    fn write_chunks_to<S: EntryChunkSink>(self, sink: &mut S) -> Result<(), S::Error> {
+        sink.write_chunk((ChunkType::FHED, self.header.to_bytes()))?;
+        for extra_chunk in self.extra {
+            sink.write_chunk(extra_chunk)?;
         }
-        append_metadata_facets(&mut vec, &self.metadata);
-        if let Some(p) = self.phsf {
-            vec.push(RawChunk::from_data(ChunkType::PHSF, p.into_bytes()));
+        if let Some(raw_file_size) = self.metadata.raw_file_size {
+            let bytes = raw_file_size.to_be_bytes();
+            sink.write_chunk((ChunkType::fSIZ, skip_while(&bytes, |i| *i == 0)))?;
+        }
+        try_for_each_metadata_facet(&self.metadata, |ty, data| sink.write_chunk((ty, data)))?;
+        if let Some(phsf) = self.phsf {
+            sink.write_chunk((ChunkType::PHSF, phsf.into_bytes()))?;
         }
         for data_chunk in self.data {
-            vec.push(RawChunk::from((ChunkType::FDAT, data_chunk)).into());
+            sink.write_chunk((ChunkType::FDAT, data_chunk))?;
         }
-        vec.push(RawChunk::from_data(ChunkType::FEND, Vec::new()));
-        vec
-    }
-
-    #[inline]
-    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        self.chunks_write_in(writer)
+        sink.write_chunk((ChunkType::FEND, []))
     }
 }
 
