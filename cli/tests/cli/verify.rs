@@ -53,7 +53,7 @@ fn verify_with_crc_mismatch() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(corrupt_first_chunk("verify_crc/verify_crc.pna", *b"FDAT", false).unwrap());
+    assert!(corrupt_first_chunk("verify_crc/verify_crc.pna", pna::ChunkType::FDAT, false).unwrap());
 
     cargo_bin_cmd!("pna")
         .args(["experimental", "verify", "-f", "verify_crc/verify_crc.pna"])
@@ -87,7 +87,14 @@ fn verify_with_stream_corruption() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(corrupt_first_chunk("verify_stream/verify_stream.pna", *b"FDAT", true).unwrap());
+    assert!(
+        corrupt_first_chunk(
+            "verify_stream/verify_stream.pna",
+            pna::ChunkType::FDAT,
+            true,
+        )
+        .unwrap()
+    );
 
     cargo_bin_cmd!("pna")
         .args([
@@ -122,7 +129,9 @@ fn verify_with_fast_on_stream_corruption() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(corrupt_first_chunk("verify_fast/verify_fast.pna", *b"FDAT", true).unwrap());
+    assert!(
+        corrupt_first_chunk("verify_fast/verify_fast.pna", pna::ChunkType::FDAT, true,).unwrap()
+    );
 
     cargo_bin_cmd!("pna")
         .args([
@@ -158,7 +167,14 @@ fn verify_with_fast_on_crc_mismatch() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(corrupt_first_chunk("verify_fast_crc/verify_fast_crc.pna", *b"FDAT", false).unwrap());
+    assert!(
+        corrupt_first_chunk(
+            "verify_fast_crc/verify_fast_crc.pna",
+            pna::ChunkType::FDAT,
+            false,
+        )
+        .unwrap()
+    );
 
     cargo_bin_cmd!("pna")
         .args([
@@ -463,7 +479,7 @@ fn verify_with_solid_stream_corruption() {
     assert!(
         corrupt_first_chunk(
             "verify_solid_stream/verify_solid_stream.pna",
-            *b"SDAT",
+            pna::ChunkType::SDAT,
             true
         )
         .unwrap()
@@ -505,7 +521,12 @@ fn verify_with_fast_on_solid_stream_corruption() {
     .execute()
     .unwrap();
     assert!(
-        corrupt_first_chunk("verify_fast_solid/verify_fast_solid.pna", *b"SDAT", true).unwrap()
+        corrupt_first_chunk(
+            "verify_fast_solid/verify_fast_solid.pna",
+            pna::ChunkType::SDAT,
+            true,
+        )
+        .unwrap()
     );
 
     cargo_bin_cmd!("pna")
@@ -546,7 +567,7 @@ fn verify_with_fast_on_solid_crc_mismatch() {
     assert!(
         corrupt_first_chunk(
             "verify_fast_solid_crc/verify_fast_solid_crc.pna",
-            *b"SDAT",
+            pna::ChunkType::SDAT,
             false
         )
         .unwrap()
@@ -754,7 +775,9 @@ fn verify_with_size_hint_mismatch() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(corrupt_first_chunk("verify_fsiz/verify_fsiz.pna", *b"fSIZ", true).unwrap());
+    assert!(
+        corrupt_first_chunk("verify_fsiz/verify_fsiz.pna", pna::ChunkType::fSIZ, true,).unwrap()
+    );
 
     cargo_bin_cmd!("pna")
         .args([

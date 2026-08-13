@@ -3,6 +3,7 @@ use pna::prelude::*;
 use std::{
     fs::File,
     io::{self, Read, Write},
+    mem,
     path::Path,
 };
 
@@ -354,31 +355,35 @@ pub fn get_archive_entry_names(path: impl AsRef<Path>) -> Vec<String> {
 /// Returns whether a matching non-empty chunk was found and corrupted.
 pub fn corrupt_first_chunk(
     path: impl AsRef<Path>,
-    target: [u8; 4],
+    target: pna::ChunkType,
     recompute_crc: bool,
 ) -> io::Result<bool> {
     let mut bytes = std::fs::read(&path)?;
-    let mut pos = 8; // skip PNA signature
-    while pos + 12 <= bytes.len() {
-        let len = u32::from_be_bytes(bytes[pos..pos + 4].try_into().unwrap()) as usize;
-        let ty: [u8; 4] = bytes[pos + 4..pos + 8].try_into().unwrap();
-        if ty == target && len > 0 {
-            let data_start = pos + 8;
-            bytes[data_start] ^= 0xFF;
-            if recompute_crc {
-                // SAFETY: `ty` was read from a valid archive, so it is a valid chunk type.
-                let chunk_type = unsafe { pna::ChunkType::from_unchecked(ty) };
-                let chunk = pna::RawChunk::from_data(
-                    chunk_type,
-                    bytes[data_start..data_start + len].to_vec(),
-                );
-                let crc_pos = data_start + len;
-                bytes[crc_pos..crc_pos + 4].copy_from_slice(&chunk.crc().to_be_bytes());
+    let target_data = {
+        let mut chunk_start = pna::PNA_SIGNATURE.len();
+        let mut target_data = None;
+        for chunk in pna::read_chunks_from_slice(&bytes)? {
+            let chunk = chunk?;
+            let data_len = chunk.data().len();
+            if chunk.ty() == target && data_len > 0 {
+                let data_start = chunk_start + mem::size_of::<u32>() + target.len();
+                target_data = Some((data_start, data_len));
+                break;
             }
-            std::fs::write(&path, bytes)?;
-            return Ok(true);
+            chunk_start += pna::MIN_CHUNK_BYTES_SIZE + data_len;
         }
-        pos += 12 + len; // always advances at least 12 bytes per iteration
+        target_data
+    };
+
+    let Some((data_start, data_len)) = target_data else {
+        return Ok(false);
+    };
+    bytes[data_start] ^= 0xFF;
+    if recompute_crc {
+        let crc = (target, &bytes[data_start..data_start + data_len]).crc();
+        let crc_pos = data_start + data_len;
+        bytes[crc_pos..crc_pos + mem::size_of::<u32>()].copy_from_slice(&crc.to_be_bytes());
     }
-    Ok(false)
+    std::fs::write(&path, bytes)?;
+    Ok(true)
 }
