@@ -103,6 +103,27 @@ where
     }
 }
 
+impl<'a> From<(ChunkType, Cow<'a, [u8]>)> for RawChunk<Vec<u8>> {
+    #[inline]
+    fn from(value: (ChunkType, Cow<'a, [u8]>)) -> Self {
+        RawChunk::<Cow<'a, [u8]>>::from(value).into()
+    }
+}
+
+impl<'a> From<(ChunkType, &'a [u8])> for RawChunk<Vec<u8>> {
+    #[inline]
+    fn from(value: (ChunkType, &'a [u8])) -> Self {
+        RawChunk::<&'a [u8]>::from(value).into()
+    }
+}
+
+impl<const N: usize> From<(ChunkType, [u8; N])> for RawChunk<Vec<u8>> {
+    #[inline]
+    fn from(value: (ChunkType, [u8; N])) -> Self {
+        RawChunk::<[u8; N]>::from(value).into()
+    }
+}
+
 impl<'d> RawChunk<&'d [u8]> {
     pub(crate) fn from_slice(ty: ChunkType, data: &'d [u8]) -> Self {
         let chunk = (ty, data);
