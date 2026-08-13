@@ -43,8 +43,9 @@ impl<'d> Archive<&'d [u8]> {
         let mut chunks = Vec::new();
         std::mem::swap(&mut self.buf, &mut chunks);
         let mut chunks = chunks.into_iter().map(Into::into).collect::<Vec<_>>();
+        let max_chunk_size = self.max_chunk_size.map_or(u32::MAX, |max| max.get());
         loop {
-            let (chunk, r) = crate::bytes::read_chunk(self.inner, u32::MAX)?;
+            let (chunk, r) = crate::bytes::read_chunk(self.inner, max_chunk_size)?;
             self.inner = r;
             match chunk.ty {
                 ChunkType::FEND | ChunkType::SEND => {
@@ -139,7 +140,8 @@ impl<'d> Archive<&'d [u8]> {
     #[inline]
     pub fn read_next_archive_from_slice(self, bytes: &[u8]) -> io::Result<Archive<&[u8]>> {
         let current_header = self.header;
-        let next = Archive::read_header_from_slice_with_buffer(bytes, self.buf)?;
+        let mut next = Archive::read_header_from_slice_with_buffer(bytes, self.buf)?;
+        next.max_chunk_size = self.max_chunk_size;
         let next_number = current_header
             .archive_number
             .checked_add(1)
@@ -234,6 +236,8 @@ impl<'r> Iterator for Entries<'_, 'r> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{FileEntryBuilder, WriteOptions};
+    use std::{io::Write, num::NonZeroU32};
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
@@ -275,5 +279,49 @@ mod tests {
         } else {
             panic!()
         }
+    }
+
+    fn archive_with_eight_byte_data() -> Vec<u8> {
+        let mut builder =
+            FileEntryBuilder::new_with_options("a".into(), WriteOptions::store()).unwrap();
+        builder.write_all(b"12345678").unwrap();
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        archive.add_entry(builder.build().unwrap()).unwrap();
+        archive.finalize().unwrap()
+    }
+
+    #[test]
+    fn entries_slice_enforces_max_chunk_size() {
+        let bytes = archive_with_eight_byte_data();
+        let mut archive = Archive::read_header_from_slice(&bytes).unwrap();
+        archive.set_max_chunk_size(NonZeroU32::new(7).unwrap());
+
+        assert_eq!(
+            archive.entries_slice().next().unwrap().unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+    }
+
+    #[test]
+    fn next_archive_from_slice_preserves_max_chunk_size() {
+        let mut first_bytes = Vec::new();
+        let first = Archive::write_header(&mut first_bytes).unwrap();
+        let mut second = first.split_to_next_archive(Vec::new()).unwrap();
+
+        let mut builder =
+            FileEntryBuilder::new_with_options("a".into(), WriteOptions::store()).unwrap();
+        builder.write_all(b"12345678").unwrap();
+        second.add_entry(builder.build().unwrap()).unwrap();
+        let second_bytes = second.finalize().unwrap();
+
+        let mut first = Archive::read_header_from_slice(&first_bytes).unwrap();
+        first.set_max_chunk_size(NonZeroU32::new(7).unwrap());
+        assert!(first.entries_slice().next().is_none());
+
+        let mut second = first.read_next_archive_from_slice(&second_bytes).unwrap();
+        assert_eq!(
+            second.entries_slice().next().unwrap().unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
     }
 }
