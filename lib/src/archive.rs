@@ -8,7 +8,7 @@ mod write;
 
 use crate::{
     PNA_SIGNATURE,
-    chunk::{ChunkStreamWriter, ChunkType, RawChunk},
+    chunk::{Chunk, ChunkStreamWriter, ChunkType, MIN_CHUNK_BYTES_SIZE, RawChunk},
     cipher::CipherWriter,
     compress::CompressionWriter,
     io::WriteChunk,
@@ -24,6 +24,29 @@ fn write_archive_framing<W: Write>(writer: &mut W, header: &ArchiveHeader) -> io
     writer.write_all(PNA_SIGNATURE)?;
     crate::io::write_chunk(writer, (ChunkType::AHED, header.to_bytes()))?;
     Ok(())
+}
+
+fn require_empty_chunk(chunk: &(impl Chunk + ?Sized)) -> io::Result<()> {
+    if chunk.data().is_empty() {
+        Ok(())
+    } else {
+        empty_chunk_error(chunk.ty())
+    }
+}
+
+fn require_empty_chunk_size(ty: ChunkType, bytes: u64) -> io::Result<()> {
+    if bytes == MIN_CHUNK_BYTES_SIZE as u64 {
+        Ok(())
+    } else {
+        empty_chunk_error(ty)
+    }
+}
+
+fn empty_chunk_error(ty: ChunkType) -> io::Result<()> {
+    Err(io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!("`{ty}` chunk must be empty"),
+    ))
 }
 
 /// Provides read and write access to a PNA file.

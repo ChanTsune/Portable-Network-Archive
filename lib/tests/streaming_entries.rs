@@ -198,6 +198,42 @@ fn dropping_an_entry_session_poison_the_cursor() {
 }
 
 #[test]
+fn rejects_nonempty_entry_and_archive_terminators() {
+    let bytes = rewrite_archive(&normal_archive(b"body", Compression::NO), |ty, data| {
+        if ty == ChunkType::FEND {
+            vec![(ty, vec![1])]
+        } else {
+            vec![(ty, data.to_vec())]
+        }
+    });
+    let archive = Archive::read_header(bytes.as_slice()).unwrap();
+    let mut entries = archive.into_streaming_entries(ReadOptions::builder().build());
+    let StreamingReadEntry::Normal(entry) = entries.next_entry().unwrap().unwrap() else {
+        panic!("expected normal entry");
+    };
+    assert_eq!(entry.skip().unwrap_err().kind(), io::ErrorKind::InvalidData);
+
+    let bytes = rewrite_archive(&normal_archive(b"body", Compression::NO), |ty, data| {
+        if ty == ChunkType::AEND {
+            vec![(ty, vec![1])]
+        } else {
+            vec![(ty, data.to_vec())]
+        }
+    });
+    let archive = Archive::read_header(bytes.as_slice()).unwrap();
+    let mut entries = archive.into_streaming_entries(ReadOptions::builder().build());
+    let StreamingReadEntry::Normal(entry) = entries.next_entry().unwrap().unwrap() else {
+        panic!("expected normal entry");
+    };
+    entry.skip().unwrap();
+    let error = match entries.next_entry() {
+        Err(error) => error,
+        Ok(_) => panic!("non-empty AEND unexpectedly succeeded"),
+    };
+    assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+}
+
+#[test]
 fn rejects_invalid_normal_chunk_ordering() {
     let original = normal_archive(b"payload", Compression::NO);
     let ancillary = ChunkType::private(*b"raWw").unwrap();

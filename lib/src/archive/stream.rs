@@ -1,6 +1,6 @@
 //! Sequential archive entry reading.
 
-use super::{Archive, ArchiveHeader};
+use super::{Archive, ArchiveHeader, require_empty_chunk};
 use crate::{
     Chunk, ChunkType, EntryHeader, Metadata, NormalEntry, RawChunk, ReadOptions, SolidEntry,
     SolidHeader,
@@ -203,6 +203,10 @@ impl<R: Read, P: PartProvider<R>> StreamingEntries<R, P> {
         };
         match chunk.ty() {
             ChunkType::AEND => {
+                if let Err(error) = require_empty_chunk(&chunk) {
+                    self.state = CursorState::Failed;
+                    return Err(error);
+                }
                 self.state = CursorState::Finished;
                 Ok(None)
             }
@@ -265,6 +269,7 @@ impl<R: Read, P: PartProvider<R>> StreamingSource<R, P> {
             if chunk.ty() != ChunkType::ANXT {
                 return Ok(chunk);
             }
+            require_empty_chunk(&chunk)?;
             let end = self.read_physical_chunk()?;
             if end.ty() != ChunkType::AEND {
                 return Err(io::Error::new(
@@ -277,6 +282,7 @@ impl<R: Read, P: PartProvider<R>> StreamingSource<R, P> {
                     ),
                 ));
             }
+            require_empty_chunk(&end)?;
             self.open_next_part()?;
         }
     }
@@ -1056,6 +1062,7 @@ impl<'a, C: ChunkCursor> EncodedEntryReader<'a, C> {
                 self.current = io::Cursor::new(chunk.data);
             }
             ChunkType::FEND => {
+                require_empty_chunk(&chunk)?;
                 self.chunks.push(chunk);
                 self.done = true;
             }
@@ -1175,6 +1182,7 @@ impl<'a, R: Read, P: PartProvider<R>> EncodedSolidReader<'a, R, P> {
                 self.current = io::Cursor::new(chunk.data);
             }
             ChunkType::SEND => {
+                require_empty_chunk(&chunk)?;
                 self.chunks.push(chunk);
                 self.done = true;
             }
@@ -1319,7 +1327,10 @@ fn skip_solid_chunks<R: Read, P: PartProvider<R>>(
         let chunk = source.read_logical_chunk()?;
         match chunk.ty() {
             ChunkType::SDAT => sequence.observe_data(ChunkType::SDAT)?,
-            ChunkType::SEND => return Ok(()),
+            ChunkType::SEND => {
+                require_empty_chunk(&chunk)?;
+                return Ok(());
+            }
             ChunkType::PHSF => sequence.observe_phsf()?,
             ty if ty.is_critical() => {
                 return Err(io::Error::new(
