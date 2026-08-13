@@ -96,7 +96,7 @@ fn list_archive_chunks(args: ListCommand) -> anyhow::Result<()> {
                 })),
             );
         }
-        offset += chunk.length() as usize + std::mem::size_of::<u32>() * 3;
+        offset += chunk.length() as usize + pna::MIN_CHUNK_BYTES_SIZE;
     }
     let mut table = builder.build();
     table.with(TableStyle::empty());
