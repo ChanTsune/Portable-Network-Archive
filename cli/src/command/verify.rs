@@ -60,15 +60,14 @@ fn verify_archive(args: VerifyCommand) -> anyhow::Result<()> {
     let result = run_read_entries(
         archives,
         |entry| {
+            // A chunk that fails its CRC32 arrives as `Err(InvalidData)`, so an `Ok`
+            // entry has passed every chunk's CRC32.
             match entry {
                 Err(err) if err.kind() == io::ErrorKind::InvalidData => {
-                    // A broken chunk aborts the current entry's assembly, and
-                    // the remainder of that entry surfaces as one or more
-                    // InvalidData errors before the iterator resyncs on the
-                    // next entry header. Count the corrupted entry once;
-                    // adjacent corrupted entries with no healthy entry in
-                    // between collapse into a single failure (accepted
-                    // approximation).
+                    // One broken entry surfaces as several of these before the
+                    // iterator resyncs on the next entry header, so only the
+                    // first is counted; adjacent corrupted entries collapse
+                    // into a single failure (accepted approximation).
                     if !resyncing {
                         println!("<corrupted entry>: FAILED ({err})");
                         report.failed += 1;
@@ -80,10 +79,6 @@ fn verify_archive(args: VerifyCommand) -> anyhow::Result<()> {
                 Ok(read_entry) => {
                     resyncing = false;
                     if fast {
-                        // Assembling the entry already validated every chunk's
-                        // CRC32, which is all `--fast` checks: no entry data is
-                        // decoded, so the entries inside a solid block are not
-                        // verified either.
                         report.ok += 1;
                         return Ok(());
                     }
