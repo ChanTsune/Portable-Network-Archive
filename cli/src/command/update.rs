@@ -12,7 +12,8 @@ use crate::{
             PermissionStrategyResolver, SplitArchiveReader, StagedArchive, TimeFilterResolver,
             TimestampStrategyResolver, TransformContext, TransformStrategy,
             TransformStrategyKeepSolid, TransformStrategyUnSolid, XattrStrategy,
-            collect_items_from_paths, collect_split_archives, create_entry, entry_option,
+            cmp_at_stored_precision, collect_items_from_paths, collect_split_archives,
+            create_entry, entry_option,
             iter::ReorderByIndex,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin,
@@ -22,8 +23,10 @@ use crate::{
 };
 use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
 use indexmap::IndexMap;
-use pna::{Archive, EntryName, Metadata, prelude::*};
+use pna::prelude::SystemTimeDurationExt;
+use pna::{Archive, EntryName, Metadata};
 use std::{
+    cmp::Ordering,
     fs, io,
     path::{Path, PathBuf},
 };
@@ -690,7 +693,8 @@ fn exists_on_disk(path: &Path) -> bool {
 
 // The missing-time policy applies to whichever side lacks an mtime: the
 // filesystem side (unreadable metadata) as well as the archive side (no mTIM
-// chunk). With `Assume(t)` and both sides missing, `t < t` never updates.
+// chunk). With `Assume(t)` and both sides missing, the two compare equal and
+// never update.
 #[inline]
 fn is_newer_than_archive(
     missing_time: MissingTimePolicy,
@@ -703,27 +707,47 @@ fn is_newer_than_archive(
         (Err(_), MissingTimePolicy::Exclude) => return false,
         (Err(_), MissingTimePolicy::Assume(t)) => t,
     };
-    let archive_mtime = match (metadata.saturating_modified_time(), missing_time) {
-        (Some(t), _) => t,
+    let archive_mtime = match (metadata.modified(), missing_time) {
+        (Some(d), _) => Some(d),
         (None, MissingTimePolicy::Include) => return true,
         (None, MissingTimePolicy::Exclude) => return false,
-        (None, MissingTimePolicy::Assume(t)) => t,
+        (None, MissingTimePolicy::Assume(t)) => t.try_duration_since_unix_epoch_signed().ok(),
     };
-    archive_mtime < fs_mtime
+    // A time outside the representable range cannot be compared, so the entry is
+    // refreshed rather than silently kept.
+    match (
+        archive_mtime,
+        fs_mtime.try_duration_since_unix_epoch_signed().ok(),
+    ) {
+        (Some(archived), Some(fs)) => cmp_at_stored_precision(archived, fs) == Ordering::Less,
+        _ => true,
+    }
 }
 
 #[cfg(test)]
 #[cfg(not(target_family = "wasm"))]
 mod tests {
     use super::*;
+    use pna::Duration;
+    use std::time::{Duration as StdDuration, SystemTime};
 
     fn test_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir()
-            .join("pna_update_exists_on_disk")
-            .join(name);
+        let dir = std::env::temp_dir().join("pna_update").join(name);
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    /// Returns [`None`] when the filesystem cannot hold the requested precision.
+    fn file_with_mtime(name: &str, mtime: SystemTime) -> Option<PathBuf> {
+        let file = test_dir(name).join("file.txt");
+        fs::write(&file, "content").unwrap();
+        filetime::set_file_mtime(&file, filetime::FileTime::from_system_time(mtime)).unwrap();
+        (fs::metadata(&file).unwrap().modified().unwrap() == mtime).then_some(file)
+    }
+
+    fn archived(mtime: Duration) -> Metadata {
+        Metadata::new().with_modified(Some(mtime))
     }
 
     #[test]
@@ -752,6 +776,37 @@ mod tests {
         let file = dir.join("file.txt");
         fs::write(&file, "content").unwrap();
         assert!(!exists_on_disk(&file.join("child")));
+    }
+
+    #[test]
+    fn is_newer_than_archive_ignores_subsecond_when_archive_has_whole_second_mtime() {
+        let whole_second = SystemTime::UNIX_EPOCH + StdDuration::from_secs(86400);
+        let Some(file) = file_with_mtime(
+            "mtime_whole_second_entry",
+            whole_second + StdDuration::from_nanos(123_456_700),
+        ) else {
+            return;
+        };
+
+        assert!(!is_newer_than_archive(
+            MissingTimePolicy::Include,
+            &fs::metadata(&file).unwrap(),
+            &archived(Duration::seconds(86400)),
+        ));
+    }
+
+    #[test]
+    fn is_newer_than_archive_updates_when_filesystem_reaches_next_second() {
+        let next_second = SystemTime::UNIX_EPOCH + StdDuration::from_secs(86401);
+        let Some(file) = file_with_mtime("mtime_next_second", next_second) else {
+            return;
+        };
+
+        assert!(is_newer_than_archive(
+            MissingTimePolicy::Include,
+            &fs::metadata(&file).unwrap(),
+            &archived(Duration::seconds(86400)),
+        ));
     }
 
     #[cfg(unix)]

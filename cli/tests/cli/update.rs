@@ -3,6 +3,8 @@ mod duplicate_targets;
 mod encryption;
 mod entry_order;
 mod error;
+#[cfg(not(target_family = "wasm"))]
+mod mtime_stored_precision;
 mod multipart;
 mod no_timestamp_archive;
 mod option_atime;
