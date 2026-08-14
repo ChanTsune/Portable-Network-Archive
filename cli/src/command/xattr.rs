@@ -405,11 +405,6 @@ fn transform_xattr(
     xattrs
         .into_iter()
         .map(|(key, value)| -> io::Result<pna::ExtendedAttribute> {
-            // CLI-supplied --name was validated by clap value_parser; existing
-            // entry xattrs are already bounded by their newtype invariants. The
-            // CLI-supplied --value's argv-bounded size cannot reach u32::MAX,
-            // so this conversion is provably safe here, but propagating any
-            // future bound violation as InvalidData costs nothing.
             let name = pna::XattrName::try_from(key)
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
             let value = pna::XattrValue::try_from(value)

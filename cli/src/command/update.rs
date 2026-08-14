@@ -676,14 +676,8 @@ where
     Ok(())
 }
 
-// `--sync` realigns the archive to the disk state: an entry is pruned only
-// when its name (resolved against the current directory, the same base as
-// collection) no longer exists on disk. Entries merely filtered out of the
-// collected set (e.g. by --exclude or time filters) are kept. Ambiguous
-// errors such as PermissionDenied count as existing so pruning never risks
-// data loss. `--sync` is rejected together with -s/--transform/
-// --strip-components (see `sync`'s `conflicts_with_all` above), since those
-// options make the stored name diverge from a filesystem path.
+// Ambiguous errors such as PermissionDenied count as existing, so pruning
+// never risks data loss.
 fn exists_on_disk(path: &Path) -> bool {
     match fs::symlink_metadata(path) {
         Ok(_) => true,
