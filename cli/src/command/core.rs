@@ -19,7 +19,7 @@ pub(crate) use self::path::PathnameEditor;
 pub(crate) use self::permission::{ModeStrategy, OwnerOptions, OwnerStrategy, Umask};
 pub(crate) use self::safe_writer::SafeWriter;
 pub(crate) use self::staged_archive::StagedArchive;
-pub(crate) use self::timestamp::{TimeSource, TimestampStrategy};
+pub(crate) use self::timestamp::{TimeSource, TimestampStrategy, cmp_at_stored_precision};
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs, MissingTimePolicy},
     utils::{self, PathPartExt, fs::HardlinkResolver},

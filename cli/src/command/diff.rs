@@ -7,11 +7,15 @@ use crate::{
     utils::{BsdGlobMatcher, io::streams_equal},
 };
 
+#[cfg(unix)]
+use crate::command::core::cmp_at_stored_precision;
 use clap::{Parser, ValueEnum};
 #[cfg(unix)]
 use pna::prelude::SystemTimeDurationExt;
 use pna::{DataKind, EntryContent, NormalEntry, ReadOptions};
 use same_file::is_same_file;
+#[cfg(unix)]
+use std::cmp::Ordering;
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 #[cfg(unix)]
@@ -222,30 +226,10 @@ struct CompareOptions {
     format: Format,
 }
 
-/// Compare an archived timestamp against a filesystem timestamp at the archive's stored precision:
-/// whole-second storage compares by whole seconds, sub-second storage requires exact equality.
 #[cfg(unix)]
 fn matches_at_stored_precision(archived: pna::Duration, fs: SystemTime) -> bool {
-    let Ok(fs) = fs.try_duration_since_unix_epoch_signed() else {
-        return false;
-    };
-    if archived.subsec_nanoseconds() == 0 {
-        floor_seconds(fs) == floor_seconds(archived)
-    } else {
-        fs == archived
-    }
-}
-
-/// A whole second denotes the interval starting at it on both sides of the epoch;
-/// [`pna::Duration::whole_seconds`] alone truncates towards zero.
-#[cfg(unix)]
-fn floor_seconds(duration: pna::Duration) -> i64 {
-    let seconds = duration.whole_seconds();
-    if duration.subsec_nanoseconds() < 0 {
-        seconds - 1
-    } else {
-        seconds
-    }
+    fs.try_duration_since_unix_epoch_signed()
+        .is_ok_and(|fs| cmp_at_stored_precision(archived, fs) == Ordering::Equal)
 }
 
 /// Compare file metadata and return list of differences.
@@ -434,63 +418,4 @@ fn compare_entry<T: AsRef<[u8]>>(
         }
     }
     Ok(diff_count)
-}
-
-#[cfg(all(test, unix))]
-mod tests {
-    use super::*;
-    use std::time::Duration as StdDuration;
-
-    fn after_epoch(millis: u64) -> SystemTime {
-        SystemTime::UNIX_EPOCH + StdDuration::from_millis(millis)
-    }
-
-    fn before_epoch(millis: u64) -> SystemTime {
-        SystemTime::UNIX_EPOCH - StdDuration::from_millis(millis)
-    }
-
-    #[test]
-    fn whole_second_archive_matches_subsecond_filesystem_time_within_the_same_second() {
-        assert!(matches_at_stored_precision(
-            pna::Duration::seconds(1),
-            after_epoch(1_500),
-        ));
-    }
-
-    #[test]
-    fn whole_second_archive_matches_subsecond_filesystem_time_within_the_same_second_before_epoch()
-    {
-        assert!(matches_at_stored_precision(
-            pna::Duration::seconds(-2),
-            before_epoch(1_500),
-        ));
-    }
-
-    #[test]
-    fn whole_second_archive_differs_from_filesystem_time_in_the_next_second_before_epoch() {
-        assert!(!matches_at_stored_precision(
-            pna::Duration::seconds(-1),
-            before_epoch(1_500),
-        ));
-    }
-
-    #[test]
-    fn whole_second_archive_matches_the_second_boundary_before_epoch() {
-        assert!(matches_at_stored_precision(
-            pna::Duration::seconds(-2),
-            before_epoch(2_000),
-        ));
-    }
-
-    #[test]
-    fn subsecond_archive_requires_exact_filesystem_time_before_epoch() {
-        assert!(matches_at_stored_precision(
-            pna::Duration::milliseconds(-1_500),
-            before_epoch(1_500),
-        ));
-        assert!(!matches_at_stored_precision(
-            pna::Duration::milliseconds(-1_500),
-            before_epoch(1_400),
-        ));
-    }
 }
