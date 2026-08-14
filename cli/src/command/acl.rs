@@ -7,7 +7,7 @@ use crate::{
         Command, ask_password,
         core::{
             SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid, collect_split_archives,
+            TransformStrategyUnSolid, Umask, collect_split_archives,
         },
     },
     ext::{Acls, NormalEntryExt},
@@ -115,8 +115,8 @@ pub(crate) struct SetAclCommand {
 
 impl Command for SetAclCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
-        archive_set_acl(self)
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
+        archive_set_acl(self, ctx.umask())
     }
 }
 
@@ -327,7 +327,7 @@ fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
 }
 
 #[hooq::hooq(anyhow)]
-fn archive_set_acl(args: SetAclCommand) -> anyhow::Result<()> {
+fn archive_set_acl(args: SetAclCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let files = args.file.files;
     let mut set_strategy = if let Some("-") = args.restore.as_deref() {
@@ -350,7 +350,7 @@ fn archive_set_acl(args: SetAclCommand) -> anyhow::Result<()> {
     let mut source = SplitArchiveReader::new(collect_split_archives(&args.file.archive)?)?;
 
     let output_path = args.file.archive.remove_part();
-    let mut staged = StagedArchive::new(output_path)?;
+    let mut staged = StagedArchive::new(output_path, umask)?;
 
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => source.transform_entries(

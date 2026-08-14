@@ -6,7 +6,7 @@ use crate::{
         Command, ask_password,
         core::{
             PathFilter, SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid, collect_split_archives, read_paths, read_paths_stdin,
+            TransformStrategyUnSolid, Umask, collect_split_archives, read_paths, read_paths_stdin,
         },
     },
     utils::{GlobPatterns, PathPartExt, VCS_FILES},
@@ -92,13 +92,13 @@ pub(crate) struct DeleteCommand {
 
 impl Command for DeleteCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
-        delete_file_from_archive(self)
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
+        delete_file_from_archive(self, ctx.umask())
     }
 }
 
 #[hooq::hooq(anyhow)]
-fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
+fn delete_file_from_archive(args: DeleteCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let mut files = args.file.files;
     if args.files_from_stdin {
@@ -127,7 +127,7 @@ fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
     let output_path = args
         .output
         .unwrap_or_else(|| args.file.archive.remove_part());
-    let mut staged = StagedArchive::new(output_path)?;
+    let mut staged = StagedArchive::new(output_path, umask)?;
 
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => source.transform_entries(

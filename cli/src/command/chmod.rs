@@ -4,7 +4,7 @@ use crate::{
         Command, ask_password,
         core::{
             SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid, collect_split_archives,
+            TransformStrategyUnSolid, Umask, collect_split_archives,
         },
     },
     utils::{GlobPatterns, PathPartExt},
@@ -37,13 +37,13 @@ pub(crate) struct ChmodCommand {
 
 impl Command for ChmodCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
-        archive_chmod(self)
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
+        archive_chmod(self, ctx.umask())
     }
 }
 
 #[hooq::hooq(anyhow)]
-fn archive_chmod(args: ChmodCommand) -> anyhow::Result<()> {
+fn archive_chmod(args: ChmodCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     if args.files.is_empty() {
         return Ok(());
@@ -53,7 +53,7 @@ fn archive_chmod(args: ChmodCommand) -> anyhow::Result<()> {
     let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive)?)?;
 
     let output_path = args.archive.remove_part();
-    let mut staged = StagedArchive::new(output_path)?;
+    let mut staged = StagedArchive::new(output_path, umask)?;
 
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => source.transform_entries(

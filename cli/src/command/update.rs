@@ -11,7 +11,7 @@ use crate::{
             KeepOptions, MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
             PermissionStrategyResolver, SplitArchiveReader, StagedArchive, TimeFilterResolver,
             TimestampStrategyResolver, TransformContext, TransformStrategy,
-            TransformStrategyKeepSolid, TransformStrategyUnSolid, XattrStrategy,
+            TransformStrategyKeepSolid, TransformStrategyUnSolid, Umask, XattrStrategy,
             cmp_at_stored_precision, collect_items_from_paths, collect_split_archives,
             create_entry, entry_option,
             iter::ReorderByIndex,
@@ -408,13 +408,13 @@ pub(crate) struct UpdateCommand {
 
 impl Command for UpdateCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
-        update_archive(self)
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
+        update_archive(self, ctx.umask())
     }
 }
 
 #[hooq::hooq(anyhow)]
-fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
+fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
     let transform_strategy = args.transform_strategy.strategy();
     let sync = args.sync;
     let password = ask_password(args.password)?;
@@ -517,7 +517,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
     let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
 
     let output_path = args.output.unwrap_or_else(|| archive_path.remove_part());
-    let mut staged = StagedArchive::new(output_path)?;
+    let mut staged = StagedArchive::new(output_path, umask)?;
     let mut out_archive = Archive::write_header(staged.as_file_mut())?;
 
     let mut source = SplitArchiveReader::new(archives)?;
