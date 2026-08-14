@@ -66,45 +66,46 @@ fn chunks_write_in<W: Write>(
     Ok(total)
 }
 
+/// Splits a timestamp into the on-wire form the `<x>TIM` + `<x>TNS` / 1e9
+/// interpretation requires: floored seconds and a non-negative nanosecond
+/// remainder. [`Duration`] instead normalizes both components to the same sign,
+/// which the unsigned nanosecond chunks cannot carry.
+///
+/// Seconds saturate, since flooring [`Duration::MIN`] leaves the chunk's range.
+fn split_timestamp(value: Duration) -> (i64, u32) {
+    let seconds = value.whole_seconds();
+    let nanos = value.subsec_nanoseconds();
+    if nanos < 0 {
+        (seconds.saturating_sub(1), (nanos + 1_000_000_000) as u32)
+    } else {
+        (seconds, nanos as u32)
+    }
+}
+
 #[allow(deprecated)]
 fn try_for_each_metadata_facet<E>(
     metadata: &Metadata,
     mut f: impl FnMut(RawChunk) -> Result<(), E>,
 ) -> Result<(), E> {
     if let Some(value) = metadata.created {
-        f(RawChunk::from_data(
-            ChunkType::cTIM,
-            value.whole_seconds().to_be_bytes(),
-        ))?;
-        if value.subsec_nanoseconds() != 0 {
-            f(RawChunk::from_data(
-                ChunkType::cTNS,
-                value.subsec_nanoseconds().to_be_bytes(),
-            ))?;
+        let (seconds, nanos) = split_timestamp(value);
+        f(RawChunk::from_data(ChunkType::cTIM, seconds.to_be_bytes()))?;
+        if nanos != 0 {
+            f(RawChunk::from_data(ChunkType::cTNS, nanos.to_be_bytes()))?;
         }
     }
     if let Some(value) = metadata.modified {
-        f(RawChunk::from_data(
-            ChunkType::mTIM,
-            value.whole_seconds().to_be_bytes(),
-        ))?;
-        if value.subsec_nanoseconds() != 0 {
-            f(RawChunk::from_data(
-                ChunkType::mTNS,
-                value.subsec_nanoseconds().to_be_bytes(),
-            ))?;
+        let (seconds, nanos) = split_timestamp(value);
+        f(RawChunk::from_data(ChunkType::mTIM, seconds.to_be_bytes()))?;
+        if nanos != 0 {
+            f(RawChunk::from_data(ChunkType::mTNS, nanos.to_be_bytes()))?;
         }
     }
     if let Some(value) = metadata.accessed {
-        f(RawChunk::from_data(
-            ChunkType::aTIM,
-            value.whole_seconds().to_be_bytes(),
-        ))?;
-        if value.subsec_nanoseconds() != 0 {
-            f(RawChunk::from_data(
-                ChunkType::aTNS,
-                value.subsec_nanoseconds().to_be_bytes(),
-            ))?;
+        let (seconds, nanos) = split_timestamp(value);
+        f(RawChunk::from_data(ChunkType::aTIM, seconds.to_be_bytes()))?;
+        if nanos != 0 {
+            f(RawChunk::from_data(ChunkType::aTNS, nanos.to_be_bytes()))?;
         }
     }
     if let Some(value) = &metadata.permission {
@@ -1866,6 +1867,58 @@ mod tests {
         for ty in [ChunkType::cTIM, ChunkType::fMOd, ChunkType::xATR] {
             let pos = chunks.iter().position(|c| c.ty == ty).unwrap();
             assert!(pos < fdat_pos, "{ty:?} must appear before FDAT");
+        }
+    }
+
+    mod timestamp_round_trip {
+        use super::*;
+        #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+        use wasm_bindgen_test::wasm_bindgen_test as test;
+
+        fn round_trip(time: Duration) -> io::Result<Metadata> {
+            let mut builder = FileEntryBuilder::new("f".into())?;
+            builder.metadata(
+                Metadata::new()
+                    .with_created(Some(time))
+                    .with_modified(Some(time))
+                    .with_accessed(Some(time)),
+            );
+            builder.write_all(b"data")?;
+            let chunks = builder.build()?.into_chunks();
+            Ok(NormalEntry::try_from(RawEntry(chunks))?.metadata().clone())
+        }
+
+        fn assert_timestamps(metadata: &Metadata, expected: Duration) {
+            assert_eq!(metadata.created(), Some(expected));
+            assert_eq!(metadata.modified(), Some(expected));
+            assert_eq!(metadata.accessed(), Some(expected));
+        }
+
+        fn assert_round_trips(time: Duration) {
+            assert_timestamps(&round_trip(time).unwrap(), time);
+        }
+
+        #[test]
+        fn before_epoch_with_subsecond() {
+            assert_round_trips(Duration::new(-1, -500_000_000));
+        }
+
+        #[test]
+        fn after_epoch_with_subsecond() {
+            assert_round_trips(Duration::new(1, 500_000_000));
+        }
+
+        #[test]
+        fn before_epoch_on_whole_second() {
+            assert_round_trips(Duration::seconds(-1));
+        }
+
+        #[test]
+        fn duration_min_saturates_and_stays_readable() {
+            assert_timestamps(
+                &round_trip(Duration::MIN).unwrap(),
+                Duration::new(i64::MIN, 1),
+            );
         }
     }
 }
