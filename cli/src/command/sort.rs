@@ -2,7 +2,7 @@ use crate::{
     cli::PasswordArgs,
     command::{
         Command, ask_password,
-        core::{SplitArchiveReader, StagedArchive, collect_split_archives},
+        core::{SplitArchiveReader, StagedArchive, Umask, collect_split_archives},
     },
     utils::PathPartExt,
 };
@@ -138,13 +138,13 @@ pub(crate) struct SortCommand {
 
 impl Command for SortCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
-        sort_archive(self)
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
+        sort_archive(self, ctx.umask())
     }
 }
 
 #[hooq::hooq(anyhow)]
-fn sort_archive(args: SortCommand) -> anyhow::Result<()> {
+fn sort_archive(args: SortCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let archives = collect_split_archives(&args.archive)?;
     let mut source = SplitArchiveReader::new(archives)?;
@@ -178,7 +178,7 @@ fn sort_archive(args: SortCommand) -> anyhow::Result<()> {
     });
 
     let output = args.output.unwrap_or_else(|| args.archive.remove_part());
-    let mut staged = StagedArchive::new(output)?;
+    let mut staged = StagedArchive::new(output, umask)?;
     let mut archive = Archive::write_header(staged.as_file_mut())?;
     for entry in entries {
         archive.add_entry(entry)?;

@@ -6,7 +6,7 @@ use crate::{
         Command, ask_password,
         core::{
             SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid, collect_split_archives,
+            TransformStrategyUnSolid, Umask, collect_split_archives,
         },
     },
     utils::{GlobPatterns, PathPartExt},
@@ -114,8 +114,8 @@ pub(crate) struct SetXattrCommand {
 
 impl Command for SetXattrCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
-        archive_set_xattr(self)
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
+        archive_set_xattr(self, ctx.umask())
     }
 }
 
@@ -232,7 +232,7 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
 }
 
 #[hooq::hooq(anyhow)]
-fn archive_set_xattr(args: SetXattrCommand) -> anyhow::Result<()> {
+fn archive_set_xattr(args: SetXattrCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let files = args.file.files;
     let mut set_strategy = if let Some("-") = args.restore.as_deref() {
@@ -255,7 +255,7 @@ fn archive_set_xattr(args: SetXattrCommand) -> anyhow::Result<()> {
     let mut source = SplitArchiveReader::new(collect_split_archives(&args.file.archive)?)?;
 
     let output_path = args.file.archive.remove_part();
-    let mut staged = StagedArchive::new(output_path)?;
+    let mut staged = StagedArchive::new(output_path, umask)?;
 
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => source.transform_entries(

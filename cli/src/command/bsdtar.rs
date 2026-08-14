@@ -691,7 +691,7 @@ fn run_bsdtar(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Result<()> {
     } else if args.append {
         run_append(args)
     } else if args.update {
-        run_update(args)
+        run_update(args, ctx.umask())
     } else {
         unreachable!()
     }
@@ -1403,7 +1403,7 @@ fn resolve_name_id(
     }
 }
 
-fn run_update(args: BsdtarCommand) -> anyhow::Result<()> {
+fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     let password = password.as_deref();
@@ -1533,7 +1533,7 @@ fn run_update(args: BsdtarCommand) -> anyhow::Result<()> {
 
     let archives = collect_split_archives(&archive_path)?;
 
-    let mut staged = StagedArchive::new(archive_path.remove_part())?;
+    let mut staged = StagedArchive::new(archive_path.remove_part(), umask)?;
     let mut out_archive = Archive::write_header(staged.as_file_mut())?;
 
     let mut source = SplitArchiveReader::new(archives)?;

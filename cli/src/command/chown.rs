@@ -4,7 +4,7 @@ use crate::{
         Command, ask_password,
         core::{
             SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid, collect_split_archives,
+            TransformStrategyUnSolid, Umask, collect_split_archives,
         },
     },
     utils::{
@@ -44,13 +44,13 @@ pub(crate) struct ChownCommand {
 
 impl Command for ChownCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
-        archive_chown(self)
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
+        archive_chown(self, ctx.umask())
     }
 }
 
 #[hooq::hooq(anyhow)]
-fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
+fn archive_chown(args: ChownCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     if args.files.is_empty() {
         return Ok(());
@@ -64,7 +64,7 @@ fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
     let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive)?)?;
 
     let output_path = args.archive.remove_part();
-    let mut staged = StagedArchive::new(output_path)?;
+    let mut staged = StagedArchive::new(output_path, umask)?;
 
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => source.transform_entries(

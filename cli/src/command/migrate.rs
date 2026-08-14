@@ -4,7 +4,7 @@ use crate::{
         Command, ask_password,
         core::{
             SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid, collect_split_archives,
+            TransformStrategyUnSolid, Umask, collect_split_archives,
         },
     },
     ext::*,
@@ -27,19 +27,19 @@ pub(crate) struct MigrateCommand {
 
 impl Command for MigrateCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
-        migrate_metadata(self)
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
+        migrate_metadata(self, ctx.umask())
     }
 }
 
 #[hooq::hooq(anyhow)]
-fn migrate_metadata(args: MigrateCommand) -> anyhow::Result<()> {
+fn migrate_metadata(args: MigrateCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
 
     let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive)?)?;
 
     let output_path = args.output;
-    let mut staged = StagedArchive::new(output_path)?;
+    let mut staged = StagedArchive::new(output_path, umask)?;
 
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => source.transform_entries(

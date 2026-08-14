@@ -7,7 +7,7 @@ use crate::{
         Command, ask_password,
         core::{
             SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid, collect_split_archives,
+            TransformStrategyUnSolid, Umask, collect_split_archives,
         },
     },
     utils::PathPartExt,
@@ -62,19 +62,19 @@ pub(crate) struct StripCommand {
 
 impl Command for StripCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
-        strip_metadata(self)
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
+        strip_metadata(self, ctx.umask())
     }
 }
 
 #[hooq::hooq(anyhow)]
-fn strip_metadata(args: StripCommand) -> anyhow::Result<()> {
+fn strip_metadata(args: StripCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let archive = args.file.archive;
     let mut source = SplitArchiveReader::new(collect_split_archives(&archive)?)?;
 
     let output_path = args.output.unwrap_or_else(|| archive.remove_part());
-    let mut staged = StagedArchive::new(output_path)?;
+    let mut staged = StagedArchive::new(output_path, umask)?;
 
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
