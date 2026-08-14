@@ -20,7 +20,8 @@ pub(crate) struct SafeWriter {
 }
 
 impl SafeWriter {
-    /// Creates a new temp file with pattern `.pna.{random}` in the same directory as `final_path`.
+    /// Creates a new temp file with pattern `.pna.{random}` in the same directory as
+    /// `final_path`, which keeps [`persist()`](Self::persist)'s rename within one filesystem.
     ///
     /// # Errors
     ///
