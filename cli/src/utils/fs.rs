@@ -46,36 +46,6 @@ pub(crate) fn is_pna<P: AsRef<Path>>(path: P) -> io::Result<bool> {
     super::io::is_pna(file)
 }
 
-#[inline]
-pub(crate) fn mv<Src: AsRef<Path>, Dest: AsRef<Path>>(src: Src, dest: Dest) -> io::Result<()> {
-    #[cfg(unix)]
-    fn inner(src: &Path, dest: &Path) -> io::Result<()> {
-        use std::os::unix::fs::MetadataExt;
-        let src_meta = fs::metadata(src)?;
-        if dest
-            .parent()
-            .and_then(|parent| fs::metadata(parent).ok())
-            .is_some_and(|dest_meta| src_meta.dev() == dest_meta.dev())
-        {
-            fs::rename(src, dest)
-        } else {
-            fs::copy(src, dest)?;
-            fs::remove_file(src)
-        }
-    }
-    #[cfg(windows)]
-    #[inline]
-    fn inner(src: &Path, dest: &Path) -> io::Result<()> {
-        move_file(src.as_os_str(), dest.as_os_str())
-    }
-    #[cfg(target_os = "wasi")]
-    fn inner(src: &Path, dest: &Path) -> io::Result<()> {
-        fs::copy(src, dest)?;
-        fs::remove_file(src)
-    }
-    inner(src.as_ref(), dest.as_ref())
-}
-
 #[cfg(any(windows, unix))]
 pub(crate) fn lchown<P: AsRef<Path>>(
     path: P,

@@ -11,8 +11,7 @@ use windows::Win32::Storage::FileSystem::{
     FILE_BASIC_INFO, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT,
     FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
     FILE_WRITE_ATTRIBUTES, FileBasicInfo, GetFileInformationByHandle, GetFileInformationByHandleEx,
-    MOVEFILE_COPY_ALLOWED, MOVEFILE_REPLACE_EXISTING, MoveFileExW, OPEN_EXISTING, READ_CONTROL,
-    SetFileInformationByHandle, WRITE_DAC, WRITE_OWNER,
+    OPEN_EXISTING, READ_CONTROL, SetFileInformationByHandle, WRITE_DAC, WRITE_OWNER,
 };
 use windows::core::PCWSTR;
 
@@ -37,18 +36,6 @@ impl Drop for FileHandle {
     fn drop(&mut self) {
         let _ = unsafe { CloseHandle(self.0) };
     }
-}
-
-#[inline]
-pub(crate) fn move_file(src: &std::ffi::OsStr, dist: &std::ffi::OsStr) -> io::Result<()> {
-    unsafe {
-        MoveFileExW(
-            PCWSTR::from_raw(encode_wide(src)?.as_ptr()),
-            PCWSTR::from_raw(encode_wide(dist)?.as_ptr()),
-            MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED,
-        )
-    }
-    .map_err(Into::into)
 }
 
 #[inline]
