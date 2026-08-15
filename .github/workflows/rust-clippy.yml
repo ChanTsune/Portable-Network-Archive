@@ -21,6 +21,7 @@ on:
       - ".cargo/config.toml"
       - "rust-toolchain.toml"
       - ".github/actions/**"
+      - ".github/scripts/normalize-sarif-paths.py"
       - ".github/workflows/rust-clippy.yml"
   pull_request:
     branches: ["main"]
@@ -33,6 +34,7 @@ on:
       - ".cargo/config.toml"
       - "rust-toolchain.toml"
       - ".github/actions/**"
+      - ".github/scripts/normalize-sarif-paths.py"
       - ".github/workflows/rust-clippy.yml"
   schedule:
     - cron: '29 14 * * 0'
@@ -65,6 +67,9 @@ jobs:
         shell: bash
         run: |
           cargo clippy --locked --all-targets --all-features --message-format=json | clippy-sarif | tee rust-clippy-results.sarif | sarif-fmt
+      - name: Normalize SARIF paths
+        if: runner.os == 'Windows'
+        run: python .github/scripts/normalize-sarif-paths.py rust-clippy-results.sarif
       - name: Upload analysis results to GitHub
         if: always()
         uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
