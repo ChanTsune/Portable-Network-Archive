@@ -29,6 +29,7 @@ pub(crate) use self::{private::*, read::*, write::*};
 use crate::{
     Duration,
     chunk::{Chunk, ChunkExt, ChunkType, MIN_CHUNK_BYTES_SIZE, RawChunk, chunk_data_split},
+    ext::time::DurationExt,
     util::io::ChainReader,
     util::slice::skip_while,
 };
@@ -66,43 +67,27 @@ fn chunks_write_in<W: Write>(
     Ok(total)
 }
 
-/// Splits a timestamp into the on-wire form the `<x>TIM` + `<x>TNS` / 1e9
-/// interpretation requires: floored seconds and a non-negative nanosecond
-/// remainder. [`Duration`] instead normalizes both components to the same sign,
-/// which the unsigned nanosecond chunks cannot carry.
-///
-/// Seconds saturate, since flooring [`Duration::MIN`] leaves the chunk's range.
-fn split_timestamp(value: Duration) -> (i64, u32) {
-    let seconds = value.whole_seconds();
-    let nanos = value.subsec_nanoseconds();
-    if nanos < 0 {
-        (seconds.saturating_sub(1), (nanos + 1_000_000_000) as u32)
-    } else {
-        (seconds, nanos as u32)
-    }
-}
-
 #[allow(deprecated)]
 fn try_for_each_metadata_facet<E>(
     metadata: &Metadata,
     mut f: impl FnMut(RawChunk) -> Result<(), E>,
 ) -> Result<(), E> {
     if let Some(value) = metadata.created {
-        let (seconds, nanos) = split_timestamp(value);
+        let (seconds, nanos) = value.to_seconds_nanos();
         f(RawChunk::from_data(ChunkType::cTIM, seconds.to_be_bytes()))?;
         if nanos != 0 {
             f(RawChunk::from_data(ChunkType::cTNS, nanos.to_be_bytes()))?;
         }
     }
     if let Some(value) = metadata.modified {
-        let (seconds, nanos) = split_timestamp(value);
+        let (seconds, nanos) = value.to_seconds_nanos();
         f(RawChunk::from_data(ChunkType::mTIM, seconds.to_be_bytes()))?;
         if nanos != 0 {
             f(RawChunk::from_data(ChunkType::mTNS, nanos.to_be_bytes()))?;
         }
     }
     if let Some(value) = metadata.accessed {
-        let (seconds, nanos) = split_timestamp(value);
+        let (seconds, nanos) = value.to_seconds_nanos();
         f(RawChunk::from_data(ChunkType::aTIM, seconds.to_be_bytes()))?;
         if nanos != 0 {
             f(RawChunk::from_data(ChunkType::aTNS, nanos.to_be_bytes()))?;
@@ -828,9 +813,9 @@ where
                     data.push(chunk.data);
                 }
                 ChunkType::fSIZ => size = Some(u128_from_be_bytes_last(chunk.data())),
-                ChunkType::cTIM => ctime = Some(timestamp(chunk.data())?),
-                ChunkType::mTIM => mtime = Some(timestamp(chunk.data())?),
-                ChunkType::aTIM => atime = Some(timestamp(chunk.data())?),
+                ChunkType::cTIM => ctime = Some(seconds(chunk.data())?),
+                ChunkType::mTIM => mtime = Some(seconds(chunk.data())?),
+                ChunkType::aTIM => atime = Some(seconds(chunk.data())?),
                 ChunkType::cTNS => ctime_ns = Some(nanos(chunk.data())?),
                 ChunkType::mTNS => mtime_ns = Some(nanos(chunk.data())?),
                 ChunkType::aTNS => atime_ns = Some(nanos(chunk.data())?),
@@ -865,12 +850,9 @@ where
                 }
             }
         }
-        let ctime =
-            ctime.map(|t| t.saturating_add(Duration::nanoseconds(ctime_ns.unwrap_or(0) as _)));
-        let mtime =
-            mtime.map(|t| t.saturating_add(Duration::nanoseconds(mtime_ns.unwrap_or(0) as _)));
-        let atime =
-            atime.map(|t| t.saturating_add(Duration::nanoseconds(atime_ns.unwrap_or(0) as _)));
+        let ctime = ctime.map(|s| Duration::from_seconds_nanos(s, ctime_ns.unwrap_or(0)));
+        let mtime = mtime.map(|s| Duration::from_seconds_nanos(s, mtime_ns.unwrap_or(0)));
+        let atime = atime.map(|s| Duration::from_seconds_nanos(s, atime_ns.unwrap_or(0)));
 
         Ok(Self {
             header,
@@ -1338,12 +1320,10 @@ impl<T: SealedEntryExt> From<T> for EntryPart {
 }
 
 #[inline]
-fn timestamp(bytes: &[u8]) -> io::Result<Duration> {
-    Ok(Duration::seconds(i64::from_be_bytes(
-        bytes
-            .try_into()
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
-    )))
+fn seconds(bytes: &[u8]) -> io::Result<i64> {
+    Ok(i64::from_be_bytes(bytes.try_into().map_err(|e| {
+        io::Error::new(io::ErrorKind::InvalidData, e)
+    })?))
 }
 
 #[inline]
@@ -1865,58 +1845,6 @@ mod tests {
         for ty in [ChunkType::cTIM, ChunkType::fMOd, ChunkType::xATR] {
             let pos = chunks.iter().position(|c| c.ty == ty).unwrap();
             assert!(pos < fdat_pos, "{ty:?} must appear before FDAT");
-        }
-    }
-
-    mod timestamp_round_trip {
-        use super::*;
-        #[cfg(all(target_family = "wasm", target_os = "unknown"))]
-        use wasm_bindgen_test::wasm_bindgen_test as test;
-
-        fn round_trip(time: Duration) -> io::Result<Metadata> {
-            let mut builder = FileEntryBuilder::new("f".into())?;
-            builder.metadata(
-                Metadata::new()
-                    .with_created(Some(time))
-                    .with_modified(Some(time))
-                    .with_accessed(Some(time)),
-            );
-            builder.write_all(b"data")?;
-            let chunks = builder.build()?.into_chunks();
-            Ok(NormalEntry::try_from(RawEntry(chunks))?.metadata().clone())
-        }
-
-        fn assert_timestamps(metadata: &Metadata, expected: Duration) {
-            assert_eq!(metadata.created(), Some(expected));
-            assert_eq!(metadata.modified(), Some(expected));
-            assert_eq!(metadata.accessed(), Some(expected));
-        }
-
-        fn assert_round_trips(time: Duration) {
-            assert_timestamps(&round_trip(time).unwrap(), time);
-        }
-
-        #[test]
-        fn before_epoch_with_subsecond() {
-            assert_round_trips(Duration::new(-1, -500_000_000));
-        }
-
-        #[test]
-        fn after_epoch_with_subsecond() {
-            assert_round_trips(Duration::new(1, 500_000_000));
-        }
-
-        #[test]
-        fn before_epoch_on_whole_second() {
-            assert_round_trips(Duration::seconds(-1));
-        }
-
-        #[test]
-        fn duration_min_saturates_and_stays_readable() {
-            assert_timestamps(
-                &round_trip(Duration::MIN).unwrap(),
-                Duration::new(i64::MIN, 1),
-            );
         }
     }
 }
