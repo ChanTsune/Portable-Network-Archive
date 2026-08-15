@@ -6,15 +6,15 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            SplitArchiveReader, TransformStrategyKeepSolid, TransformStrategyUnSolid,
-            collect_split_archives,
+            SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
+            TransformStrategyUnSolid, collect_split_archives,
         },
     },
     ext::NormalEntryExt,
-    utils::{GlobPatterns, PathPartExt, env::NamedTempFile},
+    utils::{GlobPatterns, PathPartExt},
 };
 use clap::{Parser, ValueHint};
-use pna::{Chunk, NormalEntry, RawChunk};
+use pna::{Chunk, NormalEntry, RawChunk, ReadOptions};
 use regex::Regex;
 use std::{
     collections::{HashMap, HashSet},
@@ -302,9 +302,10 @@ fn archive_get_fflag(args: GetFflagCommand) -> anyhow::Result<()> {
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
     let mut source = SplitArchiveReader::new(collect_split_archives(archive)?)?;
+    let read_options = ReadOptions::with_password(password.as_deref());
 
     source.for_each_entry(
-        password.as_deref(),
+        &read_options,
         #[hooq::skip_all]
         |entry| {
             let entry = entry?;
@@ -369,19 +370,18 @@ fn archive_set_fflag(args: SetFflagCommand) -> anyhow::Result<()> {
     let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive)?)?;
 
     let output_path = args.archive.remove_part();
-    let mut temp_file =
-        NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
+    let mut staged = StagedArchive::new(output_path)?;
 
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
-            temp_file.as_file_mut(),
+            staged.as_file_mut(),
             password.as_deref(),
             #[hooq::skip_all]
             |entry| Ok(Some(set_strategy.transform_entry(entry?))),
             TransformStrategyUnSolid,
         ),
         SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
-            temp_file.as_file_mut(),
+            staged.as_file_mut(),
             password.as_deref(),
             #[hooq::skip_all]
             |entry| Ok(Some(set_strategy.transform_entry(entry?))),
@@ -391,12 +391,10 @@ fn archive_set_fflag(args: SetFflagCommand) -> anyhow::Result<()> {
 
     drop(source);
 
-    temp_file.persist(output_path)?;
-
-    if let SetFflagStrategy::Apply { globs, .. } = set_strategy {
-        globs.ensure_all_matched()?;
+    match set_strategy {
+        SetFflagStrategy::Apply { globs, .. } => staged.commit(Some(&globs)),
+        SetFflagStrategy::Restore(_) => staged.commit(None),
     }
-    Ok(())
 }
 
 enum SetFflagStrategy<'s> {

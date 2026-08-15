@@ -15,6 +15,7 @@ fn fflag_set_basic() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_set_basic/test.pna",
             "--overwrite",
             "fflag_set_basic/testfile.txt",
@@ -66,6 +67,7 @@ fn fflag_set_multiple_flags() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_set_multi/test.pna",
             "--overwrite",
             "fflag_set_multi/testfile.txt",
@@ -119,6 +121,7 @@ fn fflag_set_additive() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_set_additive/test.pna",
             "--overwrite",
             "fflag_set_additive/testfile.txt",

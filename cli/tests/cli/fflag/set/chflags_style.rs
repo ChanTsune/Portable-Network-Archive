@@ -16,6 +16,7 @@ fn fflag_set_chflags_style_set() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_chflags_set/test.pna",
             "--overwrite",
             "fflag_chflags_set/testfile.txt",
@@ -67,6 +68,7 @@ fn fflag_set_chflags_style_clear() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_chflags_clear/test.pna",
             "--overwrite",
             "fflag_chflags_clear/testfile.txt",
@@ -134,6 +136,7 @@ fn fflag_set_dump_clears_nodump() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_dump_clear/test.pna",
             "--overwrite",
             "fflag_dump_clear/testfile.txt",

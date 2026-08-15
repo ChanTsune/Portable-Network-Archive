@@ -18,6 +18,7 @@ fn fflag_set_multiple_entries_glob() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_set_glob/test.pna",
             "--overwrite",
             "fflag_set_glob/file1.txt",
@@ -80,6 +81,7 @@ fn fflag_set_different_flags_per_entry() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_set_different/test.pna",
             "--overwrite",
             "fflag_set_different/file1.txt",
@@ -167,6 +169,7 @@ fn fflag_set_specific_entries_only() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_set_specific/test.pna",
             "--overwrite",
             "fflag_set_specific/file1.txt",

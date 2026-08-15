@@ -36,6 +36,7 @@ fn fflag_set_missing_entry() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_set_missing_entry/test.pna",
             "--overwrite",
             "fflag_set_missing_entry/file.txt",

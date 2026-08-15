@@ -18,6 +18,7 @@ fn fflag_get_filter_by_name() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_get_filter_name/test.pna",
             "--overwrite",
             "fflag_get_filter_name/file1.txt",
@@ -89,6 +90,7 @@ fn fflag_get_filter_by_name_no_match() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_get_filter_name_empty/test.pna",
             "--overwrite",
             "fflag_get_filter_name_empty/testfile.txt",

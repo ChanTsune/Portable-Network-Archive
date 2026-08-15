@@ -16,6 +16,7 @@ fn fflag_get_basic() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_get_basic/test.pna",
             "--overwrite",
             "fflag_get_basic/testfile.txt",
@@ -68,6 +69,7 @@ fn fflag_get_no_flags() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_get_no_flags/test.pna",
             "--overwrite",
             "fflag_get_no_flags/testfile.txt",
@@ -106,6 +108,7 @@ fn fflag_get_wildcard() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_get_wildcard/test.pna",
             "--overwrite",
             "fflag_get_wildcard/file1.txt",

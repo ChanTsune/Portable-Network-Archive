@@ -35,6 +35,7 @@ fn fflag_get_missing_entry() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_get_missing_entry/test.pna",
             "--overwrite",
             "fflag_get_missing_entry/file.txt",

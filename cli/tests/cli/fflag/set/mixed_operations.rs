@@ -16,6 +16,7 @@ fn fflag_set_and_clear_in_one_command() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_mixed_ops/test.pna",
             "--overwrite",
             "fflag_mixed_ops/testfile.txt",
@@ -84,6 +85,7 @@ fn fflag_set_same_flag_twice() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_same_twice/test.pna",
             "--overwrite",
             "fflag_same_twice/testfile.txt",
@@ -136,6 +138,7 @@ fn fflag_set_then_clear_same_flag() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_set_clear_same/test.pna",
             "--overwrite",
             "fflag_set_clear_same/testfile.txt",

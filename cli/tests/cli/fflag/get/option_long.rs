@@ -15,6 +15,7 @@ fn fflag_get_long_format() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_get_long/test.pna",
             "--overwrite",
             "fflag_get_long/testfile.txt",
@@ -71,6 +72,7 @@ fn fflag_get_long_multiple_entries() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_get_long_multi/test.pna",
             "--overwrite",
             "fflag_get_long_multi/file1.txt",

@@ -15,6 +15,7 @@ fn fflag_get_dump_format() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_get_dump/test.pna",
             "--overwrite",
             "fflag_get_dump/testfile.txt",
@@ -70,6 +71,7 @@ fn fflag_get_dump_empty_flags() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_get_dump_empty/test.pna",
             "--overwrite",
             "fflag_get_dump_empty/testfile.txt",

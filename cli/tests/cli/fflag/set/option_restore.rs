@@ -18,6 +18,7 @@ fn fflag_set_restore_from_dump() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_restore/test.pna",
             "--overwrite",
             "fflag_restore/file1.txt",
@@ -92,6 +93,7 @@ fn fflag_dump_and_restore_roundtrip() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_roundtrip/source.pna",
             "--overwrite",
             "fflag_roundtrip/testfile.txt",
@@ -140,6 +142,7 @@ fn fflag_dump_and_restore_roundtrip() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_roundtrip/target.pna",
             "--overwrite",
             "fflag_roundtrip/testfile.txt",
@@ -194,6 +197,7 @@ fn fflag_restore_missing_entry() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_restore_missing/test.pna",
             "--overwrite",
             "fflag_restore_missing/file.txt",

@@ -16,6 +16,7 @@ fn fflag_clear_single_flag() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_clear_single/test.pna",
             "--overwrite",
             "fflag_clear_single/testfile.txt",
@@ -83,6 +84,7 @@ fn fflag_clear_multiple_flags() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_clear_multi/test.pna",
             "--overwrite",
             "fflag_clear_multi/testfile.txt",
@@ -151,6 +153,7 @@ fn fflag_clear_nonexistent_flag() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_clear_nonexistent/test.pna",
             "--overwrite",
             "fflag_clear_nonexistent/testfile.txt",

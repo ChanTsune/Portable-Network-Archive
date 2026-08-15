@@ -18,6 +18,7 @@ fn fflag_get_match_single_flag() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_get_match/test.pna",
             "--overwrite",
             "fflag_get_match/file1.txt",
@@ -89,6 +90,7 @@ fn fflag_get_match_no_matches() {
         .args([
             "--quiet",
             "c",
+            "-f",
             "fflag_get_match_none/test.pna",
             "--overwrite",
             "fflag_get_match_none/file.txt",
