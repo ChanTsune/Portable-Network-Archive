@@ -6,7 +6,7 @@ mod stream;
 mod write;
 
 use crate::{
-    chunk::{ChunkStreamWriter, RawChunk},
+    chunk::{Chunk, ChunkStreamWriter, ChunkType, MIN_CHUNK_BYTES_SIZE, RawChunk},
     cipher::CipherWriter,
     compress::CompressionWriter,
 };
@@ -15,6 +15,29 @@ pub use header::*;
 use std::io::prelude::*;
 pub use stream::*;
 pub(crate) use write::*;
+
+fn require_empty_chunk(chunk: &(impl Chunk + ?Sized)) -> std::io::Result<()> {
+    if chunk.data().is_empty() {
+        Ok(())
+    } else {
+        empty_chunk_error(chunk.ty())
+    }
+}
+
+fn require_empty_chunk_size(ty: ChunkType, bytes: u64) -> std::io::Result<()> {
+    if bytes == MIN_CHUNK_BYTES_SIZE as u64 {
+        Ok(())
+    } else {
+        empty_chunk_error(ty)
+    }
+}
+
+fn empty_chunk_error(ty: ChunkType) -> std::io::Result<()> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::InvalidData,
+        format!("`{ty}` chunk must be empty"),
+    ))
+}
 
 /// Provides read and write access to a PNA file.
 ///

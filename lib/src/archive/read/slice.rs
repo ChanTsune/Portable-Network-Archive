@@ -2,7 +2,8 @@
 
 use crate::{
     Archive, Chunk, ChunkType, Entry, NormalEntry, RawChunk, ReadEntry, ReadOptions,
-    archive::ArchiveHeader, entry::RawEntry,
+    archive::{ArchiveHeader, require_empty_chunk},
+    entry::RawEntry,
 };
 use std::borrow::Cow;
 use std::io;
@@ -48,11 +49,16 @@ impl<'d> Archive<&'d [u8]> {
             self.inner = r;
             match chunk.ty {
                 ChunkType::FEND | ChunkType::SEND => {
+                    require_empty_chunk(&chunk)?;
                     chunks.push(chunk.into());
                     break;
                 }
-                ChunkType::ANXT => self.next_archive = true,
+                ChunkType::ANXT => {
+                    require_empty_chunk(&chunk)?;
+                    self.next_archive = true;
+                }
                 ChunkType::AEND => {
+                    require_empty_chunk(&chunk)?;
                     self.buf = chunks.into_iter().map(Into::into).collect::<Vec<_>>();
                     return Ok(None);
                 }
@@ -237,6 +243,17 @@ mod tests {
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
+    fn archive_with_terminator(ty: ChunkType, data: &[u8]) -> Vec<u8> {
+        let mut bytes = crate::PNA_SIGNATURE.to_vec();
+        crate::io::write_chunk(
+            &mut bytes,
+            (ChunkType::AHED, ArchiveHeader::new(0, 0, 0).to_bytes()),
+        )
+        .unwrap();
+        crate::io::write_chunk(&mut bytes, (ty, data)).unwrap();
+        bytes
+    }
+
     #[test]
     fn decode() {
         let bytes = include_bytes!("../../../../resources/test/zstd.pna");
@@ -275,5 +292,16 @@ mod tests {
         } else {
             panic!()
         }
+    }
+
+    #[test]
+    fn entries_slice_reject_nonempty_entry_terminator() {
+        let bytes = archive_with_terminator(ChunkType::FEND, &[1]);
+        let mut archive = Archive::read_header_from_slice(&bytes).unwrap();
+        let error = match archive.raw_entries_slice().next().unwrap() {
+            Err(error) => error,
+            Ok(_) => panic!("non-empty FEND unexpectedly succeeded"),
+        };
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
     }
 }

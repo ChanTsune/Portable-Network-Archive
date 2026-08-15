@@ -3,7 +3,7 @@
 mod slice;
 
 use crate::{
-    archive::{Archive, ArchiveHeader},
+    archive::{Archive, ArchiveHeader, require_empty_chunk, require_empty_chunk_size},
     chunk::{Chunk, ChunkType, RawChunk},
     entry::{Entry, NormalEntry, RawEntry, ReadEntry, ReadOptions},
 };
@@ -51,11 +51,16 @@ impl<R: Read> Archive<R> {
             let chunk = crate::io::read_chunk(&mut self.inner, max_chunk_size)?;
             match chunk.ty {
                 ChunkType::FEND | ChunkType::SEND => {
+                    require_empty_chunk(&chunk)?;
                     chunks.push(chunk);
                     break;
                 }
-                ChunkType::ANXT => self.next_archive = true,
+                ChunkType::ANXT => {
+                    require_empty_chunk(&chunk)?;
+                    self.next_archive = true;
+                }
                 ChunkType::AEND => {
+                    require_empty_chunk(&chunk)?;
                     self.buf = chunks;
                     return Ok(None);
                 }
@@ -201,11 +206,16 @@ impl<R: futures_io::AsyncRead + Unpin> Archive<R> {
             let chunk = crate::async_io::read_chunk(&mut self.inner, max_chunk_size).await?;
             match chunk.ty {
                 ChunkType::FEND | ChunkType::SEND => {
+                    require_empty_chunk(&chunk)?;
                     chunks.push(chunk);
                     break;
                 }
-                ChunkType::ANXT => self.next_archive = true,
+                ChunkType::ANXT => {
+                    require_empty_chunk(&chunk)?;
+                    self.next_archive = true;
+                }
                 ChunkType::AEND => {
+                    require_empty_chunk(&chunk)?;
                     self.buf = chunks;
                     return Ok(None);
                 }
@@ -413,8 +423,10 @@ impl<R: Read + Seek> Archive<R> {
         let consumed = loop {
             let (ty, consumed) = crate::io::skip_chunk(&mut self.inner)?;
             if ty == ChunkType::AEND {
+                require_empty_chunk_size(ty, consumed)?;
                 break consumed;
             } else if ty == ChunkType::ANXT {
+                require_empty_chunk_size(ty, consumed)?;
                 self.next_archive = true;
             }
         };
@@ -472,6 +484,27 @@ mod tests {
         bytes.extend_from_slice(&chunk_bytes((ChunkType::AHED, header.to_bytes())));
         bytes.extend_from_slice(&chunk_bytes((ChunkType::AEND, [])));
         bytes
+    }
+
+    fn archive_with_terminator(ty: ChunkType, data: &[u8]) -> Vec<u8> {
+        let mut bytes = crate::PNA_SIGNATURE.to_vec();
+        bytes.extend_from_slice(&chunk_bytes((
+            ChunkType::AHED,
+            ArchiveHeader::new(0, 0, 0).to_bytes(),
+        )));
+        bytes.extend_from_slice(&chunk_bytes((ty, data)));
+        bytes
+    }
+
+    #[test]
+    fn raw_entries_reject_nonempty_entry_terminator() {
+        let bytes = archive_with_terminator(ChunkType::FEND, &[1]);
+        let mut archive = Archive::read_header(bytes.as_slice()).unwrap();
+        let error = match archive.raw_entries().next().unwrap() {
+            Err(error) => error,
+            Ok(_) => panic!("non-empty FEND unexpectedly succeeded"),
+        };
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
     }
 
     #[test]
@@ -545,6 +578,19 @@ mod tests {
 
     #[cfg(feature = "unstable-async")]
     #[tokio::test]
+    async fn async_entries_reject_nonempty_entry_terminator() {
+        use tokio_util::compat::TokioAsyncReadCompatExt;
+
+        let bytes = archive_with_terminator(ChunkType::FEND, &[1]);
+        let mut archive = Archive::read_header_async(io::Cursor::new(bytes).compat())
+            .await
+            .unwrap();
+        let error = archive.read_entry_async().await.unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+    }
+
+    #[cfg(feature = "unstable-async")]
+    #[tokio::test]
     async fn extract_async() -> io::Result<()> {
         use crate::ReadOptions;
         use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
@@ -582,6 +628,16 @@ mod tests {
         let mut archive = Archive::read_header(io::Cursor::new(part1)).unwrap();
         archive.seek_to_end().unwrap();
         assert!(archive.has_next_archive());
+    }
+
+    #[test]
+    fn seek_to_end_rejects_nonempty_archive_terminator() {
+        let bytes = archive_with_terminator(ChunkType::AEND, &[1]);
+        let mut archive = Archive::read_header(io::Cursor::new(bytes)).unwrap();
+        assert_eq!(
+            archive.seek_to_end().unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
     }
 
     #[test]
