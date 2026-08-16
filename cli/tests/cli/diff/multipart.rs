@@ -63,5 +63,6 @@ fn diff_multipart_with_missing_file() {
         .args(["experimental", "diff", "-f", &part1])
         .assert()
         .code(1)
-        .stdout(predicate::str::contains("Cannot stat"));
+        .stdout("")
+        .stderr(predicate::str::contains("Cannot stat"));
 }

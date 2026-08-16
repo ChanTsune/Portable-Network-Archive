@@ -40,7 +40,7 @@ fn diff_missing_in_archive() {
 
 /// Precondition: The source tree contains files and directories.
 /// Action: Run `pna create` to build an archive, remove a file from the filesystem, then compare with `pna experimental diff`.
-/// Expectation: The missing file is detected.
+/// Expectation: The missing file is detected and reported on stderr.
 #[test]
 fn diff_missing_in_disk() {
     setup();
@@ -69,7 +69,7 @@ fn diff_missing_in_disk() {
         ])
         .assert();
 
-    assert.code(1).stdout(
+    assert.code(1).stdout("").stderr(
         "diff_missing_in_disk/in/raw/images/icon.svg: Warning: Cannot stat: No such file or directory\n",
     );
 }
