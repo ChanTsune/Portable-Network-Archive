@@ -1,6 +1,8 @@
 pub mod archive;
 pub mod diff;
 pub mod time;
+#[cfg(unix)]
+pub mod unix;
 
 use std::{borrow::Cow, fs, io, path::Path};
 
