@@ -104,7 +104,6 @@ fn mangen(args: MangenArgs) -> Result<(), Box<dyn std::error::Error>> {
     let out_dir = &args.output;
     fs::create_dir_all(out_dir)?;
 
-    // Get the CLI command and rename to match the binary name
     let cmd = portable_network_archive::cli::Cli::command().name("pna");
 
     // Use clap_mangen::generate_to which properly handles subcommands
@@ -118,13 +117,10 @@ fn mangen(args: MangenArgs) -> Result<(), Box<dyn std::error::Error>> {
 fn docgen(args: DocgenArgs) -> Result<(), Box<dyn std::error::Error>> {
     let out_path = &args.output;
 
-    // Get the CLI command and rename to match the binary name
     let cmd = portable_network_archive::cli::Cli::command().name("pna");
 
-    // Generate markdown documentation
     let markdown = clap_markdown::help_markdown_command(&cmd);
 
-    // Create a parent directory if it doesn't exist
     if let Some(parent) = out_path.parent() {
         fs::create_dir_all(parent)?;
     }

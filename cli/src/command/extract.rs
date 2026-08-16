@@ -1138,7 +1138,6 @@ where
         Err(err) => return Err(err),
     };
 
-    // Check overwrite strategy
     if let Some(existing) = &metadata {
         match overwrite_strategy {
             OverwriteStrategy::Never if !unlink_first => {
@@ -1190,12 +1189,10 @@ where
         OverwriteStrategy::Always | OverwriteStrategy::KeepNewer
     ) && had_existing;
 
-    // Remove existing if unlink_first mode
     if unlink_existing {
         utils::io::ignore_not_found(utils::fs::remove_path(path))?;
     }
 
-    // Create parent directories
     if let Some(parent) = path.parent() {
         ensure_directory_components(parent, unlink_first, secure_symlinks)?;
     }
@@ -1604,9 +1601,7 @@ where
             ModeStrategy::Never => {}
         }
     }
-    // On macOS, when mac_metadata_strategy is Always and the entry has mac_metadata,
-    // AppleDouble restoration via copyfile() will include xattrs and ACLs.
-    // Skip separate handling to avoid duplication.
+    // On macOS, AppleDouble restoration via copyfile() already carries the xattrs and ACLs.
     #[cfg(target_os = "macos")]
     let skip_xattr_acl = matches!(
         keep_options.mac_metadata_strategy,

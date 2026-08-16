@@ -76,9 +76,6 @@ pub(crate) enum ProcessAction {
 }
 
 /// Options controlling how filesystem items are collected for archiving.
-///
-/// This struct groups all traversal and filtering options that were previously
-/// passed as individual parameters.
 #[derive(Clone, Debug)]
 pub(crate) struct CollectOptions<'a> {
     pub(crate) recursive: bool,
@@ -613,9 +610,9 @@ pub(crate) fn collect_items_from_paths<P: AsRef<Path>>(
 ///
 /// When link-following is disabled and the operand resolves to a symlink,
 /// returns the path with trailing separators (and curdir components such as
-/// `link/.`) normalized away via `Path::components()`. Without this, POSIX
+/// `link/.`) normalized away via `Path::components()`, because POSIX
 /// `lstat("link/")` silently dereferences the symlink-to-directory and
-/// walkdir misclassifies the root. For ordinary directories the original
+/// walkdir would misclassify the root. For ordinary directories the original
 /// path is preserved so the trailing slash propagates into descendants — on
 /// Windows `Path::push` only inserts `\` when the parent does not already
 /// end in a separator, and substitution/transform/`--exclude` rules match
@@ -1044,7 +1041,6 @@ pub(crate) fn build_entry_metadata(
         use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
         let mode = meta.permissions().mode() as u16;
-        // Get owner info: use overrides from OwnerStrategy if Preserve, else use filesystem values
         let uid = options.uid.unwrap_or(meta.uid());
         let gid = options.gid.unwrap_or(meta.gid());
         let uname = match &options.uname {
@@ -1083,7 +1079,6 @@ pub(crate) fn build_entry_metadata(
         let mode = mode_from_file_information(path, &info, meta.file_type().is_symlink());
         let user = sd.owner_sid()?;
         let group = sd.group_sid()?;
-        // Get owner info: use overrides from OwnerStrategy
         let uid = options.uid.map_or(u64::MAX, Into::into);
         let gid = options.gid.map_or(u64::MAX, Into::into);
         let uname = options.uname.clone().unwrap_or(user.name);
@@ -2153,7 +2148,6 @@ fn transform_normal_entry(
         }
     }
 
-    // Apply ownership overrides from owner_strategy
     if let OwnerStrategy::Preserve {
         options:
             OwnerOptions {
