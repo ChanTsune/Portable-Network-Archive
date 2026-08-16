@@ -241,7 +241,6 @@ fn compare_file_metadata<T: AsRef<[u8]>>(
     let mut diffs = Vec::new();
     let ownership = crate::ext::ResolvedOwnership::from_metadata(entry.metadata());
 
-    // Compare mode
     if let Some(mode) = ownership.mode {
         let archive_mode = mode & 0o7777;
         let fs_mode = (fs_meta.permissions().mode() & 0o7777) as u16;
@@ -250,7 +249,6 @@ fn compare_file_metadata<T: AsRef<[u8]>>(
         }
     }
 
-    // Compare mtime
     if let Some(archive_mtime) = entry.metadata().saturating_modified_time()
         && let Ok(fs_mtime) = fs_meta.modified()
         && !times_equal(archive_mtime, fs_mtime)
@@ -258,7 +256,6 @@ fn compare_file_metadata<T: AsRef<[u8]>>(
         diffs.push(DiffKind::MtimeDiffers);
     }
 
-    // Compare uid/gid
     if let Some(uid) = ownership.uid
         && uid != fs_meta.uid() as u64
     {
@@ -354,14 +351,12 @@ fn compare_entry<T: AsRef<[u8]>>(
     let mut diff_count = 0usize;
     match data_kind {
         DataKind::FILE if meta.is_file() => {
-            // Compare metadata first
             let meta_diffs = compare_file_metadata(&entry, &meta, options);
             diff_count += meta_diffs.len();
             for diff in &meta_diffs {
                 report(diff, path_str, options.format);
             }
 
-            // Compare size first, then content
             let fs_size = meta.len();
             let archive_size = entry.metadata().raw_file_size();
             if archive_size.is_some_and(|s| s != fs_size as u128) {

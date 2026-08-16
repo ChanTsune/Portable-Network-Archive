@@ -272,7 +272,7 @@ pub(crate) fn set_flags(path: &Path, flags: &[String]) -> io::Result<()> {
         Err(e) => return Err(e.into()),
     };
 
-    // Get current flags to preserve flags we're not setting
+    // Preserve the flags this call does not set
     let mut current_flags: libc::c_int = 0;
     match unsafe { fs_ioc_getflags(fd.as_raw_fd(), &mut current_flags) } {
         Ok(_) => {}
@@ -285,7 +285,6 @@ pub(crate) fn set_flags(path: &Path, flags: &[String]) -> io::Result<()> {
         Err(e) => return Err(e.into()),
     }
 
-    // Build new flags bitmap
     let mut new_flags = current_flags;
     for flag in flags {
         match flag.as_str() {
