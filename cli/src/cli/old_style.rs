@@ -149,7 +149,7 @@ fn split_w_option(arg: &OsStr) -> Option<(Option<&OsStr>, Option<&OsStr>)> {
 }
 
 /// Encodes `-C`/`--cd`/`--directory` arguments into sentinel-prefixed positional tokens
-/// for the `compat bsdtar` subcommand (and the deprecated `experimental stdio` subcommand).
+/// for the `compat bsdtar` subcommand.
 ///
 /// This converts directory-change options into `\0CD\0{dir}` tokens so that
 /// later processing stages can treat them as positional arguments that carry
@@ -326,10 +326,11 @@ mod tests {
     #[test]
     fn experimental_stdio_passthrough() {
         // The removed `experimental stdio` sequence is not a bsdtar subcommand;
-        // both helpers leave it untouched so clap rejects it as unknown.
+        // the helpers leave it untouched so clap rejects it as unknown.
         let args = s(&["pna", "experimental", "stdio", "cvf", "archive.pna"]);
         assert_eq!(expand_bsdtar_old_style_args(args.clone()), args);
         assert_eq!(expand_bsdtar_w_option(args.clone()), args);
+        assert_eq!(encode_bsdtar_cd_args(args.clone()), args);
     }
 
     #[test]
@@ -1294,16 +1295,6 @@ mod tests {
         let args = s(&["pna", "create", "-C", "dir", "file"]);
         let result = encode_bsdtar_cd_args(args);
         assert_eq!(result, s(&["pna", "create", "-C", "dir", "file"]));
-    }
-
-    #[test]
-    fn encode_cd_experimental_stdio() {
-        let args = s(&["pna", "experimental", "stdio", "-C", "dir", "file"]);
-        let result = encode_bsdtar_cd_args(args);
-        assert_eq!(
-            result,
-            s(&["pna", "experimental", "stdio", "\0CD\0dir", "file"]),
-        );
     }
 
     #[test]

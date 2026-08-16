@@ -52,7 +52,7 @@ fn bsdtar_create_extract_with_cd() {
 /// Expectation: Result contains both a.txt (from @source) and b.txt (from sub/).
 ///   @source.pna is resolved from original cwd, not from sub/.
 #[test]
-fn stdio_create_archive_inclusion_before_cd() {
+fn bsdtar_create_archive_inclusion_before_cd() {
     setup();
 
     let base = fs::canonicalize(".")
@@ -78,8 +78,8 @@ fn stdio_create_archive_inclusion_before_cd() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -111,7 +111,7 @@ fn stdio_create_archive_inclusion_before_cd() {
 /// Action: Create with `-C d1 f1.txt -C d2 f2.txt` using absolute -C paths.
 /// Expectation: Both files archived with base names only (no directory prefix).
 #[test]
-fn stdio_create_multiple_cd_absolute_paths() {
+fn bsdtar_create_multiple_cd_absolute_paths() {
     setup();
 
     let base = fs::canonicalize(".")
@@ -136,8 +136,8 @@ fn stdio_create_multiple_cd_absolute_paths() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -166,7 +166,7 @@ fn stdio_create_multiple_cd_absolute_paths() {
 /// Action: Create with `-C` changing into different directories for each file group.
 /// Expectation: Each file is archived relative to its -C directory.
 #[test]
-fn stdio_create_cd_does_not_affect_prior_args() {
+fn bsdtar_create_cd_does_not_affect_prior_args() {
     setup();
 
     let base = fs::canonicalize(".").unwrap().join("stdio_cd_ordering");
@@ -189,8 +189,8 @@ fn stdio_create_cd_does_not_affect_prior_args() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -217,7 +217,7 @@ fn stdio_create_cd_does_not_affect_prior_args() {
 /// Action: Create with `-C src @source.pna -C dir extra.txt`.
 /// Expectation: @source.pna resolves from src/ (the active -C), extra.txt resolves from dir/.
 #[test]
-fn stdio_create_cd_affects_archive_inclusion() {
+fn bsdtar_create_cd_affects_archive_inclusion() {
     setup();
 
     let base = fs::canonicalize(".")
@@ -245,8 +245,8 @@ fn stdio_create_cd_affects_archive_inclusion() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--create",
             "--unstable",
             "--overwrite",
@@ -281,7 +281,7 @@ fn stdio_create_cd_affects_archive_inclusion() {
 /// Action: Extract with `-C <target_dir>` to redirect output.
 /// Expectation: Files appear in the target directory with correct content.
 #[test]
-fn stdio_extract_with_cd() {
+fn bsdtar_extract_with_cd() {
     setup();
 
     let base = fs::canonicalize(".").unwrap().join("stdio_extract_with_cd");
@@ -302,8 +302,8 @@ fn stdio_extract_with_cd() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--extract",
             "--unstable",
             "-f",
@@ -323,7 +323,7 @@ fn stdio_extract_with_cd() {
 /// Action: Update archive with `-C <sub> b.txt`.
 /// Expectation: Archive contains both a.txt and b.txt.
 #[test]
-fn stdio_update_with_cd() {
+fn bsdtar_update_with_cd() {
     setup();
 
     let base = fs::canonicalize(".").unwrap().join("stdio_update_with_cd");
@@ -345,8 +345,8 @@ fn stdio_update_with_cd() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--update",
             "--unstable",
             "-f",
@@ -369,7 +369,7 @@ fn stdio_update_with_cd() {
 /// Action: Append to archive with `-C <sub> b.txt`.
 /// Expectation: Archive contains both a.txt and b.txt.
 #[test]
-fn stdio_append_with_cd() {
+fn bsdtar_append_with_cd() {
     setup();
 
     let base = fs::canonicalize(".").unwrap().join("stdio_append_with_cd");
@@ -391,8 +391,8 @@ fn stdio_append_with_cd() {
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
-            "experimental",
-            "stdio",
+            "compat",
+            "bsdtar",
             "--append",
             "--unstable",
             "-f",
