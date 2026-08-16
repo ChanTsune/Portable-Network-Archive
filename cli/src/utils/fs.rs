@@ -3,7 +3,7 @@ mod nodump;
 mod owner;
 
 #[cfg(windows)]
-use crate::utils::os::windows::{self, fs::*};
+use crate::utils::os::windows;
 pub(crate) use file_id::HardlinkResolver;
 pub(crate) use nodump::is_nodump;
 pub(crate) use owner::*;
