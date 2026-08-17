@@ -362,10 +362,11 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
     /// Returns an error if an I/O error occurs while writing a given entry.
     #[inline]
     pub async fn add_entry_async(&mut self, entry: impl Entry) -> io::Result<usize> {
-        let mut bytes = Vec::new();
-        entry.write_in(&mut bytes)?;
-        self.inner.write_all(&bytes).await?;
-        Ok(bytes.len())
+        let mut written_len = 0;
+        for chunk in entry.into_chunks() {
+            written_len += crate::async_io::write_chunk(&mut self.inner, chunk).await?;
+        }
+        Ok(written_len)
     }
 
     /// Writes the end-of-archive marker and finalizes the archive.
@@ -1222,5 +1223,31 @@ mod tests {
         };
         let expected = include_bytes!("../../../resources/test/empty.pna");
         assert_eq!(archive_bytes.as_slice(), expected.as_slice());
+    }
+
+    #[cfg(feature = "unstable-async")]
+    #[tokio::test]
+    async fn add_entry_async_matches_sync_encoding() {
+        use crate::FileEntryBuilder;
+        use tokio_util::compat::TokioAsyncWriteCompatExt;
+
+        let mut builder =
+            FileEntryBuilder::new_with_options("file".into(), WriteOptions::store()).unwrap();
+        std::io::Write::write_all(&mut builder, b"entry data").unwrap();
+        let entry = builder.build().unwrap();
+
+        let sync_bytes = {
+            let mut archive = Archive::write_header(Vec::new()).unwrap();
+            archive.add_entry(entry.clone()).unwrap();
+            archive.finalize().unwrap()
+        };
+        let async_bytes = {
+            let file = Vec::new().compat_write();
+            let mut archive = Archive::write_header_async(file).await.unwrap();
+            archive.add_entry_async(entry).await.unwrap();
+            archive.finalize_async().await.unwrap().into_inner()
+        };
+
+        assert_eq!(async_bytes, sync_bytes);
     }
 }
