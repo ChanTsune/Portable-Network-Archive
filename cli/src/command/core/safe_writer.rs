@@ -3,7 +3,17 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const MAX_RETRIES: u32 = 3;
+/// The mode is part of the creation, so the file is owner-only from the moment it exists.
+fn create_new_owner_only(path: &Path) -> io::Result<fs::File> {
+    let mut options = fs::OpenOptions::new();
+    options.read(true).write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    options.open(path)
+}
 
 /// Atomic file writer using temp file + rename pattern.
 ///
@@ -20,6 +30,10 @@ pub(crate) struct SafeWriter {
 }
 
 impl SafeWriter {
+    /// A 64-bit name does not repeat in practice; the limit only bounds a filesystem that
+    /// reports `AlreadyExists` for some other reason.
+    const MAX_RETRIES: usize = 1 << 16;
+
     /// Creates a new temp file with pattern `.pna.{random}` in the same directory as
     /// `final_path`, which keeps [`persist()`](Self::persist)'s rename within one filesystem.
     ///
@@ -30,36 +44,28 @@ impl SafeWriter {
         let final_path = final_path.as_ref().to_path_buf();
         let parent = final_path.parent().unwrap_or(Path::new("."));
 
-        // Retry on collision (astronomically rare)
-        for _ in 0..MAX_RETRIES {
-            let random = rand::random::<u64>();
-            let temp_name = format!(".pna.{:016x}", random);
-            let temp_path = parent.join(temp_name);
+        let (temp_path, file) =
+            std::iter::repeat_with(|| parent.join(format!(".pna.{:016x}", rand::random::<u64>())))
+                .take(Self::MAX_RETRIES)
+                .find_map(|temp_path| match create_new_owner_only(&temp_path) {
+                    Err(e) if e.kind() == io::ErrorKind::AlreadyExists => None,
+                    result => Some(result.map(|file| (temp_path, file))),
+                })
+                .unwrap_or_else(|| {
+                    Err(io::Error::new(
+                        io::ErrorKind::AlreadyExists,
+                        format!(
+                            "failed to create unique temp file after {} attempts",
+                            Self::MAX_RETRIES
+                        ),
+                    ))
+                })?;
 
-            match fs::File::create_new(&temp_path) {
-                Ok(file) => {
-                    #[cfg(unix)]
-                    {
-                        // Restrict temp file to owner-only access to prevent other users
-                        // from reading sensitive data before final permissions are applied
-                        use std::os::unix::fs::PermissionsExt;
-                        file.set_permissions(fs::Permissions::from_mode(0o600))?;
-                    }
-                    return Ok(Self {
-                        temp_path: Some(temp_path),
-                        final_path,
-                        file,
-                    });
-                }
-                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
-                Err(e) => return Err(e),
-            }
-        }
-
-        Err(io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            format!("failed to create unique temp file after {MAX_RETRIES} attempts"),
-        ))
+        Ok(Self {
+            temp_path: Some(temp_path),
+            final_path,
+            file,
+        })
     }
 
     /// Returns a mutable reference to the underlying file for writing.
@@ -169,6 +175,22 @@ mod tests {
         // Cleanup
         drop(writer);
         let _ = fs::remove_file(&target);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn safe_writer_temp_file_denies_group_and_other() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = test_dir();
+        let target = dir.join("mode_test.txt");
+        let writer = SafeWriter::new(&target).unwrap();
+        let temp_path = writer.temp_path.as_ref().unwrap().clone();
+
+        let mode = fs::metadata(&temp_path).unwrap().permissions().mode();
+        assert_eq!(mode & 0o077, 0);
+
+        drop(writer);
     }
 
     #[test]
