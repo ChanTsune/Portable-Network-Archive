@@ -7,10 +7,9 @@ use crate::{
         Command, ask_password,
         core::{
             AclStrategy, CollectOptions, CollectedItem, CreateOptions, EntryResult, FflagsStrategy,
-            KeepOptions, MIN_SPLIT_PART_BYTES, MacMetadataStrategy, PathFilter, PathTransformers,
-            PathnameEditor, PermissionStrategyResolver, TimeFilterResolver, TimeFilters,
-            TimestampStrategyResolver, XattrStrategy, collect_items_from_paths,
-            drain_entry_results, entry_option,
+            KeepOptions, MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
+            PermissionStrategyResolver, TimeFilterResolver, TimeFilters, TimestampStrategyResolver,
+            XattrStrategy, collect_items_from_paths, drain_entry_results, entry_option,
             iter::ReorderByIndex,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin, spawn_entry_results, write_split_archive,
@@ -21,7 +20,7 @@ use crate::{
 use anyhow::ensure;
 use bytesize::ByteSize;
 use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
-use pna::{Archive, SolidEntryBuilder, WriteOptions};
+use pna::{Archive, MIN_SPLIT_PART_BYTES, SolidEntryBuilder, WriteOptions};
 use std::{
     fs,
     io::{self, prelude::*},

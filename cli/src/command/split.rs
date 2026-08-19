@@ -1,14 +1,11 @@
 use crate::{
-    command::{
-        Command,
-        core::{MIN_SPLIT_PART_BYTES, write_split_archive},
-    },
+    command::{Command, core::write_split_archive},
     utils::PathWithCwd,
 };
 use anyhow::{Context, ensure};
 use bytesize::ByteSize;
 use clap::{ArgAction, Parser, ValueHint};
-use pna::Archive;
+use pna::{Archive, MIN_SPLIT_PART_BYTES};
 use std::{borrow::Cow, fs, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
