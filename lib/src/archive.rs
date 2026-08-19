@@ -2,17 +2,27 @@
 
 mod header;
 mod read;
+mod split_parts;
 mod write;
 
 use crate::{
-    chunk::{ChunkStreamWriter, RawChunk},
+    PNA_SIGNATURE,
+    chunk::{ChunkStreamWriter, ChunkType, RawChunk},
     cipher::CipherWriter,
     compress::CompressionWriter,
     io::WriteChunk,
 };
 use core::num::NonZeroU32;
 pub use header::*;
+pub use split_parts::{MIN_SPLIT_PART_BYTES, SplitParts};
+use std::io::{self, Write};
 pub(crate) use write::*;
+
+fn write_archive_framing<W: Write>(writer: &mut W, header: &ArchiveHeader) -> io::Result<()> {
+    writer.write_all(PNA_SIGNATURE)?;
+    crate::io::write_chunk(writer, (ChunkType::AHED, header.to_bytes()))?;
+    Ok(())
+}
 
 /// Provides read and write access to a PNA file.
 ///
