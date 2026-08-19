@@ -28,6 +28,7 @@ mod option_one_file_system;
 mod option_password_from_file;
 mod option_password_from_file_raw;
 mod option_password_hash;
+mod option_split;
 mod option_strip_components;
 mod option_substitution;
 mod option_transform;
