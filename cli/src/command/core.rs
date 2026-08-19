@@ -29,10 +29,9 @@ pub(crate) use path_filter::PathFilter;
 use path_slash::*;
 pub(crate) use path_transformer::PathTransformers;
 use pna::{
-    Archive, DataKind, DirEntryBuilder, EntryContent, EntryPart, FileEntryBuilder,
-    HardLinkEntryBuilder, LinkTargetType, MIN_CHUNK_BYTES_SIZE, Metadata, NormalEntry,
-    OpaqueEntryBuilder, PNA_SIGNATURE, ReadEntry, ReadOptions, SolidEntryBuilder,
-    SymlinkEntryBuilder, WriteOptions, prelude::*,
+    Archive, DataKind, DirEntryBuilder, EntryContent, FileEntryBuilder, HardLinkEntryBuilder,
+    LinkTargetType, Metadata, NormalEntry, OpaqueEntryBuilder, PNA_SIGNATURE, ReadEntry,
+    ReadOptions, SolidEntryBuilder, SymlinkEntryBuilder, WriteOptions, prelude::*,
 };
 use std::{
     borrow::Cow,
@@ -147,13 +146,6 @@ impl TimeFilterResolver<'_> {
         })
     }
 }
-
-/// Overhead for a split archive part in bytes, including PNA signature, AHED, ANXT, and AEND chunks.
-pub(crate) const SPLIT_ARCHIVE_OVERHEAD_BYTES: usize =
-    PNA_SIGNATURE.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8;
-
-/// Minimum bytes required for a split archive part (overhead + one minimal chunk).
-pub(crate) const MIN_SPLIT_PART_BYTES: usize = SPLIT_ARCHIVE_OVERHEAD_BYTES + MIN_CHUNK_BYTES_SIZE;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) enum XattrStrategy {
@@ -1245,46 +1237,6 @@ pub(crate) fn collect_extra_chunks(
     Ok(chunks)
 }
 
-pub(crate) fn split_to_parts(
-    mut entry_part: EntryPart<&[u8]>,
-    first: usize,
-    max: usize,
-) -> io::Result<Vec<EntryPart<&[u8]>>> {
-    let mut parts = vec![];
-    let mut split_size = first;
-    loop {
-        match entry_part.try_split(split_size) {
-            Ok((write_part, Some(remaining_part))) => {
-                parts.push(write_part);
-                entry_part = remaining_part;
-                split_size = max;
-            }
-            Ok((write_part, None)) => {
-                parts.push(write_part);
-                break;
-            }
-            Err(unsplit_part) => {
-                if split_size < max && parts.is_empty() {
-                    // The entry's first chunk doesn't fit in remaining space (`first`),
-                    // but it might fit in a fresh archive with full capacity (`max`).
-                    // Retry with max size - the caller will handle creating a new archive
-                    // when it sees the returned part exceeds remaining space.
-                    entry_part = unsplit_part;
-                    split_size = max;
-                    continue;
-                }
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    format!(
-                        "A chunk was detected that could not be divided into chunks smaller than the given size {max}"
-                    ),
-                ));
-            }
-        }
-    }
-    Ok(parts)
-}
-
 pub(crate) struct TransformContext<'a> {
     password: Option<&'a [u8]>,
     read_options: ReadOptions,
@@ -1797,73 +1749,37 @@ where
     P: AsRef<Path>,
 {
     let archive = archive.as_ref();
-    let first_item_path = get_part_path(archive, 1);
-    let first_item_path = first_item_path.as_ref();
-    let file = utils::fs::file_create(first_item_path, overwrite)?;
-    let buffered = io::BufWriter::with_capacity(64 * 1024, file);
-    write_split_archive_writer(
-        buffered,
+    let parts = write_split_archive_writer(
         entries,
         |n| {
-            let file = utils::fs::file_create(get_part_path(archive, n), overwrite)?;
+            let file = utils::fs::file_create(get_part_path(archive, n).as_ref(), overwrite)?;
             Ok(io::BufWriter::with_capacity(64 * 1024, file))
         },
         max_file_size,
-        |n| {
-            if n == 1 {
-                fs::rename(first_item_path, archive)?;
-            };
-            Ok(())
-        },
-    )
+    )?;
+    if parts == 1 {
+        fs::rename(get_part_path(archive, 1).as_ref(), archive)?;
+    }
+    Ok(())
 }
 
-pub(crate) fn write_split_archive_writer<W, F, C>(
-    initial_writer: W,
+/// Returns the number of parts written. `get_next_writer` takes a 1-based part number.
+pub(crate) fn write_split_archive_writer<W, F>(
     entries: impl Iterator<Item = io::Result<impl Entry + Sized>>,
     mut get_next_writer: F,
     max_file_size: usize,
-    mut on_complete: C,
-) -> anyhow::Result<()>
+) -> anyhow::Result<usize>
 where
     W: Write,
     F: FnMut(usize) -> io::Result<W>,
-    C: FnMut(usize) -> io::Result<()>,
 {
-    if max_file_size < MIN_SPLIT_PART_BYTES {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!(
-                "Split size must be at least {MIN_SPLIT_PART_BYTES} bytes to accommodate headers"
-            ),
-        )
-        .into());
-    }
-    let mut part_num = 1;
-    let mut writer = Archive::write_header(initial_writer)?;
-
-    let max_file_size = max_file_size - SPLIT_ARCHIVE_OVERHEAD_BYTES;
-    let mut written_entry_size = 0;
+    // `Archive::write_split_header` numbers parts from 0.
+    let mut archive =
+        Archive::write_split_header(max_file_size, |n| get_next_writer(n as usize + 1))?;
     for entry in entries {
-        let p = EntryPart::from(entry?);
-        let parts = split_to_parts(
-            p.as_ref(),
-            max_file_size - written_entry_size,
-            max_file_size,
-        )?;
-        for part in parts {
-            if written_entry_size + part.bytes_len() > max_file_size {
-                part_num += 1;
-                let file = get_next_writer(part_num)?;
-                writer = writer.split_to_next_archive(file)?;
-                written_entry_size = 0;
-            }
-            written_entry_size += writer.add_entry_part(part)?;
-        }
+        archive.add_entry(entry?)?;
     }
-    writer.finalize()?;
-    on_complete(part_num)?;
-    Ok(())
+    Ok(archive.finalize()?.parts() as usize)
 }
 
 #[inline]
