@@ -1217,9 +1217,11 @@ impl<'a> From<NormalEntry<&'a [u8]>> for NormalEntry<Cow<'a, [u8]>> {
 }
 
 /// A structure representing the split [`Entry`] for archive splitting.
+#[deprecated(since = "TBD", note = "use Archive::write_split_header instead")]
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EntryPart<T = Vec<u8>>(pub(crate) Vec<RawChunk<T>>);
 
+#[allow(deprecated)]
 impl<T> EntryPart<T>
 where
     RawChunk<T>: Chunk,
@@ -1238,6 +1240,7 @@ where
     }
 }
 
+#[allow(deprecated)]
 impl EntryPart<&[u8]> {
     /// Splits this [`EntryPart`] into two parts if its length exceeds the given value.
     ///
@@ -1279,6 +1282,7 @@ impl EntryPart<&[u8]> {
 }
 
 #[doc(hidden)]
+#[allow(deprecated)]
 impl<T: SealedEntryExt> From<T> for EntryPart {
     #[inline]
     fn from(value: T) -> Self {
@@ -1372,6 +1376,7 @@ mod tests {
         ])
     });
 
+    #[allow(deprecated)]
     mod entry_part_try_split {
         use super::*;
         #[cfg(all(target_family = "wasm", target_os = "unknown"))]

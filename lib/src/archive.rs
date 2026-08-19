@@ -1065,6 +1065,7 @@ mod tests {
         /// A datastream carried across an `ANXT` boundary reaches the decoder as
         /// one stream, so the segment look-ahead must not read the end of a part
         /// as the end of the datastream and verify a non-final segment as final.
+        #[allow(deprecated)]
         #[test]
         fn entry_split_across_archive_parts_remains_decryptable() {
             let options = gcm_options(Encryption::AES, Compression::NO, 4);
