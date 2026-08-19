@@ -1,6 +1,6 @@
 //! Chunk writing and serialization to byte streams.
 
-use crate::chunk::ChunkType;
+use crate::{chunk::ChunkType, io::WriteChunk};
 use core::num::NonZeroU32;
 use std::io::{self, Write};
 
@@ -29,20 +29,20 @@ impl<W> ChunkStreamWriter<W> {
     }
 }
 
-impl<W: Write> Write for ChunkStreamWriter<W> {
+impl<W: WriteChunk> Write for ChunkStreamWriter<W> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         if buf.is_empty() {
             return Ok(0);
         }
         let chunk = &buf[..buf.len().min(self.max_chunk_size)];
-        crate::io::write_chunk(&mut self.w, (self.ty, chunk))?;
+        self.w.write_chunk((self.ty, chunk))?;
         Ok(chunk.len())
     }
 
     #[inline]
     fn flush(&mut self) -> io::Result<()> {
-        self.w.flush()
+        self.w.flush_chunks()
     }
 }
 

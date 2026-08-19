@@ -8,10 +8,10 @@ use crate::{
     chunk::{ChunkStreamWriter, RawChunk},
     cipher::CipherWriter,
     compress::CompressionWriter,
+    io::WriteChunk,
 };
 use core::num::NonZeroU32;
 pub use header::*;
-use std::io::prelude::*;
 pub(crate) use write::*;
 
 /// Provides read and write access to a PNA file.
@@ -193,7 +193,7 @@ impl<T> Archive<T> {
 /// #     Ok(())
 /// # }
 /// ```
-pub struct SolidArchive<T: Write> {
+pub struct SolidArchive<T: WriteChunk> {
     archive_header: ArchiveHeader,
     inner: CompressionWriter<CipherWriter<ChunkStreamWriter<T>>>,
     max_chunk_size: Option<NonZeroU32>,
@@ -203,7 +203,7 @@ pub struct SolidArchive<T: Write> {
 mod tests {
     use super::*;
     use crate::{Duration, PNA_SIGNATURE, entry::*};
-    use std::io::{self, Cursor};
+    use std::io::{self, Cursor, Read, Write};
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 

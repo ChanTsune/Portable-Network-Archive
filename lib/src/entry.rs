@@ -30,6 +30,7 @@ use crate::{
     Duration,
     chunk::{Chunk, ChunkExt, ChunkType, MIN_CHUNK_BYTES_SIZE, RawChunk, chunk_data_split},
     ext::time::DurationExt,
+    io::WriteChunk,
     util::io::ChainReader,
     util::slice::skip_while,
 };
@@ -37,7 +38,7 @@ use std::{
     borrow::Cow,
     collections::VecDeque,
     convert::Infallible,
-    io::{self, Read, Write},
+    io::{self, Read},
 };
 
 mod private {
@@ -65,7 +66,7 @@ mod private {
             sink.0
         }
 
-        fn write_in<W: Write>(self, writer: &mut W) -> io::Result<usize>
+        fn write_in<W: WriteChunk>(self, writer: &mut W) -> io::Result<usize>
         where
             Self: Sized,
         {
@@ -106,7 +107,7 @@ struct EntryChunkWriter<'w, W> {
     written_len: usize,
 }
 
-impl<W: Write> EntryChunkSink for EntryChunkWriter<'_, W> {
+impl<W: WriteChunk> EntryChunkSink for EntryChunkWriter<'_, W> {
     type Error = io::Error;
 
     #[inline]
@@ -114,7 +115,7 @@ impl<W: Write> EntryChunkSink for EntryChunkWriter<'_, W> {
     where
         C: Chunk + Into<RawChunk>,
     {
-        self.written_len += crate::io::write_chunk(self.writer, chunk)?;
+        self.written_len += self.writer.write_chunk(chunk)?;
         Ok(())
     }
 }
@@ -178,13 +179,13 @@ fn try_for_each_metadata_facet<E>(
     Ok(())
 }
 
-pub(crate) fn write_metadata_facets<W: Write>(
+pub(crate) fn write_metadata_facets<W: WriteChunk>(
     writer: &mut W,
     metadata: &Metadata,
 ) -> io::Result<usize> {
     let mut total = 0;
     try_for_each_metadata_facet(metadata, |ty, data| {
-        total += crate::io::write_chunk(writer, (ty, data))?;
+        total += writer.write_chunk((ty, data))?;
         Ok::<(), io::Error>(())
     })?;
     Ok(total)
@@ -1320,6 +1321,7 @@ fn u128_from_be_bytes_last(bytes: &[u8]) -> u128 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
     use std::sync::LazyLock;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;

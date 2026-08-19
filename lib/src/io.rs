@@ -5,6 +5,76 @@ use crate::{
 };
 use std::{io, mem};
 
+pub(crate) mod sealed {
+    use std::io::Write;
+
+    pub trait Sealed {}
+
+    impl<W: Write> Sealed for W {}
+}
+
+/// A chunk-value emission target.
+///
+/// `io::Write` implementors serialize each chunk immediately as bytes; other
+/// sinks may route or buffer chunk values without going through an
+/// intermediate byte encoding. This trait is sealed and cannot be
+/// implemented outside this crate.
+///
+/// It is deliberately not re-exported at the crate root: the blanket
+/// implementation below puts its methods on every [`Write`](io::Write) type, so
+/// a root re-export would inject them into the method resolution of any crate
+/// doing `use libpna::*`.
+pub trait WriteChunk: sealed::Sealed {
+    /// Emits `chunk` to this sink and returns the number of bytes written.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the sink fails to accept the chunk.
+    fn write_chunk<C: Chunk>(&mut self, chunk: C) -> io::Result<usize>;
+
+    /// Consumes this sink, emits the archive-end marker, and returns the
+    /// finalized sink.
+    ///
+    /// Prefer [`Archive::finalize`](crate::Archive::finalize) when constructing
+    /// an archive so the marker is emitted at the correct point.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the sink fails to write or finalize its output.
+    #[inline]
+    fn finalize_archive(mut self) -> io::Result<Self>
+    where
+        Self: Sized,
+    {
+        self.write_chunk((ChunkType::AEND, []))?;
+        Ok(self)
+    }
+
+    /// Flushes any output buffered by this sink.
+    ///
+    /// Named `flush_chunks` rather than `flush` because the blanket
+    /// implementation below also covers every [`Write`](io::Write) type;
+    /// reusing `flush` would make the method ambiguous on such types wherever
+    /// both traits are in scope.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the sink fails to flush its buffered output.
+    fn flush_chunks(&mut self) -> io::Result<()>;
+}
+
+impl<W: io::Write> WriteChunk for W {
+    #[inline]
+    fn write_chunk<C: Chunk>(&mut self, chunk: C) -> io::Result<usize> {
+        crate::io::write_chunk(self, chunk)
+    }
+
+    #[inline]
+    fn flush_chunks(&mut self) -> io::Result<()> {
+        self.flush()
+    }
+}
+
 /// Reads and validates the PNA archive signature.
 ///
 /// On success, `reader` has consumed exactly the signature bytes. On failure an
