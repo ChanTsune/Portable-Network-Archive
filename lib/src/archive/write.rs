@@ -2,15 +2,17 @@
 
 #[cfg(feature = "unstable-async")]
 use crate::PNA_SIGNATURE;
+#[allow(deprecated)]
+use crate::entry::EntryPart;
 use crate::{
     archive::{Archive, ArchiveHeader, SolidArchive, SplitParts, write_archive_framing},
     chunk::{Chunk, ChunkStreamWriter, ChunkType, RawChunk},
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{
-        DataKind, Entry, EntryHeader, EntryName, EntryPart, EntryWriteAttributes, NormalEntry,
-        SealedEntryExt, SolidHeader, WriteCipher, WriteOption, WriteOptions, get_writer,
-        get_writer_context, write_metadata_facets,
+        DataKind, Entry, EntryHeader, EntryName, EntryWriteAttributes, NormalEntry, SealedEntryExt,
+        SolidHeader, WriteCipher, WriteOption, WriteOptions, get_writer, get_writer_context,
+        write_metadata_facets,
     },
     io::WriteChunk,
     util::io::TryIntoInner,
@@ -105,13 +107,15 @@ impl<W: Write> Archive<W> {
 
     /// Splits to the next archive.
     ///
+    /// For automatic, budget-driven splitting prefer [`Archive::write_split_header`].
+    ///
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while splitting to the next archive.
     ///
     /// # Examples
     /// ```no_run
-    /// # use libpna::{Archive, EntryPart, FileEntryBuilder, WriteOptions};
+    /// # use libpna::{Archive, FileEntryBuilder, WriteOptions};
     /// # use std::fs::File;
     /// # use std::io;
     ///
@@ -121,7 +125,7 @@ impl<W: Write> Archive<W> {
     /// let entry =
     ///     FileEntryBuilder::new_with_options("example.txt".into(), WriteOptions::builder().build())?
     ///         .build()?;
-    /// archive_part1.add_entry_part(EntryPart::from(entry))?;
+    /// archive_part1.add_entry(entry)?;
     ///
     /// let part2_file = File::create("example.part2.pna")?;
     /// let archive_part2 = archive_part1.split_to_next_archive(part2_file)?;
@@ -392,6 +396,8 @@ impl<W: WriteChunk> Archive<W> {
     /// #    Ok(())
     /// # }
     /// ```
+    #[deprecated(since = "TBD", note = "use Archive::write_split_header instead")]
+    #[allow(deprecated)]
     #[inline]
     pub fn add_entry_part<T>(&mut self, entry_part: EntryPart<T>) -> io::Result<usize>
     where
