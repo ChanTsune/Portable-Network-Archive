@@ -964,16 +964,6 @@ impl<T> NormalEntry<T> {
         &self.metadata
     }
 
-    /// Returns the extended attributes of this entry.
-    #[deprecated(
-        since = "0.36.0",
-        note = "xattrs are now a Metadata facet; use NormalEntry::metadata().xattrs()"
-    )]
-    #[inline]
-    pub fn xattrs(&self) -> &[ExtendedAttribute] {
-        self.metadata.xattrs()
-    }
-
     /// Returns the extra chunks of this entry.
     #[inline]
     pub fn extra_chunks(&self) -> &[RawChunk<T>] {
@@ -998,17 +988,6 @@ impl<T> NormalEntry<T> {
         metadata.compressed_size = self.metadata.compressed_size;
         metadata.raw_file_size = self.metadata.raw_file_size;
         self.metadata = metadata;
-        self
-    }
-
-    /// Applies extended attributes to the entry.
-    #[deprecated(
-        since = "0.36.0",
-        note = "xattrs are now a Metadata facet; set them via Metadata::with_xattrs and NormalEntry::with_metadata"
-    )]
-    #[inline]
-    pub fn with_xattrs(mut self, xattrs: impl Into<Vec<ExtendedAttribute>>) -> Self {
-        self.metadata.xattrs = xattrs.into();
         self
     }
 
@@ -1782,16 +1761,6 @@ mod tests {
     fn empty_xattrs_emit_no_xatr_chunk() {
         let entry = FileEntryBuilder::new("f".into()).unwrap().build().unwrap();
         assert!(entry.into_chunks().iter().all(|c| c.ty != ChunkType::xATR));
-    }
-
-    #[allow(deprecated)]
-    #[test]
-    fn deprecated_xattrs_accessor_delegates_to_metadata() {
-        let mut builder = FileEntryBuilder::new("f".into()).unwrap();
-        builder.metadata(Metadata::new().with_xattrs(vec![sample_xattr()]));
-        let entry = builder.build().unwrap();
-        assert_eq!(entry.xattrs(), entry.metadata().xattrs());
-        assert!(!entry.xattrs().is_empty());
     }
 
     #[test]
