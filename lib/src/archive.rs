@@ -704,7 +704,6 @@ mod tests {
         assert!(entries.next().is_none());
     }
 
-    #[allow(deprecated)]
     #[test]
     fn metadata() {
         let original_entry = {
@@ -716,13 +715,11 @@ mod tests {
                     .with_created(Some(Duration::seconds(31)))
                     .with_modified(Some(Duration::seconds(32)))
                     .with_accessed(Some(Duration::seconds(33)))
-                    .with_permission(Some(Permission::new(
-                        1,
-                        "uname".into(),
-                        2,
-                        "gname".into(),
-                        0o775,
-                    ))),
+                    .with_owner_uid(Some(OwnerUid::from(1)))
+                    .with_owner_gid(Some(OwnerGid::from(2)))
+                    .with_owner_user_name(Some(OwnerUserName::new("uname").unwrap()))
+                    .with_owner_group_name(Some(OwnerGroupName::new("gname").unwrap()))
+                    .with_permission_mode(Some(PermissionMode::from(0o775))),
             );
             builder.write_all(b"entry data").unwrap();
             builder.build().unwrap()
@@ -751,8 +748,24 @@ mod tests {
             read_entry.metadata().accessed()
         );
         assert_eq!(
-            original_entry.metadata().permission(),
-            read_entry.metadata().permission()
+            original_entry.metadata().owner_uid(),
+            read_entry.metadata().owner_uid()
+        );
+        assert_eq!(
+            original_entry.metadata().owner_gid(),
+            read_entry.metadata().owner_gid()
+        );
+        assert_eq!(
+            original_entry.metadata().owner_user_name(),
+            read_entry.metadata().owner_user_name()
+        );
+        assert_eq!(
+            original_entry.metadata().owner_group_name(),
+            read_entry.metadata().owner_group_name()
+        );
+        assert_eq!(
+            original_entry.metadata().permission_mode(),
+            read_entry.metadata().permission_mode()
         );
         assert_eq!(
             original_entry.metadata().compressed_size(),

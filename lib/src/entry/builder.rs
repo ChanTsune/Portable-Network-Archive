@@ -1005,6 +1005,14 @@ mod tests {
         assert!(out.chars().all(|c| c == two_byte_char));
     }
 
+    #[allow(deprecated)]
+    fn legacy_fprm(uid: u64, uname: &str, gid: u64, gname: &str, mode: u16) -> Permission {
+        Permission::try_from_bytes(&crate::entry::meta::legacy_fprm_body(
+            uid, uname, gid, gname, mode,
+        ))
+        .unwrap()
+    }
+
     #[test]
     #[allow(deprecated)]
     fn metadata_preserves_all_owner_facets() {
@@ -1034,13 +1042,9 @@ mod tests {
     #[allow(deprecated)]
     fn metadata_rescues_fprm_only_source() {
         let mut b = FileEntryBuilder::new("f".into()).unwrap();
-        b.metadata(Metadata::new().with_permission(Some(Permission::new(
-            7,
-            "legacy".to_string(),
-            8,
-            "grp".to_string(),
-            0o600,
-        ))));
+        b.metadata(
+            Metadata::new().with_permission(Some(legacy_fprm(7, "legacy", 8, "grp", 0o600))),
+        );
         let entry = b.build().unwrap();
         let m = entry.metadata();
         assert_eq!(m.owner_uid().map(|v| v.get()), Some(7));
@@ -1059,13 +1063,7 @@ mod tests {
             Metadata::new()
                 .with_owner_uid(Some(OwnerUid::from(1)))
                 .with_owner_user_name(Some(OwnerUserName::new("new").unwrap()))
-                .with_permission(Some(Permission::new(
-                    7,
-                    "legacy".to_string(),
-                    8,
-                    "grp".to_string(),
-                    0o600,
-                ))),
+                .with_permission(Some(legacy_fprm(7, "legacy", 8, "grp", 0o600))),
         );
         let entry = b.build().unwrap();
         let m = entry.metadata();
@@ -1078,29 +1076,6 @@ mod tests {
             m.permission().is_some(),
             "fPRM must coexist with a partially set owner facet"
         );
-    }
-
-    #[test]
-    #[allow(deprecated)]
-    fn metadata_truncates_overlong_fprm_name() {
-        let big_char = 'é';
-        assert_eq!(big_char.len_utf8(), 2);
-        let big = String::from(big_char).repeat(200); // 400 bytes
-        let mut b = FileEntryBuilder::new("f".into()).unwrap();
-        b.metadata(Metadata::new().with_permission(Some(Permission::new(
-            7,
-            big,
-            8,
-            "grp".to_string(),
-            0o600,
-        ))));
-        let entry = b.build().unwrap();
-        let m = entry.metadata();
-        let uname = m.owner_user_name().unwrap().as_str();
-        assert_eq!(uname.len(), 254);
-        assert_eq!(uname.chars().count(), 127);
-        assert!(uname.chars().all(|c| c == big_char));
-        assert_eq!(m.owner_uid().map(|v| v.get()), Some(7));
     }
 
     #[allow(deprecated)]

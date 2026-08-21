@@ -24,6 +24,20 @@ pub fn xattr(name: &str, value: &[u8]) -> pna::ExtendedAttribute {
     )
 }
 
+/// Encodes a legacy `fPRM` chunk Body: uid, length-prefixed user name, gid,
+/// length-prefixed group name, mode. `fPRM` cannot be authored through the API,
+/// so tests that need one write the chunk raw.
+pub fn legacy_fprm_body(uid: u64, uname: &str, gid: u64, gname: &str, mode: u16) -> Vec<u8> {
+    let mut bytes = uid.to_be_bytes().to_vec();
+    bytes.push(uname.len() as u8);
+    bytes.extend_from_slice(uname.as_bytes());
+    bytes.extend_from_slice(&gid.to_be_bytes());
+    bytes.push(gname.len() as u8);
+    bytes.extend_from_slice(gname.as_bytes());
+    bytes.extend_from_slice(&mode.to_be_bytes());
+    bytes
+}
+
 /// Creates an archive with file entries having specific permissions.
 /// This bypasses filesystem permission requirements by constructing entries programmatically.
 pub fn create_archive_with_permissions(

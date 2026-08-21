@@ -340,6 +340,9 @@ impl Default for Metadata {
 }
 
 /// Owner, group, and permission bits for an archive entry.
+///
+/// Instances only come from reading an entry that carries an `fPRM` chunk, via
+/// [`Metadata::permission`]; the `fPRM` chunk cannot be authored any more.
 #[deprecated(
     since = "0.34.0",
     note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
@@ -355,44 +358,7 @@ pub struct Permission {
 
 #[allow(deprecated)]
 impl Permission {
-    /// Creates a new [`Permission`] with the given user, group, and permission bits.
-    ///
-    /// The `uid`/`gid` are numeric POSIX IDs, `uname`/`gname` are the
-    /// corresponding names, and `permission` holds the file mode bits (e.g. `0o755`).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # #![allow(deprecated)]
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user".into(), 100, "group".into(), 0o755);
-    /// ```
-    #[deprecated(
-        since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
-    )]
-    #[inline]
-    pub const fn new(uid: u64, uname: String, gid: u64, gname: String, permission: u16) -> Self {
-        Self {
-            uid,
-            uname,
-            gid,
-            gname,
-            permission,
-        }
-    }
     /// Returns the user ID associated with this permission.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # #![allow(deprecated)]
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-    /// assert_eq!(perm.uid(), 1000);
-    /// ```
     #[deprecated(
         since = "0.34.0",
         note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
@@ -403,16 +369,6 @@ impl Permission {
     }
 
     /// Returns the user name associated with this permission.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # #![allow(deprecated)]
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-    /// assert_eq!(perm.uname(), "user1");
-    /// ```
     #[deprecated(
         since = "0.34.0",
         note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
@@ -423,16 +379,6 @@ impl Permission {
     }
 
     /// Returns the group ID associated with this permission.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # #![allow(deprecated)]
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-    /// assert_eq!(perm.gid(), 100);
-    /// ```
     #[deprecated(
         since = "0.34.0",
         note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
@@ -443,16 +389,6 @@ impl Permission {
     }
 
     /// Returns the group name associated with this permission.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # #![allow(deprecated)]
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-    /// assert_eq!(perm.gname(), "group1");
-    /// ```
     #[deprecated(
         since = "0.34.0",
         note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
@@ -463,16 +399,6 @@ impl Permission {
     }
 
     /// Returns the permission bits associated with this permission.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # #![allow(deprecated)]
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-    /// assert_eq!(perm.permissions(), 0o644);
-    /// ```
     #[deprecated(
         since = "0.34.0",
         note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
@@ -540,6 +466,20 @@ impl Permission {
             permission,
         })
     }
+}
+
+/// Builds an `fPRM` chunk Body: uid, length-prefixed user name, gid,
+/// length-prefixed group name, mode.
+#[cfg(test)]
+pub(crate) fn legacy_fprm_body(uid: u64, uname: &str, gid: u64, gname: &str, mode: u16) -> Vec<u8> {
+    let mut bytes = uid.to_be_bytes().to_vec();
+    bytes.push(uname.len() as u8);
+    bytes.extend_from_slice(uname.as_bytes());
+    bytes.extend_from_slice(&gid.to_be_bytes());
+    bytes.push(gname.len() as u8);
+    bytes.extend_from_slice(gname.as_bytes());
+    bytes.extend_from_slice(&mode.to_be_bytes());
+    bytes
 }
 
 /// Maximum owner-facet string byte length (the `fONm`/`fGNm`/`fOSi`/`fGSi`
@@ -976,8 +916,14 @@ mod tests {
     #[allow(deprecated)]
     #[test]
     fn permission() {
-        let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-        assert_eq!(perm, Permission::try_from_bytes(&perm.to_bytes()).unwrap());
+        let body = legacy_fprm_body(1000, "user1", 100, "group1", 0o644);
+        let perm = Permission::try_from_bytes(&body).unwrap();
+        assert_eq!(perm.uid(), 1000);
+        assert_eq!(perm.uname(), "user1");
+        assert_eq!(perm.gid(), 100);
+        assert_eq!(perm.gname(), "group1");
+        assert_eq!(perm.permissions(), 0o644);
+        assert_eq!(perm.to_bytes(), body);
     }
 
     #[test]
@@ -1235,14 +1181,10 @@ mod tests {
             let mut b = FileEntryBuilder::new("f".into()).unwrap();
             b.metadata(
                 Metadata::new()
-                    // Legacy fPRM (Permission uses plain String uname/gname on this branch).
-                    .with_permission(Some(Permission::new(
-                        7,
-                        "legacy".to_string(),
-                        8,
-                        "grp".to_string(),
-                        0o600,
-                    )))
+                    .with_permission(Some(
+                        Permission::try_from_bytes(&legacy_fprm_body(7, "legacy", 8, "grp", 0o600))
+                            .unwrap(),
+                    ))
                     // All 7 new owner facets.
                     .with_owner_uid(Some(OwnerUid::from(1)))
                     .with_owner_gid(Some(OwnerGid::from(2)))

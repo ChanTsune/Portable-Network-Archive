@@ -210,7 +210,42 @@ mod tests {
 
     #[allow(deprecated)]
     use libpna::Permission;
-    use libpna::{Archive, OwnerGroupSid, OwnerUserSid, WriteOptions};
+    use libpna::{Archive, ChunkType, OwnerGroupSid, OwnerUserSid, RawChunk, WriteOptions};
+
+    /// Reads back a `Metadata` carrying the given `fPRM` values.
+    ///
+    /// `fPRM` can no longer be authored through the API, so the chunk is
+    /// written raw and the values come back off the wire.
+    #[allow(deprecated)]
+    fn fprm_metadata(uid: u64, uname: &str, gid: u64, gname: &str, mode: u16) -> Metadata {
+        let mut body = uid.to_be_bytes().to_vec();
+        body.push(uname.len() as u8);
+        body.extend_from_slice(uname.as_bytes());
+        body.extend_from_slice(&gid.to_be_bytes());
+        body.push(gname.len() as u8);
+        body.extend_from_slice(gname.as_bytes());
+        body.extend_from_slice(&mode.to_be_bytes());
+
+        let mut buf = Vec::new();
+        {
+            let mut a = Archive::write_header(&mut buf).unwrap();
+            let mut b = OpaqueEntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
+            b.add_extra_chunk(RawChunk::from_data(ChunkType::fPRM, body));
+            a.add_entry(b.build().unwrap()).unwrap();
+            a.finalize().unwrap();
+        }
+        let mut a = Archive::read_header(&buf[..]).unwrap();
+        let e = a.entries().skip_solid().next().unwrap().unwrap();
+        e.metadata().clone()
+    }
+
+    #[allow(deprecated)]
+    fn fprm(uid: u64, uname: &str, gid: u64, gname: &str, mode: u16) -> Permission {
+        fprm_metadata(uid, uname, gid, gname, mode)
+            .permission()
+            .cloned()
+            .expect("the raw fPRM chunk must decode")
+    }
 
     #[allow(deprecated)]
     fn roundtrip(src: &Metadata) -> Metadata {
@@ -266,13 +301,7 @@ mod tests {
     #[test]
     #[allow(deprecated)]
     fn add_metadata_translates_fprm_only_source() {
-        let src = Metadata::new().with_permission(Some(Permission::new(
-            7,
-            "legacy".to_string(),
-            8,
-            "grp".to_string(),
-            0o600,
-        )));
+        let src = Metadata::new().with_permission(Some(fprm(7, "legacy", 8, "grp", 0o600)));
         let m = roundtrip(&src);
         assert_eq!(m.owner_uid().map(|v| v.get()), Some(7));
         assert_eq!(m.owner_gid().map(|v| v.get()), Some(8));
@@ -288,13 +317,7 @@ mod tests {
         let src = Metadata::new()
             .with_owner_uid(Some(OwnerUid::from(1)))
             .with_owner_user_name(Some(OwnerUserName::new("new").unwrap()))
-            .with_permission(Some(Permission::new(
-                7,
-                "legacy".to_string(),
-                8,
-                "grp".to_string(),
-                0o600,
-            )));
+            .with_permission(Some(fprm(7, "legacy", 8, "grp", 0o600)));
         let m = roundtrip(&src);
         assert_eq!(m.owner_uid().map(|v| v.get()), Some(1));
         assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("new"));
@@ -306,42 +329,9 @@ mod tests {
 
     #[test]
     #[allow(deprecated)]
-    fn add_metadata_truncates_overlong_fprm_name() {
-        let big_char = 'é';
-        assert_eq!(big_char.len_utf8(), 2);
-        let big = String::from(big_char).repeat(200); // 400 bytes
-        let src = Metadata::new().with_permission(Some(Permission::new(
-            7,
-            big,
-            8,
-            "grp".to_string(),
-            0o600,
-        )));
-        let m = roundtrip(&src);
-        let uname = m.owner_user_name().unwrap().as_str();
-        assert_eq!(uname.len(), 254);
-        assert_eq!(uname.chars().count(), 127);
-        assert!(uname.chars().all(|c| c == big_char));
-        assert_eq!(m.owner_uid().map(|v| v.get()), Some(7));
-    }
-
-    #[test]
-    #[allow(deprecated)]
     fn add_metadata_preserves_explicit_builder_fprm_while_rescuing_metadata_fprm() {
-        let src = Metadata::new().with_permission(Some(Permission::new(
-            7,
-            "legacy".to_string(),
-            8,
-            "grp".to_string(),
-            0o600,
-        )));
-        let explicit = Permission::new(
-            1,
-            "explicit".to_string(),
-            2,
-            "explicit_group".to_string(),
-            0o700,
-        );
+        let src = Metadata::new().with_permission(Some(fprm(7, "legacy", 8, "grp", 0o600)));
+        let explicit = fprm(1, "explicit", 2, "explicit_group", 0o700);
         let m = roundtrip_with_builder_permission(&src, explicit);
         let p = m.permission().expect("explicit builder fPRM must remain");
         assert_eq!(p.uid(), 1);

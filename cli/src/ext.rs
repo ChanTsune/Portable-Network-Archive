@@ -202,17 +202,36 @@ impl<S: Display> Display for UserDisplay<S> {
 mod resolved_ownership_tests {
     use super::*;
 
+    /// Reads back a `Metadata` carrying the given `fPRM` values.
+    ///
+    /// `fPRM` can no longer be authored through the API, so the chunk is
+    /// written raw and the values come back off the wire.
+    #[allow(deprecated)]
+    fn fprm_metadata(uid: u64, uname: &str, gid: u64, gname: &str, mode: u16) -> pna::Metadata {
+        let mut body = uid.to_be_bytes().to_vec();
+        body.push(uname.len() as u8);
+        body.extend_from_slice(uname.as_bytes());
+        body.extend_from_slice(&gid.to_be_bytes());
+        body.push(gname.len() as u8);
+        body.extend_from_slice(gname.as_bytes());
+        body.extend_from_slice(&mode.to_be_bytes());
+
+        let mut buf = Vec::new();
+        {
+            let mut archive = pna::Archive::write_header(&mut buf).unwrap();
+            let mut builder = pna::FileEntryBuilder::new("f".into()).unwrap();
+            builder.add_extra_chunk(pna::RawChunk::from_data(pna::ChunkType::fPRM, body));
+            archive.add_entry(builder.build().unwrap()).unwrap();
+            archive.finalize().unwrap();
+        }
+        let mut archive = pna::Archive::read_header(&buf[..]).unwrap();
+        let entry = archive.entries().skip_solid().next().unwrap().unwrap();
+        entry.metadata().clone()
+    }
+
     #[test]
     fn owner_facet_overwrites_fprm_baseline() {
-        #[allow(deprecated)]
-        let m = pna::Metadata::new()
-            .with_permission(Some(pna::Permission::new(
-                7,
-                "legacy".into(),
-                8,
-                "grp".into(),
-                0o600,
-            )))
+        let m = fprm_metadata(7, "legacy", 8, "grp", 0o600)
             .with_owner_uid(Some(pna::OwnerUid::from(1)))
             .with_owner_user_name(Some(pna::OwnerUserName::new("new").unwrap()))
             .with_owner_user_sid(Some(pna::OwnerUserSid::new("S-1-1").unwrap()));
@@ -234,14 +253,7 @@ mod resolved_ownership_tests {
 
     #[test]
     fn fprm_only_is_rescued() {
-        #[allow(deprecated)]
-        let m = pna::Metadata::new().with_permission(Some(pna::Permission::new(
-            5,
-            "u".into(),
-            6,
-            "g".into(),
-            0o644,
-        )));
+        let m = fprm_metadata(5, "u", 6, "g", 0o644);
         let r = ResolvedOwnership::from_metadata(&m);
         assert_eq!((r.uid, r.gid, r.mode), (Some(5), Some(6), Some(0o644)));
         assert_eq!(r.uname.as_deref(), Some("u"));
