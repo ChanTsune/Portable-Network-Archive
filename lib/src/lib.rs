@@ -71,11 +71,11 @@
 //!     .compression(Compression::ZSTANDARD)
 //!     .build();
 //!
-//! // Encrypted entry (AES-256-CTR with Argon2id key derivation)
+//! // Encrypted entry (AES-256-GCM with Argon2id key derivation)
 //! let encrypted = WriteOptions::builder()
 //!     .compression(Compression::ZSTANDARD)
 //!     .encryption(Encryption::AES)
-//!     .cipher_mode(CipherMode::CTR)
+//!     .cipher_mode(CipherMode::GCM)
 //!     .hash_algorithm(HashAlgorithm::argon2id())
 //!     .password(Some("secure_password"))
 //!     .build();
