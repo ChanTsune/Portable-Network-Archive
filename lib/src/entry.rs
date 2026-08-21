@@ -435,8 +435,6 @@ impl Iterator for EntryIterator<'_> {
 type BytesCursor = io::Cursor<Vec<u8>>;
 
 /// An iterator that moves out of a solid entry.
-///
-/// This struct is created by the `into_entries` method on [`SolidEntry`].
 pub(crate) struct SolidIntoEntries(
     EntryReader<ChainReader<std::vec::IntoIter<BytesCursor>, BytesCursor>>,
 );

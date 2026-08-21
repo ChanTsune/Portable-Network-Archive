@@ -2074,7 +2074,6 @@ fn transform_normal_entry(
             },
     } = &keep_options.owner_strategy
     {
-        // Only apply if at least one override is specified
         let own = crate::ext::ResolvedOwnership::from_metadata(&metadata);
         if (uid.is_some() || gid.is_some() || uname.is_some() || gname.is_some()) && !own.is_empty()
         {

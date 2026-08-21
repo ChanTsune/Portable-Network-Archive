@@ -39,8 +39,6 @@ mod range {
         /// - `newer = None`    becomes `start = Bound::Unbounded`
         /// - `older = Some(t)` becomes `end = Bound::Excluded(t)`
         /// - `older = None`    becomes `end = Bound::Unbounded`
-        ///
-        /// Matches the strict `>`/`<` semantics fixed in commit `befbdb86`.
         pub(crate) fn new_strict(newer: Option<SystemTime>, older: Option<SystemTime>) -> Self {
             Self {
                 start: newer.map_or(Bound::Unbounded, Bound::Excluded),
@@ -190,7 +188,6 @@ mod range {
 
         #[test]
         fn contains_both_included_accepts_both_bounds_and_between() {
-            // Closes the Included..Included coverage gap noted in Task 3 review.
             let r = TimeRange::from_bounds(Bound::Included(t1()), Bound::Included(t3()));
             assert!(r.contains(t1())); // lower bound accepted (inclusive)
             assert!(r.contains(t2())); // strictly inside

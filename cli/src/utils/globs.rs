@@ -56,8 +56,7 @@ impl<'s> GlobPatterns<'s> {
 /// Tar-compatible glob matcher that mirrors libarchive/bsdtar semantics.
 ///
 /// Unlike `GlobPatterns`, this uses the project's `BsdGlobPattern` (which is
-/// derived from libarchive's path matching) and also tracks which patterns
-/// matched so we can surface the same "not found in archive" diagnostics.
+/// derived from libarchive's path matching).
 #[derive(Clone, Debug)]
 pub(crate) struct BsdGlobMatcher<'s> {
     patterns: Vec<BsdGlobPattern<'s>>,
@@ -124,8 +123,6 @@ impl<'s> BsdGlobMatcher<'s> {
         matched_any
     }
 
-    /// Returns true if any pattern matches the given path, regardless of
-    /// whether the pattern has already been satisfied.
     #[inline]
     pub(crate) fn matches_any_pattern(&self, path: impl AsRef<str>) -> bool {
         let path = path.as_ref();

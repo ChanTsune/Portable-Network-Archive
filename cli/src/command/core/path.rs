@@ -910,7 +910,7 @@ mod tests {
         assert!(had_root);
     }
 
-    // --- B1: strip_absolute_path_bsdtar boundary values ---
+    // --- strip_absolute_path_bsdtar boundary values ---
 
     #[test]
     fn strip_absolute_path_bsdtar_empty_string() {
@@ -1017,7 +1017,7 @@ mod tests {
         assert!(had_root);
     }
 
-    // --- B2: device prefix (\\.\) tests ---
+    // --- device prefix (\\.\) tests ---
 
     #[test]
     fn strip_absolute_path_bsdtar_device_prefix_with_drive() {
@@ -1062,9 +1062,7 @@ mod tests {
         assert!(has_parent_dir_component(path));
     }
 
-    // --- B3+B4: is_unsafe_link equivalent (strip + has_parent_dir combined) ---
-    // is_unsafe_link is: had_root || has_parent_dir_component(rewritten)
-    // We test the same logic directly here.
+    // --- is_unsafe_link equivalent (strip + has_parent_dir combined) ---
 
     #[test]
     fn strip_then_parent_dir_detects_drive_dotdot_backslash() {
