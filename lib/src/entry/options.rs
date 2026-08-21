@@ -246,19 +246,6 @@ impl Compression {
     /// Xz format.
     pub const XZ: Self = Self(4);
 
-    /// Deprecated alias of [`Compression::NO`].
-    #[deprecated(since = "0.36.0", note = "renamed to `Compression::NO`")]
-    #[allow(non_upper_case_globals)]
-    pub const No: Self = Self::NO;
-    /// Deprecated alias of [`Compression::DEFLATE`].
-    #[deprecated(since = "0.36.0", note = "renamed to `Compression::DEFLATE`")]
-    #[allow(non_upper_case_globals)]
-    pub const Deflate: Self = Self::DEFLATE;
-    /// Deprecated alias of [`Compression::ZSTANDARD`].
-    #[deprecated(since = "0.36.0", note = "renamed to `Compression::ZSTANDARD`")]
-    #[allow(non_upper_case_globals)]
-    pub const ZStandard: Self = Self::ZSTANDARD;
-
     /// Deserializes a compression method from its u8 representation.
     ///
     /// Every byte value is a valid compression method, so this conversion
@@ -285,22 +272,6 @@ impl Compression {
         } else {
             None
         }
-    }
-
-    /// Converts a `u8` into a [`Compression`]. Never fails.
-    ///
-    /// Shadows `<Compression as TryFrom<u8>>::try_from` so existing
-    /// `Compression::try_from(..)` call sites receive a deprecation warning;
-    /// both will be removed together in a future release.
-    ///
-    /// # Errors
-    ///
-    /// Never returns `Err`; every byte value is a valid compression method.
-    #[deprecated(since = "0.36.0", note = "use `Compression::from_byte`")]
-    #[allow(clippy::should_implement_trait)]
-    #[inline]
-    pub const fn try_from(value: u8) -> Result<Self, UnknownValueError> {
-        Ok(Self::from_byte(value))
     }
 
     /// Returns `true` if this value is reserved for future PNA specification
@@ -490,19 +461,6 @@ impl Encryption {
     /// Camellia algorithm.
     pub const CAMELLIA: Self = Self(2);
 
-    /// Deprecated alias of [`Encryption::NO`].
-    #[deprecated(since = "0.36.0", note = "renamed to `Encryption::NO`")]
-    #[allow(non_upper_case_globals)]
-    pub const No: Self = Self::NO;
-    /// Deprecated alias of [`Encryption::AES`].
-    #[deprecated(since = "0.36.0", note = "renamed to `Encryption::AES`")]
-    #[allow(non_upper_case_globals)]
-    pub const Aes: Self = Self::AES;
-    /// Deprecated alias of [`Encryption::CAMELLIA`].
-    #[deprecated(since = "0.36.0", note = "renamed to `Encryption::CAMELLIA`")]
-    #[allow(non_upper_case_globals)]
-    pub const Camellia: Self = Self::CAMELLIA;
-
     /// Deserializes an encryption algorithm from its u8 representation.
     ///
     /// Every byte value is a valid encryption algorithm value, so this
@@ -529,22 +487,6 @@ impl Encryption {
         } else {
             None
         }
-    }
-
-    /// Converts a `u8` into an [`Encryption`]. Never fails.
-    ///
-    /// Shadows `<Encryption as TryFrom<u8>>::try_from` so existing
-    /// `Encryption::try_from(..)` call sites receive a deprecation warning;
-    /// both will be removed together in a future release.
-    ///
-    /// # Errors
-    ///
-    /// Never returns `Err`; every byte value is a valid encryption algorithm.
-    #[deprecated(since = "0.36.0", note = "use `Encryption::from_byte`")]
-    #[allow(clippy::should_implement_trait)]
-    #[inline]
-    pub const fn try_from(value: u8) -> Result<Self, UnknownValueError> {
-        Ok(Self::from_byte(value))
     }
 
     /// Returns `true` if this value is reserved for future PNA specification
@@ -629,22 +571,6 @@ impl CipherMode {
         } else {
             None
         }
-    }
-
-    /// Converts a `u8` into a [`CipherMode`]. Never fails.
-    ///
-    /// Shadows `<CipherMode as TryFrom<u8>>::try_from` so existing
-    /// `CipherMode::try_from(..)` call sites receive a deprecation warning;
-    /// both will be removed together in a future release.
-    ///
-    /// # Errors
-    ///
-    /// Never returns `Err`; every byte value is a valid cipher mode.
-    #[deprecated(since = "0.36.0", note = "use `CipherMode::from_byte`")]
-    #[allow(clippy::should_implement_trait)]
-    #[inline]
-    pub const fn try_from(value: u8) -> Result<Self, UnknownValueError> {
-        Ok(Self::from_byte(value))
     }
 
     /// Returns `true` if this value is reserved for future PNA specification
@@ -850,23 +776,6 @@ impl DataKind {
     /// entry within the same archive.
     pub const HARD_LINK: Self = Self(3);
 
-    /// Deprecated alias of [`DataKind::FILE`].
-    #[deprecated(since = "0.36.0", note = "renamed to `DataKind::FILE`")]
-    #[allow(non_upper_case_globals)]
-    pub const File: Self = Self::FILE;
-    /// Deprecated alias of [`DataKind::DIRECTORY`].
-    #[deprecated(since = "0.36.0", note = "renamed to `DataKind::DIRECTORY`")]
-    #[allow(non_upper_case_globals)]
-    pub const Directory: Self = Self::DIRECTORY;
-    /// Deprecated alias of [`DataKind::SYMBOLIC_LINK`].
-    #[deprecated(since = "0.36.0", note = "renamed to `DataKind::SYMBOLIC_LINK`")]
-    #[allow(non_upper_case_globals)]
-    pub const SymbolicLink: Self = Self::SYMBOLIC_LINK;
-    /// Deprecated alias of [`DataKind::HARD_LINK`].
-    #[deprecated(since = "0.36.0", note = "renamed to `DataKind::HARD_LINK`")]
-    #[allow(non_upper_case_globals)]
-    pub const HardLink: Self = Self::HARD_LINK;
-
     /// Deserializes a data kind from its u8 representation.
     ///
     /// Every byte value is a valid data kind, so this conversion never fails.
@@ -892,22 +801,6 @@ impl DataKind {
         } else {
             None
         }
-    }
-
-    /// Converts a `u8` into a [`DataKind`]. Never fails.
-    ///
-    /// Shadows `<DataKind as TryFrom<u8>>::try_from` so existing
-    /// `DataKind::try_from(..)` call sites receive a deprecation warning;
-    /// both will be removed together in a future release.
-    ///
-    /// # Errors
-    ///
-    /// Never returns `Err`; every byte value is a valid data kind.
-    #[deprecated(since = "0.36.0", note = "use `DataKind::from_byte`")]
-    #[allow(clippy::should_implement_trait)]
-    #[inline]
-    pub const fn try_from(value: u8) -> Result<Self, UnknownValueError> {
-        Ok(Self::from_byte(value))
     }
 
     /// Returns `true` if this value is reserved for future PNA specification
@@ -1623,20 +1516,9 @@ mod tests {
         assert_eq!(format!("{:?}", DataKind::from_byte(200)), "Private(200)");
     }
 
-    #[allow(deprecated)]
-    #[test]
-    fn data_kind_deprecated_aliases_equal_new_constants() {
-        assert_eq!(DataKind::File, DataKind::FILE);
-        assert_eq!(DataKind::Directory, DataKind::DIRECTORY);
-        assert_eq!(DataKind::SymbolicLink, DataKind::SYMBOLIC_LINK);
-        assert_eq!(DataKind::HardLink, DataKind::HARD_LINK);
-    }
-
-    #[allow(deprecated)]
     #[test]
     fn data_kind_try_from_is_infallible_and_matches_from_byte() {
         for v in 0..=u8::MAX {
-            assert_eq!(DataKind::try_from(v).unwrap(), DataKind::from_byte(v));
             assert_eq!(
                 <DataKind as TryFrom<u8>>::try_from(v).unwrap(),
                 DataKind::from_byte(v)
@@ -1696,19 +1578,9 @@ mod tests {
         assert_eq!(format!("{:?}", Compression::from_byte(200)), "Private(200)");
     }
 
-    #[allow(deprecated)]
-    #[test]
-    fn compression_deprecated_aliases_equal_new_constants() {
-        assert_eq!(Compression::No, Compression::NO);
-        assert_eq!(Compression::Deflate, Compression::DEFLATE);
-        assert_eq!(Compression::ZStandard, Compression::ZSTANDARD);
-    }
-
-    #[allow(deprecated)]
     #[test]
     fn compression_try_from_is_infallible_and_matches_from_byte() {
         for v in 0..=u8::MAX {
-            assert_eq!(Compression::try_from(v).unwrap(), Compression::from_byte(v));
             assert_eq!(
                 <Compression as TryFrom<u8>>::try_from(v).unwrap(),
                 Compression::from_byte(v)
@@ -1775,19 +1647,9 @@ mod tests {
         assert_eq!(format!("{:?}", Encryption::from_byte(200)), "Private(200)");
     }
 
-    #[allow(deprecated)]
-    #[test]
-    fn encryption_deprecated_aliases_equal_new_constants() {
-        assert_eq!(Encryption::No, Encryption::NO);
-        assert_eq!(Encryption::Aes, Encryption::AES);
-        assert_eq!(Encryption::Camellia, Encryption::CAMELLIA);
-    }
-
-    #[allow(deprecated)]
     #[test]
     fn encryption_try_from_is_infallible_and_matches_from_byte() {
         for v in 0..=u8::MAX {
-            assert_eq!(Encryption::try_from(v).unwrap(), Encryption::from_byte(v));
             assert_eq!(
                 <Encryption as TryFrom<u8>>::try_from(v).unwrap(),
                 Encryption::from_byte(v)
@@ -1872,11 +1734,9 @@ mod tests {
         assert_eq!(format!("{:?}", CipherMode::from_byte(200)), "Private(200)");
     }
 
-    #[allow(deprecated)]
     #[test]
     fn cipher_mode_try_from_is_infallible_and_matches_from_byte() {
         for v in 0..=u8::MAX {
-            assert_eq!(CipherMode::try_from(v).unwrap(), CipherMode::from_byte(v));
             assert_eq!(
                 <CipherMode as TryFrom<u8>>::try_from(v).unwrap(),
                 CipherMode::from_byte(v)
