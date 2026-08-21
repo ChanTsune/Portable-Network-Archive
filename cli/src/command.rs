@@ -123,6 +123,7 @@ impl Cli {
         match self.commands {
             Commands::Create(cmd) => cmd.execute(ctx),
             Commands::Append(cmd) => cmd.execute(ctx),
+            Commands::Update(cmd) => cmd.execute(ctx),
             Commands::Extract(cmd) => cmd.execute(ctx),
             Commands::List(cmd) => cmd.execute(ctx),
             Commands::Delete(cmd) => cmd.execute(ctx),
