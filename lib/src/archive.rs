@@ -10,7 +10,7 @@ use crate::{
     compress::CompressionWriter,
 };
 use core::num::NonZeroU32;
-pub use header::*;
+pub(crate) use header::*;
 use std::io::prelude::*;
 pub(crate) use write::*;
 
