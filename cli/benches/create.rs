@@ -9,6 +9,7 @@ fn bench_store(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "c",
+                "--file",
                 concat!(env!("CARGO_TARGET_TMPDIR"), "/bench/store.pna"),
                 "--store",
                 "--overwrite",
@@ -27,6 +28,7 @@ fn bench_zstd(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "c",
+                "--file",
                 concat!(env!("CARGO_TARGET_TMPDIR"), "/bench/zstd.pna"),
                 "--zstd",
                 "--overwrite",
@@ -45,6 +47,7 @@ fn bench_deflate(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "c",
+                "--file",
                 concat!(env!("CARGO_TARGET_TMPDIR"), "/bench/deflate.pna"),
                 "--deflate",
                 "--overwrite",
@@ -63,6 +66,7 @@ fn bench_xz(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "c",
+                "--file",
                 concat!(env!("CARGO_TARGET_TMPDIR"), "/bench/xz.pna"),
                 "--xz",
                 "--overwrite",
@@ -81,6 +85,7 @@ fn bench_zstd_keep_timestamp(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "c",
+                "--file",
                 concat!(
                     env!("CARGO_TARGET_TMPDIR"),
                     "/bench/zstd_keep_timestamp.pna"
@@ -103,6 +108,7 @@ fn bench_zstd_keep_permission(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "c",
+                "--file",
                 concat!(
                     env!("CARGO_TARGET_TMPDIR"),
                     "/bench/zstd_keep_permission.pna"
