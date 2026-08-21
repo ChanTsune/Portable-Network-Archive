@@ -106,14 +106,15 @@ impl<T> Archive<T> {
     /// - **Reading**: Chunks larger than this size will be rejected with an error,
     ///   protecting against maliciously crafted archives with extremely large chunks.
     /// - **Writing**: Data written via [`write_file()`](Archive::write_file) or
-    ///   [`write_opaque()`](Archive::write_opaque) will be split into chunks no
-    ///   larger than this size.
+    ///   [`write_opaque()`](Archive::write_opaque), and the `SDAT` stream of a
+    ///   solid block opened by
+    ///   [`write_solid_with()`](Archive::write_solid_with), will be split into
+    ///   chunks no larger than this size.
     ///
-    /// **Note**: This setting only affects the streaming write path
-    /// ([`write_file()`](Archive::write_file) and
-    /// [`write_opaque()`](Archive::write_opaque)). Pre-built entries added via
-    /// [`add_entry()`](Archive::add_entry) use their own chunk size configured
-    /// through [`FileEntryBuilder::max_chunk_size()`](crate::FileEntryBuilder::max_chunk_size).
+    /// **Note**: This setting only affects the streaming write path. Pre-built
+    /// entries added via [`add_entry()`](Archive::add_entry) use their own chunk
+    /// size configured through
+    /// [`FileEntryBuilder::max_chunk_size()`](crate::FileEntryBuilder::max_chunk_size).
     ///
     #[inline]
     pub fn set_max_chunk_size(&mut self, size: NonZeroU32) {
@@ -611,6 +612,97 @@ mod tests {
                 .password(Some("PASSWORD"))
                 .build(),
         );
+    }
+
+    fn text_entry(name: &str, body: &str) -> NormalEntry {
+        let mut builder = FileEntryBuilder::new(name.into()).unwrap();
+        builder.write_all(body.as_bytes()).unwrap();
+        builder.build().unwrap()
+    }
+
+    fn read_texts(bytes: &[u8], password: Option<&str>) -> Vec<(String, String)> {
+        let read_options = ReadOptions::with_password(password);
+        let mut archive = Archive::read_header(bytes).unwrap();
+        archive
+            .entries_with_options(&read_options)
+            .map(|entry| {
+                let entry = entry.unwrap();
+                let name = entry.header().path().to_string();
+                let mut body = String::new();
+                entry
+                    .reader(ReadOptions::builder().build())
+                    .unwrap()
+                    .read_to_string(&mut body)
+                    .unwrap();
+                (name, body)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn write_solid_with_mixes_solid_and_normal_entries() {
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        archive
+            .add_entry(text_entry("outer/before.txt", "before"))
+            .unwrap();
+        archive
+            .write_solid_with(WriteOptions::store(), |solid| {
+                solid.add_entry(text_entry("inner/a.txt", "solid a"))?;
+                solid.add_entry(text_entry("inner/b.txt", "solid b"))
+            })
+            .unwrap();
+        archive
+            .add_entry(text_entry("outer/after.txt", "after"))
+            .unwrap();
+        let buf = archive.finalize().unwrap();
+
+        assert_eq!(
+            read_texts(&buf, None),
+            [
+                ("outer/before.txt".into(), "before".into()),
+                ("inner/a.txt".into(), "solid a".into()),
+                ("inner/b.txt".into(), "solid b".into()),
+                ("outer/after.txt".into(), "after".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn write_solid_with_returns_closure_value() {
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        let value = archive
+            .write_solid_with(WriteOptions::store(), |_| Ok(42))
+            .unwrap();
+        archive.finalize().unwrap();
+
+        assert_eq!(value, 42);
+    }
+
+    #[test]
+    fn write_solid_with_empty_block_roundtrips() {
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        archive
+            .write_solid_with(WriteOptions::store(), |_| Ok(()))
+            .unwrap();
+        archive.add_entry(text_entry("after.txt", "after")).unwrap();
+        let buf = archive.finalize().unwrap();
+
+        assert_eq!(
+            read_texts(&buf, None),
+            [("after.txt".into(), "after".into())]
+        );
+    }
+
+    #[test]
+    fn write_solid_with_propagates_closure_error() {
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        let err = archive
+            .write_solid_with(WriteOptions::store(), |_| {
+                Err::<(), _>(io::Error::other("boom"))
+            })
+            .unwrap_err();
+
+        assert_eq!(err.to_string(), "boom");
     }
 
     #[test]

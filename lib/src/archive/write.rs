@@ -337,6 +337,57 @@ where
             },
         )
     }
+
+    /// Writes one solid block into this archive and returns the closure's
+    /// value.
+    ///
+    /// The closure receives a [`SolidArchive`] writing into this archive's
+    /// output; entries added to it are compressed and encrypted together
+    /// according to `option`. When the closure returns `Ok`, the block is
+    /// closed with an `SEND` chunk and this archive accepts further entries —
+    /// normal entries and other solid blocks alike. To write an archive whose
+    /// entire contents form a single solid block, use
+    /// [`write_solid_header`](Archive::write_solid_header) instead.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing to the archive,
+    /// or if the closure returns an error. If this method returns an error,
+    /// the archive may contain a partial solid block and must be discarded
+    /// without further use.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::{Archive, FileEntryBuilder, WriteOptions};
+    /// # use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let mut archive = Archive::write_header(Vec::new())?;
+    /// archive.write_solid_with(WriteOptions::builder().build(), |solid| {
+    ///     solid.add_entry(FileEntryBuilder::new("a.txt".into())?.build()?)?;
+    ///     solid.add_entry(FileEntryBuilder::new("b.txt".into())?.build()?)
+    /// })?;
+    /// archive.add_entry(FileEntryBuilder::new("c.txt".into())?.build()?)?;
+    /// archive.finalize()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn write_solid_with<T>(
+        &mut self,
+        option: impl WriteOption,
+        f: impl FnOnce(&mut SolidArchive<&mut W>) -> io::Result<T>,
+    ) -> io::Result<T> {
+        let mut solid = SolidArchive {
+            archive_header: self.header.clone(),
+            inner: begin_solid_stream(&mut self.inner, self.max_chunk_size, option)?,
+            max_chunk_size: None,
+        };
+        let value = f(&mut solid)?;
+        end_solid_stream(solid.inner)?;
+        Ok(value)
+    }
 }
 
 impl<W: WriteChunk> Archive<W> {
@@ -691,7 +742,7 @@ impl<W: WriteChunk> SolidArchive<W> {
     /// the solid stream. The outer SDAT chunk size is fixed when `SolidArchive` is
     /// constructed and cannot be changed afterward. To control the outer SDAT chunk
     /// size, call [`Archive::set_max_chunk_size`] before
-    /// [`write_solid_header()`](Archive::write_solid_header).
+    /// [`write_solid_with()`](Archive::write_solid_with).
     ///
     /// Pre-built entries added via [`add_entry()`](SolidArchive::add_entry) use their own
     /// chunk size configured through [`FileEntryBuilder::max_chunk_size()`](crate::FileEntryBuilder::max_chunk_size).
