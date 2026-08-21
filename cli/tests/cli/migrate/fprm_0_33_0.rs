@@ -4,25 +4,22 @@ use pna::Duration;
 use portable_network_archive::cli;
 use std::collections::BTreeMap;
 
-const PERMISSION_MODE_BITS: u16 = 0o7777;
 const LEGACY_FIXTURE: &str = "migrate_fprm_0_33_0/0.33.0/zstd_keep_all.pna";
 
 struct Captured {
-    uid: u64,
-    gid: u64,
-    uname: String,
-    gname: String,
-    mode: u16,
+    uid: Option<u64>,
+    gid: Option<u64>,
+    uname: Option<String>,
+    gname: Option<String>,
+    mode: Option<u16>,
     modified: Option<Duration>,
 }
 
 /// Precondition: An fPRM-only archive carries ownership and timestamp metadata.
 /// Action: Run `pna migrate` to a new output archive.
-/// Expectation: Every entry's ownership is converted to owner-facet chunks
-/// (rescued from fPRM); the legacy fPRM chunk is not emitted; timestamps and
-/// entry count are preserved.
+/// Expectation: Every entry's ownership survives as owner-facet chunks, as do
+/// timestamps and the entry count.
 #[test]
-#[allow(deprecated)]
 fn migrate_converts_fprm_to_owner_facet() {
     setup();
     TestResources::extract_in("0.33.0/zstd_keep_all.pna", "migrate_fprm_0_33_0/").unwrap();
@@ -31,17 +28,14 @@ fn migrate_converts_fprm_to_owner_facet() {
     archive::for_each_entry(LEGACY_FIXTURE, |entry| {
         let path = entry.header().path().to_string();
         let meta = entry.metadata();
-        let p = meta
-            .permission()
-            .expect("fixture entry should carry fPRM permission");
         pre.insert(
             path,
             Captured {
-                uid: p.uid(),
-                gid: p.gid(),
-                uname: p.uname().to_string(),
-                gname: p.gname().to_string(),
-                mode: p.permissions(),
+                uid: meta.owner_uid().map(|v| v.get()),
+                gid: meta.owner_gid().map(|v| v.get()),
+                uname: meta.owner_user_name().map(|v| v.as_str().to_owned()),
+                gname: meta.owner_group_name().map(|v| v.as_str().to_owned()),
+                mode: meta.permission_mode().map(|v| v.get()),
                 modified: meta.modified(),
             },
         );
@@ -70,43 +64,29 @@ fn migrate_converts_fprm_to_owner_facet() {
         let expected = pre
             .get(&path)
             .unwrap_or_else(|| panic!("unexpected entry after migrate: {path}"));
-        assert!(
-            meta.permission().is_none(),
-            "fPRM must not be emitted after migrate for {path}"
-        );
         assert_eq!(
             meta.owner_uid().map(|v| v.get()),
-            Some(expected.uid),
+            expected.uid,
             "uid {path}"
         );
         assert_eq!(
             meta.owner_gid().map(|v| v.get()),
-            Some(expected.gid),
+            expected.gid,
             "gid {path}"
         );
-        let expected_uname = if expected.uname.is_empty() {
-            None
-        } else {
-            Some(expected.uname.as_str())
-        };
-        let expected_gname = if expected.gname.is_empty() {
-            None
-        } else {
-            Some(expected.gname.as_str())
-        };
         assert_eq!(
             meta.owner_user_name().map(|v| v.as_str()),
-            expected_uname,
+            expected.uname.as_deref().filter(|v| !v.is_empty()),
             "uname {path}"
         );
         assert_eq!(
             meta.owner_group_name().map(|v| v.as_str()),
-            expected_gname,
+            expected.gname.as_deref().filter(|v| !v.is_empty()),
             "gname {path}"
         );
         assert_eq!(
             meta.permission_mode().map(|v| v.get()),
-            Some(expected.mode & PERMISSION_MODE_BITS),
+            expected.mode,
             "mode {path}"
         );
         assert_eq!(

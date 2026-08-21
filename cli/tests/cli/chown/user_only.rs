@@ -1,9 +1,6 @@
-use crate::utils::{archive, archive::FileEntryDef, setup};
+use crate::utils::{EmbedExt, TestResources, archive, archive::FileEntryDef, setup};
 use clap::Parser;
-use pna::{Archive, ChunkType, EntryName, FileEntryBuilder, RawChunk};
 use portable_network_archive::cli;
-use std::fs::File;
-use std::io::Write;
 
 /// Precondition: An archive contains entries with permission metadata.
 /// Action: Run `pna experimental chown` with `user` (no colon) to change only the user.
@@ -81,28 +78,32 @@ fn chown_user_only() {
     assert_eq!(count, 2, "archive should contain exactly 2 entries");
 }
 
-/// Precondition: An archive entry carries legacy fPRM metadata.
-/// Action: Run `pna experimental chown` to change the user.
-/// Expectation: Ownership is emitted as owner facets, and stale fPRM is removed.
+/// Precondition: An archive written before `0.34.0` records ownership as fPRM.
+/// Action: Run `pna experimental chown` to change the user of every entry.
+/// Expectation: The new user is emitted as owner facets, and the group rescued
+/// from fPRM is preserved.
 #[test]
-#[allow(deprecated)]
-fn chown_user_only_drops_legacy_fprm() {
+fn chown_user_only_rewrites_legacy_fprm_archive() {
     setup();
-    let path = "chown_legacy_fprm.pna";
-    {
-        let mut archive = Archive::write_header(File::create(path).unwrap()).unwrap();
-        let mut builder =
-            FileEntryBuilder::new(EntryName::from_utf8_preserve_root("target.txt")).unwrap();
-        builder.add_extra_chunk(RawChunk::from_data(
-            ChunkType::fPRM,
-            archive::legacy_fprm_body(1000, "user", 1000, "group", 0o644),
-        ));
-        builder.write_all(b"target").unwrap();
-        archive.add_entry(builder.build().unwrap()).unwrap();
-        archive.finalize().unwrap();
-    }
+    TestResources::extract_in("0.33.0/zstd_keep_all.pna", "chown_legacy_fprm/").unwrap();
+    let path = "chown_legacy_fprm/0.33.0/zstd_keep_all.pna";
 
-    cli::Cli::try_parse_from([
+    let mut pre = std::collections::BTreeMap::new();
+    archive::for_each_entry(path, |entry| {
+        let meta = entry.metadata();
+        pre.insert(
+            entry.header().path().to_string(),
+            (
+                meta.owner_gid().map(|v| v.get()),
+                meta.owner_group_name().map(|v| v.as_str().to_owned()),
+                meta.permission_mode().map(|v| v.get()),
+            ),
+        );
+    })
+    .unwrap();
+    assert!(!pre.is_empty(), "fixture should contain entries");
+
+    let mut args = vec![
         "pna",
         "--quiet",
         "experimental",
@@ -110,24 +111,34 @@ fn chown_user_only_drops_legacy_fprm() {
         "-f",
         path,
         "new_user",
-        "target.txt",
-        "--no-owner-lookup",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
+    ];
+    args.extend(pre.keys().map(String::as_str));
+    args.push("--no-owner-lookup");
+    cli::Cli::try_parse_from(args).unwrap().execute().unwrap();
 
+    let mut count = 0usize;
     archive::for_each_entry(path, |entry| {
-        let metadata = entry.metadata();
-        assert!(
-            metadata.permission().is_none(),
-            "legacy fPRM must be removed after chown"
+        count += 1;
+        let entry_path = entry.header().path().to_string();
+        let meta = entry.metadata();
+        let expected = pre
+            .get(&entry_path)
+            .unwrap_or_else(|| panic!("unexpected entry after chown: {entry_path}"));
+        assert_eq!(
+            meta.owner_user_name().map(|v| v.as_str()),
+            Some("new_user"),
+            "uname {entry_path}"
         );
-        assert_eq!(metadata.owner_user_name().unwrap().as_str(), "new_user");
-        assert_eq!(metadata.owner_uid().unwrap().get(), u64::MAX);
-        assert_eq!(metadata.owner_group_name().unwrap().as_str(), "group");
-        assert_eq!(metadata.owner_gid().unwrap().get(), 1000);
-        assert_eq!(metadata.permission_mode().unwrap().get(), 0o644);
+        assert_eq!(
+            (
+                meta.owner_gid().map(|v| v.get()),
+                meta.owner_group_name().map(|v| v.as_str().to_owned()),
+                meta.permission_mode().map(|v| v.get()),
+            ),
+            *expected,
+            "group and mode {entry_path}"
+        );
     })
     .unwrap();
+    assert_eq!(count, pre.len(), "chown should preserve all entries");
 }

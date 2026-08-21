@@ -1,8 +1,6 @@
 //! Provides extension traits for [`OpaqueEntryBuilder`].
 use crate::ext::{private, time::opt_system_time_to_duration};
-use libpna::{
-    Metadata, OpaqueEntryBuilder, OwnerGid, OwnerGroupName, OwnerUid, OwnerUserName, PermissionMode,
-};
+use libpna::{Metadata, OpaqueEntryBuilder};
 use std::time::SystemTime;
 
 /// [`OpaqueEntryBuilder`] extension trait.
@@ -17,8 +15,6 @@ pub trait EntryBuilderExt: private::Sealed {
     /// Sets metadata from a [`Metadata`] instance.
     ///
     /// Copies metadata fields from the provided metadata to this entry builder.
-    /// Deprecated `fPRM` permission data in the metadata is rescued into the
-    /// owner-facet chunks; it is not copied back as `fPRM`.
     fn add_metadata(&mut self, metadata: &Metadata) -> &mut Self;
 
     /// Sets the created time using [`SystemTime`].
@@ -38,21 +34,6 @@ pub trait EntryBuilderExt: private::Sealed {
     /// Accepts any type that implements `Into<Option<SystemTime>>`, allowing
     /// both `SystemTime` and `Option<SystemTime>` values.
     fn accessed_time(&mut self, time: impl Into<Option<SystemTime>>) -> &mut Self;
-}
-
-/// Largest UTF-8 char-boundary prefix of `s` whose byte length is ≤ 255 —
-/// the `fONm`/`fGNm` owner-name wire bound (1-byte length prefix). Used to
-/// rescue a legacy fPRM name that exceeds the bounded owner-facet limit.
-fn owner_name_bounded(s: &str) -> &str {
-    const MAX: usize = u8::MAX as usize;
-    if s.len() <= MAX {
-        return s;
-    }
-    let mut end = MAX;
-    while !s.is_char_boundary(end) {
-        end -= 1;
-    }
-    &s[..end]
 }
 
 #[allow(deprecated)]
@@ -77,41 +58,16 @@ impl EntryBuilderExt for OpaqueEntryBuilder {
     #[allow(deprecated)]
     #[inline]
     fn add_metadata(&mut self, metadata: &Metadata) -> &mut Self {
-        // Legacy fPRM from the supplied Metadata is read as a per-field rescue
-        // baseline and overwritten by owner facets when present.
-        let p = metadata.permission();
         self.created(metadata.created())
             .modified(metadata.modified())
             .accessed(metadata.accessed())
-            .owner_uid(
-                metadata
-                    .owner_uid()
-                    .or_else(|| p.map(|p| OwnerUid::from(p.uid()))),
-            )
-            .owner_gid(
-                metadata
-                    .owner_gid()
-                    .or_else(|| p.map(|p| OwnerGid::from(p.gid()))),
-            )
-            .owner_user_name(metadata.owner_user_name().cloned().or_else(|| {
-                p.map(|p| {
-                    OwnerUserName::new(owner_name_bounded(p.uname()))
-                        .expect("owner_name_bounded guarantees <= 255 bytes")
-                })
-            }))
-            .owner_group_name(metadata.owner_group_name().cloned().or_else(|| {
-                p.map(|p| {
-                    OwnerGroupName::new(owner_name_bounded(p.gname()))
-                        .expect("owner_name_bounded guarantees <= 255 bytes")
-                })
-            }))
+            .owner_uid(metadata.owner_uid())
+            .owner_gid(metadata.owner_gid())
+            .owner_user_name(metadata.owner_user_name().cloned())
+            .owner_group_name(metadata.owner_group_name().cloned())
             .owner_user_sid(metadata.owner_user_sid().cloned())
             .owner_group_sid(metadata.owner_group_sid().cloned())
-            .permission_mode(
-                metadata
-                    .permission_mode()
-                    .or_else(|| p.map(|p| PermissionMode::from(p.permissions()))),
-            )
+            .permission_mode(metadata.permission_mode())
             .link_target_type(metadata.link_target_type())
     }
 
@@ -180,62 +136,10 @@ impl EntryBuilderExt for OpaqueEntryBuilder {
 mod tests {
     use super::*;
 
-    #[test]
-    fn owner_name_bounded_passes_through_short_ascii() {
-        assert_eq!(owner_name_bounded(""), "");
-        assert_eq!(owner_name_bounded("alice"), "alice");
-        let exactly_255 = "a".repeat(255);
-        assert_eq!(owner_name_bounded(&exactly_255), exactly_255);
-    }
-
-    #[test]
-    fn owner_name_bounded_truncates_long_ascii_to_255() {
-        let s = "a".repeat(300);
-        let out = owner_name_bounded(&s);
-        assert_eq!(out.len(), 255);
-        assert!(out.bytes().all(|b| b == b'a'));
-        assert_eq!(owner_name_bounded(&"a".repeat(256)).len(), 255);
-    }
-
-    #[test]
-    fn owner_name_bounded_truncates_on_utf8_boundary() {
-        let two_byte_char = 'é';
-        assert_eq!(two_byte_char.len_utf8(), 2);
-        let s = String::from(two_byte_char).repeat(200); // 400 bytes
-        let out = owner_name_bounded(&s);
-        assert_eq!(out.len(), 254);
-        assert_eq!(out.chars().count(), 127);
-        assert!(out.chars().all(|c| c == two_byte_char));
-    }
-
-    use libpna::{Archive, ChunkType, OwnerGroupSid, OwnerUserSid, RawChunk, WriteOptions};
-
-    /// Reads back a `Metadata` carrying the given `fPRM` values.
-    ///
-    /// `fPRM` can no longer be authored through the API, so the chunk is
-    /// written raw and the values come back off the wire.
-    #[allow(deprecated)]
-    fn fprm_metadata(uid: u64, uname: &str, gid: u64, gname: &str, mode: u16) -> Metadata {
-        let mut body = uid.to_be_bytes().to_vec();
-        body.push(uname.len() as u8);
-        body.extend_from_slice(uname.as_bytes());
-        body.extend_from_slice(&gid.to_be_bytes());
-        body.push(gname.len() as u8);
-        body.extend_from_slice(gname.as_bytes());
-        body.extend_from_slice(&mode.to_be_bytes());
-
-        let mut buf = Vec::new();
-        {
-            let mut a = Archive::write_header(&mut buf).unwrap();
-            let mut b = OpaqueEntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
-            b.add_extra_chunk(RawChunk::from_data(ChunkType::fPRM, body));
-            a.add_entry(b.build().unwrap()).unwrap();
-            a.finalize().unwrap();
-        }
-        let mut a = Archive::read_header(&buf[..]).unwrap();
-        let e = a.entries().skip_solid().next().unwrap().unwrap();
-        e.metadata().clone()
-    }
+    use libpna::{
+        Archive, OwnerGid, OwnerGroupName, OwnerGroupSid, OwnerUid, OwnerUserName, OwnerUserSid,
+        PermissionMode, WriteOptions,
+    };
 
     #[allow(deprecated)]
     fn roundtrip(src: &Metadata) -> Metadata {
@@ -270,33 +174,5 @@ mod tests {
         assert_eq!(m.owner_user_sid().map(|v| v.as_str()), Some("S-1-1"));
         assert_eq!(m.owner_group_sid().map(|v| v.as_str()), Some("S-1-2"));
         assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o644));
-    }
-
-    #[test]
-    #[allow(deprecated)]
-    fn add_metadata_translates_fprm_only_source() {
-        let src = fprm_metadata(7, "legacy", 8, "grp", 0o600);
-        let m = roundtrip(&src);
-        assert_eq!(m.owner_uid().map(|v| v.get()), Some(7));
-        assert_eq!(m.owner_gid().map(|v| v.get()), Some(8));
-        assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("legacy"));
-        assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("grp"));
-        assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o600));
-        assert!(m.permission().is_none());
-    }
-
-    #[test]
-    #[allow(deprecated)]
-    fn add_metadata_owner_facet_wins_over_fprm() {
-        let src = fprm_metadata(7, "legacy", 8, "grp", 0o600)
-            .with_owner_uid(Some(OwnerUid::from(1)))
-            .with_owner_user_name(Some(OwnerUserName::new("new").unwrap()));
-        let m = roundtrip(&src);
-        assert_eq!(m.owner_uid().map(|v| v.get()), Some(1));
-        assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("new"));
-        assert_eq!(m.owner_gid().map(|v| v.get()), Some(8));
-        assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("grp"));
-        assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o600));
-        assert!(m.permission().is_none());
     }
 }

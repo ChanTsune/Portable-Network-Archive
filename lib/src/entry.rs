@@ -120,7 +120,6 @@ impl<W: WriteChunk> EntryChunkSink for EntryChunkWriter<'_, W> {
     }
 }
 
-#[allow(deprecated)]
 fn try_for_each_metadata_facet<E>(
     metadata: &Metadata,
     mut f: impl FnMut(ChunkType, Cow<[u8]>) -> Result<(), E>,
@@ -145,9 +144,6 @@ fn try_for_each_metadata_facet<E>(
         if nanos != 0 {
             f(ChunkType::aTNS, Cow::Borrowed(&nanos.to_be_bytes()))?;
         }
-    }
-    if let Some(value) = &metadata.permission {
-        f(ChunkType::fPRM, Cow::Owned(value.to_bytes()))?;
     }
     if let Some(value) = metadata.owner_uid {
         f(ChunkType::fUId, Cow::Borrowed(&value.to_bytes()))?;
@@ -754,7 +750,6 @@ where
 {
     type Error = io::Error;
 
-    #[allow(deprecated)]
     #[inline]
     fn try_from(entry: RawEntry<T>) -> Result<Self, Self::Error> {
         let mut chunks = entry.0.into_iter();
@@ -797,7 +792,7 @@ where
         let mut ctime_ns = None;
         let mut mtime_ns = None;
         let mut atime_ns = None;
-        let mut permission = None;
+        let mut legacy_permission = None;
         let mut link_target_type = None;
         let mut owner_uid = None;
         let mut owner_gid = None;
@@ -826,7 +821,9 @@ where
                 ChunkType::cTNS => ctime_ns = Some(nanos(chunk.data())?),
                 ChunkType::mTNS => mtime_ns = Some(nanos(chunk.data())?),
                 ChunkType::aTNS => atime_ns = Some(nanos(chunk.data())?),
-                ChunkType::fPRM => permission = Some(Permission::try_from_bytes(chunk.data())?),
+                ChunkType::fPRM => {
+                    legacy_permission = Some(LegacyPermission::try_from_bytes(chunk.data())?)
+                }
                 ChunkType::fUId => owner_uid = Some(OwnerUid::try_from_bytes(chunk.data())?),
                 ChunkType::fGId => owner_gid = Some(OwnerGid::try_from_bytes(chunk.data())?),
                 ChunkType::fONm => {
@@ -860,6 +857,15 @@ where
         let ctime = ctime.map(|s| Duration::from_seconds_nanos(s, ctime_ns.unwrap_or(0)));
         let mtime = mtime.map(|s| Duration::from_seconds_nanos(s, mtime_ns.unwrap_or(0)));
         let atime = atime.map(|s| Duration::from_seconds_nanos(s, atime_ns.unwrap_or(0)));
+        // Chunk order is not guaranteed, so the owner facets an entry does
+        // carry only win once every chunk has been seen.
+        if let Some(legacy) = legacy_permission {
+            owner_uid = owner_uid.or(Some(legacy.uid));
+            owner_gid = owner_gid.or(Some(legacy.gid));
+            owner_user_name = owner_user_name.or(Some(legacy.user_name));
+            owner_group_name = owner_group_name.or(Some(legacy.group_name));
+            permission_mode = permission_mode.or(Some(legacy.mode));
+        }
 
         Ok(Self {
             header,
@@ -871,7 +877,6 @@ where
                 created: ctime,
                 modified: mtime,
                 accessed: atime,
-                permission,
                 link_target_type,
                 owner_uid,
                 owner_gid,
@@ -892,7 +897,6 @@ where
     RawChunk<T>: Chunk + Into<RawChunk>,
     (ChunkType, T): Chunk + Into<RawChunk>,
 {
-    #[allow(deprecated)]
     #[inline]
     fn write_chunks_to<S: EntryChunkSink>(self, sink: &mut S) -> Result<(), S::Error> {
         sink.write_chunk((ChunkType::FHED, self.header.to_bytes()))?;

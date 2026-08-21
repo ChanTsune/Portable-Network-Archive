@@ -104,7 +104,6 @@ fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
 }
 
 #[inline]
-#[allow(deprecated)]
 fn transform_entry<T>(entry: NormalEntry<T>, owner: &Ownership) -> NormalEntry<T> {
     let metadata = entry.metadata().clone();
     let own = crate::ext::ResolvedOwnership::from_metadata(&metadata);
@@ -128,7 +127,6 @@ fn transform_entry<T>(entry: NormalEntry<T>, owner: &Ownership) -> NormalEntry<T
     };
     let metadata =
         metadata
-            .with_permission(None)
             .with_owner_uid(uid.map(pna::OwnerUid::from))
             .with_owner_gid(gid.map(pna::OwnerGid::from))
             .with_owner_user_name(crate::command::core::permission::owner_name_opt(&uname))

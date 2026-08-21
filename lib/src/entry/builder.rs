@@ -8,8 +8,6 @@ pub use file::FileEntryBuilder;
 pub use link::{HardLinkEntryBuilder, SymlinkEntryBuilder};
 pub use solid::SolidEntryBuilder;
 
-#[allow(deprecated)]
-use crate::entry::Permission;
 use crate::{
     Duration,
     chunk::{ChunkType, RawChunk},
@@ -28,7 +26,6 @@ use crate::{
 use futures_io::AsyncWrite;
 use std::{
     io::{self, prelude::*},
-    mem,
     num::NonZeroU32,
 };
 #[cfg(feature = "unstable-async")]
@@ -69,21 +66,6 @@ pub(super) fn prepend_data_prefix(
     data.splice(0..0, prefix.chunks(max_chunk_size).map(<[u8]>::to_vec));
 }
 
-/// Largest UTF-8 char-boundary prefix of `s` whose byte length is ≤ 255 —
-/// the `fONm`/`fGNm` owner-name wire bound (1-byte length prefix). Used to
-/// rescue a legacy fPRM name that exceeds the bounded owner-facet limit.
-fn owner_name_bounded(s: &str) -> &str {
-    const MAX: usize = u8::MAX as usize;
-    if s.len() <= MAX {
-        return s;
-    }
-    let mut end = MAX;
-    while !s.is_char_boundary(end) {
-        end -= 1;
-    }
-    &s[..end]
-}
-
 /// Fields and logic shared by the kind-specific entry builders.
 pub(crate) struct EntryBuilderCore {
     header: EntryHeader,
@@ -119,50 +101,8 @@ impl EntryBuilderCore {
         &self.header
     }
 
-    /// Sets the metadata, rescuing deprecated `fPRM` permission data into
-    /// the owner-facet fields when no owner facet is set.
-    ///
-    /// If none of the owner-facet fields are populated, they are filled
-    /// from the `fPRM` data when present, and the `fPRM` data itself is
-    /// dropped from the stored metadata. Owner names longer than the
-    /// 255-byte wire bound of `fONm`/`fGNm` are truncated at a UTF-8
-    /// character boundary. If any owner-facet field is already populated,
-    /// the metadata is stored as-is (including `fPRM`, if set), preserving
-    /// the contract that `fPRM` and the owner facets are independent
-    /// chunks that may coexist.
-    ///
-    /// TODO: rescue unconditionally (dropping `fPRM` whenever it is
-    /// present, regardless of owner-facet fields) once the fPRM/owner-facet
-    /// coexistence contract is retired.
-    #[allow(deprecated)]
     pub(crate) fn metadata(&mut self, metadata: Metadata) {
-        let has_owner_facet = metadata.owner_uid().is_some()
-            || metadata.owner_gid().is_some()
-            || metadata.owner_user_name().is_some()
-            || metadata.owner_group_name().is_some()
-            || metadata.owner_user_sid().is_some()
-            || metadata.owner_group_sid().is_some()
-            || metadata.permission_mode().is_some();
-        let Some(p) = (!has_owner_facet)
-            .then(|| metadata.permission().cloned())
-            .flatten()
-        else {
-            self.metadata = metadata;
-            return;
-        };
-        self.metadata = metadata
-            .with_owner_uid(Some(OwnerUid::from(p.uid())))
-            .with_owner_gid(Some(OwnerGid::from(p.gid())))
-            .with_owner_user_name(Some(
-                OwnerUserName::new(owner_name_bounded(p.uname()))
-                    .expect("owner_name_bounded guarantees <= 255 bytes"),
-            ))
-            .with_owner_group_name(Some(
-                OwnerGroupName::new(owner_name_bounded(p.gname()))
-                    .expect("owner_name_bounded guarantees <= 255 bytes"),
-            ))
-            .with_permission_mode(Some(PermissionMode::from(p.permissions())))
-            .with_permission(None);
+        self.metadata = metadata;
     }
 
     pub(crate) fn add_extra_chunk(&mut self, chunk: impl Into<RawChunk>) {
@@ -439,22 +379,6 @@ impl OpaqueEntryBuilder {
     #[inline]
     pub fn accessed(&mut self, since_unix_epoch: impl Into<Option<Duration>>) -> &mut Self {
         self.core.metadata.accessed = since_unix_epoch.into();
-        self
-    }
-
-    /// Sets the permission of the entry, recording it as owner facets.
-    ///
-    /// Like [`Metadata::with_permission`], the values land in the owner facet
-    /// chunks rather than in `fPRM`.
-    #[deprecated(
-        since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks; use `OpaqueEntryBuilder::metadata` with `Metadata::with_owner_uid`/`with_owner_gid`/`with_owner_user_name`/`with_owner_group_name`/`with_permission_mode`"
-    )]
-    #[allow(deprecated)]
-    #[inline]
-    pub fn permission(&mut self, permission: impl Into<Option<Permission>>) -> &mut Self {
-        let metadata = mem::take(&mut self.core.metadata);
-        self.core.metadata = metadata.with_permission(permission.into());
         self
     }
 
@@ -983,56 +907,6 @@ mod tests {
     }
 
     #[test]
-    fn owner_name_bounded_passes_through_short_ascii() {
-        assert_eq!(owner_name_bounded(""), "");
-        assert_eq!(owner_name_bounded("alice"), "alice");
-        let exactly_255 = "a".repeat(255);
-        assert_eq!(owner_name_bounded(&exactly_255), exactly_255);
-    }
-
-    #[test]
-    fn owner_name_bounded_truncates_long_ascii_to_255() {
-        let s = "a".repeat(300);
-        let out = owner_name_bounded(&s);
-        assert_eq!(out.len(), 255);
-        assert!(out.bytes().all(|b| b == b'a'));
-        assert_eq!(owner_name_bounded(&"a".repeat(256)).len(), 255);
-    }
-
-    #[test]
-    fn owner_name_bounded_truncates_on_utf8_boundary() {
-        let two_byte_char = 'é';
-        assert_eq!(two_byte_char.len_utf8(), 2);
-        let s = String::from(two_byte_char).repeat(200); // 400 bytes
-        let out = owner_name_bounded(&s);
-        assert_eq!(out.len(), 254);
-        assert_eq!(out.chars().count(), 127);
-        assert!(out.chars().all(|c| c == two_byte_char));
-    }
-
-    /// A `Metadata` carrying only the given `fPRM` values, as reading a
-    /// pre-`0.34.0` archive produces. The deprecated setters record owner
-    /// facets instead, so the field is set directly.
-    #[allow(deprecated)]
-    fn metadata_with_legacy_fprm(
-        uid: u64,
-        uname: &str,
-        gid: u64,
-        gname: &str,
-        mode: u16,
-    ) -> Metadata {
-        let mut metadata = Metadata::new();
-        metadata.permission = Some(
-            Permission::try_from_bytes(&crate::entry::meta::legacy_fprm_body(
-                uid, uname, gid, gname, mode,
-            ))
-            .unwrap(),
-        );
-        metadata
-    }
-
-    #[test]
-    #[allow(deprecated)]
     fn metadata_preserves_all_owner_facets() {
         let mut b = FileEntryBuilder::new("f".into()).unwrap();
         b.metadata(
@@ -1054,43 +928,6 @@ mod tests {
         assert_eq!(m.owner_user_sid().map(|v| v.as_str()), Some("S-1-1"));
         assert_eq!(m.owner_group_sid().map(|v| v.as_str()), Some("S-1-2"));
         assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o644));
-    }
-
-    #[test]
-    #[allow(deprecated)]
-    fn metadata_rescues_fprm_only_source() {
-        let mut b = FileEntryBuilder::new("f".into()).unwrap();
-        b.metadata(metadata_with_legacy_fprm(7, "legacy", 8, "grp", 0o600));
-        let entry = b.build().unwrap();
-        let m = entry.metadata();
-        assert_eq!(m.owner_uid().map(|v| v.get()), Some(7));
-        assert_eq!(m.owner_gid().map(|v| v.get()), Some(8));
-        assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("legacy"));
-        assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("grp"));
-        assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o600));
-        assert!(m.permission().is_none());
-    }
-
-    #[test]
-    #[allow(deprecated)]
-    fn metadata_partial_owner_facet_skips_rescue() {
-        let mut b = FileEntryBuilder::new("f".into()).unwrap();
-        b.metadata(
-            metadata_with_legacy_fprm(7, "legacy", 8, "grp", 0o600)
-                .with_owner_uid(Some(OwnerUid::from(1)))
-                .with_owner_user_name(Some(OwnerUserName::new("new").unwrap())),
-        );
-        let entry = b.build().unwrap();
-        let m = entry.metadata();
-        assert_eq!(m.owner_uid().map(|v| v.get()), Some(1));
-        assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("new"));
-        assert_eq!(m.owner_gid(), None);
-        assert_eq!(m.owner_group_name(), None);
-        assert_eq!(m.permission_mode(), None);
-        assert!(
-            m.permission().is_some(),
-            "fPRM must coexist with a partially set owner facet"
-        );
     }
 
     #[allow(deprecated)]
