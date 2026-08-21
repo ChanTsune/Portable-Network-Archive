@@ -10,7 +10,7 @@ use crate::{
         complete::CompleteCommand, concat::ConcatCommand, core::Umask, create::CreateCommand,
         delete::DeleteCommand, experimental::ExperimentalCommand, extract::ExtractCommand,
         list::ListCommand, migrate::MigrateCommand, sort::SortCommand, split::SplitCommand,
-        strip::StripCommand, xattr::XattrCommand,
+        strip::StripCommand, update::UpdateCommand, xattr::XattrCommand,
     },
     utils::{fs::current_umask, process::is_running_as_root},
 };
@@ -181,6 +181,8 @@ pub(crate) enum Commands {
     Create(CreateCommand),
     #[command(visible_alias = "a", about = "Append files to archive")]
     Append(AppendCommand),
+    #[command(about = "Update entries in archive")]
+    Update(UpdateCommand),
     #[command(visible_alias = "x", about = "Extract files from archive")]
     Extract(ExtractCommand),
     #[command(visible_aliases = &["l", "ls"], about = "List files in archive")]

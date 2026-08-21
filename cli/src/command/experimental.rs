@@ -12,7 +12,17 @@ impl Command for ExperimentalCommand {
     #[inline]
     fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
         match self.command {
-            ExperimentalCommands::Update(cmd) => cmd.execute(ctx),
+            ExperimentalCommands::Update(cmd) => {
+                log::warn!(
+                    "`{0} experimental update` subcommand was stabilized, use `{0} update` instead. this command will be removed in the future.",
+                    std::env::current_exe()
+                        .ok()
+                        .and_then(|it| it.file_name().map(|n| n.to_os_string()))
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                );
+                cmd.execute(ctx)
+            }
             ExperimentalCommands::Chown(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Chmod(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Acl(cmd) => cmd.execute(ctx),
@@ -26,7 +36,9 @@ impl Command for ExperimentalCommand {
 #[derive(Subcommand, Clone, Debug)]
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum ExperimentalCommands {
-    #[command(about = "Update entries in archive")]
+    #[command(
+        about = "Update entries in archive (stabilized, use `pna update` command instead. this command will be removed in the future)"
+    )]
     Update(command::update::UpdateCommand),
     #[command(about = "Change owner")]
     Chown(command::chown::ChownCommand),
