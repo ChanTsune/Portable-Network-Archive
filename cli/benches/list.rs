@@ -9,6 +9,7 @@ fn bench_list_normal(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "ls",
+                "--file",
                 concat!(
                     env!("CARGO_MANIFEST_DIR"),
                     "/../resources/test/zstd_keep_dir.pna"
@@ -28,6 +29,7 @@ fn bench_list_normal_classify(c: &mut Criterion) {
                 "--quiet",
                 "ls",
                 "--classify",
+                "--file",
                 concat!(
                     env!("CARGO_MANIFEST_DIR"),
                     "/../resources/test/zstd_keep_dir.pna"
@@ -47,6 +49,7 @@ fn bench_list_normal_hide_control_chars(c: &mut Criterion) {
                 "--quiet",
                 "ls",
                 "-q",
+                "--file",
                 concat!(
                     env!("CARGO_MANIFEST_DIR"),
                     "/../resources/test/zstd_keep_dir.pna"
@@ -66,6 +69,7 @@ fn bench_list_normal_table(c: &mut Criterion) {
                 "--quiet",
                 "ls",
                 "-l",
+                "--file",
                 concat!(
                     env!("CARGO_MANIFEST_DIR"),
                     "/../resources/test/zstd_keep_dir.pna"
@@ -87,6 +91,7 @@ fn bench_list_normal_jsonl(c: &mut Criterion) {
                 "--format",
                 "jsonl",
                 "--unstable",
+                "--file",
                 concat!(
                     env!("CARGO_MANIFEST_DIR"),
                     "/../resources/test/zstd_keep_dir.pna"
@@ -108,6 +113,7 @@ fn bench_list_normal_tree(c: &mut Criterion) {
                 "--format",
                 "tree",
                 "--unstable",
+                "--file",
                 concat!(
                     env!("CARGO_MANIFEST_DIR"),
                     "/../resources/test/zstd_keep_dir.pna"
@@ -127,6 +133,7 @@ fn bench_list_solid(c: &mut Criterion) {
                 "--quiet",
                 "ls",
                 "--solid",
+                "--file",
                 concat!(
                     env!("CARGO_MANIFEST_DIR"),
                     "/../resources/test/solid_zstd.pna"
