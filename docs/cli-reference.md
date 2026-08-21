@@ -7,6 +7,7 @@ This document contains the help content for the `pna` command-line program.
 * [`pna`↴](#pna)
 * [`pna create`↴](#pna-create)
 * [`pna append`↴](#pna-append)
+* [`pna update`↴](#pna-update)
 * [`pna extract`↴](#pna-extract)
 * [`pna list`↴](#pna-list)
 * [`pna delete`↴](#pna-delete)
@@ -62,6 +63,7 @@ This document contains the help content for the `pna` command-line program.
 * [`pna help`↴](#pna-help)
 * [`pna help create`↴](#pna-help-create)
 * [`pna help append`↴](#pna-help-append)
+* [`pna help update`↴](#pna-help-update)
 * [`pna help extract`↴](#pna-help-extract)
 * [`pna help list`↴](#pna-help-list)
 * [`pna help delete`↴](#pna-help-delete)
@@ -100,6 +102,7 @@ Portable-Network-Archive cli
 
 * `create` — Create archive
 * `append` — Append files to archive
+* `update` — Update entries in archive
 * `extract` — Extract files from archive
 * `list` — List files in archive
 * `delete` — Delete entry from archive
@@ -434,6 +437,168 @@ Append files to archive
 * `--argon2 <PARAMS>` — Use argon2 for password hashing
 * `--pbkdf2 <PARAMS>` — Use pbkdf2 for password hashing
 * `-f`, `--file <ARCHIVE>` — Archive file path
+* `--quiet` — Make some output more quiet (alias for --log-level off)
+
+  Default value: `false`
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
+
+  Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
+* `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
+
+  Default value: `false`
+* `-h`, `--help` — Print help
+
+
+
+## `pna update`
+
+Update entries in archive
+
+**Usage:** `pna update [OPTIONS] --file <ARCHIVE> [FILES]...`
+
+###### **Arguments:**
+
+* `<FILES>` — Files or directories to process
+
+###### **Options:**
+
+* `--output <OUTPUT>` — Output file path
+* `--one-file-system` — Stay in the same file system when collecting files
+
+  Default value: `false`
+* `--nodump` — Exclude files with the nodump flag
+
+  Default value: `false`
+* `-r`, `--recursive` [alias: `recursion`] — Add the directory to the archive recursively
+
+  Default value: `true`
+* `--no-recursive` [alias: `no-recursion`] — Do not recursively add directories to the archives. This is the inverse option of --recursive
+
+  Default value: `false`
+* `--keep-dir` — Include directories in archive (default)
+
+  Default value: `true`
+* `--no-keep-dir` — Do not archive directories. This is the inverse option of --keep-dir
+
+  Default value: `false`
+* `--preserve-timestamps` [alias: `keep-timestamp`] — Preserve file timestamps
+
+  Default value: `false`
+* `--no-preserve-timestamps` [alias: `no-keep-timestamp`] — Do not archive timestamp of files. This is the inverse option of --preserve-timestamps
+
+  Default value: `false`
+* `--preserve-permissions` [alias: `keep-permission`] — Preserve file permissions
+
+  Default value: `false`
+* `--no-preserve-permissions` [alias: `no-keep-permission`] — Do not archive permissions of files. This is the inverse option of --preserve-permissions
+
+  Default value: `false`
+* `--preserve-xattrs` [alias: `keep-xattr`] — Preserve extended attributes
+
+  Default value: `false`
+* `--no-preserve-xattrs` [alias: `no-keep-xattr`] — Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs
+
+  Default value: `false`
+* `--preserve-acls` [alias: `keep-acl`] — Preserve ACLs
+
+  Default value: `false`
+* `--no-preserve-acls` [alias: `no-keep-acl`] — Do not archive ACLs. This is the inverse option of --preserve-acls
+
+  Default value: `false`
+* `--uname <NAME>` — Set user name for archive entries
+* `--gname <NAME>` — Set group name for archive entries
+* `--uid <ID>` — Overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id
+* `--gid <ID>` — Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id
+* `--strip-components <N>` — Remove the specified number of leading path elements when storing paths
+* `--numeric-owner` — This is equivalent to --uname "" --gname "". It causes user and group names to not be stored in the archive
+
+  Default value: `false`
+* `--ctime <DATETIME>` — Overrides the creation time read from disk
+* `--clamp-ctime` — Clamp the creation time of the entries to the specified time by --ctime
+
+  Default value: `false`
+* `--atime <DATETIME>` — Overrides the access time read from disk
+* `--clamp-atime` — Clamp the access time of the entries to the specified time by --atime
+
+  Default value: `false`
+* `--mtime <DATETIME>` — Overrides the modification time read from disk
+* `--clamp-mtime` — Clamp the modification time of the entries to the specified time by --mtime
+
+  Default value: `false`
+* `--older-ctime <DATETIME>` — Only include files and directories older than the specified date. This compares ctime entries.
+* `--older-mtime <DATETIME>` — Only include files and directories older than the specified date. This compares mtime entries.
+* `--newer-ctime <DATETIME>` — Only include files and directories newer than the specified date. This compares ctime entries.
+* `--newer-mtime <DATETIME>` — Only include files and directories newer than the specified date. This compares mtime entries.
+* `--newer-ctime-than <FILE>` — Only include files and directories newer than the specified file. This compares ctime entries.
+* `--newer-mtime-than <FILE>` — Only include files and directories newer than the specified file. This compares mtime entries.
+* `--older-ctime-than <FILE>` — Only include files and directories older than the specified file. This compares ctime entries.
+* `--older-mtime-than <FILE>` — Only include files and directories older than the specified file. This compares mtime entries.
+* `--missing-time <MISSING_TIME>` — Behavior when a timestamp needed for time filtering or update staleness judgment is missing (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]
+* `--files-from <FILE>` — Read archiving files from given path
+* `--files-from-stdin` — Read archiving files from stdin
+
+  Default value: `false`
+* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
+* `--exclude <PATTERN>` — Exclude path glob
+* `--exclude-from <FILE>` — Read exclude files from given path
+* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)
+
+  Default value: `false`
+* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option
+* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option
+* `--store` — No compression
+
+  Default value: `false`
+* `--deflate <level>` — Use deflate for compression [possible level: 1-9, min, max]
+* `--zstd <level>` — Use zstd for compression [possible level: 1-21, min, max]
+* `--xz <level>` — Use xz for compression [possible level: 0-9, min, max]
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
+* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
+* `--aes <cipher mode>` — Use aes for encryption
+
+  Possible values: `cbc`, `ctr`, `gcm`
+
+* `--camellia <cipher mode>` — Use camellia for encryption
+
+  Possible values: `cbc`, `ctr`, `gcm`
+
+* `--argon2 <PARAMS>` — Use argon2 for password hashing
+* `--pbkdf2 <PARAMS>` — Use pbkdf2 for password hashing
+* `--unsolid` — Convert solid entries to regular entries
+
+  Default value: `false`
+* `--keep-solid` — Preserve solid entries without conversion
+
+  Default value: `false`
+* `-f`, `--file <ARCHIVE>` — Archive file path
+* `--null` — Filenames or patterns are separated by null characters, not by newlines
+
+  Default value: `false`
+* `--gitignore` — Ignore files from .gitignore
+
+  Default value: `false`
+* `--follow-links` [alias: `dereference`] — Follow symbolic links
+
+  Default value: `false`
+* `-H`, `--follow-command-links` — Follow symbolic links named on the command line
+
+  Default value: `false`
+* `--sync` — Synchronize archive with source: replace updated entries instead of appending, and remove entries for files that no longer exist on disk.
+
+  Default value: `false`
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -1562,7 +1727,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ###### **Subcommands:**
 
-* `update` — Update entries in archive
+* `update` — Update entries in archive (stabilized, use `pna update` command instead. this command will be removed in the future)
 * `chown` — Change owner
 * `chmod` — Change mode
 * `acl` — Manipulate ACLs of entries
@@ -1600,7 +1765,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ## `pna experimental update`
 
-Update entries in archive
+Update entries in archive (stabilized, use `pna update` command instead. this command will be removed in the future)
 
 **Usage:** `pna experimental update [OPTIONS] --file <ARCHIVE> [FILES]...`
 
@@ -2252,7 +2417,7 @@ Print this message or the help of the given subcommand(s)
 
 ###### **Subcommands:**
 
-* `update` — Update entries in archive
+* `update` — Update entries in archive (stabilized, use `pna update` command instead. this command will be removed in the future)
 * `chown` — Change owner
 * `chmod` — Change mode
 * `acl` — Manipulate ACLs of entries
@@ -2265,7 +2430,7 @@ Print this message or the help of the given subcommand(s)
 
 ## `pna experimental help update`
 
-Update entries in archive
+Update entries in archive (stabilized, use `pna update` command instead. this command will be removed in the future)
 
 **Usage:** `pna experimental help update`
 
@@ -2370,6 +2535,7 @@ Print this message or the help of the given subcommand(s)
 
 * `create` — Create archive
 * `append` — Append files to archive
+* `update` — Update entries in archive
 * `extract` — Extract files from archive
 * `list` — List files in archive
 * `delete` — Delete entry from archive
@@ -2400,6 +2566,14 @@ Create archive
 Append files to archive
 
 **Usage:** `pna help append`
+
+
+
+## `pna help update`
+
+Update entries in archive
+
+**Usage:** `pna help update`
 
 
 
@@ -2540,7 +2714,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ###### **Subcommands:**
 
-* `update` — Update entries in archive
+* `update` — Update entries in archive (stabilized, use `pna update` command instead. this command will be removed in the future)
 * `chown` — Change owner
 * `chmod` — Change mode
 * `acl` — Manipulate ACLs of entries
@@ -2552,7 +2726,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ## `pna help experimental update`
 
-Update entries in archive
+Update entries in archive (stabilized, use `pna update` command instead. this command will be removed in the future)
 
 **Usage:** `pna help experimental update`
 
