@@ -66,17 +66,6 @@ impl EntryHeader {
         Self::new(DataKind::DIRECTORY, path)
     }
 
-    /// Creates a header for a symbolic link (symlink).
-    #[inline]
-    pub(crate) const fn for_symlink(path: EntryName) -> Self {
-        Self::new(DataKind::SYMBOLIC_LINK, path)
-    }
-
-    #[inline]
-    pub(crate) const fn for_hard_link(path: EntryName) -> Self {
-        Self::new(DataKind::HARD_LINK, path)
-    }
-
     /// Creates a new EntryHeader with a different name, resetting the sanitized path cache.
     #[inline]
     pub(crate) fn with_name(self, name: EntryName) -> Self {
