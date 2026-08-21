@@ -311,6 +311,13 @@ impl ChunkType {
     pub const fn is_safe_to_copy(&self) -> bool {
         self.0[3] & 32 != 0
     }
+
+    /// Returns `true` if consecutive chunks of this type form a single
+    /// datastream, making their boundaries arbitrary and re-chunkable.
+    #[inline]
+    pub(crate) fn is_stream(&self) -> bool {
+        *self == Self::FDAT || *self == Self::SDAT
+    }
 }
 
 impl Debug for ChunkType {

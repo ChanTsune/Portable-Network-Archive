@@ -40,15 +40,6 @@ pub(crate) trait ChunkExt: Chunk {
     fn bytes_len(&self) -> usize {
         MIN_CHUNK_BYTES_SIZE + self.data().len()
     }
-
-    /// Checks if the chunk is a stream chunk.
-    ///
-    /// Stream chunks, such as `FDAT` (File Data) and `SDAT` (Solid Data),
-    /// contain file content data.
-    #[inline]
-    fn is_stream_chunk(&self) -> bool {
-        self.ty() == ChunkType::FDAT || self.ty() == ChunkType::SDAT
-    }
 }
 
 impl<T> ChunkExt for T where T: Chunk {}
