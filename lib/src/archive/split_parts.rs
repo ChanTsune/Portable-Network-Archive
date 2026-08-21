@@ -770,4 +770,26 @@ mod tests {
         let err = add_zero_entry(&mut archive, "b").unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::Other);
     }
+
+    #[test]
+    fn solid_block_written_with_closure_survives_part_rollover() {
+        let (parts, next_part) = part_collector();
+        let mut archive = Archive::write_split_header(200, next_part).unwrap();
+        archive
+            .write_solid_with(
+                WriteOptions::builder().compression(Compression::NO).build(),
+                |solid| {
+                    solid.write_file("inner.txt".into(), Metadata::new(), |writer| {
+                        writer.write_all(&[b'x'; 300])
+                    })
+                },
+            )
+            .unwrap();
+        let parts_written = archive.finalize().unwrap().parts();
+
+        let part_bytes = part_bytes_within(&parts, 200);
+        assert_eq!(parts_written as usize, part_bytes.len());
+        assert!(parts_written >= 2);
+        assert_eq!(read_all_solid_parts(&part_bytes), [b'x'; 300]);
+    }
 }

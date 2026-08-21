@@ -630,7 +630,7 @@ mod tests {
                 let name = entry.header().path().to_string();
                 let mut body = String::new();
                 entry
-                    .reader(ReadOptions::builder().build())
+                    .reader(read_options.clone())
                     .unwrap()
                     .read_to_string(&mut body)
                     .unwrap();
@@ -691,6 +691,136 @@ mod tests {
             read_texts(&buf, None),
             [("after.txt".into(), "after".into())]
         );
+    }
+
+    #[test]
+    fn write_solid_with_zstd_aes_ctr_roundtrips() {
+        let options = WriteOptions::builder()
+            .compression(Compression::ZSTANDARD)
+            .encryption(Encryption::AES)
+            .cipher_mode(CipherMode::CTR)
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .password(Some("password"))
+            .build();
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        archive
+            .write_solid_with(options, |solid| {
+                solid.add_entry(text_entry("inner/secret.txt", "secret body"))
+            })
+            .unwrap();
+        let buf = archive.finalize().unwrap();
+
+        assert_eq!(
+            read_texts(&buf, Some("password")),
+            [("inner/secret.txt".into(), "secret body".into())]
+        );
+    }
+
+    #[test]
+    fn write_solid_with_consecutive_blocks_roundtrip() {
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        archive
+            .write_solid_with(WriteOptions::store(), |solid| {
+                solid.add_entry(text_entry("first/a.txt", "first"))
+            })
+            .unwrap();
+        archive
+            .write_solid_with(WriteOptions::store(), |solid| {
+                solid.add_entry(text_entry("second/b.txt", "second"))
+            })
+            .unwrap();
+        let buf = archive.finalize().unwrap();
+
+        assert_eq!(
+            read_texts(&buf, None),
+            [
+                ("first/a.txt".into(), "first".into()),
+                ("second/b.txt".into(), "second".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn write_solid_with_write_file_roundtrips() {
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        archive
+            .write_solid_with(WriteOptions::store(), |solid| {
+                solid.write_file("inner/streamed.txt".into(), Metadata::new(), |writer| {
+                    writer.write_all(b"streamed body")
+                })
+            })
+            .unwrap();
+        let buf = archive.finalize().unwrap();
+
+        assert_eq!(
+            read_texts(&buf, None),
+            [("inner/streamed.txt".into(), "streamed body".into())]
+        );
+    }
+
+    #[test]
+    fn write_solid_with_frames_block_between_normal_entries() {
+        use crate::chunk::{Chunk, ChunkType};
+
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        archive
+            .add_entry(text_entry("before.txt", "before"))
+            .unwrap();
+        archive
+            .write_solid_with(WriteOptions::store(), |solid| {
+                solid.add_entry(text_entry("inner.txt", "inner"))
+            })
+            .unwrap();
+        archive.add_entry(text_entry("after.txt", "after")).unwrap();
+        let buf = archive.finalize().unwrap();
+
+        let mut types: Vec<ChunkType> = crate::read_as_chunks(&buf[..])
+            .unwrap()
+            .map(|chunk| chunk.unwrap().ty())
+            .collect();
+        types.dedup();
+        assert_eq!(
+            types,
+            [
+                ChunkType::AHED,
+                ChunkType::FHED,
+                ChunkType::fSIZ,
+                ChunkType::FDAT,
+                ChunkType::FEND,
+                ChunkType::SHED,
+                ChunkType::SDAT,
+                ChunkType::SEND,
+                ChunkType::FHED,
+                ChunkType::fSIZ,
+                ChunkType::FDAT,
+                ChunkType::FEND,
+                ChunkType::AEND,
+            ]
+        );
+    }
+
+    #[test]
+    fn write_solid_with_splits_sdat_at_max_chunk_size() {
+        use crate::chunk::{Chunk, ChunkType};
+
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        archive.set_max_chunk_size(NonZeroU32::new(64).unwrap());
+        archive
+            .write_solid_with(WriteOptions::store(), |solid| {
+                solid.add_entry(text_entry("inner.txt", &"x".repeat(500)))
+            })
+            .unwrap();
+        let buf = archive.finalize().unwrap();
+
+        let sdat_lengths = crate::read_as_chunks(&buf[..])
+            .unwrap()
+            .map(|chunk| chunk.unwrap())
+            .filter(|chunk| chunk.ty() == ChunkType::SDAT)
+            .map(|chunk| chunk.length())
+            .collect::<Vec<_>>();
+
+        assert!(sdat_lengths.contains(&64));
+        assert!(sdat_lengths.iter().all(|length| *length <= 64));
     }
 
     #[test]
