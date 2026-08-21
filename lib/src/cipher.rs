@@ -18,16 +18,8 @@ use cipher::block_padding::Pkcs7;
 use ctr::{CtrCore, flavors::Ctr128BE};
 use std::io::{self, Read, Write};
 
-/// A type alias for a CTR mode stream cipher reader.
-///
-/// This type represents a reader that decrypts data using CTR mode with a 128-bit block size
-/// and big-endian counter.
 type CtrReader<R, C, F> = stream::StreamCipherReader<R, CtrCore<C, F>>;
 
-/// A type alias for a CTR mode stream cipher writer.
-///
-/// This type represents a writer that encrypts data using CTR mode with a 128-bit block size
-/// and big-endian counter.
 type CtrWriter<W, C, F> = stream::StreamCipherWriter<W, CtrCore<C, F>>;
 
 /// A type alias for a CTR mode stream cipher reader with 128-bit block size and big-endian counter.
