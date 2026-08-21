@@ -28,6 +28,7 @@ use crate::{
 use futures_io::AsyncWrite;
 use std::{
     io::{self, prelude::*},
+    mem,
     num::NonZeroU32,
 };
 #[cfg(feature = "unstable-async")]
@@ -441,7 +442,10 @@ impl OpaqueEntryBuilder {
         self
     }
 
-    /// Sets the permission of the entry to the given owner, group, and permissions.
+    /// Sets the permission of the entry, recording it as owner facets.
+    ///
+    /// Like [`Metadata::with_permission`], the values land in the owner facet
+    /// chunks rather than in `fPRM`.
     #[deprecated(
         since = "0.34.0",
         note = "the fPRM chunk is superseded by the owner facet chunks; use `OpaqueEntryBuilder::metadata` with `Metadata::with_owner_uid`/`with_owner_gid`/`with_owner_user_name`/`with_owner_group_name`/`with_permission_mode`"
@@ -449,7 +453,8 @@ impl OpaqueEntryBuilder {
     #[allow(deprecated)]
     #[inline]
     pub fn permission(&mut self, permission: impl Into<Option<Permission>>) -> &mut Self {
-        self.core.metadata.permission = permission.into();
+        let metadata = mem::take(&mut self.core.metadata);
+        self.core.metadata = metadata.with_permission(permission.into());
         self
     }
 
@@ -1005,12 +1010,25 @@ mod tests {
         assert!(out.chars().all(|c| c == two_byte_char));
     }
 
+    /// A `Metadata` carrying only the given `fPRM` values, as reading a
+    /// pre-`0.34.0` archive produces. The deprecated setters record owner
+    /// facets instead, so the field is set directly.
     #[allow(deprecated)]
-    fn legacy_fprm(uid: u64, uname: &str, gid: u64, gname: &str, mode: u16) -> Permission {
-        Permission::try_from_bytes(&crate::entry::meta::legacy_fprm_body(
-            uid, uname, gid, gname, mode,
-        ))
-        .unwrap()
+    fn metadata_with_legacy_fprm(
+        uid: u64,
+        uname: &str,
+        gid: u64,
+        gname: &str,
+        mode: u16,
+    ) -> Metadata {
+        let mut metadata = Metadata::new();
+        metadata.permission = Some(
+            Permission::try_from_bytes(&crate::entry::meta::legacy_fprm_body(
+                uid, uname, gid, gname, mode,
+            ))
+            .unwrap(),
+        );
+        metadata
     }
 
     #[test]
@@ -1042,9 +1060,7 @@ mod tests {
     #[allow(deprecated)]
     fn metadata_rescues_fprm_only_source() {
         let mut b = FileEntryBuilder::new("f".into()).unwrap();
-        b.metadata(
-            Metadata::new().with_permission(Some(legacy_fprm(7, "legacy", 8, "grp", 0o600))),
-        );
+        b.metadata(metadata_with_legacy_fprm(7, "legacy", 8, "grp", 0o600));
         let entry = b.build().unwrap();
         let m = entry.metadata();
         assert_eq!(m.owner_uid().map(|v| v.get()), Some(7));
@@ -1060,10 +1076,9 @@ mod tests {
     fn metadata_partial_owner_facet_skips_rescue() {
         let mut b = FileEntryBuilder::new("f".into()).unwrap();
         b.metadata(
-            Metadata::new()
+            metadata_with_legacy_fprm(7, "legacy", 8, "grp", 0o600)
                 .with_owner_uid(Some(OwnerUid::from(1)))
-                .with_owner_user_name(Some(OwnerUserName::new("new").unwrap()))
-                .with_permission(Some(legacy_fprm(7, "legacy", 8, "grp", 0o600))),
+                .with_owner_user_name(Some(OwnerUserName::new("new").unwrap())),
         );
         let entry = b.build().unwrap();
         let m = entry.metadata();

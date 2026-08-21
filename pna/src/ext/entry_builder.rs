@@ -208,8 +208,6 @@ mod tests {
         assert!(out.chars().all(|c| c == two_byte_char));
     }
 
-    #[allow(deprecated)]
-    use libpna::Permission;
     use libpna::{Archive, ChunkType, OwnerGroupSid, OwnerUserSid, RawChunk, WriteOptions};
 
     /// Reads back a `Metadata` carrying the given `fPRM` values.
@@ -240,35 +238,11 @@ mod tests {
     }
 
     #[allow(deprecated)]
-    fn fprm(uid: u64, uname: &str, gid: u64, gname: &str, mode: u16) -> Permission {
-        fprm_metadata(uid, uname, gid, gname, mode)
-            .permission()
-            .cloned()
-            .expect("the raw fPRM chunk must decode")
-    }
-
-    #[allow(deprecated)]
     fn roundtrip(src: &Metadata) -> Metadata {
         let mut buf = Vec::new();
         {
             let mut a = Archive::write_header(&mut buf).unwrap();
             let mut b = OpaqueEntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
-            b.add_metadata(src);
-            a.add_entry(b.build().unwrap()).unwrap();
-            a.finalize().unwrap();
-        }
-        let mut a = Archive::read_header(&buf[..]).unwrap();
-        let e = a.entries().skip_solid().next().unwrap().unwrap();
-        e.metadata().clone()
-    }
-
-    #[allow(deprecated)]
-    fn roundtrip_with_builder_permission(src: &Metadata, permission: Permission) -> Metadata {
-        let mut buf = Vec::new();
-        {
-            let mut a = Archive::write_header(&mut buf).unwrap();
-            let mut b = OpaqueEntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
-            b.permission(permission);
             b.add_metadata(src);
             a.add_entry(b.build().unwrap()).unwrap();
             a.finalize().unwrap();
@@ -301,7 +275,7 @@ mod tests {
     #[test]
     #[allow(deprecated)]
     fn add_metadata_translates_fprm_only_source() {
-        let src = Metadata::new().with_permission(Some(fprm(7, "legacy", 8, "grp", 0o600)));
+        let src = fprm_metadata(7, "legacy", 8, "grp", 0o600);
         let m = roundtrip(&src);
         assert_eq!(m.owner_uid().map(|v| v.get()), Some(7));
         assert_eq!(m.owner_gid().map(|v| v.get()), Some(8));
@@ -314,10 +288,9 @@ mod tests {
     #[test]
     #[allow(deprecated)]
     fn add_metadata_owner_facet_wins_over_fprm() {
-        let src = Metadata::new()
+        let src = fprm_metadata(7, "legacy", 8, "grp", 0o600)
             .with_owner_uid(Some(OwnerUid::from(1)))
-            .with_owner_user_name(Some(OwnerUserName::new("new").unwrap()))
-            .with_permission(Some(fprm(7, "legacy", 8, "grp", 0o600)));
+            .with_owner_user_name(Some(OwnerUserName::new("new").unwrap()));
         let m = roundtrip(&src);
         assert_eq!(m.owner_uid().map(|v| v.get()), Some(1));
         assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("new"));
@@ -325,25 +298,5 @@ mod tests {
         assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("grp"));
         assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o600));
         assert!(m.permission().is_none());
-    }
-
-    #[test]
-    #[allow(deprecated)]
-    fn add_metadata_preserves_explicit_builder_fprm_while_rescuing_metadata_fprm() {
-        let src = Metadata::new().with_permission(Some(fprm(7, "legacy", 8, "grp", 0o600)));
-        let explicit = fprm(1, "explicit", 2, "explicit_group", 0o700);
-        let m = roundtrip_with_builder_permission(&src, explicit);
-        let p = m.permission().expect("explicit builder fPRM must remain");
-        assert_eq!(p.uid(), 1);
-        assert_eq!(p.uname(), "explicit");
-        assert_eq!(p.gid(), 2);
-        assert_eq!(p.gname(), "explicit_group");
-        assert_eq!(p.permissions(), 0o700);
-
-        assert_eq!(m.owner_uid().map(|v| v.get()), Some(7));
-        assert_eq!(m.owner_gid().map(|v| v.get()), Some(8));
-        assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("legacy"));
-        assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("grp"));
-        assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o600));
     }
 }

@@ -171,7 +171,18 @@ impl Metadata {
         self
     }
 
-    /// Sets the permission of the entry.
+    /// Sets the permission of the entry, recording it as owner facets.
+    ///
+    /// The values land in `fUId`/`fGId`/`fONm`/`fGNm`/`fMOd`, and any `fPRM`
+    /// read from an archive is dropped, so this no longer writes an `fPRM`
+    /// chunk. [`Metadata::permission`] therefore keeps reporting only what an
+    /// archive carried, not what was set here.
+    ///
+    /// # Panics
+    ///
+    /// Panics if an owner name exceeds the 255-byte owner-facet bound. A
+    /// [`Permission`] can only come off the wire, where `fPRM` length-prefixes
+    /// each name with a single byte, so no reachable value can trip this.
     #[deprecated(
         since = "0.34.0",
         note = "the fPRM chunk is superseded by the owner facet chunks; use Metadata::with_owner_uid/with_owner_gid/with_owner_user_name/with_owner_group_name/with_owner_user_sid/with_owner_group_sid/with_permission_mode"
@@ -179,8 +190,16 @@ impl Metadata {
     #[allow(deprecated)]
     #[inline]
     pub fn with_permission(mut self, permission: Option<Permission>) -> Self {
-        self.permission = permission;
-        self
+        self.permission = None;
+        match permission {
+            None => self,
+            Some(p) => self
+                .with_owner_uid(Some(OwnerUid::from(p.uid())))
+                .with_owner_gid(Some(OwnerGid::from(p.gid())))
+                .with_owner_user_name(Some(OwnerUserName::new(p.uname()).expect(NAME_FITS)))
+                .with_owner_group_name(Some(OwnerGroupName::new(p.gname()).expect(NAME_FITS)))
+                .with_permission_mode(Some(PermissionMode::from(p.permissions()))),
+        }
     }
 
     /// Sets the owner user id facet (`fUId`).
@@ -485,6 +504,11 @@ pub(crate) fn legacy_fprm_body(uid: u64, uname: &str, gid: u64, gname: &str, mod
 /// Maximum owner-facet string byte length (the `fONm`/`fGNm`/`fOSi`/`fGSi`
 /// chunk Body uses a 1-byte length prefix).
 const OWNER_STR_MAX: usize = u8::MAX as usize;
+
+/// A [`Permission`] can only come off the wire, where `fPRM` length-prefixes
+/// each name with a single byte — the same bound the owner-facet names carry.
+#[allow(deprecated)]
+const NAME_FITS: &str = "an fPRM name cannot exceed the owner-facet bound";
 
 /// Owner user name (`fONm`).
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
@@ -1174,17 +1198,17 @@ mod tests {
             OwnerGid, OwnerGroupName, OwnerGroupSid, OwnerUid, OwnerUserName, OwnerUserSid,
             PermissionMode,
         };
-        use crate::{Archive, FileEntryBuilder};
+        use crate::{Archive, ChunkType, FileEntryBuilder, RawChunk};
         let mut buf = Vec::new();
         {
             let mut archive = Archive::write_header(&mut buf).unwrap();
             let mut b = FileEntryBuilder::new("f".into()).unwrap();
+            b.add_extra_chunk(RawChunk::from_data(
+                ChunkType::fPRM,
+                legacy_fprm_body(7, "legacy", 8, "grp", 0o600),
+            ));
             b.metadata(
                 Metadata::new()
-                    .with_permission(Some(
-                        Permission::try_from_bytes(&legacy_fprm_body(7, "legacy", 8, "grp", 0o600))
-                            .unwrap(),
-                    ))
                     // All 7 new owner facets.
                     .with_owner_uid(Some(OwnerUid::from(1)))
                     .with_owner_gid(Some(OwnerGid::from(2)))
@@ -1218,6 +1242,50 @@ mod tests {
         assert_eq!(p.gid(), 8);
         assert_eq!(p.gname(), "grp");
         assert_eq!(p.permissions(), 0o600);
+    }
+
+    #[allow(deprecated)]
+    #[test]
+    fn with_permission_records_owner_facets_instead_of_fprm() {
+        use crate::entry::SealedEntryExt;
+        use crate::{Chunk, ChunkType, FileEntryBuilder};
+        let perm =
+            Permission::try_from_bytes(&legacy_fprm_body(7, "legacy", 8, "grp", 0o600)).unwrap();
+        let m = Metadata::new().with_permission(Some(perm));
+        assert_eq!(m.owner_uid().map(|v| v.get()), Some(7));
+        assert_eq!(m.owner_gid().map(|v| v.get()), Some(8));
+        assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("legacy"));
+        assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("grp"));
+        assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o600));
+        assert!(m.permission().is_none());
+
+        let mut b = FileEntryBuilder::new("f".into()).unwrap();
+        b.metadata(m);
+        let chunks = b.build().unwrap().into_chunks();
+        assert!(chunks.iter().all(|c| c.ty() != ChunkType::fPRM));
+        assert!(chunks.iter().any(|c| c.ty() == ChunkType::fONm));
+    }
+
+    #[allow(deprecated)]
+    #[test]
+    fn with_permission_none_drops_an_fprm_read_from_an_archive() {
+        use crate::{Archive, ChunkType, FileEntryBuilder, RawChunk};
+        let mut buf = Vec::new();
+        {
+            let mut archive = Archive::write_header(&mut buf).unwrap();
+            let mut b = FileEntryBuilder::new("f".into()).unwrap();
+            b.add_extra_chunk(RawChunk::from_data(
+                ChunkType::fPRM,
+                legacy_fprm_body(7, "legacy", 8, "grp", 0o600),
+            ));
+            archive.add_entry(b.build().unwrap()).unwrap();
+            archive.finalize().unwrap();
+        }
+        let mut archive = Archive::read_header(&buf[..]).unwrap();
+        let entry = archive.entries().skip_solid().next().unwrap().unwrap();
+        let m = entry.metadata().clone();
+        assert!(m.permission().is_some());
+        assert!(m.with_permission(None).permission().is_none());
     }
 
     #[test]
