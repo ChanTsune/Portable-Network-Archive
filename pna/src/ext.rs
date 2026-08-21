@@ -4,7 +4,7 @@
 //! `libpna` so they are easier to use in common situations such as:
 //!
 //! - Opening or creating archives directly from filesystem paths.
-//! - Building entries from paths and applying metadata fluently.
+//! - Building entries from paths.
 //! - Converting between `std::fs::Metadata`/paths and `pna::Metadata`.
 //! - Working with creation/modified/accessed times as `std::time::SystemTime`.
 //!
@@ -17,14 +17,12 @@
 //! ```
 mod archive;
 mod entry;
-mod entry_builder;
 mod metadata;
 mod time;
 
 pub use archive::*;
 pub use entry::*;
-pub use entry_builder::*;
-use libpna::{Archive, Metadata, NormalEntry, OpaqueEntryBuilder};
+use libpna::{Archive, Metadata, NormalEntry};
 pub use metadata::*;
 use std::fs;
 pub use time::*;
@@ -48,6 +46,5 @@ mod private {
     impl Sealed for Archive<fs::File> {}
     impl Sealed for Metadata {}
     impl Sealed for NormalEntry {}
-    impl Sealed for OpaqueEntryBuilder {}
     impl Sealed for std::time::SystemTime {}
 }
