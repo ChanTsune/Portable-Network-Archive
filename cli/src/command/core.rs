@@ -2218,6 +2218,50 @@ mod tests {
     }
 
     #[test]
+    fn keep_solid_transform_propagates_transformer_error_mid_block() {
+        let bytes = {
+            let mut archive = Archive::write_header(Vec::new()).unwrap();
+            let mut builder = pna::SolidEntryBuilder::new(WriteOptions::store()).unwrap();
+            builder
+                .add_entry(
+                    FileEntryBuilder::new("a.txt".into())
+                        .unwrap()
+                        .build()
+                        .unwrap(),
+                )
+                .unwrap();
+            builder
+                .add_entry(
+                    FileEntryBuilder::new("b.txt".into())
+                        .unwrap()
+                        .build()
+                        .unwrap(),
+                )
+                .unwrap();
+            archive.add_entry(builder.build().unwrap()).unwrap();
+            archive.finalize().unwrap()
+        };
+
+        let mut src = Archive::read_header(&bytes[..]).unwrap();
+        let read_entry = src.entries().next().unwrap();
+        let mut out = Archive::write_header(Vec::new()).unwrap();
+        let context = TransformContext::new(None);
+        let mut seen = 0;
+        let err = TransformStrategyKeepSolid::transform(&mut out, &context, read_entry, |entry| {
+            let entry = entry?;
+            seen += 1;
+            if seen == 2 {
+                return Err(io::Error::other("boom"));
+            }
+            Ok(Some(entry))
+        })
+        .unwrap_err();
+
+        assert_eq!(seen, 2);
+        assert_eq!(err.to_string(), "boom");
+    }
+
+    #[test]
     fn gcm_reencrypt_options_are_reused_for_matching_entries() {
         let source_options = WriteOptions::builder()
             .encryption(pna::Encryption::AES)
