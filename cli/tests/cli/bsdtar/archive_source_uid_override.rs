@@ -8,21 +8,16 @@ use std::path::PathBuf;
 /// owner-facet value while preserving the other owner facets, and the legacy
 /// fPRM chunk is not emitted.
 #[test]
-#[allow(deprecated)]
 fn bsdtar_archive_source_uid_override_drops_fprm() {
     setup();
 
     let base = PathBuf::from("bsdtar_archive_source_uid_override");
     TestResources::extract_in("zstd_keep_all.pna", &base).unwrap();
+    let source_archive = base.join("zstd_keep_all.pna");
 
     let mut pre = Vec::new();
-    archive::for_each_entry(base.join("zstd_keep_all.pna"), |entry| {
+    archive::for_each_entry(&source_archive, |entry| {
         let meta = entry.metadata();
-        assert!(
-            meta.permission().is_none(),
-            "fixture entry {} should not carry fPRM permission",
-            entry.header().path()
-        );
         assert!(
             meta.owner_uid().is_some() && meta.permission_mode().is_some(),
             "fixture entry {} should carry owner facets",
@@ -38,6 +33,11 @@ fn bsdtar_archive_source_uid_override_drops_fprm() {
     })
     .unwrap();
     assert!(!pre.is_empty(), "source archive should contain entries");
+    let source_bytes = std::fs::read(&source_archive).unwrap();
+    assert!(
+        !source_bytes.windows(4).any(|w| w == b"fPRM"),
+        "fixture archive should not carry an fPRM chunk"
+    );
 
     let output_archive = base.join("output.pna");
     cargo_bin_cmd!("pna")
@@ -63,10 +63,6 @@ fn bsdtar_archive_source_uid_override_drops_fprm() {
     archive::for_each_entry(&output_archive, |entry| {
         let path = entry.header().path().to_string();
         let meta = entry.metadata();
-        assert!(
-            meta.permission().is_none(),
-            "fPRM must not be emitted after owner override for {path}"
-        );
         assert_eq!(
             meta.owner_uid().map(|v| v.get()),
             Some(4242),
@@ -89,5 +85,10 @@ fn bsdtar_archive_source_uid_override_drops_fprm() {
     assert_eq!(
         post, pre,
         "uid override should preserve non-uid owner facets"
+    );
+    let output_bytes = std::fs::read(&output_archive).unwrap();
+    assert!(
+        !output_bytes.windows(4).any(|w| w == b"fPRM"),
+        "fPRM must not be emitted after owner override"
     );
 }

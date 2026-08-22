@@ -136,8 +136,8 @@ mod tests {
     use super::*;
 
     use libpna::{
-        Archive, ChunkType, OwnerGid, OwnerGroupName, OwnerGroupSid, OwnerUid, OwnerUserName,
-        OwnerUserSid, PermissionMode, RawChunk, WriteOptions,
+        Archive, OwnerGid, OwnerGroupName, OwnerGroupSid, OwnerUid, OwnerUserName, OwnerUserSid,
+        PermissionMode, WriteOptions,
     };
 
     #[allow(deprecated)]
@@ -155,38 +155,12 @@ mod tests {
         e.metadata().clone()
     }
 
-    /// A `Metadata` carrying only the given `fPRM` values, as reading a
-    /// pre-`0.34.0` archive produces. `Permission` cannot be constructed
-    /// outside `libpna`, so the chunk is written raw and read back.
-    #[allow(deprecated)]
-    fn fprm_metadata(uid: u64, uname: &str, gid: u64, gname: &str, mode: u16) -> Metadata {
-        assert!(
-            uname.len() <= u8::MAX as usize,
-            "fPRM name must fit a 1-byte length"
-        );
-        assert!(
-            gname.len() <= u8::MAX as usize,
-            "fPRM name must fit a 1-byte length"
-        );
-
-        let mut body = Vec::new();
-        body.extend_from_slice(&uid.to_be_bytes());
-        body.push(uname.len() as u8);
-        body.extend_from_slice(uname.as_bytes());
-        body.extend_from_slice(&gid.to_be_bytes());
-        body.push(gname.len() as u8);
-        body.extend_from_slice(gname.as_bytes());
-        body.extend_from_slice(&mode.to_be_bytes());
-
-        let mut buf = Vec::new();
-        {
-            let mut archive = Archive::write_header(&mut buf).unwrap();
-            let mut b = OpaqueEntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
-            b.add_extra_chunk(RawChunk::from_data(ChunkType::fPRM, body));
-            archive.add_entry(b.build().unwrap()).unwrap();
-            archive.finalize().unwrap();
-        }
-        let mut archive = Archive::read_header(&buf[..]).unwrap();
+    /// A `Metadata` read from a pre-`0.34.0` archive entry that carries only
+    /// `fPRM` (no owner facets). Its first entry is a directory owned by
+    /// uid/gid 0, user/group name "root", mode `0o755`.
+    fn legacy_fprm_metadata() -> Metadata {
+        let src = include_bytes!("../../../resources/test/0.33.0/zstd_keep_all.pna");
+        let mut archive = Archive::read_header(&src[..]).unwrap();
         let entry = archive.entries().skip_solid().next().unwrap().unwrap();
         entry.metadata().clone()
     }
@@ -212,30 +186,19 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
-    fn add_metadata_preserves_ownership_from_a_legacy_archive() {
-        let src = fprm_metadata(7, "legacy", 8, "grp", 0o600);
-        let m = roundtrip(&src);
-        assert_eq!(m.owner_uid().map(|v| v.get()), Some(7));
-        assert_eq!(m.owner_gid().map(|v| v.get()), Some(8));
-        assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("legacy"));
-        assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("grp"));
-        assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o600));
-        assert!(m.permission().is_none());
-    }
-
-    #[test]
-    #[allow(deprecated)]
     fn add_metadata_preserves_mixed_legacy_and_overridden_facets() {
-        let src = fprm_metadata(7, "legacy", 8, "grp", 0o600)
+        // uid and group name are overridden, gid and user name are left at
+        // the fixture's legacy values (0 / "root"): every facet then differs
+        // from its legacy-sourced counterpart, so `add_metadata` copying the
+        // wrong source into a facet cannot hide behind two equal values.
+        let src = legacy_fprm_metadata()
             .with_owner_uid(Some(OwnerUid::from(1)))
-            .with_owner_user_name(Some(OwnerUserName::new("new").unwrap()));
+            .with_owner_group_name(Some(OwnerGroupName::new("other").unwrap()));
         let m = roundtrip(&src);
         assert_eq!(m.owner_uid().map(|v| v.get()), Some(1));
-        assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("new"));
-        assert_eq!(m.owner_gid().map(|v| v.get()), Some(8));
-        assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("grp"));
-        assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o600));
-        assert!(m.permission().is_none());
+        assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("root"));
+        assert_eq!(m.owner_gid().map(|v| v.get()), Some(0));
+        assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("other"));
+        assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o755));
     }
 }

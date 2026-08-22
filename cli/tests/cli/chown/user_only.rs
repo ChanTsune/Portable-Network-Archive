@@ -83,7 +83,6 @@ fn chown_user_only() {
 /// Expectation: The requested uid/gid are set as owner facets, the permission mode
 /// survives, and the stale fPRM chunk is removed.
 #[test]
-#[allow(deprecated)]
 fn chown_updates_ownership_of_a_legacy_fprm_archive() {
     setup();
     TestResources::extract_in("0.33.0/zstd_keep_all.pna", "chown_legacy_fprm/").unwrap();
@@ -109,14 +108,10 @@ fn chown_updates_ownership_of_a_legacy_fprm_archive() {
     archive::for_each_entry(archive, |entry| {
         seen += 1;
         let m = entry.metadata();
-        assert!(
-            m.permission().is_none(),
-            "legacy fPRM must be removed after chown"
-        );
         assert_eq!(m.owner_uid().map(|v| v.get()), Some(1000));
         assert_eq!(m.owner_gid().map(|v| v.get()), Some(1000));
-        assert_eq!(m.owner_user_name().map(|v| v.as_str()), None);
-        assert_eq!(m.owner_group_name().map(|v| v.as_str()), None);
+        assert!(m.owner_user_name().is_none());
+        assert!(m.owner_group_name().is_none());
         let expected_mode = if entry.header().data_kind() == pna::DataKind::DIRECTORY {
             0o755
         } else {
@@ -131,4 +126,9 @@ fn chown_updates_ownership_of_a_legacy_fprm_archive() {
     })
     .unwrap();
     assert_eq!(seen, 16, "fixture has 16 entries");
+    let bytes = std::fs::read(archive).unwrap();
+    assert!(
+        !bytes.windows(4).any(|w| w == b"fPRM"),
+        "legacy fPRM must be removed after chown"
+    );
 }
