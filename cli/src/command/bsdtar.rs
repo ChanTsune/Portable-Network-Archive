@@ -1211,7 +1211,7 @@ fn run_list_archive(args: BsdtarCommand) -> anyhow::Result<()> {
         args.include.iter().map(|s| s.as_str()),
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
-    // NOTE: "-" will use stdout
+    // NOTE: "-" will use stdin
     let mut file = args.file;
     file.take_if(|it| it == "-");
     if let Some(path) = &file {

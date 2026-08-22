@@ -11,8 +11,6 @@ use std::{borrow::Borrow, ops::Deref};
 /// # Examples
 ///
 /// ```ignore
-/// use libpna::util::bounded::bytes::BoundedBytes;
-///
 /// let payload: BoundedBytes<4> = vec![0xFF, 0x00, 0x42].try_into().unwrap();
 /// assert_eq!(payload.as_slice(), &[0xFF, 0x00, 0x42]);
 ///
@@ -35,8 +33,6 @@ impl<const MAX: usize> BoundedBytes<MAX> {
     /// # Examples
     ///
     /// ```ignore
-    /// use libpna::util::bounded::bytes::BoundedBytes;
-    ///
     /// let ok = BoundedBytes::<3>::new(vec![1u8, 2, 3]).unwrap();
     /// assert_eq!(ok.as_slice(), &[1, 2, 3]);
     ///

@@ -14,8 +14,6 @@
 //! # Examples
 //!
 //! ```ignore
-//! use libpna::util::bounded::{str::BoundedString, bytes::BoundedBytes};
-//!
 //! // A field whose on-the-wire length prefix is a `u8` accepts at most 255 bytes.
 //! let name: BoundedString<255> = "root".try_into().unwrap();
 //! assert_eq!(name.len(), 4);
@@ -42,8 +40,6 @@ use std::{error, fmt};
 /// # Examples
 ///
 /// ```ignore
-/// use libpna::util::bounded::str::BoundedString;
-///
 /// let err = BoundedString::<3>::new("hello").unwrap_err();
 /// assert_eq!(err.max(), 3);
 /// assert_eq!(err.actual(), 5);
