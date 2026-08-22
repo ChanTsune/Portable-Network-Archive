@@ -70,10 +70,8 @@ where
     }
 }
 
-/// Ownership/permission resolved for read sites: legacy fPRM `permission()`
-/// as the per-field baseline, overwritten by the owner-facet value when
-/// present. SIDs come only from owner facets (fPRM never carried them).
-/// This is the sole place `cli/` reads the deprecated fPRM API.
+/// Ownership and permission read from the owner facet chunks, flattened to
+/// plain scalars for the read sites that display or re-emit them.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct ResolvedOwnership {
     pub(crate) uid: Option<u64>,
@@ -86,40 +84,16 @@ pub(crate) struct ResolvedOwnership {
 }
 
 impl ResolvedOwnership {
-    #[allow(deprecated)]
     pub(crate) fn from_metadata(m: &pna::Metadata) -> Self {
-        let p = m.permission();
-        let mut r = Self {
-            uid: p.map(|p| p.uid()),
-            gid: p.map(|p| p.gid()),
-            uname: p.map(|p| p.uname().to_owned()),
-            gname: p.map(|p| p.gname().to_owned()),
-            mode: p.map(|p| p.permissions()),
-            user_sid: None,
-            group_sid: None,
-        };
-        if let Some(v) = m.owner_uid() {
-            r.uid = Some(v.get());
+        Self {
+            uid: m.owner_uid().map(|v| v.get()),
+            gid: m.owner_gid().map(|v| v.get()),
+            uname: m.owner_user_name().map(|v| v.as_str().to_owned()),
+            gname: m.owner_group_name().map(|v| v.as_str().to_owned()),
+            mode: m.permission_mode().map(|v| v.get()),
+            user_sid: m.owner_user_sid().map(|v| v.as_str().to_owned()),
+            group_sid: m.owner_group_sid().map(|v| v.as_str().to_owned()),
         }
-        if let Some(v) = m.owner_gid() {
-            r.gid = Some(v.get());
-        }
-        if let Some(v) = m.owner_user_name() {
-            r.uname = Some(v.as_str().to_owned());
-        }
-        if let Some(v) = m.owner_group_name() {
-            r.gname = Some(v.as_str().to_owned());
-        }
-        if let Some(v) = m.permission_mode() {
-            r.mode = Some(v.get());
-        }
-        if let Some(v) = m.owner_user_sid() {
-            r.user_sid = Some(v.as_str().to_owned());
-        }
-        if let Some(v) = m.owner_group_sid() {
-            r.group_sid = Some(v.as_str().to_owned());
-        }
-        r
     }
 
     #[inline]
@@ -202,57 +176,25 @@ impl<S: Display> Display for UserDisplay<S> {
 mod resolved_ownership_tests {
     use super::*;
 
-    /// A `Metadata` carrying only the given `fPRM` values, as reading a
-    /// pre-`0.34.0` archive produces. `Permission` cannot be constructed
-    /// outside `libpna`, so the chunk is written raw and read back.
-    #[allow(deprecated)]
-    fn fprm_metadata(uid: u64, uname: &str, gid: u64, gname: &str, mode: u16) -> pna::Metadata {
-        assert!(
-            uname.len() <= u8::MAX as usize,
-            "fPRM name must fit a 1-byte length"
-        );
-        assert!(
-            gname.len() <= u8::MAX as usize,
-            "fPRM name must fit a 1-byte length"
-        );
-
-        let mut body = Vec::new();
-        body.extend_from_slice(&uid.to_be_bytes());
-        body.push(uname.len() as u8);
-        body.extend_from_slice(uname.as_bytes());
-        body.extend_from_slice(&gid.to_be_bytes());
-        body.push(gname.len() as u8);
-        body.extend_from_slice(gname.as_bytes());
-        body.extend_from_slice(&mode.to_be_bytes());
-
-        let mut buf = Vec::new();
-        {
-            let mut archive = pna::Archive::write_header(&mut buf).unwrap();
-            let mut b =
-                pna::OpaqueEntryBuilder::new_file("f".into(), pna::WriteOptions::store()).unwrap();
-            b.add_extra_chunk(pna::RawChunk::from_data(pna::ChunkType::fPRM, body));
-            archive.add_entry(b.build().unwrap()).unwrap();
-            archive.finalize().unwrap();
-        }
-        let mut archive = pna::Archive::read_header(&buf[..]).unwrap();
-        let entry = archive.entries().skip_solid().next().unwrap().unwrap();
-        entry.metadata().clone()
-    }
-
     #[test]
-    fn owner_facet_overwrites_fprm_baseline() {
-        let m = fprm_metadata(7, "legacy", 8, "grp", 0o600)
+    fn every_owner_facet_maps_to_its_field() {
+        let m = pna::Metadata::new()
             .with_owner_uid(Some(pna::OwnerUid::from(1)))
-            .with_owner_user_name(Some(pna::OwnerUserName::new("new").unwrap()))
-            .with_owner_user_sid(Some(pna::OwnerUserSid::new("S-1-1").unwrap()));
+            .with_owner_gid(Some(pna::OwnerGid::from(2)))
+            .with_owner_user_name(Some(pna::OwnerUserName::new("alice").unwrap()))
+            .with_owner_group_name(Some(pna::OwnerGroupName::new("staff").unwrap()))
+            .with_owner_user_sid(Some(pna::OwnerUserSid::new("S-1-1").unwrap()))
+            .with_owner_group_sid(Some(pna::OwnerGroupSid::new("S-1-2").unwrap()))
+            .with_permission_mode(Some(pna::PermissionMode::from(0o640)));
         let r = ResolvedOwnership::from_metadata(&m);
         assert_eq!(r.uid, Some(1));
-        assert_eq!(r.uname.as_deref(), Some("new"));
-        assert_eq!(r.gid, Some(8));
-        assert_eq!(r.gname.as_deref(), Some("grp"));
-        assert_eq!(r.mode, Some(0o600));
+        assert_eq!(r.gid, Some(2));
+        assert_eq!(r.uname.as_deref(), Some("alice"));
+        assert_eq!(r.gname.as_deref(), Some("staff"));
         assert_eq!(r.user_sid.as_deref(), Some("S-1-1"));
-        assert_eq!(r.group_sid, None);
+        assert_eq!(r.group_sid.as_deref(), Some("S-1-2"));
+        assert_eq!(r.mode, Some(0o640));
+        assert!(!r.is_empty());
     }
 
     #[test]
@@ -262,11 +204,17 @@ mod resolved_ownership_tests {
     }
 
     #[test]
-    fn fprm_only_is_rescued() {
-        let m = fprm_metadata(5, "u", 6, "g", 0o644);
+    fn absent_facets_stay_none_rather_than_bleeding_into_a_neighbor() {
+        let m = pna::Metadata::new()
+            .with_owner_uid(Some(pna::OwnerUid::from(1)))
+            .with_permission_mode(Some(pna::PermissionMode::from(0o640)));
         let r = ResolvedOwnership::from_metadata(&m);
-        assert_eq!((r.uid, r.gid, r.mode), (Some(5), Some(6), Some(0o644)));
-        assert_eq!(r.uname.as_deref(), Some("u"));
-        assert_eq!(r.gname.as_deref(), Some("g"));
+        assert_eq!(r.uid, Some(1));
+        assert_eq!(r.mode, Some(0o640));
+        assert_eq!(r.gid, None);
+        assert_eq!(r.uname, None);
+        assert_eq!(r.gname, None);
+        assert_eq!(r.user_sid, None);
+        assert_eq!(r.group_sid, None);
     }
 }
