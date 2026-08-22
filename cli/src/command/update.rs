@@ -518,7 +518,10 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
 
     let output_path = args.output.unwrap_or_else(|| archive_path.remove_part());
     let mut staged = StagedArchive::new(output_path, umask)?;
-    let mut out_archive = Archive::write_header(staged.as_file_mut())?;
+    let mut out_archive = Archive::write_header(io::BufWriter::with_capacity(
+        64 * 1024,
+        staged.as_file_mut(),
+    ))?;
 
     let mut source = SplitArchiveReader::new(archives)?;
     match transform_strategy {
@@ -547,7 +550,10 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
             false,
         ),
     }?;
-    out_archive.finalize()?;
+    out_archive
+        .finalize()?
+        .into_inner()
+        .map_err(|error| error.into_error())?;
     drop(source);
 
     staged.commit(None)?;
