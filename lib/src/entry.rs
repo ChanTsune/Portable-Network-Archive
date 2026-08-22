@@ -296,9 +296,7 @@ fn encoded_data_reader<T: AsRef<[u8]>>(data: &[T]) -> EncodedDataReader<'_> {
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum ReadEntry<T = Vec<u8>> {
-    /// A solid mode entry that contains multiple files compressed together.
-    /// This type of entry provides better compression ratios but requires
-    /// sequential access to the contained files.
+    /// A solid mode entry. See [`SolidEntry`] for the compression/access tradeoffs.
     Solid(SolidEntry<T>),
     /// A normal entry that represents a single file in the archive.
     /// This type of entry allows random access to the file data.

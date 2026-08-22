@@ -174,15 +174,9 @@ impl<T> Archive<T> {
 
 /// Provides write access to solid mode PNA files.
 ///
-/// In solid mode, all entries are compressed together as a single unit,
-/// which typically results in better compression ratios compared to
-/// non-solid mode. However, this means that individual entries cannot
-/// be accessed randomly - they must be read sequentially.
-///
-/// Key features of solid mode:
-/// - Improved compression ratio
-/// - Sequential access only
-/// - Single compression/encryption context for all entries
+/// See [`crate::SolidEntry`] for the compression/access tradeoffs of solid
+/// mode. Writing additionally shares a single compression/encryption context
+/// across all entries.
 ///
 /// # Examples
 /// Creates a new solid mode PNA file and adds an entry to it.

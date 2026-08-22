@@ -426,7 +426,7 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
     let option = entry_option(args.compression, args.cipher, args.hash, password);
     let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
         keep_permission: args.keep_permission,
-        same_owner: true, // Must be `true` for creation
+        same_owner: true, // Creation always stores ownership; same_owner only matters for extraction.
         uname: args.uname,
         gname: args.gname,
         uid: args.uid,
