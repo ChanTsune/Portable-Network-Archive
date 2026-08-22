@@ -31,7 +31,7 @@ pub(crate) use path_transformer::PathTransformers;
 use pna::{
     Archive, DataKind, DirEntryBuilder, EntryContent, FileEntryBuilder, HardLinkEntryBuilder,
     LinkTargetType, Metadata, NormalEntry, OpaqueEntryBuilder, PNA_SIGNATURE, ReadEntry,
-    ReadOptions, SolidEntryBuilder, SymlinkEntryBuilder, WriteOptions, prelude::*,
+    ReadOptions, SymlinkEntryBuilder, WriteOptions, prelude::*,
 };
 use std::{
     borrow::Cow,
@@ -1321,21 +1321,20 @@ impl TransformStrategy for TransformStrategyKeepSolid {
         match read_entry? {
             ReadEntry::Solid(s) => {
                 let header = s.header();
-                let mut builder = SolidEntryBuilder::new(
-                    WriteOptions::builder()
-                        .compression(header.compression())
-                        .encryption(header.encryption())
-                        .cipher_mode(header.cipher_mode())
-                        .password(context.password)
-                        .build(),
-                )?;
-                for n in s.entries(&context.read_options)? {
-                    if let Some(entry) = transformer(n.map(Into::into))? {
-                        builder.add_entry(entry)?;
+                let option = WriteOptions::builder()
+                    .compression(header.compression())
+                    .encryption(header.encryption())
+                    .cipher_mode(header.cipher_mode())
+                    .password(context.password)
+                    .build();
+                archive.write_solid_with(option, |solid| {
+                    for n in s.entries(&context.read_options)? {
+                        if let Some(entry) = transformer(n.map(Into::into))? {
+                            solid.add_entry(entry)?;
+                        }
                     }
-                }
-                archive.add_entry(builder.build()?)?;
-                Ok(())
+                    Ok(())
+                })
             }
             ReadEntry::Normal(n) => {
                 if let Some(entry) = transformer(Ok(n))? {
@@ -1648,13 +1647,16 @@ where
 {
     let password = password_provider();
     let context = TransformContext::new(password);
-    let mut out_archive = Archive::write_header(writer)?;
+    let mut out_archive = Archive::write_header(io::BufWriter::with_capacity(64 * 1024, writer))?;
     run_read_entries_mem(
         archives,
         |entry| Transform::transform(&mut out_archive, &context, entry, &mut processor),
         false,
     )?;
-    out_archive.finalize()?;
+    out_archive
+        .finalize()?
+        .into_inner()
+        .map_err(|error| error.into_error())?;
     Ok(())
 }
 
@@ -1712,13 +1714,16 @@ where
 {
     let password = password_provider();
     let context = TransformContext::new(password);
-    let mut out_archive = Archive::write_header(writer)?;
+    let mut out_archive = Archive::write_header(io::BufWriter::with_capacity(64 * 1024, writer))?;
     run_read_entries(
         archives,
         |entry| Transform::transform(&mut out_archive, &context, entry, &mut processor),
         false,
     )?;
-    out_archive.finalize()?;
+    out_archive
+        .finalize()?
+        .into_inner()
+        .map_err(|error| error.into_error())?;
     Ok(())
 }
 
@@ -2215,6 +2220,50 @@ mod tests {
                 MissingTimePolicy::Include,
             ),
         }
+    }
+
+    #[test]
+    fn keep_solid_transform_propagates_transformer_error_mid_block() {
+        let bytes = {
+            let mut archive = Archive::write_header(Vec::new()).unwrap();
+            let mut builder = pna::SolidEntryBuilder::new(WriteOptions::store()).unwrap();
+            builder
+                .add_entry(
+                    FileEntryBuilder::new("a.txt".into())
+                        .unwrap()
+                        .build()
+                        .unwrap(),
+                )
+                .unwrap();
+            builder
+                .add_entry(
+                    FileEntryBuilder::new("b.txt".into())
+                        .unwrap()
+                        .build()
+                        .unwrap(),
+                )
+                .unwrap();
+            archive.add_entry(builder.build().unwrap()).unwrap();
+            archive.finalize().unwrap()
+        };
+
+        let mut src = Archive::read_header(&bytes[..]).unwrap();
+        let read_entry = src.entries().next().unwrap();
+        let mut out = Archive::write_header(Vec::new()).unwrap();
+        let context = TransformContext::new(None);
+        let mut seen = 0;
+        let err = TransformStrategyKeepSolid::transform(&mut out, &context, read_entry, |entry| {
+            let entry = entry?;
+            seen += 1;
+            if seen == 2 {
+                return Err(io::Error::other("boom"));
+            }
+            Ok(Some(entry))
+        })
+        .unwrap_err();
+
+        assert_eq!(seen, 2);
+        assert_eq!(err.to_string(), "boom");
     }
 
     #[test]
