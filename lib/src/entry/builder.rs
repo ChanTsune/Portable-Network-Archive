@@ -8,8 +8,6 @@ pub use file::FileEntryBuilder;
 pub use link::{HardLinkEntryBuilder, SymlinkEntryBuilder};
 pub use solid::SolidEntryBuilder;
 
-#[allow(deprecated)]
-use crate::entry::Permission;
 use crate::{
     Duration,
     chunk::{ChunkType, RawChunk},
@@ -382,18 +380,6 @@ impl OpaqueEntryBuilder {
     #[inline]
     pub fn accessed(&mut self, since_unix_epoch: impl Into<Option<Duration>>) -> &mut Self {
         self.core.metadata.accessed = since_unix_epoch.into();
-        self
-    }
-
-    /// Sets the permission of the entry to the given owner, group, and permissions.
-    #[deprecated(
-        since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks; use `OpaqueEntryBuilder::metadata` with `Metadata::with_owner_uid`/`with_owner_gid`/`with_owner_user_name`/`with_owner_group_name`/`with_permission_mode`"
-    )]
-    #[allow(deprecated)]
-    #[inline]
-    pub fn permission(&mut self, permission: impl Into<Option<Permission>>) -> &mut Self {
-        self.core.metadata.permission = permission.into();
         self
     }
 
