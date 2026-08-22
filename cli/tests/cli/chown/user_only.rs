@@ -1,11 +1,6 @@
-use crate::utils::{archive, archive::FileEntryDef, setup};
+use crate::utils::{EmbedExt, TestResources, archive, archive::FileEntryDef, setup};
 use clap::Parser;
-#[allow(deprecated)]
-use pna::Permission;
-use pna::{Archive, EntryName, FileEntryBuilder, Metadata};
 use portable_network_archive::cli;
-use std::fs::File;
-use std::io::Write;
 
 /// Precondition: An archive contains entries with permission metadata.
 /// Action: Run `pna experimental chown` with `user` (no colon) to change only the user.
@@ -83,29 +78,16 @@ fn chown_user_only() {
     assert_eq!(count, 2, "archive should contain exactly 2 entries");
 }
 
-/// Precondition: An archive entry carries legacy fPRM metadata.
-/// Action: Run `pna experimental chown` to change the user.
-/// Expectation: Ownership is emitted as owner facets, and stale fPRM is removed.
+/// Precondition: An archive entry carries legacy fPRM metadata (no owner facets).
+/// Action: Run `pna experimental chown` to change uid and gid.
+/// Expectation: The requested uid/gid are set as owner facets, the permission mode
+/// survives, and the stale fPRM chunk is removed.
 #[test]
 #[allow(deprecated)]
-fn chown_user_only_drops_legacy_fprm() {
+fn chown_updates_ownership_of_a_legacy_fprm_archive() {
     setup();
-    let path = "chown_legacy_fprm.pna";
-    {
-        let mut archive = Archive::write_header(File::create(path).unwrap()).unwrap();
-        let mut builder =
-            FileEntryBuilder::new(EntryName::from_utf8_preserve_root("target.txt")).unwrap();
-        builder.metadata(Metadata::new().with_permission(Some(Permission::new(
-            1000,
-            "user".to_string(),
-            1000,
-            "group".to_string(),
-            0o644,
-        ))));
-        builder.write_all(b"target").unwrap();
-        archive.add_entry(builder.build().unwrap()).unwrap();
-        archive.finalize().unwrap();
-    }
+    TestResources::extract_in("0.33.0/zstd_keep_all.pna", "chown_legacy_fprm/").unwrap();
+    let archive = "chown_legacy_fprm/0.33.0/zstd_keep_all.pna";
 
     cli::Cli::try_parse_from([
         "pna",
@@ -113,26 +95,40 @@ fn chown_user_only_drops_legacy_fprm() {
         "experimental",
         "chown",
         "-f",
-        path,
-        "new_user",
-        "target.txt",
+        archive,
+        "1000:1000",
+        "**",
+        "--numeric-owner",
         "--no-owner-lookup",
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    archive::for_each_entry(path, |entry| {
-        let metadata = entry.metadata();
+    let mut seen = 0usize;
+    archive::for_each_entry(archive, |entry| {
+        seen += 1;
+        let m = entry.metadata();
         assert!(
-            metadata.permission().is_none(),
+            m.permission().is_none(),
             "legacy fPRM must be removed after chown"
         );
-        assert_eq!(metadata.owner_user_name().unwrap().as_str(), "new_user");
-        assert_eq!(metadata.owner_uid().unwrap().get(), u64::MAX);
-        assert_eq!(metadata.owner_group_name().unwrap().as_str(), "group");
-        assert_eq!(metadata.owner_gid().unwrap().get(), 1000);
-        assert_eq!(metadata.permission_mode().unwrap().get(), 0o644);
+        assert_eq!(m.owner_uid().map(|v| v.get()), Some(1000));
+        assert_eq!(m.owner_gid().map(|v| v.get()), Some(1000));
+        assert_eq!(m.owner_user_name().map(|v| v.as_str()), None);
+        assert_eq!(m.owner_group_name().map(|v| v.as_str()), None);
+        let expected_mode = if entry.header().data_kind() == pna::DataKind::DIRECTORY {
+            0o755
+        } else {
+            0o644
+        };
+        assert_eq!(
+            m.permission_mode().map(|v| v.get()),
+            Some(expected_mode),
+            "mode must survive on {}",
+            entry.header().path()
+        );
     })
     .unwrap();
+    assert_eq!(seen, 16, "fixture has 16 entries");
 }
