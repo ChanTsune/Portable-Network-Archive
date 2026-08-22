@@ -31,7 +31,7 @@ pub(crate) use path_transformer::PathTransformers;
 use pna::{
     Archive, DataKind, DirEntryBuilder, EntryContent, FileEntryBuilder, HardLinkEntryBuilder,
     LinkTargetType, Metadata, NormalEntry, OpaqueEntryBuilder, PNA_SIGNATURE, ReadEntry,
-    ReadOptions, SolidEntryBuilder, SymlinkEntryBuilder, WriteOptions, prelude::*,
+    ReadOptions, SymlinkEntryBuilder, WriteOptions, prelude::*,
 };
 use std::{
     borrow::Cow,
@@ -1318,21 +1318,20 @@ impl TransformStrategy for TransformStrategyKeepSolid {
         match read_entry? {
             ReadEntry::Solid(s) => {
                 let header = s.header();
-                let mut builder = SolidEntryBuilder::new(
-                    WriteOptions::builder()
-                        .compression(header.compression())
-                        .encryption(header.encryption())
-                        .cipher_mode(header.cipher_mode())
-                        .password(context.password)
-                        .build(),
-                )?;
-                for n in s.entries(&context.read_options)? {
-                    if let Some(entry) = transformer(n.map(Into::into))? {
-                        builder.add_entry(entry)?;
+                let option = WriteOptions::builder()
+                    .compression(header.compression())
+                    .encryption(header.encryption())
+                    .cipher_mode(header.cipher_mode())
+                    .password(context.password)
+                    .build();
+                archive.write_solid_with(option, |solid| {
+                    for n in s.entries(&context.read_options)? {
+                        if let Some(entry) = transformer(n.map(Into::into))? {
+                            solid.add_entry(entry)?;
+                        }
                     }
-                }
-                archive.add_entry(builder.build()?)?;
-                Ok(())
+                    Ok(())
+                })
             }
             ReadEntry::Normal(n) => {
                 if let Some(entry) = transformer(Ok(n))? {
