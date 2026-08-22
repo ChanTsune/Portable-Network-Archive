@@ -8,7 +8,6 @@ use std::collections::BTreeMap;
 /// Action: Run `pna strip` keeping only timestamps.
 /// Expectation: Timestamps are preserved with their original values; permissions are removed.
 #[test]
-#[allow(deprecated)]
 fn strip_removes_unspecified_metadata() {
     setup();
     TestResources::extract_in("zstd_keep_all.pna", "strip_metadata/").unwrap();
@@ -54,10 +53,6 @@ fn strip_removes_unspecified_metadata() {
             "timestamp value should be preserved for {path}"
         );
         assert!(
-            meta.permission().is_none(),
-            "permissions should be removed for {path}"
-        );
-        assert!(
             meta.owner_uid().is_none()
                 && meta.owner_gid().is_none()
                 && meta.owner_user_name().is_none()
@@ -74,13 +69,17 @@ fn strip_removes_unspecified_metadata() {
         pre_timestamps.len(),
         "strip should preserve all entries"
     );
+    let bytes = std::fs::read("strip_metadata/zstd_keep_all.pna").unwrap();
+    assert!(
+        !bytes.windows(4).any(|w| w == b"fPRM"),
+        "permissions should be removed"
+    );
 }
 
 /// Precondition: An archive carries ownership metadata as owner facets.
 /// Action: Run `pna strip --keep-permission`.
 /// Expectation: Ownership is preserved as owner-facet chunks; the legacy fPRM chunk is not emitted.
 #[test]
-#[allow(deprecated)]
 fn strip_keep_permission_preserves_owner_facets() {
     struct OwnerFacets {
         uid: Option<u64>,
@@ -98,10 +97,6 @@ fn strip_keep_permission_preserves_owner_facets() {
         let path = entry.header().path().to_string();
         let meta = entry.metadata();
         assert!(
-            meta.permission().is_none(),
-            "fixture entry should not carry fPRM permission for {path}"
-        );
-        assert!(
             meta.permission_mode().is_some(),
             "fixture entry should carry owner-facet permission mode for {path}"
         );
@@ -118,6 +113,11 @@ fn strip_keep_permission_preserves_owner_facets() {
     })
     .unwrap();
     assert!(!pre.is_empty(), "archive should contain entries");
+    let pre_bytes = std::fs::read("strip_keep_perm/zstd_keep_all.pna").unwrap();
+    assert!(
+        !pre_bytes.windows(4).any(|w| w == b"fPRM"),
+        "fixture archive should not carry an fPRM chunk"
+    );
 
     cli::Cli::try_parse_from([
         "pna",
@@ -139,10 +139,6 @@ fn strip_keep_permission_preserves_owner_facets() {
         let expected = pre
             .get(&path)
             .unwrap_or_else(|| panic!("unexpected entry after strip: {path}"));
-        assert!(
-            meta.permission().is_none(),
-            "fPRM must not be emitted after strip --keep-permission for {path}"
-        );
         assert_eq!(
             meta.owner_uid().map(|v| v.get()),
             expected.uid,
@@ -171,4 +167,9 @@ fn strip_keep_permission_preserves_owner_facets() {
     })
     .unwrap();
     assert_eq!(post_count, pre.len(), "strip should preserve all entries");
+    let post_bytes = std::fs::read("strip_keep_perm/zstd_keep_all.pna").unwrap();
+    assert!(
+        !post_bytes.windows(4).any(|w| w == b"fPRM"),
+        "fPRM must not be emitted after strip --keep-permission"
+    );
 }

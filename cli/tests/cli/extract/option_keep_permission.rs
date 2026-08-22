@@ -601,3 +601,45 @@ fn extract_encrypted_gcm_without_keep_permission_drops_setuid() {
         "without --keep-permission the archived mode (with setuid) must be replaced by the umask-masked default"
     );
 }
+
+/// Precondition: A pre-`0.34.0` archive carries mode only via the legacy `fPRM`
+/// chunk (no owner facets).
+/// Action: Extract the archive with `--keep-permission`.
+/// Expectation: The mode rescued from `fPRM` into the owner facets is applied
+/// to the extracted files and directories.
+#[test]
+#[cfg(unix)]
+fn extract_applies_mode_from_a_legacy_fprm_archive() {
+    setup();
+    TestResources::extract_in("0.33.0/zstd_keep_all.pna", "extract_legacy_fprm/").unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "extract",
+        "--overwrite",
+        "--keep-permission",
+        "--out-dir",
+        "extract_legacy_fprm/out",
+        "--file",
+        "extract_legacy_fprm/0.33.0/zstd_keep_all.pna",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    // 0.33.0 stored st_mode (S_IFREG | 0o644); the rwx bits must survive the
+    // 0o7777 mask that the owner facet applies.
+    let mode = fs::metadata("extract_legacy_fprm/out/raw/first/second/third/pna.txt")
+        .unwrap()
+        .permissions()
+        .mode();
+    assert_eq!(mode & 0o777, 0o644);
+
+    // Directories in this fixture stored S_IFDIR | 0o755.
+    let dir_mode = fs::metadata("extract_legacy_fprm/out/raw/first")
+        .unwrap()
+        .permissions()
+        .mode();
+    assert_eq!(dir_mode & 0o777, 0o755);
+}

@@ -750,7 +750,6 @@ where
 {
     type Error = io::Error;
 
-    #[allow(deprecated)]
     #[inline]
     fn try_from(entry: RawEntry<T>) -> Result<Self, Self::Error> {
         let mut chunks = entry.0.into_iter();
@@ -793,7 +792,7 @@ where
         let mut ctime_ns = None;
         let mut mtime_ns = None;
         let mut atime_ns = None;
-        let mut permission = None;
+        let mut legacy = None;
         let mut link_target_type = None;
         let mut owner_uid = None;
         let mut owner_gid = None;
@@ -822,7 +821,7 @@ where
                 ChunkType::cTNS => ctime_ns = Some(nanos(chunk.data())?),
                 ChunkType::mTNS => mtime_ns = Some(nanos(chunk.data())?),
                 ChunkType::aTNS => atime_ns = Some(nanos(chunk.data())?),
-                ChunkType::fPRM => permission = Some(Permission::try_from_bytes(chunk.data())?),
+                ChunkType::fPRM => legacy = Some(LegacyOwnerFacets::try_from_bytes(chunk.data())?),
                 ChunkType::fUId => owner_uid = Some(OwnerUid::try_from_bytes(chunk.data())?),
                 ChunkType::fGId => owner_gid = Some(OwnerGid::try_from_bytes(chunk.data())?),
                 ChunkType::fONm => {
@@ -863,7 +862,6 @@ where
             created: ctime,
             modified: mtime,
             accessed: atime,
-            permission,
             link_target_type,
             owner_uid,
             owner_gid,
@@ -874,8 +872,8 @@ where
             permission_mode,
             xattrs,
         };
-        if let Some(p) = &metadata.permission {
-            metadata.fill_owner_facets_from(LegacyOwnerFacets::from(p));
+        if let Some(legacy) = legacy {
+            metadata.fill_owner_facets_from(legacy);
         }
 
         Ok(Self {
@@ -1323,7 +1321,7 @@ fn u128_from_be_bytes_last(bytes: &[u8]) -> u128 {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::io::Write;
     use std::sync::LazyLock;
@@ -1368,7 +1366,7 @@ mod tests {
     /// Encodes `fPRM` chunk Data bytes: `u64` uid, a 1-byte-length-prefixed
     /// uname, `u64` gid, a 1-byte-length-prefixed gname, `u16` mode, all
     /// big-endian.
-    fn fprm_body(uid: u64, uname: &str, gid: u64, gname: &str, mode: u16) -> Vec<u8> {
+    pub(crate) fn fprm_body(uid: u64, uname: &str, gid: u64, gname: &str, mode: u16) -> Vec<u8> {
         assert!(
             uname.len() <= u8::MAX as usize,
             "fPRM name must fit a 1-byte length"
@@ -1391,7 +1389,6 @@ mod tests {
 
     /// A `Metadata` read back from an entry whose `fPRM` chunk was written raw,
     /// optionally carrying the owner facets `facets` sets.
-    #[allow(deprecated)]
     fn read_back_with_legacy_fprm(
         uid: u64,
         uname: &str,
@@ -1437,7 +1434,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
     fn owner_facets_win_over_legacy_fprm_regardless_of_chunk_order() {
         let facet = RawChunk::from_data(ChunkType::fUId, OwnerUid::from(1).to_bytes());
         let fprm = RawChunk::from_data(
@@ -1481,7 +1477,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
     fn reading_legacy_fprm_fills_absent_owner_facets() {
         let m = read_back_with_legacy_fprm(7, "legacy", 8, "grp", 0o600, |m| m);
         assert_eq!(m.owner_uid().map(|v| v.get()), Some(7));
@@ -1489,14 +1484,6 @@ mod tests {
         assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("legacy"));
         assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("grp"));
         assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o600));
-        let p = m
-            .permission()
-            .expect("the deprecated getter still reports what the archive carried");
-        assert_eq!(p.uid(), 7);
-        assert_eq!(p.uname(), "legacy");
-        assert_eq!(p.gid(), 8);
-        assert_eq!(p.gname(), "grp");
-        assert_eq!(p.permissions(), 0o600);
     }
 
     #[test]
@@ -1512,7 +1499,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
     fn all_owner_facets_win_over_legacy_fprm_including_sids() {
         let user_sid = "S-1-5-21-1-2-3-1001";
         let group_sid = "S-1-5-32-544";
@@ -1596,6 +1582,8 @@ mod tests {
             let m = entry.metadata();
             assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("root"));
             assert_eq!(m.owner_uid().map(|v| v.get()), Some(0));
+            assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("root"));
+            assert_eq!(m.owner_gid().map(|v| v.get()), Some(0));
             let expected_mode = match entry.header().data_kind() {
                 DataKind::DIRECTORY => 0o755,
                 DataKind::FILE => 0o644,
@@ -1609,6 +1597,22 @@ mod tests {
             !out.windows(4).any(|w| w == b"fPRM"),
             "the rewritten archive must carry no fPRM chunk"
         );
+    }
+
+    #[test]
+    fn a_rescued_legacy_fprm_is_not_written_back() {
+        let m = read_back_with_legacy_fprm(7, "legacy", 8, "grp", 0o600, |m| m);
+        let emitted = emitted_facets(&m);
+        assert!(emitted.iter().all(|(ty, _)| *ty != ChunkType::fPRM));
+        assert_eq!(
+            find(&emitted, ChunkType::fONm),
+            Some(b"\x06legacy".to_vec())
+        );
+    }
+
+    #[test]
+    fn a_truncated_legacy_fprm_body_is_an_error() {
+        assert!(LegacyOwnerFacets::try_from_bytes(&[0; 4]).is_err());
     }
 
     static TEST_ENTRY: LazyLock<RawEntry> = LazyLock::new(|| {

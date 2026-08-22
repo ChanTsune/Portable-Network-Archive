@@ -908,7 +908,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
     fn metadata_preserves_all_owner_facets() {
         let mut b = FileEntryBuilder::new("f".into()).unwrap();
         b.metadata(
