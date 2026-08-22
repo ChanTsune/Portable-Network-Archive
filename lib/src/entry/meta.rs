@@ -340,6 +340,9 @@ impl Default for Metadata {
 }
 
 /// Owner, group, and permission bits for an archive entry.
+///
+/// Values only come from reading an entry that carries an `fPRM` chunk, via
+/// [`Metadata::permission`]. The chunk cannot be authored through this API.
 #[deprecated(
     since = "0.34.0",
     note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
@@ -355,25 +358,23 @@ pub struct Permission {
 
 #[allow(deprecated)]
 impl Permission {
-    /// Creates a new [`Permission`] with the given user, group, and permission bits.
+    /// Creates a new [`Permission`] from `fPRM` chunk values.
     ///
-    /// The `uid`/`gid` are numeric POSIX IDs, `uname`/`gname` are the
-    /// corresponding names, and `permission` holds the file mode bits (e.g. `0o755`).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # #![allow(deprecated)]
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user".into(), 100, "group".into(), 0o755);
-    /// ```
+    /// Test-only: production code obtains a [`Permission`] solely by reading an
+    /// entry that carries an `fPRM` chunk, so no code path can author one.
+    #[cfg(test)]
     #[deprecated(
         since = "0.34.0",
         note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
     )]
     #[inline]
-    pub const fn new(uid: u64, uname: String, gid: u64, gname: String, permission: u16) -> Self {
+    pub(crate) const fn new(
+        uid: u64,
+        uname: String,
+        gid: u64,
+        gname: String,
+        permission: u16,
+    ) -> Self {
         Self {
             uid,
             uname,
@@ -383,16 +384,6 @@ impl Permission {
         }
     }
     /// Returns the user ID associated with this permission.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # #![allow(deprecated)]
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-    /// assert_eq!(perm.uid(), 1000);
-    /// ```
     #[deprecated(
         since = "0.34.0",
         note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
@@ -403,16 +394,6 @@ impl Permission {
     }
 
     /// Returns the user name associated with this permission.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # #![allow(deprecated)]
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-    /// assert_eq!(perm.uname(), "user1");
-    /// ```
     #[deprecated(
         since = "0.34.0",
         note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
@@ -423,16 +404,6 @@ impl Permission {
     }
 
     /// Returns the group ID associated with this permission.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # #![allow(deprecated)]
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-    /// assert_eq!(perm.gid(), 100);
-    /// ```
     #[deprecated(
         since = "0.34.0",
         note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
@@ -443,16 +414,6 @@ impl Permission {
     }
 
     /// Returns the group name associated with this permission.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # #![allow(deprecated)]
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-    /// assert_eq!(perm.gname(), "group1");
-    /// ```
     #[deprecated(
         since = "0.34.0",
         note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
@@ -463,16 +424,6 @@ impl Permission {
     }
 
     /// Returns the permission bits associated with this permission.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # #![allow(deprecated)]
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-    /// assert_eq!(perm.permissions(), 0o644);
-    /// ```
     #[deprecated(
         since = "0.34.0",
         note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"

@@ -14,12 +14,10 @@ mod symbolic_other;
 mod symbolic_user;
 mod unsolid;
 
-use crate::utils::{archive, archive::FileEntryDef, setup};
+use crate::utils::{EmbedExt, TestResources, archive, archive::FileEntryDef, setup};
 use clap::Parser;
-#[allow(deprecated)]
-use pna::Permission;
 use pna::{
-    Archive, DirEntryBuilder, EntryName, FileEntryBuilder, HardLinkEntryBuilder, Metadata,
+    Archive, DirEntryBuilder, EntryName, FileEntryBuilder, HardLinkEntryBuilder,
     SymlinkEntryBuilder,
 };
 use portable_network_archive::cli;
@@ -74,29 +72,16 @@ fn archive_chmod() {
     .unwrap();
 }
 
-/// Precondition: An archive entry carries legacy fPRM metadata.
+/// Precondition: An archive entry carries legacy fPRM metadata (no owner facets).
 /// Action: Run `pna experimental chmod` to change its mode.
-/// Expectation: The updated mode is emitted as fMOd, and stale fPRM is removed.
+/// Expectation: The requested mode bit is cleared, the ownership rescued from fPRM
+/// survives, and the stale fPRM chunk is removed.
 #[test]
 #[allow(deprecated)]
-fn archive_chmod_drops_legacy_fprm() {
+fn chmod_preserves_ownership_of_a_legacy_fprm_archive() {
     setup();
-    let path = "chmod_legacy_fprm.pna";
-    {
-        let mut archive = Archive::write_header(File::create(path).unwrap()).unwrap();
-        let mut builder =
-            FileEntryBuilder::new(EntryName::from_utf8_preserve_root(ENTRY_PATH)).unwrap();
-        builder.metadata(Metadata::new().with_permission(Some(Permission::new(
-            1000,
-            "user".to_string(),
-            1000,
-            "group".to_string(),
-            0o777,
-        ))));
-        builder.write_all(ENTRY_CONTENT).unwrap();
-        archive.add_entry(builder.build().unwrap()).unwrap();
-        archive.finalize().unwrap();
-    }
+    TestResources::extract_in("0.33.0/zstd_keep_all.pna", "chmod_legacy_fprm/").unwrap();
+    let archive = "chmod_legacy_fprm/0.33.0/zstd_keep_all.pna";
 
     cli::Cli::try_parse_from([
         "pna",
@@ -104,22 +89,35 @@ fn archive_chmod_drops_legacy_fprm() {
         "experimental",
         "chmod",
         "-f",
-        path,
-        "644",
-        ENTRY_PATH,
+        archive,
+        "u-w",
+        "**",
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    archive::for_each_entry(path, |entry| {
+    let mut seen = 0usize;
+    archive::for_each_entry(archive, |entry| {
+        seen += 1;
+        let m = entry.metadata();
         assert!(
-            entry.metadata().permission().is_none(),
+            m.permission().is_none(),
             "legacy fPRM must be removed after chmod"
         );
-        assert_eq!(entry.metadata().permission_mode().unwrap().get(), 0o644);
+        assert_eq!(m.owner_uid().map(|v| v.get()), Some(0));
+        assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("root"));
+        assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("root"));
+        let mode = m.permission_mode().expect("mode must survive").get();
+        assert_eq!(
+            mode & 0o200,
+            0,
+            "u-w must be cleared on {}",
+            entry.header().path()
+        );
     })
     .unwrap();
+    assert_eq!(seen, 16, "fixture has 16 entries");
 }
 
 /// Precondition: An archive entry has no permission metadata.
