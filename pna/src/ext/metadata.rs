@@ -265,7 +265,7 @@ pub trait MetadataFsExt: private::Sealed {
     /// are preserved as owner facets as well.
     ///
     /// # Errors
-    /// Returns an error if converting from [`fs::Metadata`] fails.
+    /// See the implementing type's documentation for when this can fail.
     fn from_metadata(metadata: &fs::Metadata) -> io::Result<Self>
     where
         Self: Sized;

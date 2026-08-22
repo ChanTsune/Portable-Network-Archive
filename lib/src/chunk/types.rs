@@ -115,7 +115,7 @@ impl ChunkType {
     /// Solid mode data stream end marker.
     pub const SEND: ChunkType = ChunkType(*b"SEND");
 
-    // -- Auxiliary chunks --
+    // -- Ancillary chunks --
     /// Raw file size.
     #[allow(non_upper_case_globals)]
     pub const fSIZ: ChunkType = ChunkType(*b"fSIZ");

@@ -12,8 +12,6 @@ use std::{borrow::Borrow, fmt, ops::Deref};
 /// # Examples
 ///
 /// ```ignore
-/// use libpna::util::bounded::str::BoundedString;
-///
 /// let s: BoundedString<8> = "🦀rust".try_into().unwrap();
 /// assert_eq!(s.len(), 8); // 4-byte 🦀 + "rust"
 ///
@@ -36,8 +34,6 @@ impl<const MAX: usize> BoundedString<MAX> {
     /// # Examples
     ///
     /// ```ignore
-    /// use libpna::util::bounded::str::BoundedString;
-    ///
     /// let ok = BoundedString::<5>::new("hello").unwrap();
     /// assert_eq!(ok.as_str(), "hello");
     ///
