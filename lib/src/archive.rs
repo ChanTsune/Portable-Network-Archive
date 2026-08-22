@@ -715,15 +715,28 @@ mod tests {
                 Metadata::new()
                     .with_created(Some(Duration::seconds(31)))
                     .with_modified(Some(Duration::seconds(32)))
-                    .with_accessed(Some(Duration::seconds(33)))
-                    .with_permission(Some(Permission::new(
-                        1,
-                        "uname".into(),
-                        2,
-                        "gname".into(),
-                        0o775,
-                    ))),
+                    .with_accessed(Some(Duration::seconds(33))),
             );
+            // A raw legacy `fPRM` chunk, as a pre-0.34.0 archive carries it.
+            let uname = "uname";
+            let gname = "gname";
+            assert!(
+                uname.len() <= u8::MAX as usize,
+                "fPRM name must fit a 1-byte length"
+            );
+            assert!(
+                gname.len() <= u8::MAX as usize,
+                "fPRM name must fit a 1-byte length"
+            );
+            let mut fprm = Vec::new();
+            fprm.extend_from_slice(&1u64.to_be_bytes());
+            fprm.push(uname.len() as u8);
+            fprm.extend_from_slice(uname.as_bytes());
+            fprm.extend_from_slice(&2u64.to_be_bytes());
+            fprm.push(gname.len() as u8);
+            fprm.extend_from_slice(gname.as_bytes());
+            fprm.extend_from_slice(&0o775u16.to_be_bytes());
+            builder.add_extra_chunk(RawChunk::from_data(ChunkType::fPRM, fprm));
             builder.write_all(b"entry data").unwrap();
             builder.build().unwrap()
         };
@@ -750,8 +763,9 @@ mod tests {
             original_entry.metadata().accessed(),
             read_entry.metadata().accessed()
         );
-        // The legacy fPRM chunk is no longer written; its values are read back
-        // as the owner facets that superseded it.
+        // The raw fPRM chunk above is copied through as an extra chunk; the
+        // owner facets asserted below come from the reader filling them from
+        // it, not from anything the metadata-facet writer produced.
         assert_eq!(read_entry.metadata().owner_uid().map(|v| v.get()), Some(1));
         assert_eq!(
             read_entry.metadata().owner_user_name().map(|v| v.as_str()),

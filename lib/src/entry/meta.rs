@@ -171,18 +171,6 @@ impl Metadata {
         self
     }
 
-    /// Sets the permission of the entry.
-    #[deprecated(
-        since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks; use Metadata::with_owner_uid/with_owner_gid/with_owner_user_name/with_owner_group_name/with_owner_user_sid/with_owner_group_sid/with_permission_mode"
-    )]
-    #[allow(deprecated)]
-    #[inline]
-    pub fn with_permission(mut self, permission: Option<Permission>) -> Self {
-        self.permission = permission;
-        self
-    }
-
     /// Sets the owner user id facet (`fUId`).
     #[inline]
     pub fn with_owner_uid(mut self, value: Option<OwnerUid>) -> Self {
@@ -329,24 +317,6 @@ impl Metadata {
     #[inline]
     pub fn xattrs(&self) -> &[ExtendedAttribute] {
         &self.xattrs
-    }
-
-    /// Owner facet values carried by this entry's legacy `fPRM` chunk, if any.
-    ///
-    /// The name conversions cannot fail: a [`Permission`] only comes off the
-    /// wire, where `fPRM` length-prefixes each name with a single byte — the
-    /// same bound `fONm`/`fGNm` carry.
-    #[allow(deprecated)]
-    pub(crate) fn legacy_owner_facets(&self) -> Option<LegacyOwnerFacets> {
-        const NAME_FITS: &str = "an fPRM name cannot exceed the owner-facet bound";
-        let p = self.permission.as_ref()?;
-        Some(LegacyOwnerFacets {
-            uid: OwnerUid::from(p.uid()),
-            gid: OwnerGid::from(p.gid()),
-            user_name: OwnerUserName::new(p.uname()).expect(NAME_FITS),
-            group_name: OwnerGroupName::new(p.gname()).expect(NAME_FITS),
-            mode: PermissionMode::from(p.permissions()),
-        })
     }
 
     /// Fills the owner facets this entry does not carry from a legacy `fPRM`
@@ -539,6 +509,23 @@ pub(crate) struct LegacyOwnerFacets {
     pub(crate) user_name: OwnerUserName,
     pub(crate) group_name: OwnerGroupName,
     pub(crate) mode: PermissionMode,
+}
+
+#[allow(deprecated)]
+impl From<&Permission> for LegacyOwnerFacets {
+    /// The name conversions cannot fail: a [`Permission`] only comes off the
+    /// wire, where `fPRM` length-prefixes each name with a single byte — the
+    /// same bound `fONm`/`fGNm` carry.
+    fn from(p: &Permission) -> Self {
+        const NAME_FITS: &str = "an fPRM name cannot exceed the owner-facet bound";
+        Self {
+            uid: OwnerUid::from(p.uid()),
+            gid: OwnerGid::from(p.gid()),
+            user_name: OwnerUserName::new(p.uname()).expect(NAME_FITS),
+            group_name: OwnerGroupName::new(p.gname()).expect(NAME_FITS),
+            mode: PermissionMode::from(p.permissions()),
+        }
+    }
 }
 
 /// Maximum owner-facet string byte length (the `fONm`/`fGNm`/`fOSi`/`fGSi`

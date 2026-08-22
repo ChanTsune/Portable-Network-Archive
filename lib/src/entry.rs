@@ -145,28 +145,16 @@ fn try_for_each_metadata_facet<E>(
             f(ChunkType::aTNS, Cow::Borrowed(&nanos.to_be_bytes()))?;
         }
     }
-    // A legacy `fPRM` chunk is written back as the owner facets that
-    // superseded it, facet by facet; libpna never emits `fPRM`.
-    let legacy = metadata.legacy_owner_facets();
-    let legacy = legacy.as_ref();
-    if let Some(value) = metadata.owner_uid.or(legacy.map(|l| l.uid)) {
+    if let Some(value) = metadata.owner_uid {
         f(ChunkType::fUId, Cow::Borrowed(&value.to_bytes()))?;
     }
-    if let Some(value) = metadata.owner_gid.or(legacy.map(|l| l.gid)) {
+    if let Some(value) = metadata.owner_gid {
         f(ChunkType::fGId, Cow::Borrowed(&value.to_bytes()))?;
     }
-    if let Some(value) = metadata
-        .owner_user_name
-        .as_ref()
-        .or(legacy.map(|l| &l.user_name))
-    {
+    if let Some(value) = &metadata.owner_user_name {
         f(ChunkType::fONm, Cow::Owned(value.to_bytes()))?;
     }
-    if let Some(value) = metadata
-        .owner_group_name
-        .as_ref()
-        .or(legacy.map(|l| &l.group_name))
-    {
+    if let Some(value) = &metadata.owner_group_name {
         f(ChunkType::fGNm, Cow::Owned(value.to_bytes()))?;
     }
     if let Some(value) = &metadata.owner_user_sid {
@@ -175,7 +163,7 @@ fn try_for_each_metadata_facet<E>(
     if let Some(value) = &metadata.owner_group_sid {
         f(ChunkType::fGSi, Cow::Owned(value.to_bytes()))?;
     }
-    if let Some(value) = metadata.permission_mode.or(legacy.map(|l| l.mode)) {
+    if let Some(value) = metadata.permission_mode {
         f(ChunkType::fMOd, Cow::Borrowed(&value.to_bytes()))?;
     }
     if let Some(value) = metadata.link_target_type {
@@ -886,8 +874,8 @@ where
             permission_mode,
             xattrs,
         };
-        if let Some(legacy) = metadata.legacy_owner_facets() {
-            metadata.fill_owner_facets_from(legacy);
+        if let Some(p) = &metadata.permission {
+            metadata.fill_owner_facets_from(LegacyOwnerFacets::from(p));
         }
 
         Ok(Self {
@@ -1475,24 +1463,6 @@ mod tests {
         );
     }
 
-    /// A `Metadata` carrying only a legacy `fPRM` value, as the deprecated
-    /// setter still produces. Reading an archive now fills the owner facets,
-    /// so the write-side fallback needs a subject the reader has not touched.
-    #[allow(deprecated)]
-    fn metadata_with_legacy_fprm_only(
-        uid: u64,
-        uname: &str,
-        gid: u64,
-        gname: &str,
-        mode: u16,
-    ) -> Metadata {
-        let permission = read_back_with_legacy_fprm(uid, uname, gid, gname, mode, |m| m)
-            .permission()
-            .cloned()
-            .expect("the raw fPRM chunk must decode");
-        Metadata::new().with_permission(Some(permission))
-    }
-
     fn emitted_facets(metadata: &Metadata) -> Vec<(ChunkType, Vec<u8>)> {
         let mut out = Vec::new();
         try_for_each_metadata_facet(metadata, |ty, data| {
@@ -1539,61 +1509,6 @@ mod tests {
         assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("new"));
         assert_eq!(m.owner_gid().map(|v| v.get()), Some(8));
         assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("grp"));
-    }
-
-    #[test]
-    #[allow(deprecated)]
-    fn legacy_fprm_is_written_as_owner_facets() {
-        let m = metadata_with_legacy_fprm_only(7, "legacy", 8, "grp", 0o600);
-        let emitted = emitted_facets(&m);
-        let types: Vec<ChunkType> = emitted.iter().map(|(ty, _)| *ty).collect();
-
-        assert!(
-            !types.contains(&ChunkType::fPRM),
-            "fPRM must not be written"
-        );
-        assert_eq!(
-            find(&emitted, ChunkType::fUId),
-            Some(7u64.to_be_bytes().to_vec())
-        );
-        assert_eq!(
-            find(&emitted, ChunkType::fGId),
-            Some(8u64.to_be_bytes().to_vec())
-        );
-        assert_eq!(
-            find(&emitted, ChunkType::fONm),
-            Some(b"\x06legacy".to_vec())
-        );
-        assert_eq!(find(&emitted, ChunkType::fGNm), Some(b"\x03grp".to_vec()));
-        assert_eq!(
-            find(&emitted, ChunkType::fMOd),
-            Some(0o600u16.to_be_bytes().to_vec())
-        );
-    }
-
-    #[test]
-    fn owner_facets_win_over_legacy_fprm_facet_by_facet() {
-        let m = metadata_with_legacy_fprm_only(7, "legacy", 8, "grp", 0o600)
-            .with_owner_uid(Some(OwnerUid::from(1)))
-            .with_owner_user_name(Some(OwnerUserName::new("new").unwrap()));
-        let emitted = emitted_facets(&m);
-
-        assert_eq!(
-            find(&emitted, ChunkType::fUId),
-            Some(1u64.to_be_bytes().to_vec()),
-            "the facet the entry carries wins"
-        );
-        assert_eq!(find(&emitted, ChunkType::fONm), Some(b"\x03new".to_vec()));
-        assert_eq!(
-            find(&emitted, ChunkType::fGId),
-            Some(8u64.to_be_bytes().to_vec()),
-            "the facets it does not carry still come from fPRM"
-        );
-        assert_eq!(find(&emitted, ChunkType::fGNm), Some(b"\x03grp".to_vec()));
-        assert_eq!(
-            find(&emitted, ChunkType::fMOd),
-            Some(0o600u16.to_be_bytes().to_vec())
-        );
     }
 
     #[test]
@@ -1655,16 +1570,6 @@ mod tests {
             find(&emitted, ChunkType::fMOd),
             Some(0o755u16.to_be_bytes().to_vec()),
             "mode must come from the entry's own facet, not fPRM's 0o600"
-        );
-    }
-
-    #[test]
-    fn legacy_fprm_mode_is_masked_to_permission_bits() {
-        // 0.33.0 stored st_mode: S_IFREG | 0o644.
-        let m = metadata_with_legacy_fprm_only(0, "root", 0, "root", 0o100644);
-        assert_eq!(
-            find(&emitted_facets(&m), ChunkType::fMOd),
-            Some(0o644u16.to_be_bytes().to_vec())
         );
     }
 
