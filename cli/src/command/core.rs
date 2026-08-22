@@ -304,9 +304,6 @@ impl PermissionStrategyResolver {
     /// The `same_owner` field controls ownership handling:
     /// - `true`: Restore/store ownership (Preserve with options)
     /// - `false`: Skip ownership restoration (Never)
-    ///
-    /// For creation contexts, pass `same_owner: true` since ownership
-    /// is always stored when `--keep-permission` is enabled.
     pub(crate) fn resolve(self) -> (ModeStrategy, OwnerStrategy) {
         if self.keep_permission {
             let mode_strategy = ModeStrategy::Preserve;

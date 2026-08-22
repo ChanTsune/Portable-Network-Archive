@@ -1573,15 +1573,12 @@ fn restore_metadata<T>(
 where
     T: AsRef<[u8]>,
 {
-    // Restore timestamps for non-file entries (symlinks, directories, hardlinks).
-    // Regular files are handled by restore_timestamps() with an open file handle.
     // On WASM, path-based timestamp restoration is not supported (filetime limitation).
     #[cfg(not(target_family = "wasm"))]
     if item.header().data_kind() != DataKind::FILE {
         restore_path_timestamps(path, item.metadata(), keep_options)?;
     }
     let ownership = crate::ext::ResolvedOwnership::from_metadata(item.metadata());
-    // Restore ownership when owner_strategy is Preserve (independent of mode).
     // A permission-mode-only entry (`fMOd`) is not owner identity and must not
     // fall back to uid/gid 0.
     if let OwnerStrategy::Preserve { options } = &keep_options.owner_strategy
@@ -1589,9 +1586,7 @@ where
     {
         restore_owner(path, &ownership, options)?;
     }
-    // Restore mode bits when configured.
-    // Skip for symlinks: symlink permissions are not settable via chmod() on most
-    // platforms, and chmod() follows symlinks, which would corrupt the target's permissions.
+    // Not settable via chmod() on most platforms.
     if item.header().data_kind() != DataKind::SYMBOLIC_LINK
         && let Some(mode) = ownership.mode
     {
