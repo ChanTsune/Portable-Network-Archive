@@ -750,9 +750,21 @@ mod tests {
             original_entry.metadata().accessed(),
             read_entry.metadata().accessed()
         );
+        // The legacy fPRM chunk is no longer written; its values are read back
+        // as the owner facets that superseded it.
+        assert_eq!(read_entry.metadata().owner_uid().map(|v| v.get()), Some(1));
         assert_eq!(
-            original_entry.metadata().permission(),
-            read_entry.metadata().permission()
+            read_entry.metadata().owner_user_name().map(|v| v.as_str()),
+            Some("uname")
+        );
+        assert_eq!(read_entry.metadata().owner_gid().map(|v| v.get()), Some(2));
+        assert_eq!(
+            read_entry.metadata().owner_group_name().map(|v| v.as_str()),
+            Some("gname")
+        );
+        assert_eq!(
+            read_entry.metadata().permission_mode().map(|v| v.get()),
+            Some(0o775)
         );
         assert_eq!(
             original_entry.metadata().compressed_size(),

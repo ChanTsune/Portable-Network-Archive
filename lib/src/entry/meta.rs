@@ -330,6 +330,24 @@ impl Metadata {
     pub fn xattrs(&self) -> &[ExtendedAttribute] {
         &self.xattrs
     }
+
+    /// Owner facet values carried by this entry's legacy `fPRM` chunk, if any.
+    ///
+    /// The name conversions cannot fail: a [`Permission`] only comes off the
+    /// wire, where `fPRM` length-prefixes each name with a single byte — the
+    /// same bound `fONm`/`fGNm` carry.
+    #[allow(deprecated)]
+    pub(crate) fn legacy_owner_facets(&self) -> Option<LegacyOwnerFacets> {
+        const NAME_FITS: &str = "an fPRM name cannot exceed the owner-facet bound";
+        let p = self.permission.as_ref()?;
+        Some(LegacyOwnerFacets {
+            uid: OwnerUid::from(p.uid()),
+            gid: OwnerGid::from(p.gid()),
+            user_name: OwnerUserName::new(p.uname()).expect(NAME_FITS),
+            group_name: OwnerGroupName::new(p.gname()).expect(NAME_FITS),
+            mode: PermissionMode::from(p.permissions()),
+        })
+    }
 }
 
 impl Default for Metadata {
@@ -433,6 +451,11 @@ impl Permission {
         self.permission
     }
 
+    /// Encodes this permission back to `fPRM` chunk bytes.
+    ///
+    /// Test-only: libpna no longer writes `fPRM`, so this exists solely to
+    /// round-trip [`Permission::try_from_bytes`] in tests.
+    #[cfg(test)]
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::with_capacity(20 + self.uname.len() + self.gname.len());
         bytes.extend_from_slice(&self.uid.to_be_bytes());
@@ -491,6 +514,18 @@ impl Permission {
             permission,
         })
     }
+}
+
+/// Owner facet values that a legacy `fPRM` chunk supplies.
+///
+/// `fPRM` predates the owner facet chunks and carries no SID, so `fOSi`/`fGSi`
+/// have no legacy source.
+pub(crate) struct LegacyOwnerFacets {
+    pub(crate) uid: OwnerUid,
+    pub(crate) gid: OwnerGid,
+    pub(crate) user_name: OwnerUserName,
+    pub(crate) group_name: OwnerGroupName,
+    pub(crate) mode: PermissionMode,
 }
 
 /// Maximum owner-facet string byte length (the `fONm`/`fGNm`/`fOSi`/`fGSi`
@@ -1170,63 +1205,6 @@ mod tests {
             LinkTargetType::try_from_bytes(&[0x01, 0xFF, 0xFF]).unwrap(),
             Some(LinkTargetType::File),
         );
-    }
-
-    #[allow(deprecated)]
-    #[test]
-    fn all_owner_facets_and_fprm_coexist_round_trip() {
-        use crate::entry::{
-            OwnerGid, OwnerGroupName, OwnerGroupSid, OwnerUid, OwnerUserName, OwnerUserSid,
-            PermissionMode,
-        };
-        use crate::{Archive, FileEntryBuilder};
-        let mut buf = Vec::new();
-        {
-            let mut archive = Archive::write_header(&mut buf).unwrap();
-            let mut b = FileEntryBuilder::new("f".into()).unwrap();
-            b.metadata(
-                Metadata::new()
-                    // Legacy fPRM (Permission uses plain String uname/gname on this branch).
-                    .with_permission(Some(Permission::new(
-                        7,
-                        "legacy".to_string(),
-                        8,
-                        "grp".to_string(),
-                        0o600,
-                    )))
-                    // All 7 new owner facets.
-                    .with_owner_uid(Some(OwnerUid::from(1)))
-                    .with_owner_gid(Some(OwnerGid::from(2)))
-                    .with_owner_user_name(Some(OwnerUserName::new("u").unwrap()))
-                    .with_owner_group_name(Some(OwnerGroupName::new("g").unwrap()))
-                    .with_owner_user_sid(Some(OwnerUserSid::new("S-1-1").unwrap()))
-                    .with_owner_group_sid(Some(OwnerGroupSid::new("S-1-2").unwrap()))
-                    .with_permission_mode(Some(PermissionMode::from(0o644))),
-            );
-            let entry = b.build().unwrap();
-            archive.add_entry(entry).unwrap();
-            archive.finalize().unwrap();
-        }
-        let mut archive = Archive::read_header(&buf[..]).unwrap();
-        let entry = archive.entries().skip_solid().next().unwrap().unwrap();
-        let m = entry.metadata();
-        // All 7 new facets survived.
-        assert_eq!(m.owner_uid().map(|v| v.get()), Some(1));
-        assert_eq!(m.owner_gid().map(|v| v.get()), Some(2));
-        assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("u"));
-        assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("g"));
-        assert_eq!(m.owner_user_sid().map(|v| v.as_str()), Some("S-1-1"));
-        assert_eq!(m.owner_group_sid().map(|v| v.as_str()), Some("S-1-2"));
-        assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o644));
-        // Legacy fPRM still round-trips intact, independently of the new owner facets.
-        let p = m
-            .permission()
-            .expect("fPRM permission must still be present");
-        assert_eq!(p.uid(), 7);
-        assert_eq!(p.uname(), "legacy");
-        assert_eq!(p.gid(), 8);
-        assert_eq!(p.gname(), "grp");
-        assert_eq!(p.permissions(), 0o600);
     }
 
     #[test]
