@@ -570,7 +570,6 @@ impl OwnerUserName {
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
         let b = self.0.as_str().as_bytes();
         let mut v = Vec::with_capacity(1 + b.len());
-        // Type guarantees b.len() <= 255 (BoundedString<255> invariant).
         v.push(b.len() as u8);
         v.extend_from_slice(b);
         v
@@ -637,7 +636,6 @@ impl OwnerGroupName {
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
         let b = self.0.as_str().as_bytes();
         let mut v = Vec::with_capacity(1 + b.len());
-        // Type guarantees b.len() <= 255 (BoundedString<255> invariant).
         v.push(b.len() as u8);
         v.extend_from_slice(b);
         v
@@ -704,7 +702,6 @@ impl OwnerUserSid {
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
         let b = self.0.as_str().as_bytes();
         let mut v = Vec::with_capacity(1 + b.len());
-        // Type guarantees b.len() <= 255 (BoundedString<255> invariant).
         v.push(b.len() as u8);
         v.extend_from_slice(b);
         v
@@ -771,7 +768,6 @@ impl OwnerGroupSid {
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
         let b = self.0.as_str().as_bytes();
         let mut v = Vec::with_capacity(1 + b.len());
-        // Type guarantees b.len() <= 255 (BoundedString<255> invariant).
         v.push(b.len() as u8);
         v.extend_from_slice(b);
         v

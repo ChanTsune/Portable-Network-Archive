@@ -763,10 +763,7 @@ impl CreationPermissionStrategyResolver {
     }
 }
 
-/// Resolves permission strategies for bsdtar extraction operations.
-/// Extraction defaults: root preserves exact permissions, non-root applies umask (bsdtar behavior).
-/// -p/--same-permissions enables mode + ACL + xattr + fflags + mac-metadata (but NOT owner)
-/// Flag priority: --no-same-permissions > -p > individual flags; individual --no-* always wins
+/// CLI flags needed to resolve bsdtar-compatible extraction permission strategies.
 struct ExtractionPermissionStrategyResolver {
     same_permissions: bool,
     no_same_permissions: bool,
@@ -798,8 +795,10 @@ type ExtractionPermissionStrategies = (
 );
 
 impl ExtractionPermissionStrategyResolver {
+    /// Extraction defaults: root preserves exact permissions, non-root applies umask (bsdtar behavior).
+    /// `-p`/`--same-permissions` enables mode + ACL + xattr + fflags + mac-metadata (but NOT owner).
+    /// Flag priority: `--no-same-permissions` > `-p` > individual flags; individual `--no-*` always wins.
     fn resolve(self) -> ExtractionPermissionStrategies {
-        // bsdtar behavior: root defaults to -p (Preserve), non-root defaults to Masked
         let default_mode_strategy = if self.is_root {
             ModeStrategy::Preserve
         } else {
@@ -835,7 +834,6 @@ impl ExtractionPermissionStrategyResolver {
             OwnerStrategy::Never
         };
 
-        // -p enables these unless --no-same-permissions is set; individual --no-* always wins
         let p_enables = !self.no_same_permissions && self.same_permissions;
 
         (

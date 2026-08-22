@@ -491,7 +491,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     }
     let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
         keep_permission: args.keep_permission,
-        same_owner: true, // Must be `true` for creation
+        same_owner: true, // Creation always stores ownership; same_owner only matters for extraction.
         uname: args.uname,
         gname: args.gname,
         uid: args.uid,
