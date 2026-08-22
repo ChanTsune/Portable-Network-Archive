@@ -2,7 +2,8 @@
 
 use crate::{
     Archive, Chunk, ChunkType, Entry, NormalEntry, RawChunk, ReadEntry, ReadOptions,
-    archive::ArchiveHeader, entry::RawEntry,
+    archive::ArchiveHeader,
+    entry::{RawEntry, SolidIntoEntries},
 };
 use std::borrow::Cow;
 use std::io;
@@ -181,7 +182,12 @@ impl<'a, 'r> Entries<'a, 'r> {
         Self { reader }
     }
 
-    /// Returns an iterator that extracts solid entries from the archive and returns them as normal entries.
+    /// Returns a streaming iterator that extracts solid entries from the archive
+    /// and returns them as normal entries.
+    ///
+    /// Encoded data from normal entries borrows from the source slice. Entries
+    /// decoded from a solid entry own their encoded data because those bytes do
+    /// not exist in the source slice.
     ///
     /// # Examples
     ///
@@ -205,22 +211,8 @@ impl<'a, 'r> Entries<'a, 'r> {
     /// # }
     /// ```
     #[inline]
-    pub fn extract_solid_entries(
-        self,
-        options: &ReadOptions,
-    ) -> impl Iterator<Item = io::Result<NormalEntry>> + 'a
-    where
-        'a: 'r,
-    {
-        let read_options = options.clone();
-        self.flat_map(move |f| match f {
-            Ok(ReadEntry::Normal(r)) => vec![Ok(r.into())],
-            Ok(ReadEntry::Solid(r)) => match r.entries(&read_options) {
-                Ok(entries) => entries.collect(),
-                Err(e) => vec![Err(e)],
-            },
-            Err(e) => vec![Err(e)],
-        })
+    pub fn extract_solid_entries(self, options: &ReadOptions) -> SliceNormalEntries<'a, 'r> {
+        SliceNormalEntries::new(self, options)
     }
 }
 
@@ -233,10 +225,58 @@ impl<'r> Iterator for Entries<'_, 'r> {
     }
 }
 
+/// An iterator over normal entries read from a byte slice, including entries
+/// decoded from solid entries.
+pub struct SliceNormalEntries<'a, 'r> {
+    entries: Entries<'a, 'r>,
+    read_options: ReadOptions,
+    solid_iter: Option<SolidIntoEntries<Cow<'r, [u8]>>>,
+}
+
+impl<'a, 'r> SliceNormalEntries<'a, 'r> {
+    #[inline]
+    fn new(entries: Entries<'a, 'r>, options: &ReadOptions) -> Self {
+        Self {
+            entries,
+            read_options: options.clone(),
+            solid_iter: None,
+        }
+    }
+}
+
+impl<'r> Iterator for SliceNormalEntries<'_, 'r> {
+    type Item = io::Result<NormalEntry<Cow<'r, [u8]>>>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(iter) = &mut self.solid_iter {
+                if let Some(item) = iter.next() {
+                    return Some(item.map(Into::into));
+                }
+                self.solid_iter = None;
+            }
+
+            match self.entries.next()? {
+                Ok(ReadEntry::Normal(entry)) => return Some(Ok(entry)),
+                Ok(ReadEntry::Solid(entry)) => {
+                    match entry.into_entries_with_options(&self.read_options) {
+                        Ok(iter) => {
+                            self.solid_iter = Some(iter);
+                        }
+                        Err(e) => return Some(Err(e)),
+                    }
+                }
+                Err(e) => return Some(Err(e)),
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{FileEntryBuilder, WriteOptions};
+    use crate::{FileEntryBuilder, Metadata, RawChunk, SolidEntryBuilder, WriteOptions};
     use std::{io::Write, num::NonZeroU32};
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
@@ -288,6 +328,88 @@ mod tests {
         let mut archive = Archive::write_header(Vec::new()).unwrap();
         archive.add_entry(builder.build().unwrap()).unwrap();
         archive.finalize().unwrap()
+    }
+
+    fn archive_with_normal_and_solid_entries() -> Vec<u8> {
+        let mut normal_builder =
+            FileEntryBuilder::new_with_options("normal".into(), WriteOptions::store()).unwrap();
+        normal_builder.write_all(b"normal data").unwrap();
+        let normal = normal_builder
+            .build()
+            .unwrap()
+            .with_extra_chunks(vec![RawChunk::from_data(
+                ChunkType::private(*b"exTr").unwrap(),
+                b"extra".to_vec(),
+            )]);
+
+        let mut solid = SolidEntryBuilder::new(WriteOptions::store()).unwrap();
+        solid
+            .write_file("solid-1".into(), Metadata::new(), |writer| {
+                writer.write_all(b"solid data 1")
+            })
+            .unwrap();
+        solid
+            .write_file("solid-2".into(), Metadata::new(), |writer| {
+                writer.write_all(b"solid data 2")
+            })
+            .unwrap();
+
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        archive.add_entry(normal).unwrap();
+        archive.add_entry(solid.build().unwrap()).unwrap();
+        archive.finalize().unwrap()
+    }
+
+    fn collect_slice_entries<'d>(bytes: &'d [u8]) -> Vec<NormalEntry<Cow<'d, [u8]>>> {
+        let mut archive = Archive::read_header_from_slice(bytes).unwrap();
+        archive
+            .entries_slice()
+            .extract_solid_entries(&ReadOptions::builder().build())
+            .collect::<io::Result<Vec<_>>>()
+            .unwrap()
+    }
+
+    #[test]
+    fn extract_solid_entries_borrows_normal_data_and_owns_solid_data() {
+        let bytes = archive_with_normal_and_solid_entries();
+        let entries = collect_slice_entries(&bytes);
+
+        assert_eq!(entries.len(), 3);
+        assert_eq!(entries[0].header().path(), "normal");
+        assert!(
+            entries[0]
+                .data
+                .iter()
+                .all(|data| matches!(data, Cow::Borrowed(_)))
+        );
+        assert!(matches!(
+            entries[0].extra.first().map(|chunk| &chunk.data),
+            Some(Cow::Borrowed(_))
+        ));
+
+        assert_eq!(entries[1].header().path(), "solid-1");
+        assert_eq!(entries[2].header().path(), "solid-2");
+        for entry in &entries[1..] {
+            assert!(entry.data.iter().all(|data| matches!(data, Cow::Owned(_))));
+        }
+    }
+
+    #[test]
+    fn extract_solid_entries_decodes_encrypted_compressed_data() {
+        let bytes = include_bytes!("../../../../resources/test/solid_zstd_aes_gcm.pna");
+        let mut archive = Archive::read_header_from_slice(bytes).unwrap();
+        let entries = archive
+            .entries_slice()
+            .extract_solid_entries(&ReadOptions::with_password(Some(b"password")))
+            .collect::<io::Result<Vec<_>>>()
+            .unwrap();
+
+        assert_eq!(entries.len(), 9);
+        assert!(
+            entries
+                .iter()
+                .all(|entry| entry.data.iter().all(|data| matches!(data, Cow::Owned(_))))
+        );
     }
 
     #[test]
