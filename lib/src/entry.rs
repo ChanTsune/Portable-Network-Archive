@@ -869,27 +869,32 @@ where
         let mtime = mtime.map(|s| Duration::from_seconds_nanos(s, mtime_ns.unwrap_or(0)));
         let atime = atime.map(|s| Duration::from_seconds_nanos(s, atime_ns.unwrap_or(0)));
 
+        let mut metadata = Metadata {
+            raw_file_size: size,
+            compressed_size,
+            created: ctime,
+            modified: mtime,
+            accessed: atime,
+            permission,
+            link_target_type,
+            owner_uid,
+            owner_gid,
+            owner_user_name,
+            owner_group_name,
+            owner_user_sid,
+            owner_group_sid,
+            permission_mode,
+            xattrs,
+        };
+        if let Some(legacy) = metadata.legacy_owner_facets() {
+            metadata.fill_owner_facets_from(legacy);
+        }
+
         Ok(Self {
             header,
             phsf,
             extra,
-            metadata: Metadata {
-                raw_file_size: size,
-                compressed_size,
-                created: ctime,
-                modified: mtime,
-                accessed: atime,
-                permission,
-                link_target_type,
-                owner_uid,
-                owner_gid,
-                owner_user_name,
-                owner_group_name,
-                owner_user_sid,
-                owner_group_sid,
-                permission_mode,
-                xattrs,
-            },
+            metadata,
             data,
         })
     }
@@ -1372,17 +1377,10 @@ mod tests {
         assert_eq!(u128::MAX, u128_from_be_bytes_last(&u128::MAX.to_be_bytes()));
     }
 
-    /// A `Metadata` read back from an entry whose `fPRM` chunk was written raw,
-    /// optionally carrying the owner facets `facets` sets.
-    #[allow(deprecated)]
-    fn read_back_with_legacy_fprm(
-        uid: u64,
-        uname: &str,
-        gid: u64,
-        gname: &str,
-        mode: u16,
-        facets: impl FnOnce(Metadata) -> Metadata,
-    ) -> Metadata {
+    /// Encodes `fPRM` chunk Data bytes: `u64` uid, a 1-byte-length-prefixed
+    /// uname, `u64` gid, a 1-byte-length-prefixed gname, `u16` mode, all
+    /// big-endian.
+    fn fprm_body(uid: u64, uname: &str, gid: u64, gname: &str, mode: u16) -> Vec<u8> {
         assert!(
             uname.len() <= u8::MAX as usize,
             "fPRM name must fit a 1-byte length"
@@ -1400,12 +1398,28 @@ mod tests {
         body.push(gname.len() as u8);
         body.extend_from_slice(gname.as_bytes());
         body.extend_from_slice(&mode.to_be_bytes());
+        body
+    }
 
+    /// A `Metadata` read back from an entry whose `fPRM` chunk was written raw,
+    /// optionally carrying the owner facets `facets` sets.
+    #[allow(deprecated)]
+    fn read_back_with_legacy_fprm(
+        uid: u64,
+        uname: &str,
+        gid: u64,
+        gname: &str,
+        mode: u16,
+        facets: impl FnOnce(Metadata) -> Metadata,
+    ) -> Metadata {
         let mut buf = Vec::new();
         {
             let mut archive = crate::Archive::write_header(&mut buf).unwrap();
             let mut b = FileEntryBuilder::new("f".into()).unwrap();
-            b.add_extra_chunk(RawChunk::from_data(ChunkType::fPRM, body));
+            b.add_extra_chunk(RawChunk::from_data(
+                ChunkType::fPRM,
+                fprm_body(uid, uname, gid, gname, mode),
+            ));
             b.metadata(facets(Metadata::new()));
             archive.add_entry(b.build().unwrap()).unwrap();
             archive.finalize().unwrap();
@@ -1419,6 +1433,64 @@ mod tests {
             .unwrap()
             .metadata()
             .clone()
+    }
+
+    /// Wraps `chunks` between a minimal file `FHED` and `FEND`, so a test can
+    /// hand `NormalEntry::try_from` a chunk sequence in whatever order it
+    /// likes, bypassing the writer (which always places extra chunks such as
+    /// a raw `fPRM` before the owner facet chunks it emits).
+    fn raw_entry_with_chunks(chunks: Vec<RawChunk>) -> RawEntry {
+        let header =
+            EntryHeader::for_file(Compression::NO, Encryption::NO, CipherMode::CBC, "f".into());
+        let mut all = vec![RawChunk::from_data(ChunkType::FHED, header.to_bytes())];
+        all.extend(chunks);
+        all.push(RawChunk::from_data(ChunkType::FEND, vec![]));
+        RawEntry(all)
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn owner_facets_win_over_legacy_fprm_regardless_of_chunk_order() {
+        let facet = RawChunk::from_data(ChunkType::fUId, OwnerUid::from(1).to_bytes());
+        let fprm = RawChunk::from_data(
+            ChunkType::fPRM,
+            fprm_body(99, "legacy", 99, "legacy", 0o600),
+        );
+
+        let facet_then_fprm =
+            NormalEntry::try_from(raw_entry_with_chunks(vec![facet.clone(), fprm.clone()]))
+                .unwrap();
+        assert_eq!(
+            facet_then_fprm.metadata().owner_uid().map(|v| v.get()),
+            Some(1),
+            "the facet must win when it precedes fPRM"
+        );
+
+        let fprm_then_facet =
+            NormalEntry::try_from(raw_entry_with_chunks(vec![fprm, facet])).unwrap();
+        assert_eq!(
+            fprm_then_facet.metadata().owner_uid().map(|v| v.get()),
+            Some(1),
+            "the facet must win even when fPRM precedes it"
+        );
+    }
+
+    /// A `Metadata` carrying only a legacy `fPRM` value, as the deprecated
+    /// setter still produces. Reading an archive now fills the owner facets,
+    /// so the write-side fallback needs a subject the reader has not touched.
+    #[allow(deprecated)]
+    fn metadata_with_legacy_fprm_only(
+        uid: u64,
+        uname: &str,
+        gid: u64,
+        gname: &str,
+        mode: u16,
+    ) -> Metadata {
+        let permission = read_back_with_legacy_fprm(uid, uname, gid, gname, mode, |m| m)
+            .permission()
+            .cloned()
+            .expect("the raw fPRM chunk must decode");
+        Metadata::new().with_permission(Some(permission))
     }
 
     fn emitted_facets(metadata: &Metadata) -> Vec<(ChunkType, Vec<u8>)> {
@@ -1440,8 +1512,39 @@ mod tests {
 
     #[test]
     #[allow(deprecated)]
-    fn legacy_fprm_is_written_as_owner_facets() {
+    fn reading_legacy_fprm_fills_absent_owner_facets() {
         let m = read_back_with_legacy_fprm(7, "legacy", 8, "grp", 0o600, |m| m);
+        assert_eq!(m.owner_uid().map(|v| v.get()), Some(7));
+        assert_eq!(m.owner_gid().map(|v| v.get()), Some(8));
+        assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("legacy"));
+        assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("grp"));
+        assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o600));
+        let p = m
+            .permission()
+            .expect("the deprecated getter still reports what the archive carried");
+        assert_eq!(p.uid(), 7);
+        assert_eq!(p.uname(), "legacy");
+        assert_eq!(p.gid(), 8);
+        assert_eq!(p.gname(), "grp");
+        assert_eq!(p.permissions(), 0o600);
+    }
+
+    #[test]
+    fn reading_owner_facets_takes_precedence_over_legacy_fprm() {
+        let m = read_back_with_legacy_fprm(7, "legacy", 8, "grp", 0o600, |m| {
+            m.with_owner_uid(Some(OwnerUid::from(1)))
+                .with_owner_user_name(Some(OwnerUserName::new("new").unwrap()))
+        });
+        assert_eq!(m.owner_uid().map(|v| v.get()), Some(1));
+        assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("new"));
+        assert_eq!(m.owner_gid().map(|v| v.get()), Some(8));
+        assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("grp"));
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn legacy_fprm_is_written_as_owner_facets() {
+        let m = metadata_with_legacy_fprm_only(7, "legacy", 8, "grp", 0o600);
         let emitted = emitted_facets(&m);
         let types: Vec<ChunkType> = emitted.iter().map(|(ty, _)| *ty).collect();
 
@@ -1470,10 +1573,9 @@ mod tests {
 
     #[test]
     fn owner_facets_win_over_legacy_fprm_facet_by_facet() {
-        let m = read_back_with_legacy_fprm(7, "legacy", 8, "grp", 0o600, |m| {
-            m.with_owner_uid(Some(OwnerUid::from(1)))
-                .with_owner_user_name(Some(OwnerUserName::new("new").unwrap()))
-        });
+        let m = metadata_with_legacy_fprm_only(7, "legacy", 8, "grp", 0o600)
+            .with_owner_uid(Some(OwnerUid::from(1)))
+            .with_owner_user_name(Some(OwnerUserName::new("new").unwrap()));
         let emitted = emitted_facets(&m);
 
         assert_eq!(
@@ -1559,7 +1661,7 @@ mod tests {
     #[test]
     fn legacy_fprm_mode_is_masked_to_permission_bits() {
         // 0.33.0 stored st_mode: S_IFREG | 0o644.
-        let m = read_back_with_legacy_fprm(0, "root", 0, "root", 0o100644, |m| m);
+        let m = metadata_with_legacy_fprm_only(0, "root", 0, "root", 0o100644);
         assert_eq!(
             find(&emitted_facets(&m), ChunkType::fMOd),
             Some(0o644u16.to_be_bytes().to_vec())
