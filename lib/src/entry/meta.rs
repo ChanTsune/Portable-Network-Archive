@@ -348,6 +348,19 @@ impl Metadata {
             mode: PermissionMode::from(p.permissions()),
         })
     }
+
+    /// Fills the owner facets this entry does not carry from a legacy `fPRM`
+    /// chunk, facet by facet.
+    ///
+    /// Chunk order is not guaranteed, so callers run this once every chunk of
+    /// the entry has been read.
+    pub(crate) fn fill_owner_facets_from(&mut self, legacy: LegacyOwnerFacets) {
+        self.owner_uid.get_or_insert(legacy.uid);
+        self.owner_gid.get_or_insert(legacy.gid);
+        self.owner_user_name.get_or_insert(legacy.user_name);
+        self.owner_group_name.get_or_insert(legacy.group_name);
+        self.permission_mode.get_or_insert(legacy.mode);
+    }
 }
 
 impl Default for Metadata {
