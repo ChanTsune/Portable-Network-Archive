@@ -13,6 +13,7 @@ fn update_non_existent_archive() {
         "pna",
         "experimental",
         "update",
+        "--overwrite",
         "-f",
         "non_existent_archive.pna",
     ])

@@ -76,6 +76,7 @@ fn update_with_older_ctime() {
         "--quiet",
         "experimental",
         "update",
+        "--overwrite",
         "--older-ctime",
         &format!("@{threshold_secs}"),
         "-f",

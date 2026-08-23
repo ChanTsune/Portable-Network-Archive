@@ -64,6 +64,7 @@ fn update_with_newer_ctime() {
         "--quiet",
         "experimental",
         "update",
+        "--overwrite",
         "--newer-ctime",
         &format!("@{boundary_secs}"),
         "-f",

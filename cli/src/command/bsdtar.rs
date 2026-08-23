@@ -1535,9 +1535,8 @@ fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
     let mut staged = StagedArchive::new(archive_path.remove_part(), umask)?;
     let mut out_archive = Archive::write_header(staged.as_file_mut())?;
 
-    let mut source = SplitArchiveReader::new(archives)?;
     run_update_archive(
-        &mut source,
+        SplitArchiveReader::new(archives)?.into(),
         password,
         &create_options,
         target_items,
@@ -1549,7 +1548,6 @@ fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
         args.ignore_zeros,
     )?;
     out_archive.finalize()?;
-    drop(source);
 
     staged.commit()?;
 

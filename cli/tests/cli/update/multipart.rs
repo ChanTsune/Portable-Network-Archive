@@ -7,7 +7,7 @@ const DURATION_24_HOURS: time::Duration = time::Duration::from_secs(24 * 60 * 60
 
 /// Precondition: The source tree is archived and split into multiple parts,
 /// then a source file is modified with a newer mtime.
-/// Action: Run `pna experimental update` on the first part of the multipart archive.
+/// Action: Run `pna experimental update` on the first part with an explicit output.
 /// Expectation: All parts are read as one archive, the result is written as a
 /// single unsplit archive, the entry set is unchanged, and extraction yields
 /// the updated content. The original part files remain on disk.
@@ -71,8 +71,11 @@ fn update_multipart_archive() {
         "--quiet",
         "experimental",
         "update",
+        "--overwrite",
         "-f",
         "update_multipart/split/archive.part1.pna",
+        "--output",
+        "update_multipart/split/archive.pna",
         "update_multipart/in/",
         "--keep-timestamp",
     ])
@@ -80,7 +83,7 @@ fn update_multipart_archive() {
     .execute()
     .unwrap();
 
-    // Rewriting commands persist to the part-less path, merging all parts.
+    // The explicit output merges all parts into one archive.
     assert!(
         Path::new("update_multipart/split/archive.pna").exists(),
         "update on a multipart archive should write a single unsplit archive"
@@ -125,8 +128,8 @@ fn update_multipart_archive() {
 
 /// Precondition: The source tree is archived and split into multiple parts,
 /// then a source file is deleted from disk.
-/// Action: Run `pna experimental update --sync` on the first part of the
-/// multipart archive.
+/// Action: Run `pna experimental update --sync` on the first part with an
+/// explicit output.
 /// Expectation: Only the entry whose file is missing on disk is pruned from
 /// the merged archive; entries from all parts are otherwise preserved.
 #[test]
@@ -181,9 +184,12 @@ fn update_multipart_archive_with_sync() {
         "--quiet",
         "experimental",
         "update",
+        "--overwrite",
         "--sync",
         "-f",
         "update_multipart_sync/split/archive.part1.pna",
+        "--output",
+        "update_multipart_sync/split/archive.pna",
         "update_multipart_sync/in/",
         "--keep-timestamp",
     ])

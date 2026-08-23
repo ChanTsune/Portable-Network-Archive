@@ -59,6 +59,7 @@ fn update_with_older_mtime() {
         "--quiet",
         "experimental",
         "update",
+        "--overwrite",
         "--older-mtime",
         &format!(
             "@{}",
