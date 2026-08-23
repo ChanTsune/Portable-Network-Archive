@@ -25,14 +25,14 @@ pub(crate) struct ConcatCommand {
         short = 'f',
         long = "file",
         value_name = "INPUT",
-        help = "Archive input; repeat to concatenate multiple archives",
+        help = "Archive input; repeat for multiple archives or omit all --file options for standard input (a literal '-' is a file path)",
         value_hint = ValueHint::FilePath
     )]
     files: Vec<PathBuf>,
     #[arg(
         long,
         value_name = "OUTPUT",
-        help = "Write the concatenated archive to this path; omit for standard output",
+        help = "Write the concatenated archive to this path; omit for standard output (a literal '-' is a file path)",
         value_hint = ValueHint::FilePath
     )]
     output: Option<PathBuf>,
