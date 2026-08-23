@@ -1,9 +1,9 @@
 #[cfg(not(target_family = "wasm"))]
-mod option_output;
-#[cfg(not(target_family = "wasm"))]
 mod option_overwrite;
 #[cfg(not(target_family = "wasm"))]
 mod same_output;
+#[cfg(not(target_family = "wasm"))]
+mod stdio;
 
 use crate::utils::{EmbedExt, TestResources, diff::assert_dirs_equal, setup};
 use clap::Parser;
@@ -45,7 +45,7 @@ fn concat_archive() {
         "pna",
         "--quiet",
         "concat",
-        "-f",
+        "--output",
         "concat_archive/concatenated.pna",
         "-f",
         "concat_archive/concat.part1.pna",
