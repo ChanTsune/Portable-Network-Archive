@@ -927,7 +927,11 @@ mod tests {
             let mut builder =
                 FileEntryBuilder::new_with_options("name".into(), WriteOptions::builder().build())
                     .unwrap();
-            builder.metadata(
+            builder.write_all(b"entry data").unwrap();
+            // Attached via `with_metadata` on the built entry, which bypasses
+            // `EntryBuilderCore::metadata` entirely — the path the deleted
+            // builder-level fPRM rescue never covered either.
+            builder.build().unwrap().with_metadata(
                 Metadata::new()
                     .with_created(Some(Duration::seconds(31)))
                     .with_modified(Some(Duration::seconds(32)))
@@ -939,9 +943,7 @@ mod tests {
                         "gname".into(),
                         0o775,
                     ))),
-            );
-            builder.write_all(b"entry data").unwrap();
-            builder.build().unwrap()
+            )
         };
 
         let mut archive = Archive::write_header(Vec::new()).unwrap();
@@ -966,9 +968,20 @@ mod tests {
             original_entry.metadata().accessed(),
             read_entry.metadata().accessed()
         );
+        assert_eq!(read_entry.metadata().permission(), None);
+        assert_eq!(read_entry.metadata().owner_uid().map(|v| v.get()), Some(1));
+        assert_eq!(read_entry.metadata().owner_gid().map(|v| v.get()), Some(2));
         assert_eq!(
-            original_entry.metadata().permission(),
-            read_entry.metadata().permission()
+            read_entry.metadata().owner_user_name().map(|v| v.as_str()),
+            Some("uname")
+        );
+        assert_eq!(
+            read_entry.metadata().owner_group_name().map(|v| v.as_str()),
+            Some("gname")
+        );
+        assert_eq!(
+            read_entry.metadata().permission_mode().map(|v| v.get()),
+            Some(0o775)
         );
         assert_eq!(
             original_entry.metadata().compressed_size(),

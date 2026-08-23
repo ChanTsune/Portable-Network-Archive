@@ -11,7 +11,7 @@ use std::time::SystemTime;
 /// instead of the lower-level [`Duration`](libpna::Duration) representation.
 #[deprecated(
     since = "0.36.0",
-    note = "use `Metadata` with `MetadataTimeExt::with_*_time`; the kind-specific builders' `metadata()` setter rescues deprecated `fPRM` permission data automatically"
+    note = "use `Metadata` with `MetadataTimeExt::with_*_time`; a deprecated `fPRM` permission with no owner facet set is written as the owner-facet chunks automatically"
 )]
 pub trait EntryBuilderExt: private::Sealed {
     /// Sets metadata from a [`Metadata`] instance.
@@ -227,22 +227,6 @@ mod tests {
         e.metadata().clone()
     }
 
-    #[allow(deprecated)]
-    fn roundtrip_with_builder_permission(src: &Metadata, permission: Permission) -> Metadata {
-        let mut buf = Vec::new();
-        {
-            let mut a = Archive::write_header(&mut buf).unwrap();
-            let mut b = OpaqueEntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
-            b.permission(permission);
-            b.add_metadata(src);
-            a.add_entry(b.build().unwrap()).unwrap();
-            a.finalize().unwrap();
-        }
-        let mut a = Archive::read_header(&buf[..]).unwrap();
-        let e = a.entries().skip_solid().next().unwrap().unwrap();
-        e.metadata().clone()
-    }
-
     #[test]
     fn add_metadata_preserves_all_owner_facets() {
         let src = Metadata::new()
@@ -323,37 +307,5 @@ mod tests {
         assert_eq!(uname.chars().count(), 127);
         assert!(uname.chars().all(|c| c == big_char));
         assert_eq!(m.owner_uid().map(|v| v.get()), Some(7));
-    }
-
-    #[test]
-    #[allow(deprecated)]
-    fn add_metadata_preserves_explicit_builder_fprm_while_rescuing_metadata_fprm() {
-        let src = Metadata::new().with_permission(Some(Permission::new(
-            7,
-            "legacy".to_string(),
-            8,
-            "grp".to_string(),
-            0o600,
-        )));
-        let explicit = Permission::new(
-            1,
-            "explicit".to_string(),
-            2,
-            "explicit_group".to_string(),
-            0o700,
-        );
-        let m = roundtrip_with_builder_permission(&src, explicit);
-        let p = m.permission().expect("explicit builder fPRM must remain");
-        assert_eq!(p.uid(), 1);
-        assert_eq!(p.uname(), "explicit");
-        assert_eq!(p.gid(), 2);
-        assert_eq!(p.gname(), "explicit_group");
-        assert_eq!(p.permissions(), 0o700);
-
-        assert_eq!(m.owner_uid().map(|v| v.get()), Some(7));
-        assert_eq!(m.owner_gid().map(|v| v.get()), Some(8));
-        assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("legacy"));
-        assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("grp"));
-        assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o600));
     }
 }
