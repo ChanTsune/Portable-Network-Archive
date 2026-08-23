@@ -35,6 +35,8 @@ mod sort;
 mod split;
 #[cfg(not(target_family = "wasm"))]
 mod stdio_arbitration;
+#[cfg(not(target_family = "wasm"))]
+mod stdio_read;
 mod strip;
 mod update;
 pub mod utils;

@@ -2,7 +2,7 @@ use crate::{
     cli::{ArchiveFileArgs, GlobalContext, PasswordArgs},
     command::{
         Command, ask_password,
-        core::{collect_split_archives, run_read_entries_readers},
+        core::{SourceConsumer, run_read_entries_readers},
     },
 };
 use clap::Parser;
@@ -50,65 +50,23 @@ impl VerifyReport {
 
 fn verify_archive(args: VerifyCommand) -> anyhow::Result<()> {
     let fast = args.fast;
+    let source = args.archive.source();
     let password = ask_password(args.password)?;
     let password = password.as_deref();
     let read_options = ReadOptions::with_password(password);
-    let archives = collect_split_archives(args.archive.require_file()?)?;
     let mut report = VerifyReport::default();
     let mut solid_blocks = 0usize;
     let mut resyncing = false;
-    let result = run_read_entries_readers(
-        archives,
-        |entry| {
-            // A chunk that fails its CRC32 arrives as `Err(InvalidData)`, so an `Ok`
-            // entry has passed every chunk's CRC32.
-            match entry {
-                Err(err) if err.kind() == io::ErrorKind::InvalidData => {
-                    // One broken entry surfaces as several of these before the
-                    // iterator resyncs on the next entry header, so only the
-                    // first is counted; adjacent corrupted entries collapse
-                    // into a single failure (accepted approximation).
-                    if !resyncing {
-                        println!("<corrupted entry>: FAILED ({err})");
-                        report.failed += 1;
-                        resyncing = true;
-                    }
-                    Ok(())
-                }
-                Err(err) => Err(err),
-                Ok(read_entry) => {
-                    resyncing = false;
-                    if fast {
-                        report.ok += 1;
-                        return Ok(());
-                    }
-                    match read_entry {
-                        ReadEntry::Solid(solid) => {
-                            solid_blocks += 1;
-                            if solid.encryption() != Encryption::NO && password.is_none() {
-                                println!("<solid block #{solid_blocks}>: skipped (encrypted)");
-                                report.skipped += 1;
-                                return Ok(());
-                            }
-                            if let Err(err) =
-                                verify_solid(&solid, password, &read_options, &mut report)
-                            {
-                                println!("<solid block #{solid_blocks}>: FAILED ({err})");
-                                report.failed += 1;
-                                report.unauthenticated_failure |=
-                                    is_unauthenticated(solid.encryption(), solid.cipher_mode());
-                            }
-                        }
-                        ReadEntry::Normal(entry) => {
-                            verify_entry(&entry, password, &read_options, &mut report)
-                        }
-                    }
-                    Ok(())
-                }
-            }
-        },
-        false,
-    );
+    // Verification always streams: the memmap default hands the mapped bytes to the same
+    // resynchronizing reader path, whose error handling advances past a broken chunk.
+    let result = source.open()?.consume(VerifyEntries {
+        fast,
+        password,
+        read_options: &read_options,
+        report: &mut report,
+        solid_blocks: &mut solid_blocks,
+        resyncing: &mut resyncing,
+    });
     print_summary(&report);
     if let Err(err) = result {
         return Err(
@@ -123,6 +81,83 @@ fn verify_archive(args: VerifyCommand) -> anyhow::Result<()> {
         );
     }
     Ok(())
+}
+
+/// Checks every entry of the opened source and tallies the outcome into the report.
+struct VerifyEntries<'a> {
+    fast: bool,
+    password: Option<&'a [u8]>,
+    read_options: &'a ReadOptions,
+    report: &'a mut VerifyReport,
+    solid_blocks: &'a mut usize,
+    resyncing: &'a mut bool,
+}
+
+impl SourceConsumer for VerifyEntries<'_> {
+    type Output = io::Result<()>;
+
+    fn readers<R: io::Read, I: Iterator<Item = R>>(self, readers: I) -> io::Result<()> {
+        let VerifyEntries {
+            fast,
+            password,
+            read_options,
+            report,
+            solid_blocks,
+            resyncing,
+        } = self;
+        run_read_entries_readers(
+            readers,
+            |entry| {
+                // A chunk that fails its CRC32 arrives as `Err(InvalidData)`, so an `Ok`
+                // entry has passed every chunk's CRC32.
+                match entry {
+                    Err(err) if err.kind() == io::ErrorKind::InvalidData => {
+                        // One broken entry surfaces as several of these before the
+                        // iterator resyncs on the next entry header, so only the
+                        // first is counted; adjacent corrupted entries collapse
+                        // into a single failure (accepted approximation).
+                        if !*resyncing {
+                            println!("<corrupted entry>: FAILED ({err})");
+                            report.failed += 1;
+                            *resyncing = true;
+                        }
+                        Ok(())
+                    }
+                    Err(err) => Err(err),
+                    Ok(read_entry) => {
+                        *resyncing = false;
+                        if fast {
+                            report.ok += 1;
+                            return Ok(());
+                        }
+                        match read_entry {
+                            ReadEntry::Solid(solid) => {
+                                *solid_blocks += 1;
+                                if solid.encryption() != Encryption::NO && password.is_none() {
+                                    println!("<solid block #{solid_blocks}>: skipped (encrypted)");
+                                    report.skipped += 1;
+                                    return Ok(());
+                                }
+                                if let Err(err) =
+                                    verify_solid(&solid, password, read_options, report)
+                                {
+                                    println!("<solid block #{solid_blocks}>: FAILED ({err})");
+                                    report.failed += 1;
+                                    report.unauthenticated_failure |=
+                                        is_unauthenticated(solid.encryption(), solid.cipher_mode());
+                                }
+                            }
+                            ReadEntry::Normal(entry) => {
+                                verify_entry(&entry, password, read_options, report)
+                            }
+                        }
+                        Ok(())
+                    }
+                }
+            },
+            false,
+        )
+    }
 }
 
 fn verify_solid(
