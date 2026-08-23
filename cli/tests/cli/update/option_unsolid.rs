@@ -52,6 +52,7 @@ fn update_with_unsolid() {
         "--quiet",
         "experimental",
         "update",
+        "--overwrite",
         "--unsolid",
         "-f",
         "update_with_unsolid/archive.pna",

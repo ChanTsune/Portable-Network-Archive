@@ -57,6 +57,7 @@ fn update_with_newer_mtime() {
         "--quiet",
         "experimental",
         "update",
+        "--overwrite",
         "--unstable",
         "--newer-mtime",
         &format!(

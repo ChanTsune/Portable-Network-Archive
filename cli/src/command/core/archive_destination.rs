@@ -59,8 +59,9 @@ impl ArchiveDestination {
                 Ok(output)
             }
             Self::Replace(path) | Self::InPlace(path) => {
-                // Existence guard lives upstream (callers map no-overwrite outputs to
-                // `CreateNew`); staging itself always permits replacing the destination.
+                // Existence guard lives upstream (`resolve_transform_destination`
+                // maps no-overwrite outputs to `CreateNew`/`Stdout`); staging
+                // itself always permits replacing the destination.
                 let mut staged = StagedArchive::new(path, umask, true)?;
                 let output = consumer.consume(staged.as_file_mut())?;
                 staged.commit()?;
