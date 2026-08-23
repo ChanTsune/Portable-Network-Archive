@@ -69,7 +69,7 @@ use std::{
     ),
 )]
 pub(crate) struct ExtractCommand {
-    #[arg(long, help = "Overwrite file")]
+    #[arg(long, help = "Overwrite existing extracted files")]
     overwrite: bool,
     #[arg(
         long,
