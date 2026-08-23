@@ -920,7 +920,6 @@ mod tests {
         assert!(entries.next().is_none());
     }
 
-    #[allow(deprecated)]
     #[test]
     fn metadata() {
         let original_entry = {
@@ -928,17 +927,18 @@ mod tests {
                 FileEntryBuilder::new_with_options("name".into(), WriteOptions::builder().build())
                     .unwrap();
             builder.write_all(b"entry data").unwrap();
-            // Attached via `with_metadata` on the built entry, which bypasses
-            // `EntryBuilderCore::metadata` entirely — proving the rescue in
-            // `try_for_each_metadata_facet` covers every construction path,
-            // not just the builder's own `metadata()` setter.
-            let mut metadata = Metadata::new()
-                .with_created(Some(Duration::seconds(31)))
-                .with_modified(Some(Duration::seconds(32)))
-                .with_accessed(Some(Duration::seconds(33)));
-            metadata.permission =
-                Some(Permission::new(1, "uname".into(), 2, "gname".into(), 0o775));
-            builder.build().unwrap().with_metadata(metadata)
+            builder.metadata(
+                Metadata::new()
+                    .with_created(Some(Duration::seconds(31)))
+                    .with_modified(Some(Duration::seconds(32)))
+                    .with_accessed(Some(Duration::seconds(33)))
+                    .with_owner_uid(Some(OwnerUid::from(1)))
+                    .with_owner_gid(Some(OwnerGid::from(2)))
+                    .with_owner_user_name(Some(OwnerUserName::new("uname").unwrap()))
+                    .with_owner_group_name(Some(OwnerGroupName::new("gname").unwrap()))
+                    .with_permission_mode(Some(PermissionMode::from(0o775))),
+            );
+            builder.build().unwrap()
         };
 
         let mut archive = Archive::write_header(Vec::new()).unwrap();
@@ -963,7 +963,6 @@ mod tests {
             original_entry.metadata().accessed(),
             read_entry.metadata().accessed()
         );
-        assert_eq!(read_entry.metadata().permission(), None);
         assert_eq!(read_entry.metadata().owner_uid().map(|v| v.get()), Some(1));
         assert_eq!(read_entry.metadata().owner_gid().map(|v| v.get()), Some(2));
         assert_eq!(

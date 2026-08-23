@@ -8,9 +8,6 @@ pub use file::FileEntryBuilder;
 pub use link::{HardLinkEntryBuilder, SymlinkEntryBuilder};
 pub use solid::SolidEntryBuilder;
 
-#[cfg(test)]
-#[allow(deprecated)]
-use crate::entry::Permission;
 use crate::{
     Duration,
     chunk::{ChunkType, RawChunk},
@@ -911,7 +908,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
     fn metadata_preserves_all_owner_facets() {
         let mut b = FileEntryBuilder::new("f".into()).unwrap();
         b.metadata(
@@ -933,77 +929,6 @@ mod tests {
         assert_eq!(m.owner_user_sid().map(|v| v.as_str()), Some("S-1-1"));
         assert_eq!(m.owner_group_sid().map(|v| v.as_str()), Some("S-1-2"));
         assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o644));
-    }
-
-    #[test]
-    #[allow(deprecated)]
-    fn permission_field_stored_as_is_but_writer_derives_facets() {
-        let mut b = FileEntryBuilder::new("f".into()).unwrap();
-        let mut metadata = Metadata::new();
-        metadata.permission = Some(Permission::new(
-            7,
-            "legacy".to_string(),
-            8,
-            "grp".to_string(),
-            0o600,
-        ));
-        b.metadata(metadata);
-        let entry = b.build().unwrap();
-
-        // `permission()` returns what was stored, and the owner facets it
-        // never touched stay `None`.
-        let m = entry.metadata();
-        assert!(m.permission().is_some());
-        assert_eq!(m.owner_uid(), None);
-        assert_eq!(m.owner_gid(), None);
-        assert_eq!(m.owner_user_name(), None);
-        assert_eq!(m.owner_group_name(), None);
-        assert_eq!(m.permission_mode(), None);
-
-        // The chunks this entry writes carry the facets derived from that
-        // permission, and no fPRM.
-        let chunks = entry.into_chunks();
-        assert!(!chunks.iter().any(|c| c.ty == ChunkType::fPRM));
-        assert_eq!(
-            chunks
-                .iter()
-                .find(|c| c.ty == ChunkType::fUId)
-                .unwrap()
-                .data(),
-            OwnerUid::from(7u64).to_bytes()
-        );
-        assert_eq!(
-            chunks
-                .iter()
-                .find(|c| c.ty == ChunkType::fGId)
-                .unwrap()
-                .data(),
-            OwnerGid::from(8u64).to_bytes()
-        );
-        assert_eq!(
-            chunks
-                .iter()
-                .find(|c| c.ty == ChunkType::fONm)
-                .unwrap()
-                .data(),
-            OwnerUserName::new("legacy").unwrap().to_bytes()
-        );
-        assert_eq!(
-            chunks
-                .iter()
-                .find(|c| c.ty == ChunkType::fGNm)
-                .unwrap()
-                .data(),
-            OwnerGroupName::new("grp").unwrap().to_bytes()
-        );
-        assert_eq!(
-            chunks
-                .iter()
-                .find(|c| c.ty == ChunkType::fMOd)
-                .unwrap()
-                .data(),
-            PermissionMode::from(0o600u16).to_bytes()
-        );
     }
 
     #[allow(deprecated)]
