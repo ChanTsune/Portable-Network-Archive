@@ -60,9 +60,10 @@ fn archive_chown(args: ChownCommand, umask: Umask) -> anyhow::Result<()> {
     let owner = args
         .owner
         .lookup_platform_owner(args.numeric_owner, args.owner_lookup)?;
+    let archive = args.archive.require_file()?;
     execute_archive_transform(
-        &args.archive.file,
-        args.archive.file.remove_part(),
+        &archive,
+        archive.remove_part(),
         umask,
         password.as_deref(),
         args.transform_strategy.strategy(),
