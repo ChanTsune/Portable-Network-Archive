@@ -3,15 +3,15 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            SplitArchiveReader, Umask,
+            EntryVisitor, Umask,
             archive_destination::{SinkConsumer, resolve_transform_destination},
-            collect_split_archives,
         },
     },
 };
 use clap::Parser;
 use pna::{Archive, NormalEntry, ReadOptions};
 use std::{
+    borrow::Cow,
     fmt::{self, Display, Formatter},
     io,
     str::FromStr,
@@ -146,25 +146,29 @@ impl Command for SortCommand {
     }
 }
 
+/// Collects every entry in memory; sorting needs the complete set before anything is written.
+#[derive(Default)]
+struct OwnedEntries(Vec<NormalEntry<Vec<u8>>>);
+
+impl EntryVisitor for OwnedEntries {
+    fn visit(&mut self, entry: NormalEntry<Cow<'_, [u8]>>) -> io::Result<()> {
+        self.0.push(entry.into());
+        Ok(())
+    }
+}
+
 #[hooq::hooq(anyhow)]
 fn sort_archive(args: SortCommand, umask: Umask) -> anyhow::Result<()> {
     let source_arg = args.archive.source();
     let destination =
         resolve_transform_destination(&source_arg, args.output.output, args.output.overwrite)?;
     let password = ask_password(args.password)?;
-    let archive_path = source_arg.require_file()?;
-    let archives = collect_split_archives(&archive_path)?;
-    let mut source = SplitArchiveReader::new(archives)?;
     let read_options = ReadOptions::with_password(password.as_deref());
-    let mut entries = Vec::<NormalEntry<_>>::new();
-    source.for_each_entry(
-        &read_options,
-        #[hooq::skip_all]
-        |entry| {
-            entries.push(entry?);
-            Ok(())
-        },
-    )?;
+    let mut entries = OwnedEntries::default();
+    source_arg
+        .open()?
+        .for_each_entry(&read_options, &mut entries)?;
+    let OwnedEntries(mut entries) = entries;
 
     entries.sort_by(|a, b| {
         for key in &args.by {
@@ -185,8 +189,6 @@ fn sort_archive(args: SortCommand, umask: Umask) -> anyhow::Result<()> {
     });
 
     destination.open_with(umask, WriteSorted(entries))?;
-
-    drop(source);
 
     Ok(())
 }

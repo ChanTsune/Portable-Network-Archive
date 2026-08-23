@@ -6,3 +6,5 @@ mod by_name_desc;
 mod multiple_keys;
 mod option_output;
 mod order_combination;
+#[cfg(not(target_family = "wasm"))]
+mod stdio;

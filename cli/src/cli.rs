@@ -195,7 +195,10 @@ pub(crate) enum Commands {
     Concat(ConcatCommand),
     #[command(about = "Strip entries metadata")]
     Strip(StripCommand),
-    #[command(about = "Sort entries in archive")]
+    #[command(
+        about = "Sort entries in archive",
+        long_about = "Sort entries in archive. The complete entry set is held in memory before output; stdin support does not make sorting memory-bounded."
+    )]
     Sort(SortCommand),
     #[command(about = "Upgrade archives created by older PNA versions")]
     Migrate(MigrateCommand),
