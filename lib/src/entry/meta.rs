@@ -482,18 +482,6 @@ impl Permission {
         self.permission
     }
 
-    pub(crate) fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(20 + self.uname.len() + self.gname.len());
-        bytes.extend_from_slice(&self.uid.to_be_bytes());
-        bytes.extend_from_slice(&(self.uname.len() as u8).to_be_bytes());
-        bytes.extend_from_slice(self.uname.as_bytes());
-        bytes.extend_from_slice(&self.gid.to_be_bytes());
-        bytes.extend_from_slice(&(self.gname.len() as u8).to_be_bytes());
-        bytes.extend_from_slice(self.gname.as_bytes());
-        bytes.extend_from_slice(&self.permission.to_be_bytes());
-        bytes
-    }
-
     pub(crate) fn try_from_bytes(mut bytes: &[u8]) -> io::Result<Self> {
         let uid = u64::from_be_bytes({
             let mut buf = [0; 8];
@@ -975,9 +963,14 @@ mod tests {
 
     #[allow(deprecated)]
     #[test]
-    fn permission() {
-        let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-        assert_eq!(perm, Permission::try_from_bytes(&perm.to_bytes()).unwrap());
+    fn permission_decodes_an_fprm_body() {
+        let perm =
+            Permission::try_from_bytes(&fprm_body(1000, "user1", 100, "group1", 0o644)).unwrap();
+        assert_eq!(perm.uid(), 1000);
+        assert_eq!(perm.uname(), "user1");
+        assert_eq!(perm.gid(), 100);
+        assert_eq!(perm.gname(), "group1");
+        assert_eq!(perm.permissions(), 0o644);
     }
 
     #[test]
@@ -1221,28 +1214,46 @@ mod tests {
         );
     }
 
+    /// Raw `fPRM` chunk body: `uid(8) | uname_len(1) | uname | gid(8) |
+    /// gname_len(1) | gname | mode(2)`, all big-endian (mirrors
+    /// `Permission::try_from_bytes`). Asserts both names fit the 1-byte
+    /// length prefix before the `as u8` cast, so a name too long for the
+    /// format fails loudly here instead of silently truncating the length
+    /// byte and producing a malformed chunk.
+    fn fprm_body(uid: u64, uname: &str, gid: u64, gname: &str, mode: u16) -> Vec<u8> {
+        assert!(uname.len() <= u8::MAX as usize);
+        assert!(gname.len() <= u8::MAX as usize);
+        let mut body = Vec::new();
+        body.extend_from_slice(&uid.to_be_bytes());
+        body.push(uname.len() as u8);
+        body.extend_from_slice(uname.as_bytes());
+        body.extend_from_slice(&gid.to_be_bytes());
+        body.push(gname.len() as u8);
+        body.extend_from_slice(gname.as_bytes());
+        body.extend_from_slice(&mode.to_be_bytes());
+        body
+    }
+
+    /// A pre-existing archive can carry both a legacy `fPRM` chunk and owner
+    /// facets — third-party writers and archives from 0.34 through 0.37 can
+    /// do this even though libpna itself no longer writes `fPRM`. Reading
+    /// must keep decoding `fPRM` into `permission()` regardless of the owner
+    /// facets alongside it; the two are independent chunks on read, and only
+    /// the writer's priority rule treats them as either/or.
     #[allow(deprecated)]
     #[test]
-    fn all_owner_facets_and_fprm_coexist_round_trip() {
+    fn fprm_alongside_owner_facets_reads_both_independently() {
         use crate::entry::{
             OwnerGid, OwnerGroupName, OwnerGroupSid, OwnerUid, OwnerUserName, OwnerUserSid,
             PermissionMode,
         };
-        use crate::{Archive, FileEntryBuilder};
+        use crate::{Archive, ChunkType, FileEntryBuilder, RawChunk};
         let mut buf = Vec::new();
         {
             let mut archive = Archive::write_header(&mut buf).unwrap();
             let mut b = FileEntryBuilder::new("f".into()).unwrap();
             b.metadata(
                 Metadata::new()
-                    // Legacy fPRM (Permission uses plain String uname/gname on this branch).
-                    .with_permission(Some(Permission::new(
-                        7,
-                        "legacy".to_string(),
-                        8,
-                        "grp".to_string(),
-                        0o600,
-                    )))
                     // All 7 new owner facets.
                     .with_owner_uid(Some(OwnerUid::from(1)))
                     .with_owner_gid(Some(OwnerGid::from(2)))
@@ -1252,6 +1263,13 @@ mod tests {
                     .with_owner_group_sid(Some(OwnerGroupSid::new("S-1-2").unwrap()))
                     .with_permission_mode(Some(PermissionMode::from(0o644))),
             );
+            // A raw fPRM extra chunk stands in for a pre-existing/third-party
+            // archive: libpna itself never writes fPRM anymore, so this is
+            // the only way left to construct one.
+            b.add_extra_chunk(RawChunk::from_data(
+                ChunkType::fPRM,
+                fprm_body(7, "legacy", 8, "grp", 0o600),
+            ));
             let entry = b.build().unwrap();
             archive.add_entry(entry).unwrap();
             archive.finalize().unwrap();
@@ -1267,10 +1285,9 @@ mod tests {
         assert_eq!(m.owner_user_sid().map(|v| v.as_str()), Some("S-1-1"));
         assert_eq!(m.owner_group_sid().map(|v| v.as_str()), Some("S-1-2"));
         assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o644));
-        // Legacy fPRM still round-trips intact, independently of the new owner facets.
-        let p = m
-            .permission()
-            .expect("fPRM permission must still be present");
+        // The fPRM chunk decodes into `permission()` independently of the
+        // owner facets alongside it.
+        let p = m.permission().expect("fPRM chunk must still be readable");
         assert_eq!(p.uid(), 7);
         assert_eq!(p.uname(), "legacy");
         assert_eq!(p.gid(), 8);
