@@ -30,6 +30,7 @@ fn delete_overwrite() {
         "pna",
         "--quiet",
         "delete",
+        "--overwrite",
         "-f",
         "delete_overwrite/delete_overwrite.pna",
         "**/raw/empty.txt",

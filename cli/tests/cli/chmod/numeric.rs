@@ -27,6 +27,7 @@ fn chmod_numeric_mode() {
         "--quiet",
         "experimental",
         "chmod",
+        "--overwrite",
         "-f",
         "chmod_numeric.pna",
         "644",

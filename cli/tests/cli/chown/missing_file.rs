@@ -33,6 +33,7 @@ fn fail_with_missing_file() {
         "--quiet",
         "experimental",
         "chown",
+        "--overwrite",
         "-f",
         "chown_missing/archive.pna",
         "test_user:test_group",

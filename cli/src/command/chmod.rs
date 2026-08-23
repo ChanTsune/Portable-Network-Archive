@@ -1,14 +1,14 @@
 use crate::{
-    cli::{ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategyArgs},
+    cli::{ArchiveFileArgs, ArchiveOutputArgs, PasswordArgs, SolidEntriesTransformStrategyArgs},
     command::{
         Command, ask_password,
         core::{
-            ArchiveSource, Umask,
-            archive_destination::ArchiveDestination,
+            Umask,
+            archive_destination::resolve_transform_destination,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
-    utils::{GlobPatterns, PathPartExt},
+    utils::GlobPatterns,
 };
 use bitflags::bitflags;
 use clap::{Parser, ValueHint};
@@ -20,18 +20,18 @@ use nom::{
     multi::{many0, many1, separated_list1},
 };
 use pna::{DataKind, NormalEntry};
-use std::{borrow::Cow, io, ops::BitOr, path::PathBuf, str::FromStr};
+use std::{borrow::Cow, io, ops::BitOr, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ChmodCommand {
     #[command(flatten)]
     archive: ArchiveFileArgs,
+    #[command(flatten)]
+    output: ArchiveOutputArgs,
     #[arg(help = "mode")]
     mode: Mode,
     #[arg(value_hint = ValueHint::AnyPath)]
     files: Vec<String>,
-    #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
-    output: Option<PathBuf>,
     #[command(flatten)]
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
@@ -52,13 +52,11 @@ fn archive_chmod(args: ChmodCommand, umask: Umask) -> anyhow::Result<()> {
         return Ok(());
     }
     let globs = GlobPatterns::new(args.files.iter().map(|p| p.as_str()))?;
-    let archive = args.archive.require_file()?;
-    let destination = match args.output {
-        Some(output) => ArchiveDestination::Replace(output),
-        None => ArchiveDestination::InPlace(archive.remove_part()),
-    };
+    let source = args.archive.source();
+    let destination =
+        resolve_transform_destination(&source, args.output.output, args.output.overwrite)?;
     execute_archive_transform(
-        ArchiveSource::File(archive),
+        source,
         destination,
         umask,
         password.as_deref(),
