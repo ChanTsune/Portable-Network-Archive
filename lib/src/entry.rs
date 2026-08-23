@@ -426,7 +426,8 @@ impl<'a> From<ReadEntry<&'a [u8]>> for ReadEntry<Cow<'a, [u8]>> {
     }
 }
 
-pub(crate) struct EntryIterator<'s>(EntryReader<EncodedDataReader<'s>>);
+/// An iterator over normal entries decoded from a solid entry's data stream.
+pub(crate) struct EntryIterator<R: Read>(EntryReader<R>);
 
 #[inline]
 fn read_next_normal_entry_from_stream<R: Read>(reader: &mut R) -> Option<io::Result<NormalEntry>> {
@@ -454,7 +455,7 @@ fn read_next_normal_entry_from_stream<R: Read>(reader: &mut R) -> Option<io::Res
     Some(RawEntry(chunks).try_into())
 }
 
-impl Iterator for EntryIterator<'_> {
+impl<R: Read> Iterator for EntryIterator<R> {
     type Item = io::Result<NormalEntry>;
 
     #[inline]
@@ -464,18 +465,8 @@ impl Iterator for EntryIterator<'_> {
 }
 
 /// An iterator that moves out of a solid entry.
-pub(crate) struct SolidIntoEntries<T: AsRef<[u8]> = Vec<u8>>(
-    EntryReader<ChainReader<std::vec::IntoIter<io::Cursor<T>>, io::Cursor<T>>>,
-);
-
-impl<T: AsRef<[u8]>> Iterator for SolidIntoEntries<T> {
-    type Item = io::Result<NormalEntry>;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        read_next_normal_entry_from_stream(&mut self.0)
-    }
-}
+pub(crate) type SolidIntoEntries<T = Vec<u8>> =
+    EntryIterator<ChainReader<std::vec::IntoIter<io::Cursor<T>>, io::Cursor<T>>>;
 
 /// A solid mode entry in a PNA archive.
 ///
@@ -635,7 +626,7 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
             &self.header.to_bytes(),
         )?;
         let reader = decompress_reader(reader, self.header.compression)?;
-        Ok(SolidIntoEntries(EntryReader(reader)))
+        Ok(EntryIterator(EntryReader(reader)))
     }
 }
 
