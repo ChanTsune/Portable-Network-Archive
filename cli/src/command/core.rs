@@ -1645,13 +1645,16 @@ where
 {
     let password = password_provider();
     let context = TransformContext::new(password);
-    let mut out_archive = Archive::write_header(writer)?;
+    let mut out_archive = Archive::write_header(io::BufWriter::with_capacity(64 * 1024, writer))?;
     run_read_entries_mem(
         archives,
         |entry| Transform::transform(&mut out_archive, &context, entry, &mut processor),
         false,
     )?;
-    out_archive.finalize()?;
+    out_archive
+        .finalize()?
+        .into_inner()
+        .map_err(|error| error.into_error())?;
     Ok(())
 }
 
@@ -1709,13 +1712,16 @@ where
 {
     let password = password_provider();
     let context = TransformContext::new(password);
-    let mut out_archive = Archive::write_header(writer)?;
+    let mut out_archive = Archive::write_header(io::BufWriter::with_capacity(64 * 1024, writer))?;
     run_read_entries(
         archives,
         |entry| Transform::transform(&mut out_archive, &context, entry, &mut processor),
         false,
     )?;
-    out_archive.finalize()?;
+    out_archive
+        .finalize()?
+        .into_inner()
+        .map_err(|error| error.into_error())?;
     Ok(())
 }
 
