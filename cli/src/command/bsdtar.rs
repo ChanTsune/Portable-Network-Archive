@@ -13,10 +13,10 @@ use crate::{
             PathTransformers, PathnameEditor, SplitArchiveReader, StagedArchive,
             TimeFilterResolver, TimestampStrategyResolver, TransformStrategyUnSolid, Umask,
             XattrStrategy, apply_chroot, collect_items_from_paths, collect_items_from_sources,
-            collect_split_archives,
+            collect_split_archives, ensure_single_stdin_consumer,
             path_lock::OrderedPathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
-            read_paths, run_across_archive_readers, validate_no_duplicate_stdin,
+            read_paths, run_across_archive_readers,
         },
         create::{CreationContext, create_archive_file},
         extract::{OutputOption, OverwriteStrategy, run_extract_archive_reader},
@@ -895,7 +895,7 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
     files = utils::expand_bsdtar_windows_globs(files)?;
     // Parse sources AFTER changing directory so @archive paths are affected by -C
     let sources = ItemSource::parse_many(&files);
-    validate_no_duplicate_stdin(&sources)?;
+    ensure_single_stdin_consumer(false, &sources)?;
     let collect_options = CollectOptions {
         recursive: !args.no_recursive,
         keep_dir: !args.no_keep_dir,
@@ -1337,7 +1337,7 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
     files = utils::expand_bsdtar_windows_globs(files)?;
     // Parse sources AFTER changing directory so @archive paths are affected by -C
     let sources = ItemSource::parse_many(&files);
-    validate_no_duplicate_stdin(&sources)?;
+    ensure_single_stdin_consumer(archive_path.is_none(), &sources)?;
     let collect_options = CollectOptions {
         recursive: args.recursive,
         keep_dir: !args.no_keep_dir,
