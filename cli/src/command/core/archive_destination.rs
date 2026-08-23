@@ -1,4 +1,5 @@
 use super::{ArchiveSource, StagedArchive, Umask};
+use crate::utils::PathPartExt;
 use std::{
     fmt, fs,
     io::{self, Write},
@@ -135,6 +136,9 @@ pub(crate) fn resolve_transform_destination(
 
     match (source, overwrite) {
         (_, false) => Ok(ArchiveDestination::Stdout),
+        (ArchiveSource::File(path), true) if path.is_part() => anyhow::bail!(
+            "multipart archive sources cannot be rewritten in place; specify --output PATH or omit --overwrite to write the consolidated archive to standard output"
+        ),
         (ArchiveSource::File(path), true) => Ok(ArchiveDestination::InPlace(path.clone())),
         (ArchiveSource::Stdin, true) => anyhow::bail!(
             "--overwrite requires a filesystem destination; specify --output PATH or provide the source with --file"
@@ -244,6 +248,27 @@ mod tests {
                 ),
             }
         }
+    }
+
+    #[test]
+    fn multipart_transform_requires_a_distinct_destination_for_overwrite() {
+        let source = ArchiveSource::File(PathBuf::from("archive.part1.pna"));
+
+        let error = resolve_transform_destination(&source, None, true).unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "multipart archive sources cannot be rewritten in place; specify --output PATH or omit --overwrite to write the consolidated archive to standard output"
+        );
+        assert_eq!(
+            resolve_transform_destination(&source, None, false).unwrap(),
+            ArchiveDestination::Stdout
+        );
+        assert_eq!(
+            resolve_transform_destination(&source, Some(PathBuf::from("consolidated.pna")), true,)
+                .unwrap(),
+            ArchiveDestination::Replace(PathBuf::from("consolidated.pna"))
+        );
     }
 
     #[test]

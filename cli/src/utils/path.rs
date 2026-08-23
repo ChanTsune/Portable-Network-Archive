@@ -6,6 +6,7 @@ use std::{
 pub(crate) trait PathPartExt {
     fn with_part(&self, n: usize) -> PathBuf;
     fn remove_part(&self) -> PathBuf;
+    fn is_part(&self) -> bool;
 }
 
 impl PathPartExt for Path {
@@ -17,6 +18,32 @@ impl PathPartExt for Path {
     #[inline]
     fn remove_part(&self) -> PathBuf {
         remove_part_n(self)
+    }
+
+    #[inline]
+    fn is_part(&self) -> bool {
+        is_part_path(self)
+    }
+}
+
+#[inline]
+fn is_part_path(path: &Path) -> bool {
+    fn is_part_component(component: &std::ffi::OsStr) -> bool {
+        let component = component.to_string_lossy();
+        component.strip_prefix("part").is_some_and(|number| {
+            !number.is_empty() && number.bytes().all(|byte| byte.is_ascii_digit())
+        })
+    }
+
+    let Some(extension) = path.extension() else {
+        return false;
+    };
+    if extension.eq_ignore_ascii_case("pna") {
+        Path::new(path.file_stem().unwrap_or_default())
+            .extension()
+            .is_some_and(is_part_component)
+    } else {
+        is_part_component(extension)
     }
 }
 
@@ -158,5 +185,15 @@ mod tests {
 
         assert_eq!(remove_part_n("foo.part1"), Path::new("foo"));
         assert_eq!(remove_part_n("dir/foo.part1"), Path::new("dir/foo"));
+    }
+
+    #[test]
+    fn detects_only_numbered_part_names() {
+        for part in ["foo.part1.pna", "foo.part23.PNA", "foo.part1"] {
+            assert!(Path::new(part).is_part(), "{part}");
+        }
+        for regular in ["foo.pna", "foo.partial.pna", "foo.part.pna", "foo.partx"] {
+            assert!(!Path::new(regular).is_part(), "{regular}");
+        }
     }
 }
