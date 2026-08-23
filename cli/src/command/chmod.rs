@@ -51,11 +51,10 @@ fn archive_chmod(args: ChmodCommand, umask: Umask) -> anyhow::Result<()> {
         return Ok(());
     }
     let globs = GlobPatterns::new(args.files.iter().map(|p| p.as_str()))?;
-    let output_path = args
-        .output
-        .unwrap_or_else(|| args.archive.file.remove_part());
+    let archive = args.archive.require_file()?;
+    let output_path = args.output.unwrap_or_else(|| archive.remove_part());
     execute_archive_transform(
-        &args.archive.file,
+        &archive,
         output_path,
         umask,
         password.as_deref(),
