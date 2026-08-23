@@ -5,20 +5,42 @@ use crate::command::core::run_across_archive_readers;
 use crate::{
     command::{
         Command,
-        core::{StagedArchive, Umask, collect_split_archives},
+        core::{
+            Umask,
+            archive_destination::{SinkConsumer, resolve_create_destination},
+            collect_split_archives,
+        },
     },
-    utils::{self, PathWithCwd},
+    utils,
 };
-use anyhow::Context;
+use anyhow::ensure;
 use clap::{ArgAction, Parser, ValueHint};
 use pna::Archive;
-#[cfg(feature = "memmap")]
 use std::io;
 use std::path::PathBuf;
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ConcatCommand {
-    #[arg(long, conflicts_with = "no_overwrite", help = "Overwrite file")]
+    #[arg(
+        short = 'f',
+        long = "file",
+        value_name = "INPUT",
+        help = "Archive input; repeat to concatenate multiple archives",
+        value_hint = ValueHint::FilePath
+    )]
+    files: Vec<PathBuf>,
+    #[arg(
+        long,
+        value_name = "OUTPUT",
+        help = "Write the concatenated archive to this path; omit for standard output",
+        value_hint = ValueHint::FilePath
+    )]
+    output: Option<PathBuf>,
+    #[arg(
+        long,
+        conflicts_with = "no_overwrite",
+        help = "Replace an existing --output archive"
+    )]
     overwrite: bool,
     #[arg(
         long,
@@ -26,14 +48,6 @@ pub(crate) struct ConcatCommand {
         help = "Do not overwrite files. This is the inverse option of --overwrite"
     )]
     no_overwrite: (),
-    #[arg(short, long, required = true, help = "Archive files to concatenate", value_hint = ValueHint::FilePath)]
-    files: Vec<PathBuf>,
-    #[arg(
-        long,
-        help = "Output archive file path",
-        value_hint = ValueHint::FilePath
-    )]
-    output: Option<PathBuf>,
 }
 
 impl Command for ConcatCommand {
@@ -45,67 +59,80 @@ impl Command for ConcatCommand {
 
 #[hooq::hooq(anyhow)]
 fn concat_entry(args: ConcatCommand, umask: Umask) -> anyhow::Result<()> {
-    let (archive, archives) = match args.output {
-        Some(output) => (output, args.files),
-        None => {
-            let mut files = args.files;
-            let archive = files.remove(0);
-            log::warn!(
-                "using the first input '{}' as the output destination is deprecated; specify the destination explicitly with --output",
-                archive.display()
-            );
-            (archive, files)
-        }
-    };
-    for item in &archives {
+    ensure!(
+        args.output.is_some() || !args.overwrite,
+        "--overwrite requires --output PATH for concat"
+    );
+    for item in &args.files {
         if !utils::fs::is_pna(item)? {
             anyhow::bail!("{} is not a pna file", item.display());
         }
     }
-    if !args.overwrite && std::fs::symlink_metadata(&archive).is_ok() {
-        anyhow::bail!("{} already exists", PathWithCwd::new(&archive));
-    }
-    let mut staged = StagedArchive::new(archive.clone(), umask, args.overwrite)
-        .with_context(|| format!("failed to create `{}`", PathWithCwd::new(&archive)))?;
-    let mut archive = Archive::write_header(staged.as_file_mut())?;
+    let destination = resolve_create_destination(args.output, args.overwrite)?;
+    destination.open_with(umask, ConcatArchives { files: args.files })
+}
 
-    for item in &archives {
-        let archives = collect_split_archives(item)?;
-        #[cfg(feature = "memmap")]
-        {
-            let mmaps = archives
-                .into_iter()
-                .map(utils::mmap::Mmap::try_from)
-                .collect::<io::Result<Vec<_>>>()?;
-            let archives = mmaps.iter().map(|m| m.as_ref());
-            run_across_archive_bytes(
-                archives,
-                #[hooq::skip_all]
-                |reader| {
-                    for entry in reader.raw_entries_slice() {
-                        archive.add_entry(entry?)?;
-                    }
-                    Ok(())
-                },
-                false,
-            )?;
+/// Copies the raw entries of every input archive (stdin when none) into the opened
+/// destination as one archive.
+struct ConcatArchives {
+    files: Vec<PathBuf>,
+}
+
+impl SinkConsumer for ConcatArchives {
+    type Output = ();
+
+    fn consume<W: io::Write>(self, writer: W) -> anyhow::Result<()> {
+        let mut archive = Archive::write_header(writer)?;
+        if self.files.is_empty() {
+            let mut input = Archive::read_header(io::stdin().lock())?;
+            for entry in input.raw_entries() {
+                archive.add_entry(entry?)?;
+            }
+        } else {
+            for item in &self.files {
+                append_file_entries(&mut archive, item)?;
+            }
         }
-        #[cfg(not(feature = "memmap"))]
-        {
-            run_across_archive_readers(
-                archives,
-                #[hooq::skip_all]
-                |reader| {
-                    for entry in reader.raw_entries() {
-                        archive.add_entry(entry?)?;
-                    }
-                    Ok(())
-                },
-                false,
-            )?;
-        }
+        archive.finalize()?;
+        Ok(())
     }
-    archive.finalize()?;
-    staged.commit()?;
+}
+
+fn append_file_entries<W: io::Write>(
+    output: &mut Archive<W>,
+    input: &std::path::Path,
+) -> anyhow::Result<()> {
+    let archives = collect_split_archives(input)?;
+    #[cfg(feature = "memmap")]
+    {
+        let mmaps = archives
+            .into_iter()
+            .map(utils::mmap::Mmap::try_from)
+            .collect::<io::Result<Vec<_>>>()?;
+        let archives = mmaps.iter().map(|m| m.as_ref());
+        run_across_archive_bytes(
+            archives,
+            |reader| {
+                for entry in reader.raw_entries_slice() {
+                    output.add_entry(entry?)?;
+                }
+                Ok(())
+            },
+            false,
+        )?;
+    }
+    #[cfg(not(feature = "memmap"))]
+    {
+        run_across_archive_readers(
+            archives,
+            |reader| {
+                for entry in reader.raw_entries() {
+                    output.add_entry(entry?)?;
+                }
+                Ok(())
+            },
+            false,
+        )?;
+    }
     Ok(())
 }

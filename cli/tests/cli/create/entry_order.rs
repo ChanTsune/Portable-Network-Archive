@@ -379,7 +379,7 @@ fn create_split_preserves_entry_order() {
         "pna",
         "--quiet",
         "concat",
-        "-f",
+        "--output",
         &concat_path,
         "-f",
         &archive_path,
