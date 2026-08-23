@@ -1344,7 +1344,7 @@ impl TransformStrategy for TransformStrategyKeepSolid {
     }
 }
 
-pub(crate) fn run_across_archive<R, F>(
+pub(crate) fn run_across_archive_readers<R, F>(
     provider: impl IntoIterator<Item = R>,
     mut processor: F,
     allow_concatenated_archives: bool,
@@ -1380,7 +1380,7 @@ where
     Ok(())
 }
 
-fn run_across_archive_stoppable<R, F>(
+fn run_across_archive_readers_stoppable<R, F>(
     provider: impl IntoIterator<Item = R>,
     mut processor: F,
     allow_concatenated_archives: bool,
@@ -1418,7 +1418,7 @@ where
     Ok(())
 }
 
-pub(crate) fn run_process_archive<F>(
+pub(crate) fn run_process_archive_readers<F>(
     archive_provider: impl IntoIterator<Item = impl Read>,
     read_options: &ReadOptions,
     mut processor: F,
@@ -1427,7 +1427,7 @@ pub(crate) fn run_process_archive<F>(
 where
     F: FnMut(io::Result<NormalEntry>) -> io::Result<()>,
 {
-    run_read_entries(
+    run_read_entries_readers(
         archive_provider,
         |entry| match entry? {
             ReadEntry::Solid(solid) => solid.entries(read_options)?.try_for_each(&mut processor),
@@ -1437,7 +1437,7 @@ where
     )
 }
 
-pub(crate) fn run_process_archive_stoppable<F>(
+pub(crate) fn run_process_archive_readers_stoppable<F>(
     archive_provider: impl IntoIterator<Item = impl Read>,
     read_options: &ReadOptions,
     mut processor: F,
@@ -1446,7 +1446,7 @@ pub(crate) fn run_process_archive_stoppable<F>(
 where
     F: FnMut(io::Result<NormalEntry>) -> io::Result<ProcessAction>,
 {
-    run_read_entries_stoppable(
+    run_read_entries_readers_stoppable(
         archive_provider,
         |entry| match entry? {
             ReadEntry::Solid(solid) => {
@@ -1465,7 +1465,7 @@ where
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_across_archive_mem<'d, F>(
+pub(crate) fn run_across_archive_bytes<'d, F>(
     archives: impl IntoIterator<Item = &'d [u8]>,
     mut processor: F,
     allow_concatenated_archives: bool,
@@ -1502,7 +1502,7 @@ where
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_read_entries_mem<'d, F>(
+pub(crate) fn run_read_entries_bytes<'d, F>(
     archives: impl IntoIterator<Item = &'d [u8]>,
     mut processor: F,
     allow_concatenated_archives: bool,
@@ -1510,7 +1510,7 @@ pub(crate) fn run_read_entries_mem<'d, F>(
 where
     F: FnMut(io::Result<ReadEntry<Cow<'d, [u8]>>>) -> io::Result<()>,
 {
-    run_across_archive_mem(
+    run_across_archive_bytes(
         archives,
         |archive| archive.entries_slice().try_for_each(&mut processor),
         allow_concatenated_archives,
@@ -1518,7 +1518,7 @@ where
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_entries<'d, F>(
+pub(crate) fn run_process_archive_bytes<'d, F>(
     archives: impl IntoIterator<Item = &'d [u8]>,
     read_options: &ReadOptions,
     mut processor: F,
@@ -1526,7 +1526,7 @@ pub(crate) fn run_entries<'d, F>(
 where
     F: FnMut(io::Result<NormalEntry<Cow<'d, [u8]>>>) -> io::Result<()>,
 {
-    run_read_entries_mem(
+    run_read_entries_bytes(
         archives,
         |entry| match entry? {
             ReadEntry::Solid(s) => s
@@ -1539,7 +1539,7 @@ where
 }
 
 #[cfg(feature = "memmap")]
-fn run_across_archive_mem_stoppable<'d, F>(
+fn run_across_archive_bytes_stoppable<'d, F>(
     archives: impl IntoIterator<Item = &'d [u8]>,
     mut processor: F,
     allow_concatenated_archives: bool,
@@ -1577,7 +1577,7 @@ where
 }
 
 #[cfg(feature = "memmap")]
-fn run_read_entries_mem_stoppable<'d, F>(
+fn run_read_entries_bytes_stoppable<'d, F>(
     archives: impl IntoIterator<Item = &'d [u8]>,
     mut processor: F,
     allow_concatenated_archives: bool,
@@ -1585,7 +1585,7 @@ fn run_read_entries_mem_stoppable<'d, F>(
 where
     F: FnMut(io::Result<ReadEntry<Cow<'d, [u8]>>>) -> io::Result<ProcessAction>,
 {
-    run_across_archive_mem_stoppable(
+    run_across_archive_bytes_stoppable(
         archives,
         |archive| {
             for entry in archive.entries_slice() {
@@ -1601,7 +1601,7 @@ where
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_entries_stoppable<'d, F>(
+pub(crate) fn run_process_archive_bytes_stoppable<'d, F>(
     archives: impl IntoIterator<Item = &'d [u8]>,
     read_options: &ReadOptions,
     mut processor: F,
@@ -1609,7 +1609,7 @@ pub(crate) fn run_entries_stoppable<'d, F>(
 where
     F: FnMut(io::Result<NormalEntry<Cow<'d, [u8]>>>) -> io::Result<ProcessAction>,
 {
-    run_read_entries_mem_stoppable(
+    run_read_entries_bytes_stoppable(
         archives,
         |entry| match entry? {
             ReadEntry::Solid(s) => {
@@ -1628,7 +1628,7 @@ where
 }
 
 #[cfg(feature = "memmap")]
-fn run_transform_entry<'d, 'p, W, Provider, F, Transform>(
+fn run_transform_entries_bytes<'d, 'p, W, Provider, F, Transform>(
     writer: W,
     archives: impl IntoIterator<Item = &'d [u8]>,
     mut password_provider: Provider,
@@ -1646,7 +1646,7 @@ where
     let password = password_provider();
     let context = TransformContext::new(password);
     let mut out_archive = Archive::write_header(writer)?;
-    run_read_entries_mem(
+    run_read_entries_bytes(
         archives,
         |entry| Transform::transform(&mut out_archive, &context, entry, &mut processor),
         false,
@@ -1655,7 +1655,7 @@ where
     Ok(())
 }
 
-pub(crate) fn run_read_entries<F>(
+pub(crate) fn run_read_entries_readers<F>(
     archive_provider: impl IntoIterator<Item = impl Read>,
     mut processor: F,
     allow_concatenated_archives: bool,
@@ -1663,14 +1663,14 @@ pub(crate) fn run_read_entries<F>(
 where
     F: FnMut(io::Result<ReadEntry>) -> io::Result<()>,
 {
-    run_across_archive(
+    run_across_archive_readers(
         archive_provider,
         |archive| archive.entries().try_for_each(&mut processor),
         allow_concatenated_archives,
     )
 }
 
-pub(crate) fn run_read_entries_stoppable<F>(
+pub(crate) fn run_read_entries_readers_stoppable<F>(
     archive_provider: impl IntoIterator<Item = impl Read>,
     mut processor: F,
     allow_concatenated_archives: bool,
@@ -1678,7 +1678,7 @@ pub(crate) fn run_read_entries_stoppable<F>(
 where
     F: FnMut(io::Result<ReadEntry>) -> io::Result<ProcessAction>,
 {
-    run_across_archive_stoppable(
+    run_across_archive_readers_stoppable(
         archive_provider,
         |archive| {
             for entry in archive.entries() {
@@ -1693,8 +1693,9 @@ where
     )
 }
 
-#[cfg(not(feature = "memmap"))]
-fn run_transform_entry<'p, W, Provider, F, Transform>(
+// Kept available in memmap builds for non-file sources introduced by the stdio stack.
+#[cfg_attr(feature = "memmap", allow(dead_code))]
+fn run_transform_entries_readers<'p, W, Provider, F, Transform>(
     writer: W,
     archives: impl IntoIterator<Item = impl Read>,
     mut password_provider: Provider,
@@ -1710,7 +1711,7 @@ where
     let password = password_provider();
     let context = TransformContext::new(password);
     let mut out_archive = Archive::write_header(writer)?;
-    run_read_entries(
+    run_read_entries_readers(
         archives,
         |entry| Transform::transform(&mut out_archive, &context, entry, &mut processor),
         false,
@@ -1852,7 +1853,7 @@ pub(crate) fn transform_archive_entries<R: io::Read>(
     let mut results = Vec::new();
     let mut reencrypt_options = HashMap::new();
     let read_options = ReadOptions::with_password(password);
-    run_process_archive(
+    run_process_archive_readers(
         std::iter::once(reader),
         &read_options,
         |entry| {

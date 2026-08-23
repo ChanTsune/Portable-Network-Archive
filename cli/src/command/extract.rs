@@ -1,5 +1,5 @@
 #[cfg(feature = "memmap")]
-use crate::command::core::{run_entries, run_entries_stoppable};
+use crate::command::core::{run_process_archive_bytes, run_process_archive_bytes_stoppable};
 use crate::ext::*;
 #[cfg(any(unix, windows))]
 use crate::utils::fs::lchown;
@@ -15,7 +15,7 @@ use crate::{
             collect_split_archives,
             path_lock::OrderedPathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
-            read_paths, run_process_archive, run_process_archive_stoppable,
+            read_paths, run_process_archive_readers, run_process_archive_readers_stoppable,
         },
     },
     utils::{
@@ -622,7 +622,7 @@ where
         let (tx, rx) = std::sync::mpsc::channel();
         rayon::scope_fifo(|s| -> anyhow::Result<()> {
             if fast_read && !globs.is_empty() {
-                run_process_archive_stoppable(
+                run_process_archive_readers_stoppable(
                     reader,
                     read_options,
                     |entry| {
@@ -688,7 +688,7 @@ where
                 )
                 .with_context(|| "streaming archive entries")?;
             } else {
-                run_process_archive(
+                run_process_archive_readers(
                     reader,
                     read_options,
                     |entry| {
@@ -749,7 +749,7 @@ where
     #[cfg(target_family = "wasm")]
     {
         if fast_read && !globs.is_empty() {
-            run_process_archive_stoppable(
+            run_process_archive_readers_stoppable(
                 reader,
                 read_options,
                 |entry| {
@@ -804,7 +804,7 @@ where
             )
             .with_context(|| "streaming archive entries")?;
         } else {
-            run_process_archive(
+            run_process_archive_readers(
                 reader,
                 read_options,
                 |entry| {
@@ -894,7 +894,7 @@ where
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
         if fast_read && !globs.is_empty() {
             #[hooq::skip_all]
-            run_entries_stoppable(archives, read_options, |entry| {
+            run_process_archive_bytes_stoppable(archives, read_options, |entry| {
                 let item = entry
                     .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
                 let item_path = item.name().to_string();
@@ -954,7 +954,7 @@ where
             .with_context(|| "streaming archive entries")?;
         } else {
             #[hooq::skip_all]
-            run_entries(archives, read_options, |entry| {
+            run_process_archive_bytes(archives, read_options, |entry| {
                 let item = entry
                     .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
                 let Some(name) = filter_entry(&item, &mut globs, &args) else {

@@ -16,7 +16,7 @@ use crate::{
             collect_split_archives,
             path_lock::OrderedPathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
-            read_paths, run_across_archive, validate_no_duplicate_stdin,
+            read_paths, run_across_archive_readers, validate_no_duplicate_stdin,
         },
         create::{CreationContext, create_archive_file},
         extract::{OutputOption, OverwriteStrategy, run_extract_archive_reader},
@@ -1366,7 +1366,7 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
     } else {
         let target_items = collect_items_from_sources(sources, &collect_options, &mut resolver)?;
         let mut output_archive = Archive::write_header(io::stdout().lock())?;
-        run_across_archive(
+        run_across_archive_readers(
             std::iter::once(io::stdin().lock()),
             #[hooq::skip_all]
             |input_archive| {

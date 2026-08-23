@@ -42,7 +42,7 @@ impl SplitArchiveReader {
         F: FnMut(io::Result<NormalEntry>) -> io::Result<Option<NormalEntry>>,
         S: TransformStrategy,
     {
-        super::run_transform_entry(
+        super::run_transform_entries_readers(
             writer,
             self.files.drain(..),
             || password,
@@ -66,7 +66,7 @@ impl SplitArchiveReader {
         ) -> io::Result<Option<NormalEntry<Cow<'s, [u8]>>>>,
         S: TransformStrategy,
     {
-        super::run_transform_entry(
+        super::run_transform_entries_bytes(
             writer,
             self.mmaps.iter().map(|m| m.as_ref()),
             || password,
@@ -81,24 +81,19 @@ impl SplitArchiveReader {
         read_options: &ReadOptions,
         processor: impl FnMut(io::Result<NormalEntry>) -> io::Result<()>,
     ) -> io::Result<()> {
-        super::run_process_archive(self.files.drain(..), read_options, processor, false)
+        super::run_process_archive_readers(self.files.drain(..), read_options, processor, false)
     }
 
     #[cfg(feature = "memmap")]
     pub(crate) fn for_each_entry<'s>(
         &'s mut self,
         read_options: &ReadOptions,
-        mut processor: impl FnMut(io::Result<NormalEntry<Cow<'s, [u8]>>>) -> io::Result<()>,
+        processor: impl FnMut(io::Result<NormalEntry<Cow<'s, [u8]>>>) -> io::Result<()>,
     ) -> io::Result<()> {
-        super::run_read_entries_mem(
+        super::run_process_archive_bytes(
             self.mmaps.iter().map(|m| m.as_ref()),
-            |entry| match entry? {
-                ReadEntry::Solid(s) => s
-                    .entries(read_options)?
-                    .try_for_each(|r| processor(r.map(Into::into))),
-                ReadEntry::Normal(n) => processor(Ok(n)),
-            },
-            false,
+            read_options,
+            processor,
         )
     }
 
@@ -108,7 +103,11 @@ impl SplitArchiveReader {
         processor: impl FnMut(io::Result<ReadEntry>) -> io::Result<()>,
         allow_concatenated_archives: bool,
     ) -> io::Result<()> {
-        super::run_read_entries(self.files.drain(..), processor, allow_concatenated_archives)
+        super::run_read_entries_readers(
+            self.files.drain(..),
+            processor,
+            allow_concatenated_archives,
+        )
     }
 
     #[cfg(feature = "memmap")]
@@ -117,7 +116,7 @@ impl SplitArchiveReader {
         processor: impl FnMut(io::Result<ReadEntry<Cow<'s, [u8]>>>) -> io::Result<()>,
         allow_concatenated_archives: bool,
     ) -> io::Result<()> {
-        super::run_read_entries_mem(
+        super::run_read_entries_bytes(
             self.mmaps.iter().map(|m| m.as_ref()),
             processor,
             allow_concatenated_archives,

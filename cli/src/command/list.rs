@@ -5,7 +5,8 @@ use crate::{
         Command, ask_password,
         core::{
             PathFilter, ProcessAction, SplitArchiveReader, TimeFilterResolver, TimeFilters,
-            collect_split_archives, read_paths, run_read_entries, run_read_entries_stoppable,
+            collect_split_archives, read_paths, run_read_entries_readers,
+            run_read_entries_readers_stoppable,
         },
     },
     ext::*,
@@ -661,7 +662,7 @@ pub(crate) fn run_list_archive<'a>(
 
     if !fast_read || files_globs.is_empty() {
         let mut entries = Vec::new();
-        run_read_entries(
+        run_read_entries_readers(
             archive_provider,
             |entry| {
                 match entry? {
@@ -697,7 +698,7 @@ pub(crate) fn run_list_archive<'a>(
     let mut entries = Vec::new();
     let mut globs = files_globs;
     let filter_ref = &filter;
-    run_read_entries_stoppable(
+    run_read_entries_readers_stoppable(
         archive_provider,
         |entry| {
             match entry? {
