@@ -65,7 +65,14 @@ teardown() {
   assert_file_empty err
 }
 
-# Test 5: regression - without broken pipe, errors still propagate as failure
+# Test 5: native archive stdout also exits cleanly when its consumer closes
+@test "pna create: | head -c 1 exits 0" {
+  run bash -c "set -o pipefail; pna --log-level error create --store ../bigfile 2>err | head -c 1 >/dev/null"
+  assert_success
+  assert_file_empty err
+}
+
+# Test 6: regression - without broken pipe, errors still propagate as failure
 @test "regression: missing archive still fails" {
   run bash -c "$EXECUTABLE -xOf nonexistent.tar 2>err"
   assert_failure
