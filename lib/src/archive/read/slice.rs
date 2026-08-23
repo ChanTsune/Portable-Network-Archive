@@ -2,8 +2,8 @@
 
 use crate::{
     Archive, Chunk, ChunkType, Entry, NormalEntry, RawChunk, ReadEntry, ReadOptions,
-    archive::ArchiveHeader,
-    entry::{RawEntry, SolidIntoEntries},
+    archive::{ArchiveHeader, read::ExtractSolidEntries},
+    entry::RawEntry,
 };
 use std::borrow::Cow;
 use std::io;
@@ -210,7 +210,7 @@ impl<'a, 'r> Entries<'a, 'r> {
         self,
         options: &ReadOptions,
     ) -> impl Iterator<Item = io::Result<NormalEntry<Cow<'r, [u8]>>>> + 'a {
-        SliceNormalEntries::new(self, options)
+        ExtractSolidEntries::new(self, options)
     }
 }
 
@@ -220,54 +220,6 @@ impl<'r> Iterator for Entries<'_, 'r> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.reader.read_entry_slice().transpose()
-    }
-}
-
-/// An iterator over normal entries read from a byte slice, including entries
-/// decoded from solid entries.
-struct SliceNormalEntries<'a, 'r> {
-    entries: Entries<'a, 'r>,
-    read_options: ReadOptions,
-    solid_iter: Option<SolidIntoEntries<Cow<'r, [u8]>>>,
-}
-
-impl<'a, 'r> SliceNormalEntries<'a, 'r> {
-    #[inline]
-    fn new(entries: Entries<'a, 'r>, options: &ReadOptions) -> Self {
-        Self {
-            entries,
-            read_options: options.clone(),
-            solid_iter: None,
-        }
-    }
-}
-
-impl<'r> Iterator for SliceNormalEntries<'_, 'r> {
-    type Item = io::Result<NormalEntry<Cow<'r, [u8]>>>;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if let Some(iter) = &mut self.solid_iter {
-                if let Some(item) = iter.next() {
-                    return Some(item.map(Into::into));
-                }
-                self.solid_iter = None;
-            }
-
-            match self.entries.next()? {
-                Ok(ReadEntry::Normal(entry)) => return Some(Ok(entry)),
-                Ok(ReadEntry::Solid(entry)) => {
-                    match entry.into_entries_with_options(&self.read_options) {
-                        Ok(iter) => {
-                            self.solid_iter = Some(iter);
-                        }
-                        Err(e) => return Some(Err(e)),
-                    }
-                }
-                Err(e) => return Some(Err(e)),
-            }
-        }
     }
 }
 

@@ -5,7 +5,7 @@ mod slice;
 use crate::{
     archive::{Archive, ArchiveHeader},
     chunk::{Chunk, ChunkType, RawChunk},
-    entry::{Entry, NormalEntry, RawEntry, ReadEntry, ReadOptions},
+    entry::{Entry, NormalEntry, RawEntry, ReadEntry, ReadOptions, SolidIntoEntries},
 };
 use std::{
     io::{self, Read, Seek},
@@ -333,20 +333,12 @@ impl<R: futures_io::AsyncRead + Unpin> futures_util::Stream for Entries<'_, R> {
 }
 
 /// An iterator over the entries in the archive.
-pub struct NormalEntries<'r, R> {
-    reader: &'r mut Archive<R>,
-    read_options: ReadOptions,
-    solid_iter: Option<crate::entry::SolidIntoEntries<Vec<u8>>>,
-}
+pub struct NormalEntries<'r, R>(ExtractSolidEntries<Entries<'r, R>, Vec<u8>>);
 
 impl<'r, R> NormalEntries<'r, R> {
     #[inline]
     pub(crate) fn new(reader: &'r mut Archive<R>, options: &ReadOptions) -> Self {
-        Self {
-            reader,
-            read_options: options.clone(),
-            solid_iter: None,
-        }
+        Self(ExtractSolidEntries::new(Entries::new(reader), options))
     }
 }
 
@@ -355,26 +347,57 @@ impl<R: Read> Iterator for NormalEntries<'_, R> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
+    }
+}
+
+/// An iterator adapter that yields normal entries from an entry source,
+/// decoding each solid entry into its inner entries on the fly.
+pub(crate) struct ExtractSolidEntries<I, T: AsRef<[u8]>> {
+    entries: I,
+    read_options: ReadOptions,
+    solid_iter: Option<SolidIntoEntries<T>>,
+}
+
+impl<I, T: AsRef<[u8]>> ExtractSolidEntries<I, T> {
+    #[inline]
+    pub(crate) fn new(entries: I, options: &ReadOptions) -> Self {
+        Self {
+            entries,
+            read_options: options.clone(),
+            solid_iter: None,
+        }
+    }
+}
+
+impl<I, T> Iterator for ExtractSolidEntries<I, T>
+where
+    I: Iterator<Item = io::Result<ReadEntry<T>>>,
+    T: AsRef<[u8]>,
+    NormalEntry<T>: From<NormalEntry>,
+{
+    type Item = io::Result<NormalEntry<T>>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(iter) = &mut self.solid_iter {
                 if let Some(item) = iter.next() {
-                    return Some(item);
+                    return Some(item.map(Into::into));
                 }
                 self.solid_iter = None;
             }
 
-            match self.reader.read_entry() {
-                Ok(Some(ReadEntry::Normal(entry))) => return Some(Ok(entry)),
-                Ok(Some(ReadEntry::Solid(entry))) => {
+            match self.entries.next()? {
+                Ok(ReadEntry::Normal(entry)) => return Some(Ok(entry)),
+                Ok(ReadEntry::Solid(entry)) => {
                     match entry.into_entries_with_options(&self.read_options) {
                         Ok(iter) => {
                             self.solid_iter = Some(iter);
-                            continue;
                         }
                         Err(e) => return Some(Err(e)),
                     }
                 }
-                Ok(None) => return None,
                 Err(e) => return Some(Err(e)),
             }
         }
