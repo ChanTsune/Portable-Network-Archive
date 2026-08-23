@@ -72,7 +72,7 @@ impl Command for StripCommand {
 #[hooq::hooq(anyhow)]
 fn strip_metadata(args: StripCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    let archive = args.archive.file;
+    let archive = args.archive.require_file()?;
     let output_path = args.output.unwrap_or_else(|| archive.remove_part());
     let globs = if args.files.files.is_empty() {
         None

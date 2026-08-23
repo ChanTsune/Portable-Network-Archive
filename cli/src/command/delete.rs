@@ -122,11 +122,10 @@ fn delete_file_from_archive(args: DeleteCommand, umask: Umask) -> anyhow::Result
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
 
-    let output_path = args
-        .output
-        .unwrap_or_else(|| args.archive.file.remove_part());
+    let archive = args.archive.require_file()?;
+    let output_path = args.output.unwrap_or_else(|| archive.remove_part());
     execute_archive_transform(
-        &args.archive.file,
+        &archive,
         output_path,
         umask,
         password.as_deref(),

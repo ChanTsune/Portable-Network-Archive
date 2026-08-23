@@ -40,7 +40,7 @@ impl Command for SplitCommand {
 
 #[hooq::hooq(anyhow)]
 fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
-    let archive_path = args.archive.file;
+    let archive_path = args.archive.require_file()?;
     let max_file_size = usize::try_from(args.max_size.unwrap_or_else(|| ByteSize::gb(1)).as_u64())
         .context("--max-size is too large for this platform")?;
     ensure!(

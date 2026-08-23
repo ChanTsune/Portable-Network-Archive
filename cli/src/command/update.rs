@@ -420,7 +420,7 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
     let transform_strategy = args.transform_strategy.strategy();
     let sync = args.sync;
     let password = ask_password(args.password)?;
-    let archive_path = &args.archive.file;
+    let archive_path = args.archive.require_file()?;
     if !archive_path.exists() {
         anyhow::bail!("{} is not exists", archive_path.display());
     }
@@ -481,7 +481,7 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
         ),
     };
 
-    let archives = collect_split_archives(&args.archive.file)?;
+    let archives = collect_split_archives(&archive_path)?;
 
     let mut files = args.files.files;
     if args.files_from_stdin {
