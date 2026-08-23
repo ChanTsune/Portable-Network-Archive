@@ -430,14 +430,12 @@ impl Iterator for EntryIterator<'_> {
     }
 }
 
-type BytesCursor = io::Cursor<Vec<u8>>;
-
 /// An iterator that moves out of a solid entry.
-pub(crate) struct SolidIntoEntries(
-    EntryReader<ChainReader<std::vec::IntoIter<BytesCursor>, BytesCursor>>,
+pub(crate) struct SolidIntoEntries<T: AsRef<[u8]> = Vec<u8>>(
+    EntryReader<ChainReader<std::vec::IntoIter<io::Cursor<T>>, io::Cursor<T>>>,
 );
 
-impl Iterator for SolidIntoEntries {
+impl<T: AsRef<[u8]>> Iterator for SolidIntoEntries<T> {
     type Item = io::Result<NormalEntry>;
 
     #[inline]
@@ -579,23 +577,19 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
 
         Ok(EntryIterator(EntryReader(reader)))
     }
-}
 
-impl<T> SolidEntry<T>
-where
-    T: Into<Vec<u8>>,
-{
     /// Consumes this solid entry and returns a streaming iterator of normal
-    /// entries, reusing derived keys cached in the supplied options.
+    /// entries without copying its encoded data, reusing derived keys cached in
+    /// the supplied options.
     #[inline]
     pub(crate) fn into_entries_with_options(
         self,
         options: &ReadOptions,
-    ) -> io::Result<SolidIntoEntries> {
+    ) -> io::Result<SolidIntoEntries<T>> {
         let bufs = self
             .data
             .into_iter()
-            .map(|v| io::Cursor::new(v.into()))
+            .map(io::Cursor::new)
             .collect::<Vec<_>>();
         let chain = ChainReader::new(bufs);
         let reader = decrypt_reader(
