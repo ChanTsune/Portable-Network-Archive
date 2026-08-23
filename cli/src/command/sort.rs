@@ -6,15 +6,15 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            SplitArchiveReader, Umask,
+            ReadEntryVisitor, Umask,
             archive_destination::{SinkConsumer, resolve_transform_destination},
-            collect_split_archives,
         },
     },
 };
 use clap::Parser;
 use pna::{Archive, NormalEntry, ReadEntry, ReadOptions, SolidEntryBuilder, WriteOptions};
 use std::{
+    borrow::Cow,
     fmt::{self, Display, Formatter},
     io,
     str::FromStr,
@@ -151,6 +151,17 @@ impl Command for SortCommand {
     }
 }
 
+/// Collects every entry in memory; sorting needs the complete set before anything is written.
+#[derive(Default)]
+struct OwnedEntries(Vec<ReadEntry<Vec<u8>>>);
+
+impl ReadEntryVisitor for OwnedEntries {
+    fn visit(&mut self, entry: ReadEntry<Cow<'_, [u8]>>) -> io::Result<()> {
+        self.0.push(entry.into());
+        Ok(())
+    }
+}
+
 #[hooq::hooq(anyhow)]
 fn sort_archive(args: SortCommand, umask: Umask) -> anyhow::Result<()> {
     args.output.warn_deprecated_options();
@@ -158,58 +169,51 @@ fn sort_archive(args: SortCommand, umask: Umask) -> anyhow::Result<()> {
     let destination =
         resolve_transform_destination(&source_arg, args.output.output, args.output.overwrite)?;
     let password = ask_password(args.password)?;
-    let archive_path = source_arg.require_file()?;
-    let archives = collect_split_archives(&archive_path)?;
-    let mut source = SplitArchiveReader::new(archives)?;
     let read_options = ReadOptions::with_password(password.as_deref());
     let unsolid = args.transform_strategy.strategy() == SolidEntriesTransformStrategy::UnSolid;
+    let mut owned = OwnedEntries::default();
+    source_arg.open()?.for_each_read_entry(&mut owned, false)?;
     let mut entries = Vec::<NormalEntry<_>>::new();
     let mut sorted = Vec::<ReadEntry<_>>::new();
-    source.for_each_read_entry(
-        #[hooq::skip_all]
-        |entry| {
-            match entry? {
-                ReadEntry::Normal(entry) => entries.push(entry),
-                ReadEntry::Solid(entry) => {
-                    if unsolid {
-                        for entry in entry.entries(&read_options)? {
-                            entries.push(entry?.into());
-                        }
-                    } else {
-                        sort_entries(&mut entries, &args.by);
-                        sorted.extend(entries.drain(..).map(ReadEntry::Normal));
-                        let mut inner = entry
-                            .entries(&read_options)?
-                            .collect::<std::io::Result<Vec<_>>>()?;
-                        sort_entries(&mut inner, &args.by);
-                        let header = entry.header();
-                        let options = WriteOptions::builder()
-                            .compression(header.compression())
-                            .encryption(header.encryption())
-                            .cipher_mode(header.cipher_mode())
-                            .password(password.as_deref())
-                            .build();
-                        let mut solid = SolidEntryBuilder::new(options)?;
-                        for chunk in entry.extra_chunks() {
-                            solid.add_extra_chunk(chunk.clone());
-                        }
-                        for entry in inner {
-                            solid.add_entry(entry)?;
-                        }
-                        sorted.push(ReadEntry::Solid(solid.build()?.into()));
+    for entry in owned.0 {
+        match entry {
+            ReadEntry::Normal(entry) => entries.push(entry),
+            ReadEntry::Solid(entry) => {
+                if unsolid {
+                    for entry in entry.entries(&read_options)? {
+                        entries.push(entry?);
                     }
+                } else {
+                    sort_entries(&mut entries, &args.by);
+                    sorted.extend(entries.drain(..).map(ReadEntry::Normal));
+                    let mut inner = entry
+                        .entries(&read_options)?
+                        .collect::<std::io::Result<Vec<_>>>()?;
+                    sort_entries(&mut inner, &args.by);
+                    let header = entry.header();
+                    let options = WriteOptions::builder()
+                        .compression(header.compression())
+                        .encryption(header.encryption())
+                        .cipher_mode(header.cipher_mode())
+                        .password(password.as_deref())
+                        .build();
+                    let mut solid = SolidEntryBuilder::new(options)?;
+                    for chunk in entry.extra_chunks() {
+                        solid.add_extra_chunk(chunk.clone());
+                    }
+                    for entry in inner {
+                        solid.add_entry(entry)?;
+                    }
+                    sorted.push(ReadEntry::Solid(solid.build()?));
                 }
             }
-            Ok(())
-        },
-        false,
-    )?;
+        }
+    }
 
     sort_entries(&mut entries, &args.by);
     sorted.extend(entries.into_iter().map(ReadEntry::Normal));
 
     destination.open_with(umask, WriteSorted(sorted))?;
-    drop(source);
 
     Ok(())
 }
