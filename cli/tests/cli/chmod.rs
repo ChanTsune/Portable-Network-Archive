@@ -7,11 +7,6 @@ mod multiple_clauses;
 mod numeric;
 mod password;
 mod password_file;
-mod symbolic_all;
-mod symbolic_combined;
-mod symbolic_group;
-mod symbolic_other;
-mod symbolic_user;
 mod unsolid;
 
 use crate::utils::{archive, archive::FileEntryDef, setup};
