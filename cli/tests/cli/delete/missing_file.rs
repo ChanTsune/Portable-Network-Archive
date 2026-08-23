@@ -29,6 +29,7 @@ fn delete_fail_with_missing_file() {
         "pna",
         "--quiet",
         "delete",
+        "--overwrite",
         "-f",
         "delete_missing/archive.pna",
         "delete_missing/in/raw/empty.txt",

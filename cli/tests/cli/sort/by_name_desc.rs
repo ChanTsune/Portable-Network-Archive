@@ -23,6 +23,7 @@ fn sort_by_name_desc() {
         "pna",
         "--quiet",
         "sort",
+        "--overwrite",
         "-f",
         "sort_by_name_desc/unsorted.pna",
         "--by",

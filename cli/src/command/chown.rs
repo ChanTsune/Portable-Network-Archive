@@ -1,10 +1,10 @@
 use crate::{
-    cli::{ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategyArgs},
+    cli::{ArchiveFileArgs, ArchiveOutputArgs, PasswordArgs, SolidEntriesTransformStrategyArgs},
     command::{
         Command, ask_password,
         core::{
-            ArchiveSource, Umask,
-            archive_destination::ArchiveDestination,
+            Umask,
+            archive_destination::resolve_transform_destination,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
@@ -15,13 +15,14 @@ use crate::{
 };
 use clap::{ArgAction, Parser, ValueHint, builder::ArgPredicate};
 use pna::NormalEntry;
-use pna::prelude::PathPartExt;
-use std::{borrow::Cow, io, ops::Not, path::PathBuf, str::FromStr};
+use std::{borrow::Cow, io, ops::Not, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ChownCommand {
     #[command(flatten)]
     archive: ArchiveFileArgs,
+    #[command(flatten)]
+    output: ArchiveOutputArgs,
     #[arg(help = "owner[:group]|:group")]
     owner: RawOwnership,
     #[arg(long, help = "force numeric owner and group IDs (no name resolution)")]
@@ -38,21 +39,6 @@ pub(crate) struct ChownCommand {
     no_owner_lookup: (),
     #[arg(value_hint = ValueHint::AnyPath)]
     files: Vec<String>,
-    #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
-    output: Option<PathBuf>,
-    #[arg(
-        long,
-        conflicts_with = "no_overwrite",
-        help = "Overwrite the output file (rewrite in place when --output is omitted)"
-    )]
-    overwrite: bool,
-    #[arg(
-        long,
-        action = ArgAction::SetTrue,
-        help = "Do not overwrite output file. This is the inverse option of --overwrite",
-        requires = "output"
-    )]
-    no_overwrite: (),
     #[command(flatten)]
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
@@ -68,6 +54,7 @@ impl Command for ChownCommand {
 
 #[hooq::hooq(anyhow)]
 fn archive_chown(args: ChownCommand, umask: Umask) -> anyhow::Result<()> {
+    args.output.warn_deprecated_options();
     let password = ask_password(args.password)?;
     if args.files.is_empty() {
         return Ok(());
@@ -77,13 +64,11 @@ fn archive_chown(args: ChownCommand, umask: Umask) -> anyhow::Result<()> {
     let owner = args
         .owner
         .lookup_platform_owner(args.numeric_owner, args.owner_lookup)?;
-    let archive = args.archive.require_file()?;
-    let destination = match args.output {
-        Some(output) => ArchiveDestination::Replace(output),
-        None => ArchiveDestination::InPlace(archive.remove_part()),
-    };
+    let source = args.archive.source();
+    let destination =
+        resolve_transform_destination(&source, args.output.output, args.output.overwrite)?;
     execute_archive_transform(
-        ArchiveSource::File(archive),
+        source,
         destination,
         umask,
         password.as_deref(),
