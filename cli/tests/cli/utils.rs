@@ -181,6 +181,13 @@ pub fn list_lines(records: &[&str]) -> String {
     out
 }
 
+/// Fragment of the message pna reports when a no-overwrite destination already exists.
+/// `CreateNew` destinations map the host `AlreadyExists` I/O error to this wording so the
+/// diagnostic is identical on every platform.
+pub fn already_exists_message() -> &'static str {
+    "already exists"
+}
+
 pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
     fs::create_dir_all(&dst)?;
     for entry in fs::read_dir(src)? {
