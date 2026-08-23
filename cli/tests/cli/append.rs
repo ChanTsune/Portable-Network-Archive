@@ -16,6 +16,8 @@ mod option_older_ctime_than;
 mod option_older_mtime;
 #[cfg(not(target_family = "wasm"))]
 mod option_older_mtime_than;
+#[cfg(not(target_family = "wasm"))]
+mod stdio;
 
 use crate::utils::{EmbedExt, TestResources, diff::assert_dirs_equal, setup};
 use clap::Parser;
@@ -46,6 +48,7 @@ fn archive_append() {
         "pna",
         "--quiet",
         "append",
+        "--overwrite",
         "-f",
         "archive_append/append.pna",
         "archive_append/in/store.pna",
@@ -100,6 +103,7 @@ fn archive_append_split() {
         "pna",
         "--quiet",
         "append",
+        "--overwrite",
         "-f",
         "archive_append_split/append_split.part1.pna",
         "archive_append_split/in/store.pna",

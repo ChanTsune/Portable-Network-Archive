@@ -56,6 +56,7 @@ fn append_with_newer_mtime() {
         "pna",
         "--quiet",
         "append",
+        "--overwrite",
         "--keep-timestamp",
         "--newer-mtime",
         "2025-10-11T00:00:00Z",

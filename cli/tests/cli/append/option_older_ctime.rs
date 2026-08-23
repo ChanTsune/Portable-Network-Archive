@@ -66,6 +66,7 @@ fn append_with_older_ctime() {
         "pna",
         "--quiet",
         "append",
+        "--overwrite",
         "--keep-timestamp",
         "--no-keep-dir",
         "--older-ctime",
