@@ -5,7 +5,7 @@ use crate::{
     },
     command::{
         Command, ExitCodeError,
-        append::{open_archive_then_seek_to_end, run_append_archive},
+        append::{open_archive_then_seek_to_end, run_append_archive, run_rewrite_append_archive},
         ask_password,
         core::{
             AclStrategy, CollectOptions, CreateOptions, FflagsStrategy, ItemSource, KeepOptions,
@@ -16,7 +16,7 @@ use crate::{
             collect_split_archives, ensure_single_stdin_consumer,
             path_lock::OrderedPathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
-            read_paths, read_paths_stdin, run_across_archive_readers,
+            read_paths, read_paths_stdin,
         },
         create::{CreationContext, create_archive_file},
         extract::{Outcome, OutputOption, OverwriteStrategy, run_extract_archive_reader},
@@ -1397,21 +1397,10 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
         )
     } else {
         let target_items = collect_items_from_sources(sources, &collect_options, &mut resolver)?;
-        let mut output_archive = Archive::write_header(io::stdout().lock())?;
-        run_across_archive_readers(
+        run_rewrite_append_archive(
             std::iter::once(io::stdin().lock()),
-            #[hooq::skip_all]
-            |input_archive| {
-                for entry in input_archive.raw_entries() {
-                    output_archive.add_entry(entry?)?;
-                }
-                Ok(())
-            },
-            args.ignore_zeros,
-        )?;
-        run_append_archive(
+            io::stdout().lock(),
             &create_options,
-            output_archive,
             target_items,
             &filter,
             &time_filters,
