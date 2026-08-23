@@ -1,4 +1,3 @@
-mod edge_cases;
 mod glob_pattern;
 mod keep_solid;
 mod missing_file;
