@@ -3,11 +3,12 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            Umask, resolve_rewrite_output,
+            ArchiveSource, Umask,
+            archive_destination::ArchiveDestination,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
-    utils::GlobPatterns,
+    utils::{GlobPatterns, PathPartExt},
 };
 use bitflags::bitflags;
 use clap::{ArgAction, Parser, ValueHint};
@@ -65,9 +66,12 @@ fn archive_chmod(args: ChmodCommand, umask: Umask) -> anyhow::Result<()> {
     }
     let globs = GlobPatterns::new(args.files.iter().map(|p| p.as_str()))?;
     let archive = args.archive.require_file()?;
-    let destination = resolve_rewrite_output(&archive, args.output, args.overwrite)?;
+    let destination = match args.output {
+        Some(output) => ArchiveDestination::Replace(output),
+        None => ArchiveDestination::InPlace(archive.remove_part()),
+    };
     execute_archive_transform(
-        &archive,
+        ArchiveSource::File(archive),
         destination,
         umask,
         password.as_deref(),

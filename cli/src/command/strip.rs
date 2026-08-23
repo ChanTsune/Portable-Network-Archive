@@ -6,13 +6,14 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            Umask, resolve_rewrite_output,
+            Umask,
+            archive_destination::resolve_transform_destination,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
     utils::GlobPatterns,
 };
-use clap::{ArgAction, Args, Parser, ValueHint};
+use clap::{Args, Parser, ValueHint};
 use pna::{Metadata, NormalEntry, RawChunk, prelude::*};
 use std::{borrow::Cow, io, path::PathBuf};
 
@@ -54,19 +55,8 @@ pub(crate) struct StripCommand {
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[arg(long, help = "Output file path", value_hint = ValueHint::AnyPath)]
     pub(crate) output: Option<PathBuf>,
-    #[arg(
-        long,
-        conflicts_with = "no_overwrite",
-        help = "Overwrite the output file (rewrite in place when --output is omitted)"
-    )]
+    #[arg(long, help = "Overwrite the source or output archive")]
     overwrite: bool,
-    #[arg(
-        long,
-        action = ArgAction::SetTrue,
-        help = "Do not overwrite output file. This is the inverse option of --overwrite",
-        requires = "output"
-    )]
-    no_overwrite: (),
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
@@ -84,9 +74,9 @@ impl Command for StripCommand {
 
 #[hooq::hooq(anyhow)]
 fn strip_metadata(args: StripCommand, umask: Umask) -> anyhow::Result<()> {
+    let source = args.archive.source();
+    let destination = resolve_transform_destination(&source, args.output, args.overwrite)?;
     let password = ask_password(args.password)?;
-    let archive = args.archive.require_file()?;
-    let destination = resolve_rewrite_output(&archive, args.output, args.overwrite)?;
     let globs = if args.files.files.is_empty() {
         None
     } else {
@@ -95,7 +85,7 @@ fn strip_metadata(args: StripCommand, umask: Umask) -> anyhow::Result<()> {
         )?)
     };
     execute_archive_transform(
-        &archive,
+        source,
         destination,
         umask,
         password.as_deref(),
