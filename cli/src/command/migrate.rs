@@ -49,10 +49,10 @@ impl Command for MigrateCommand {
 #[hooq::hooq(anyhow)]
 fn migrate_metadata(args: MigrateCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    let destination =
-        resolve_rewrite_output(&args.archive.file, Some(args.output), args.overwrite)?;
+    let archive = args.archive.require_file()?;
+    let destination = resolve_rewrite_output(&archive, Some(args.output), args.overwrite)?;
     execute_archive_transform(
-        &args.archive.file,
+        &archive,
         destination,
         umask,
         password.as_deref(),
