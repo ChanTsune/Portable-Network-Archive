@@ -1,3 +1,6 @@
+#[cfg(not(target_family = "wasm"))]
+mod stdio;
+
 use crate::utils::{EmbedExt, TestResources, diff::assert_dirs_equal, setup};
 use clap::Parser;
 use portable_network_archive::cli;

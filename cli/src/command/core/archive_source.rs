@@ -6,15 +6,6 @@ use super::{ArchiveSource, TransformStrategy};
 use crate::cli::ArchiveFileArgs;
 
 impl ArchiveSource {
-    pub(crate) fn require_file(self) -> anyhow::Result<PathBuf> {
-        match self {
-            Self::File(path) => Ok(path),
-            Self::Stdin => anyhow::bail!(
-                "archive input from standard input is not supported by this command yet; specify the archive with --file"
-            ),
-        }
-    }
-
     pub(crate) fn open(self) -> anyhow::Result<OpenArchiveSource> {
         match self {
             Self::File(path) => {
@@ -40,10 +31,6 @@ impl From<Option<PathBuf>> for ArchiveSource {
 impl ArchiveFileArgs {
     pub(crate) fn source(&self) -> ArchiveSource {
         self.file.clone().into()
-    }
-
-    pub(crate) fn require_file(&self) -> anyhow::Result<PathBuf> {
-        self.source().require_file()
     }
 }
 
@@ -333,13 +320,9 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn archive_argument_resolves_omission_but_keeps_dash_literal() {
+    fn archive_argument_resolves_omission_to_stdin_but_keeps_dash_literal() {
         let omitted = ArchiveFileArgs { file: None };
         assert_eq!(omitted.source(), ArchiveSource::Stdin);
-        assert_eq!(
-            omitted.require_file().unwrap_err().to_string(),
-            "archive input from standard input is not supported by this command yet; specify the archive with --file"
-        );
 
         let dash = ArchiveFileArgs {
             file: Some(PathBuf::from("-")),
