@@ -2,7 +2,7 @@ use crate::{
     cli::{ArchiveFileArgs, GlobalContext, PasswordArgs},
     command::{
         Command, ask_password,
-        core::{collect_split_archives, run_read_entries},
+        core::{collect_split_archives, run_read_entries_readers},
     },
 };
 use clap::Parser;
@@ -57,7 +57,7 @@ fn verify_archive(args: VerifyCommand) -> anyhow::Result<()> {
     let mut report = VerifyReport::default();
     let mut solid_blocks = 0usize;
     let mut resyncing = false;
-    let result = run_read_entries(
+    let result = run_read_entries_readers(
         archives,
         |entry| {
             // A chunk that fails its CRC32 arrives as `Err(InvalidData)`, so an `Ok`

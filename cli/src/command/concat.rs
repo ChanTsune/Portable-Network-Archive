@@ -1,7 +1,7 @@
-#[cfg(not(feature = "memmap"))]
-use crate::command::core::run_across_archive;
 #[cfg(feature = "memmap")]
-use crate::command::core::run_across_archive_mem as run_across_archive;
+use crate::command::core::run_across_archive_bytes;
+#[cfg(not(feature = "memmap"))]
+use crate::command::core::run_across_archive_readers;
 use crate::{
     command::{Command, core::collect_split_archives},
     utils::{self, PathWithCwd},
@@ -56,7 +56,7 @@ fn concat_entry(args: ConcatCommand) -> anyhow::Result<()> {
                 .map(utils::mmap::Mmap::try_from)
                 .collect::<io::Result<Vec<_>>>()?;
             let archives = mmaps.iter().map(|m| m.as_ref());
-            run_across_archive(
+            run_across_archive_bytes(
                 archives,
                 #[hooq::skip_all]
                 |reader| {
@@ -70,7 +70,7 @@ fn concat_entry(args: ConcatCommand) -> anyhow::Result<()> {
         }
         #[cfg(not(feature = "memmap"))]
         {
-            run_across_archive(
+            run_across_archive_readers(
                 archives,
                 #[hooq::skip_all]
                 |reader| {
