@@ -33,6 +33,7 @@ fn delete_with_exclude_from() {
         "pna",
         "--quiet",
         "delete",
+        "--overwrite",
         "-f",
         "delete_exclude_from/exclude_from.pna",
         "**/*.txt",

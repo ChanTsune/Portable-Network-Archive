@@ -53,6 +53,7 @@ fn sort_by_multiple_keys() {
         "pna",
         "--quiet",
         "sort",
+        "--overwrite",
         "-f",
         "sort_by_multi/unsorted.pna",
         "--by",

@@ -1,15 +1,15 @@
 use crate::{
-    cli::{ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategyArgs},
+    cli::{ArchiveFileArgs, ArchiveOutputArgs, PasswordArgs, SolidEntriesTransformStrategyArgs},
     command::{
         Command, ask_password,
         core::{
-            ArchiveSource, Umask,
-            archive_destination::ArchiveDestination,
+            Umask,
+            archive_destination::resolve_transform_destination,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
     utils::{
-        GlobPatterns, PathPartExt,
+        GlobPatterns,
         fs::{Group, User},
     },
 };
@@ -21,6 +21,8 @@ use std::{borrow::Cow, io, ops::Not, str::FromStr};
 pub(crate) struct ChownCommand {
     #[command(flatten)]
     archive: ArchiveFileArgs,
+    #[command(flatten)]
+    output: ArchiveOutputArgs,
     #[arg(help = "owner[:group]|:group")]
     owner: RawOwnership,
     #[arg(long, help = "force numeric owner and group IDs (no name resolution)")]
@@ -61,10 +63,11 @@ fn archive_chown(args: ChownCommand, umask: Umask) -> anyhow::Result<()> {
     let owner = args
         .owner
         .lookup_platform_owner(args.numeric_owner, args.owner_lookup)?;
-    let archive = args.archive.require_file()?;
-    let destination = ArchiveDestination::InPlace(archive.remove_part());
+    let source = args.archive.source();
+    let destination =
+        resolve_transform_destination(&source, args.output.output, args.output.overwrite)?;
     execute_archive_transform(
-        ArchiveSource::File(archive),
+        source,
         destination,
         umask,
         password.as_deref(),

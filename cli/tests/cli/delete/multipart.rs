@@ -48,6 +48,7 @@ fn delete_from_multipart_archive() {
         "pna",
         "--quiet",
         "delete",
+        "--overwrite",
         "-f",
         "delete_multipart/split/archive.part1.pna",
         "**/raw/text.txt",

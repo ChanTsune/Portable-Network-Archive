@@ -1,16 +1,19 @@
 use crate::{
-    cli::{ArchiveFileArgs, PasswordArgs},
+    cli::{ArchiveFileArgs, ArchiveOutputArgs, PasswordArgs},
     command::{
         Command, ask_password,
-        core::{SplitArchiveReader, StagedArchive, Umask, collect_split_archives},
+        core::{
+            SplitArchiveReader, Umask,
+            archive_destination::{SinkConsumer, resolve_transform_destination},
+            collect_split_archives,
+        },
     },
-    utils::PathPartExt,
 };
-use clap::{Parser, ValueHint};
+use clap::Parser;
 use pna::{Archive, NormalEntry, ReadOptions};
 use std::{
     fmt::{self, Display, Formatter},
-    path::PathBuf,
+    io,
     str::FromStr,
 };
 
@@ -122,8 +125,8 @@ impl FromStr for SortKey {
 pub(crate) struct SortCommand {
     #[command(flatten)]
     archive: ArchiveFileArgs,
-    #[arg(long, help = "Output archive file path", value_hint = ValueHint::FilePath)]
-    output: Option<PathBuf>,
+    #[command(flatten)]
+    output: ArchiveOutputArgs,
     #[arg(
         long = "by",
         value_name = "KEY",
@@ -145,8 +148,11 @@ impl Command for SortCommand {
 
 #[hooq::hooq(anyhow)]
 fn sort_archive(args: SortCommand, umask: Umask) -> anyhow::Result<()> {
+    let source_arg = args.archive.source();
+    let destination =
+        resolve_transform_destination(&source_arg, args.output.output, args.output.overwrite)?;
     let password = ask_password(args.password)?;
-    let archive_path = args.archive.require_file()?;
+    let archive_path = source_arg.require_file()?;
     let archives = collect_split_archives(&archive_path)?;
     let mut source = SplitArchiveReader::new(archives)?;
     let read_options = ReadOptions::with_password(password.as_deref());
@@ -178,19 +184,30 @@ fn sort_archive(args: SortCommand, umask: Umask) -> anyhow::Result<()> {
         std::cmp::Ordering::Equal
     });
 
-    let output = args.output.unwrap_or_else(|| archive_path.remove_part());
-    let mut staged = StagedArchive::new(output, umask)?;
-    let mut archive = Archive::write_header(staged.as_file_mut())?;
-    for entry in entries {
-        archive.add_entry(entry)?;
-    }
-    archive.finalize()?;
+    destination.open_with(umask, WriteSorted(entries))?;
 
     drop(source);
 
-    staged.commit()?;
-
     Ok(())
+}
+
+/// Writes the sorted entries as a fresh archive into the opened destination.
+struct WriteSorted<T>(Vec<NormalEntry<T>>);
+
+impl<T> SinkConsumer for WriteSorted<T>
+where
+    NormalEntry<T>: pna::prelude::Entry,
+{
+    type Output = ();
+
+    fn consume<W: io::Write>(self, writer: W) -> anyhow::Result<()> {
+        let mut archive = Archive::write_header(writer)?;
+        for entry in self.0 {
+            archive.add_entry(entry)?;
+        }
+        archive.finalize()?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

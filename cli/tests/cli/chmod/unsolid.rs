@@ -27,6 +27,7 @@ fn chmod_unsolid() {
         "--quiet",
         "experimental",
         "chmod",
+        "--overwrite",
         "--unsolid",
         "-f",
         "chmod_unsolid.pna",

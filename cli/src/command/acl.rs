@@ -1,16 +1,19 @@
 use crate::{
     chunk::{Ace, AcePlatform, Flag, Identifier, OwnerType, Permission},
-    cli::{ArchiveFileArgs, FileOperands, PasswordArgs, SolidEntriesTransformStrategyArgs},
+    cli::{
+        ArchiveFileArgs, ArchiveOutputArgs, FileOperands, PasswordArgs,
+        SolidEntriesTransformStrategyArgs,
+    },
     command::{
         Command, ask_password,
         core::{
-            ArchiveSource, EntryVisitor, Umask,
-            archive_destination::ArchiveDestination,
+            EntryVisitor, Umask,
+            archive_destination::resolve_transform_destination,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
     ext::{Acls, NormalEntryExt},
-    utils::{GlobPatterns, PathPartExt},
+    utils::GlobPatterns,
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use nom::{
@@ -85,6 +88,8 @@ impl Command for GetAclCommand {
 pub(crate) struct SetAclCommand {
     #[command(flatten)]
     archive: ArchiveFileArgs,
+    #[command(flatten)]
+    output: ArchiveOutputArgs,
     #[command(flatten)]
     files: FileOperands,
     #[arg(long, help = "Set the ACL on the specified file.")]
@@ -365,10 +370,11 @@ fn archive_set_acl(args: SetAclCommand, umask: Umask) -> anyhow::Result<()> {
         }
     };
 
-    let archive = args.archive.require_file()?;
-    let destination = ArchiveDestination::InPlace(archive.remove_part());
+    let source = args.archive.source();
+    let destination =
+        resolve_transform_destination(&source, args.output.output, args.output.overwrite)?;
     execute_archive_transform(
-        ArchiveSource::File(archive),
+        source,
         destination,
         umask,
         password.as_deref(),
