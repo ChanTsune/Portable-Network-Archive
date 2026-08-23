@@ -1,6 +1,7 @@
 use crate::{
     cli::{
-        FileArgs, PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs,
+        ArchiveFileArgs, FileOperands, PasswordArgs, SolidEntriesTransformStrategy,
+        SolidEntriesTransformStrategyArgs,
     },
     command::{
         Command, ask_password,
@@ -87,7 +88,9 @@ pub(crate) struct DeleteCommand {
     #[command(flatten)]
     pub(crate) transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
-    file: FileArgs,
+    archive: ArchiveFileArgs,
+    #[command(flatten)]
+    files: FileOperands,
 }
 
 impl Command for DeleteCommand {
@@ -100,7 +103,7 @@ impl Command for DeleteCommand {
 #[hooq::hooq(anyhow)]
 fn delete_file_from_archive(args: DeleteCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    let mut files = args.file.files;
+    let mut files = args.files.files;
     if args.files_from_stdin {
         files.extend(read_paths_stdin(args.null)?);
     } else if let Some(path) = args.files_from {
@@ -122,11 +125,11 @@ fn delete_file_from_archive(args: DeleteCommand, umask: Umask) -> anyhow::Result
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
 
-    let mut source = SplitArchiveReader::new(collect_split_archives(&args.file.archive)?)?;
+    let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive.file)?)?;
 
     let output_path = args
         .output
-        .unwrap_or_else(|| args.file.archive.remove_part());
+        .unwrap_or_else(|| args.archive.file.remove_part());
     let mut staged = StagedArchive::new(output_path, umask)?;
 
     match args.transform_strategy.strategy() {

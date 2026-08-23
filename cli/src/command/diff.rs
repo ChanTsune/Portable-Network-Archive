@@ -1,5 +1,5 @@
 use crate::{
-    cli::{FileArgs, PasswordArgs},
+    cli::{ArchiveFileArgs, FileOperands, PasswordArgs},
     command::{
         Command, ExitCodeError, ask_password,
         core::{SplitArchiveReader, collect_split_archives},
@@ -27,7 +27,9 @@ use std::{fmt, fs, io, path::Path};
 #[derive(Parser, Clone, Debug)]
 pub(crate) struct DiffCommand {
     #[command(flatten)]
-    file: FileArgs,
+    archive: ArchiveFileArgs,
+    #[command(flatten)]
+    files: FileOperands,
     #[command(flatten)]
     password: PasswordArgs,
     #[arg(
@@ -86,13 +88,13 @@ fn diff_archive(ctx: &crate::cli::GlobalContext, args: DiffCommand) -> anyhow::R
         );
     }
     let password = ask_password(args.password)?;
-    let archives = collect_split_archives(&args.file.archive)?;
+    let archives = collect_split_archives(&args.archive.file)?;
     let options = CompareOptions {
         full_compare: args.full_compare,
         format: args.format,
     };
 
-    let mut globs = BsdGlobMatcher::new(args.file.files.iter().map(|s| s.as_str()));
+    let mut globs = BsdGlobMatcher::new(args.files.files.iter().map(|s| s.as_str()));
     let filter_enabled = !globs.is_empty();
 
     let read_options = ReadOptions::with_password(password.as_deref());

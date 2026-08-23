@@ -1,7 +1,7 @@
 use crate::{
     cli::{
-        CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileArgs, HashAlgorithmArgs,
-        MissingTimePolicy, PasswordArgs, SolidEntriesTransformStrategy,
+        ArchiveFileArgs, CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileOperands,
+        HashAlgorithmArgs, MissingTimePolicy, PasswordArgs, SolidEntriesTransformStrategy,
         SolidEntriesTransformStrategyArgs,
     },
     command::{
@@ -373,7 +373,9 @@ pub(crate) struct UpdateCommand {
     #[command(flatten)]
     pub(crate) transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
-    pub(crate) file: FileArgs,
+    pub(crate) archive: ArchiveFileArgs,
+    #[command(flatten)]
+    pub(crate) files: FileOperands,
     #[arg(
         long,
         help = "Filenames or patterns are separated by null characters, not by newlines"
@@ -418,7 +420,7 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
     let transform_strategy = args.transform_strategy.strategy();
     let sync = args.sync;
     let password = ask_password(args.password)?;
-    let archive_path = &args.file.archive;
+    let archive_path = &args.archive.file;
     if !archive_path.exists() {
         anyhow::bail!("{} is not exists", archive_path.display());
     }
@@ -479,9 +481,9 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
         ),
     };
 
-    let archives = collect_split_archives(&args.file.archive)?;
+    let archives = collect_split_archives(&args.archive.file)?;
 
-    let mut files = args.file.files;
+    let mut files = args.files.files;
     if args.files_from_stdin {
         files.extend(read_paths_stdin(args.null)?);
     } else if let Some(path) = args.files_from {

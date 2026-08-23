@@ -4,7 +4,7 @@ use crate::ext::*;
 #[cfg(any(unix, windows))]
 use crate::utils::fs::lchown;
 use crate::{
-    cli::{DateTime, FileArgs, MissingTimePolicy, PasswordArgs},
+    cli::{ArchiveFileArgs, DateTime, FileOperands, MissingTimePolicy, PasswordArgs},
     command::{
         Command, ask_password,
         core::{
@@ -387,7 +387,9 @@ pub(crate) struct ExtractCommand {
     )]
     no_safe_writes: (),
     #[command(flatten)]
-    pub(crate) file: FileArgs,
+    pub(crate) archive: ArchiveFileArgs,
+    #[command(flatten)]
+    pub(crate) files: FileOperands,
 }
 
 impl Command for ExtractCommand {
@@ -400,7 +402,7 @@ impl Command for ExtractCommand {
 fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password).with_context(|| "reading password")?;
     let start = Instant::now();
-    let archive = args.file.archive;
+    let archive = args.archive.file;
     log::info!("Extract archive {}", PathWithCwd::new(&archive));
 
     let archives = collect_split_archives(&archive)
@@ -424,7 +426,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
 
-    let mut files = args.file.files;
+    let mut files = args.files.files;
     if let Some(path) = &args.files_from {
         files.extend(
             read_paths(path, args.null)

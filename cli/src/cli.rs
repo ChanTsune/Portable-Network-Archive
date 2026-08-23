@@ -14,7 +14,7 @@ use crate::{
     },
     utils::{fs::current_umask, process::is_running_as_root},
 };
-use clap::{ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
+use clap::{ArgGroup, Args, Parser, Subcommand, ValueEnum, ValueHint};
 use log::{Level, LevelFilter};
 use pna::HashAlgorithm;
 use std::{io, path::PathBuf};
@@ -213,10 +213,20 @@ pub(crate) enum Commands {
     Experimental(ExperimentalCommand),
 }
 
-#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct FileArgs {
-    #[arg(short = 'f', long = "file", help = "Archive file path", value_hint = ValueHint::FilePath)]
-    pub(crate) archive: PathBuf,
+#[derive(Args, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) struct ArchiveFileArgs {
+    #[arg(
+        short = 'f',
+        long = "file",
+        value_name = "ARCHIVE",
+        help = "Archive file path",
+        value_hint = ValueHint::FilePath
+    )]
+    pub(crate) file: PathBuf,
+}
+
+#[derive(Args, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) struct FileOperands {
     #[arg(help = "Files or directories to process", value_hint = ValueHint::FilePath)]
     pub(crate) files: Vec<String>,
 }

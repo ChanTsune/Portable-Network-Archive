@@ -1,4 +1,5 @@
 use crate::{
+    cli::ArchiveFileArgs,
     command::{Command, core::write_split_archive},
     utils::PathWithCwd,
 };
@@ -10,8 +11,8 @@ use std::{borrow::Cow, fs, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct SplitCommand {
-    #[arg(short = 'f', long = "file", help = "Archive file path", value_hint = ValueHint::FilePath)]
-    file: PathBuf,
+    #[command(flatten)]
+    archive: ArchiveFileArgs,
     #[arg(long, value_name = "DIRECTORY", help = "Output directory for split archives", value_hint = ValueHint::DirPath)]
     out_dir: Option<PathBuf>,
     #[arg(long, conflicts_with = "no_overwrite", help = "Overwrite file")]
@@ -39,7 +40,7 @@ impl Command for SplitCommand {
 
 #[hooq::hooq(anyhow)]
 fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
-    let archive_path = args.file;
+    let archive_path = args.archive.file;
     let max_file_size = usize::try_from(args.max_size.unwrap_or_else(|| ByteSize::gb(1)).as_u64())
         .context("--max-size is too large for this platform")?;
     ensure!(
