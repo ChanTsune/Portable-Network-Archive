@@ -14,6 +14,15 @@ pub struct FileEntryDef<'a> {
     pub permission: u16,
 }
 
+fn metadata_with_mode(mode: u16) -> pna::Metadata {
+    pna::Metadata::new()
+        .with_owner_uid(Some(pna::OwnerUid::from(1000)))
+        .with_owner_gid(Some(pna::OwnerGid::from(1000)))
+        .with_owner_user_name(Some(pna::OwnerUserName::new("user").unwrap()))
+        .with_owner_group_name(Some(pna::OwnerGroupName::new("group").unwrap()))
+        .with_permission_mode(Some(pna::PermissionMode::from(mode)))
+}
+
 /// Constructs an [`pna::ExtendedAttribute`] from raw name/value, panicking on
 /// length-bound violations. Test-only helper; production code must propagate
 /// the [`pna::LengthExceeded`] error instead.
@@ -34,18 +43,12 @@ pub fn create_archive_with_permissions(
     let mut archive = pna::Archive::write_header(file)?;
 
     for entry_def in entries {
-        let mut builder = pna::FileEntryBuilder::new(entry_def.path.into())?;
-        builder.metadata(
-            pna::Metadata::new()
-                .with_owner_uid(Some(pna::OwnerUid::from(1000)))
-                .with_owner_gid(Some(pna::OwnerGid::from(1000)))
-                .with_owner_user_name(Some(pna::OwnerUserName::new("user").unwrap()))
-                .with_owner_group_name(Some(pna::OwnerGroupName::new("group").unwrap()))
-                .with_permission_mode(Some(pna::PermissionMode::from(entry_def.permission))),
-        );
-        builder.write_all(entry_def.content)?;
-        let entry = builder.build()?;
-        archive.add_entry(entry)?;
+        archive.write_file(
+            entry_def.path.into(),
+            metadata_with_mode(entry_def.permission),
+            pna::WriteOptions::store(),
+            |writer| writer.write_all(entry_def.content),
+        )?;
     }
 
     archive.finalize()?;
@@ -58,25 +61,14 @@ pub fn create_solid_archive_with_permissions(
     entries: &[FileEntryDef],
 ) -> io::Result<()> {
     let file = File::create(archive_path)?;
-    let mut archive = pna::Archive::write_header(file)?;
-
-    let mut solid_builder = pna::SolidEntryBuilder::new(pna::WriteOptions::store())?;
+    let mut archive = pna::Archive::write_solid_header(file, pna::WriteOptions::store())?;
     for entry_def in entries {
-        let mut builder = pna::FileEntryBuilder::new(entry_def.path.into())?;
-        builder.metadata(
-            pna::Metadata::new()
-                .with_owner_uid(Some(pna::OwnerUid::from(1000)))
-                .with_owner_gid(Some(pna::OwnerGid::from(1000)))
-                .with_owner_user_name(Some(pna::OwnerUserName::new("user").unwrap()))
-                .with_owner_group_name(Some(pna::OwnerGroupName::new("group").unwrap()))
-                .with_permission_mode(Some(pna::PermissionMode::from(entry_def.permission))),
-        );
-        builder.write_all(entry_def.content)?;
-        let entry = builder.build()?;
-        solid_builder.add_entry(entry)?;
+        archive.write_file(
+            entry_def.path.into(),
+            metadata_with_mode(entry_def.permission),
+            |writer| writer.write_all(entry_def.content),
+        )?;
     }
-    let solid_entry = solid_builder.build()?;
-    archive.add_entry(solid_entry)?;
 
     archive.finalize()?;
     Ok(())
@@ -89,34 +81,20 @@ pub fn create_encrypted_solid_archive_with_permissions(
     password: &str,
 ) -> io::Result<()> {
     let file = File::create(archive_path)?;
-    let mut archive = pna::Archive::write_header(file)?;
-
     let write_options = pna::WriteOptions::builder()
         .password(Some(password))
         .encryption(pna::Encryption::AES)
         .cipher_mode(pna::CipherMode::GCM)
         .build();
 
-    let mut solid_builder = pna::SolidEntryBuilder::new(write_options)?;
+    let mut archive = pna::Archive::write_solid_header(file, write_options)?;
     for entry_def in entries {
-        let mut builder = pna::FileEntryBuilder::new_with_options(
+        archive.write_file(
             entry_def.path.into(),
-            pna::WriteOptions::store(),
+            metadata_with_mode(entry_def.permission),
+            |writer| writer.write_all(entry_def.content),
         )?;
-        builder.metadata(
-            pna::Metadata::new()
-                .with_owner_uid(Some(pna::OwnerUid::from(1000)))
-                .with_owner_gid(Some(pna::OwnerGid::from(1000)))
-                .with_owner_user_name(Some(pna::OwnerUserName::new("user").unwrap()))
-                .with_owner_group_name(Some(pna::OwnerGroupName::new("group").unwrap()))
-                .with_permission_mode(Some(pna::PermissionMode::from(entry_def.permission))),
-        );
-        builder.write_all(entry_def.content)?;
-        let entry = builder.build()?;
-        solid_builder.add_entry(entry)?;
     }
-    let solid_entry = solid_builder.build()?;
-    archive.add_entry(solid_entry)?;
 
     archive.finalize()?;
     Ok(())
@@ -138,19 +116,12 @@ pub fn create_encrypted_archive_with_permissions(
         .build();
 
     for entry_def in entries {
-        let mut builder =
-            pna::FileEntryBuilder::new_with_options(entry_def.path.into(), write_options.clone())?;
-        builder.metadata(
-            pna::Metadata::new()
-                .with_owner_uid(Some(pna::OwnerUid::from(1000)))
-                .with_owner_gid(Some(pna::OwnerGid::from(1000)))
-                .with_owner_user_name(Some(pna::OwnerUserName::new("user").unwrap()))
-                .with_owner_group_name(Some(pna::OwnerGroupName::new("group").unwrap()))
-                .with_permission_mode(Some(pna::PermissionMode::from(entry_def.permission))),
-        );
-        builder.write_all(entry_def.content)?;
-        let entry = builder.build()?;
-        archive.add_entry(entry)?;
+        archive.write_file(
+            entry_def.path.into(),
+            metadata_with_mode(entry_def.permission),
+            write_options.clone(),
+            |writer| writer.write_all(entry_def.content),
+        )?;
     }
 
     archive.finalize()?;
@@ -262,11 +233,12 @@ pub fn create_test_archive(path: impl AsRef<Path>, entries: &[(&str, &str)]) {
     let mut writer = pna::Archive::write_header(file).unwrap();
     for (name, contents) in entries {
         writer
-            .add_entry({
-                let mut builder = pna::FileEntryBuilder::new((*name).into()).unwrap();
-                builder.write_all(contents.as_bytes()).unwrap();
-                builder.build().unwrap()
-            })
+            .write_file(
+                (*name).into(),
+                pna::Metadata::new(),
+                pna::WriteOptions::store(),
+                |entry| entry.write_all(contents.as_bytes()),
+            )
             .unwrap();
     }
     writer.finalize().unwrap();
@@ -294,18 +266,12 @@ pub fn create_archive_with_symlinks(
     let mut archive = pna::Archive::write_header(file)?;
 
     for entry_def in file_entries {
-        let mut builder = pna::FileEntryBuilder::new(entry_def.path.into())?;
-        builder.metadata(
-            pna::Metadata::new()
-                .with_owner_uid(Some(pna::OwnerUid::from(1000)))
-                .with_owner_gid(Some(pna::OwnerGid::from(1000)))
-                .with_owner_user_name(Some(pna::OwnerUserName::new("user").unwrap()))
-                .with_owner_group_name(Some(pna::OwnerGroupName::new("group").unwrap()))
-                .with_permission_mode(Some(pna::PermissionMode::from(entry_def.permission))),
-        );
-        builder.write_all(entry_def.content)?;
-        let entry = builder.build()?;
-        archive.add_entry(entry)?;
+        archive.write_file(
+            entry_def.path.into(),
+            metadata_with_mode(entry_def.permission),
+            pna::WriteOptions::store(),
+            |writer| writer.write_all(entry_def.content),
+        )?;
     }
 
     for symlink_def in symlink_entries {

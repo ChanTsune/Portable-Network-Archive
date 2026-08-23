@@ -236,7 +236,7 @@ impl<'r> Iterator for Entries<'_, 'r> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{FileEntryBuilder, WriteOptions};
+    use crate::{Metadata, WriteOptions};
     use std::{io::Write, num::NonZeroU32};
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
@@ -282,11 +282,15 @@ mod tests {
     }
 
     fn archive_with_eight_byte_data() -> Vec<u8> {
-        let mut builder =
-            FileEntryBuilder::new_with_options("a".into(), WriteOptions::store()).unwrap();
-        builder.write_all(b"12345678").unwrap();
         let mut archive = Archive::write_header(Vec::new()).unwrap();
-        archive.add_entry(builder.build().unwrap()).unwrap();
+        archive
+            .write_file(
+                "a".into(),
+                Metadata::new(),
+                WriteOptions::store(),
+                |writer| writer.write_all(b"12345678"),
+            )
+            .unwrap();
         archive.finalize().unwrap()
     }
 
@@ -308,10 +312,14 @@ mod tests {
         let first = Archive::write_header(&mut first_bytes).unwrap();
         let mut second = first.split_to_next_archive(Vec::new()).unwrap();
 
-        let mut builder =
-            FileEntryBuilder::new_with_options("a".into(), WriteOptions::store()).unwrap();
-        builder.write_all(b"12345678").unwrap();
-        second.add_entry(builder.build().unwrap()).unwrap();
+        second
+            .write_file(
+                "a".into(),
+                Metadata::new(),
+                WriteOptions::store(),
+                |writer| writer.write_all(b"12345678"),
+            )
+            .unwrap();
         let second_bytes = second.finalize().unwrap();
 
         let mut first = Archive::read_header_from_slice(&first_bytes).unwrap();
