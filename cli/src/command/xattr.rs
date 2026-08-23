@@ -3,7 +3,7 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            SplitArchiveReader, Umask, collect_split_archives, resolve_rewrite_output,
+            EntryVisitor, Umask, resolve_rewrite_output,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
@@ -220,47 +220,56 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
         return Ok(());
     }
     let files = args.files.files;
-    let mut globs = GlobPatterns::new(files.iter().map(|p| p.as_str()))?;
-    let encoding = args.encoding;
-    let dump_option = DumpOption::new(args.dump, args.name.as_deref(), args.regex_match.as_deref())
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-
-    let mut source =
-        SplitArchiveReader::new(collect_split_archives(args.archive.require_file()?)?)?;
-    let read_options = ReadOptions::with_password(password.as_deref());
     let stdout = io::stdout();
     let mut output = stdout.lock();
+    let mut dump = XattrDump {
+        output: &mut output,
+        globs: GlobPatterns::new(files.iter().map(|p| p.as_str()))?,
+        encoding: args.encoding,
+        dump_option: DumpOption::new(args.dump, args.name.as_deref(), args.regex_match.as_deref())
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+    };
 
-    source.for_each_entry(
-        &read_options,
-        #[hooq::skip_all]
-        |entry| {
-            let entry = entry?;
-            let name = entry.name();
-            if globs.matches_any(name) {
-                writeln!(output, "# file: {}", name.as_str())?;
-                for attr in entry
-                    .metadata()
-                    .xattrs()
-                    .iter()
-                    .filter(|a| dump_option.is_match(a.name()))
-                {
-                    if dump_option.dump {
-                        write!(output, "{}=", attr.name())?;
-                        write_encoded_value(&mut output, attr.value(), encoding)?;
-                        writeln!(output)?;
-                    } else {
-                        writeln!(output, "{}", attr.name())?;
-                    }
-                }
-                writeln!(output)?;
-            }
-            Ok(())
-        },
-    )?;
+    let read_options = ReadOptions::with_password(password.as_deref());
+    args.archive
+        .source()
+        .open()?
+        .for_each_entry(&read_options, &mut dump)?;
+    dump.globs.ensure_all_matched()?;
     output.flush()?;
-    globs.ensure_all_matched()?;
     Ok(())
+}
+
+struct XattrDump<'o, 'g, 'n> {
+    output: &'o mut dyn Write,
+    globs: GlobPatterns<'g>,
+    encoding: Option<Encoding>,
+    dump_option: DumpOption<'n>,
+}
+
+impl EntryVisitor for XattrDump<'_, '_, '_> {
+    fn visit(&mut self, entry: NormalEntry<Cow<'_, [u8]>>) -> io::Result<()> {
+        let name = entry.name();
+        if self.globs.matches_any(name) {
+            writeln!(self.output, "# file: {name}")?;
+            for attr in entry
+                .metadata()
+                .xattrs()
+                .iter()
+                .filter(|attr| self.dump_option.is_match(attr.name()))
+            {
+                if self.dump_option.dump {
+                    write!(self.output, "{}=", attr.name())?;
+                    write_encoded_value(self.output, attr.value(), self.encoding)?;
+                    writeln!(self.output)?;
+                } else {
+                    writeln!(self.output, "{}", attr.name())?;
+                }
+            }
+            writeln!(self.output)?;
+        }
+        Ok(())
+    }
 }
 
 #[hooq::hooq(anyhow)]

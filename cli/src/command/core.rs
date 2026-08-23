@@ -16,7 +16,9 @@ mod staged_archive;
 pub(crate) mod time_filter;
 pub(crate) mod timestamp;
 
-pub(crate) use self::archive_source::SplitArchiveReader;
+pub(crate) use self::archive_source::{
+    EntryVisitor, ReadEntryVisitor, SourceConsumer, SplitArchiveReader,
+};
 pub(crate) use self::path::PathnameEditor;
 pub(crate) use self::permission::{ModeStrategy, OwnerOptions, OwnerStrategy, Umask};
 pub(crate) use self::safe_writer::SafeWriter;
