@@ -1,6 +1,8 @@
 mod file_operands;
 mod keep_solid;
 mod missing_file;
+#[cfg(not(target_family = "wasm"))]
+mod stdio;
 mod unsolid;
 
 use crate::utils::{EmbedExt, TestResources, archive, setup};
@@ -39,6 +41,7 @@ fn strip_removes_unspecified_metadata() {
         "strip",
         "-f",
         "strip_metadata/zstd_keep_all.pna",
+        "--overwrite",
         "--keep-timestamp",
     ])
     .unwrap()
@@ -130,6 +133,7 @@ fn strip_keep_permission_preserves_owner_facets() {
         "strip",
         "-f",
         "strip_keep_perm/zstd_keep_all.pna",
+        "--overwrite",
         "--keep-permission",
     ])
     .unwrap()
