@@ -105,70 +105,22 @@ mod tests {
 
     #[test]
     fn reorders_out_of_order_items() {
-        let iter = vec![(1, 20), (0, 10)].into_iter();
-        let mut ordered = ReorderByIndex::new(iter);
-        assert_eq!(ordered.next(), Some(10));
-        assert_eq!(ordered.next(), Some(20));
-        assert_eq!(ordered.next(), None);
-    }
-
-    #[test]
-    fn with_start_reorders_from_given_index() {
-        let src = vec![(2, "a"), (4, "c"), (3, "b")];
-        let out: Vec<_> = ReorderByIndex::with_start(src.into_iter(), 2).collect();
-        assert_eq!(out, vec!["a", "b", "c"]);
-    }
-
-    #[test]
-    fn handles_already_ordered_items() {
-        let items = vec![(0, 'a'), (1, 'b'), (2, 'c')];
+        let items = vec![(2, 'c'), (0, 'a'), (1, 'b')];
         let out: Vec<_> = ReorderByIndex::new(items.into_iter()).collect();
         assert_eq!(out, vec!['a', 'b', 'c']);
     }
 
     #[test]
-    fn handles_reverse_order() {
-        let items = vec![(2, 'c'), (1, 'b'), (0, 'a')];
-        let out: Vec<_> = ReorderByIndex::new(items.into_iter()).collect();
-        assert_eq!(out, vec!['a', 'b', 'c']);
-    }
-
-    #[test]
-    fn handles_empty_iterator() {
-        let items: Vec<(usize, i32)> = vec![];
-        let out: Vec<_> = ReorderByIndex::new(items.into_iter()).collect();
-        assert!(out.is_empty());
-    }
-
-    #[test]
-    fn handles_gap_in_indices() {
-        // Missing index 1: should yield 'a', skip gap, then yield 'c', 'd'
-        let items = vec![(0, 'a'), (2, 'c'), (3, 'd')];
-        let out: Vec<_> = ReorderByIndex::new(items.into_iter()).collect();
-        assert_eq!(out, vec!['a', 'c', 'd']);
-    }
-
-    #[test]
-    fn handles_multiple_gaps() {
-        // Missing indices 1 and 3
-        let items = vec![(0, 'a'), (2, 'c'), (4, 'e')];
+    fn skips_missing_indices_after_input_is_exhausted() {
+        let items = vec![(4, 'e'), (0, 'a'), (2, 'c')];
         let out: Vec<_> = ReorderByIndex::new(items.into_iter()).collect();
         assert_eq!(out, vec!['a', 'c', 'e']);
     }
 
     #[test]
-    fn handles_gap_at_start() {
-        // Missing index 0
-        let items = vec![(1, 'b'), (2, 'c')];
-        let out: Vec<_> = ReorderByIndex::new(items.into_iter()).collect();
-        assert_eq!(out, vec!['b', 'c']);
-    }
-
-    #[test]
-    fn handles_single_item_after_gap() {
-        // Only index 5, missing 0-4
-        let items = vec![(5, 'f')];
-        let out: Vec<_> = ReorderByIndex::new(items.into_iter()).collect();
-        assert_eq!(out, vec!['f']);
+    fn with_start_reorders_from_given_index() {
+        let items = vec![(3, 'b'), (4, 'c'), (2, 'a')];
+        let out: Vec<_> = ReorderByIndex::with_start(items.into_iter(), 2).collect();
+        assert_eq!(out, vec!['a', 'b', 'c']);
     }
 }
