@@ -1,17 +1,20 @@
 use crate::{
-    cli::{ArchiveFileArgs, FileOperands, PasswordArgs, SolidEntriesTransformStrategyArgs},
+    cli::{
+        ArchiveFileArgs, ArchiveOutputArgs, FileOperands, PasswordArgs,
+        SolidEntriesTransformStrategyArgs,
+    },
     command::{
         Command, ask_password,
         core::{
-            ArchiveSource, PathFilter, Umask,
-            archive_destination::ArchiveDestination,
+            PathFilter, Umask,
+            archive_destination::resolve_transform_destination,
             read_paths, read_paths_stdin,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
-    utils::{GlobPatterns, PathPartExt, VCS_FILES},
+    utils::{GlobPatterns, VCS_FILES},
 };
-use clap::{ArgAction, ArgGroup, Parser, ValueHint};
+use clap::{ArgGroup, Parser, ValueHint};
 use pna::NormalEntry;
 use std::{borrow::Cow, io, path::PathBuf};
 
@@ -26,21 +29,8 @@ use std::{borrow::Cow, io, path::PathBuf};
     group(ArgGroup::new("null-requires").arg("null").requires("from-input")),
 )]
 pub(crate) struct DeleteCommand {
-    #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
-    output: Option<PathBuf>,
-    #[arg(
-        long,
-        conflicts_with = "no_overwrite",
-        help = "Overwrite the output file (rewrite in place when --output is omitted)"
-    )]
-    overwrite: bool,
-    #[arg(
-        long,
-        action = ArgAction::SetTrue,
-        help = "Do not overwrite output file. This is the inverse option of --overwrite",
-        requires = "output"
-    )]
-    no_overwrite: (),
+    #[command(flatten)]
+    output: ArchiveOutputArgs,
     #[arg(
         long,
         value_name = "FILE",
@@ -114,6 +104,9 @@ impl Command for DeleteCommand {
 
 #[hooq::hooq(anyhow)]
 fn delete_file_from_archive(args: DeleteCommand, umask: Umask) -> anyhow::Result<()> {
+    let source = args.archive.source();
+    let destination =
+        resolve_transform_destination(&source, args.output.output, args.output.overwrite)?;
     let password = ask_password(args.password)?;
     let mut files = args.files.files;
     if args.files_from_stdin {
@@ -137,13 +130,8 @@ fn delete_file_from_archive(args: DeleteCommand, umask: Umask) -> anyhow::Result
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
 
-    let archive = args.archive.require_file()?;
-    let destination = match args.output {
-        Some(output) => ArchiveDestination::Replace(output),
-        None => ArchiveDestination::InPlace(archive.remove_part()),
-    };
     execute_archive_transform(
-        ArchiveSource::File(archive),
+        source,
         destination,
         umask,
         password.as_deref(),
