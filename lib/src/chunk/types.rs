@@ -74,7 +74,7 @@ impl From<ChunkTypeError> for io::Error {
 ///
 /// - **Timestamps**: [`cTIM`](Self::cTIM), [`mTIM`](Self::mTIM), [`aTIM`](Self::aTIM)
 ///   (seconds), [`cTNS`](Self::cTNS), [`mTNS`](Self::mTNS), [`aTNS`](Self::aTNS) (nanoseconds)
-/// - **File info**: [`fSIZ`](Self::fSIZ) (size), [`fPRM`](Self::fPRM) (permissions)
+/// - **File info**: [`fSIZ`](Self::fSIZ) (size)
 /// - **Link info**: [`fLTP`](Self::fLTP) (link target type)
 /// - **Extended attributes**: [`xATR`](Self::xATR)
 ///
@@ -137,13 +137,11 @@ impl ChunkType {
     /// Nanoseconds for last accessed datetime.
     #[allow(non_upper_case_globals)]
     pub const aTNS: ChunkType = ChunkType(*b"aTNS");
-    /// Entry permissions.
+    /// Legacy entry permissions, superseded by the owner facet chunks
+    /// (`fUId`/`fGId`/`fONm`/`fGNm`/`fOSi`/`fGSi`/`fMOd`). libpna never
+    /// writes this chunk; it exists only so the reader can still decode it.
     #[allow(non_upper_case_globals)]
-    #[deprecated(
-        since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks fUId/fGId/fONm/fGNm/fOSi/fGSi/fMOd"
-    )]
-    pub const fPRM: ChunkType = ChunkType(*b"fPRM");
+    pub(crate) const fPRM: ChunkType = ChunkType(*b"fPRM");
     /// Extended attribute.
     #[allow(non_upper_case_globals)]
     pub const xATR: ChunkType = ChunkType(*b"xATR");
