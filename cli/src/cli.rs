@@ -222,7 +222,19 @@ pub(crate) struct ArchiveFileArgs {
         short = 'f',
         long = "file",
         value_name = "ARCHIVE",
-        help = "Archive file path",
+        help = "Read the archive from this path; omit for standard input (a literal '-' is a file path)",
+        value_hint = ValueHint::FilePath
+    )]
+    pub(crate) file: Option<PathBuf>,
+}
+
+#[derive(Args, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) struct ArchiveCreateArgs {
+    #[arg(
+        short = 'f',
+        long = "file",
+        value_name = "ARCHIVE",
+        help = "Write the archive to this path; omit for standard output (a literal '-' is a file path)",
         value_hint = ValueHint::FilePath
     )]
     pub(crate) file: Option<PathBuf>,
@@ -232,14 +244,14 @@ pub(crate) struct ArchiveFileArgs {
 pub(crate) struct ArchiveOutputArgs {
     #[arg(
         long,
-        value_name = "ARCHIVE",
-        help = "Write the transformed archive to this path",
+        value_name = "OUTPUT",
+        help = "Write the transformed archive to this path; omit for standard output (a literal '-' is a file path)",
         value_hint = ValueHint::FilePath
     )]
     pub(crate) output: Option<PathBuf>,
     #[arg(
         long,
-        help = "Replace an existing output archive, or rewrite the input archive in place when --output is omitted"
+        help = "Replace an existing --output archive, or rewrite the --file input in place when --output is omitted"
     )]
     pub(crate) overwrite: bool,
 }

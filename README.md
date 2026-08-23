@@ -103,6 +103,50 @@ pna extract -f archive.pna
 pna list -f archive.pna
 ```
 
+#### Native standard I/O and pipelines
+
+For native commands that read an archive, omitting `--file` reads the PNA datastream from
+standard input. Commands that produce one archive write it to standard output when their output
+path is omitted.
+
+```sh
+# Create, inspect, and extract through a pipeline.
+pna create file1.txt file2.txt > archive.pna
+pna list < archive.pna
+pna extract --out-dir restored < archive.pna
+
+# Rewrites are non-mutating by default.
+pna delete obsolete.txt < archive.pna > cleaned.pna
+pna delete --file archive.pna obsolete.txt > cleaned.pna
+
+# Mutation is explicit.
+pna delete --file archive.pna --overwrite obsolete.txt
+
+# Concat takes repeated inputs; omit --output for stdout.
+pna concat --file part-a.pna --file part-b.pna > combined.pna
+```
+
+The former concat convention that treated the first `--file` as the output is removed; use
+`--output combined.pna` when the result should be written to a file.
+
+Native PNA syntax never treats `-` as a standard-I/O sentinel: `--file -`, `--output -`, and
+`--restore -` refer to a filesystem entry literally named `-`. This differs intentionally from
+`pna compat bsdtar`. An explicit output is no-clobber by default; add `--overwrite` to replace it.
+For rewrite commands, `--overwrite` without `--output` means in-place replacement of the `--file`
+input and is rejected for stdin.
+
+Filesystem replacement is staged and committed only after success. Standard output cannot be
+transactional, so a failing command or a consumer that closes early may leave the consumer with a
+partial stream; use a temporary file and rename it when atomic publication is required. A command
+also rejects combinations that assign stdin to both the archive and an auxiliary option such as
+`--files-from-stdin`.
+
+Multipart discovery is filesystem-only. A `--file` source can discover its numbered parts, while
+stdin contains only the sequential bytes supplied by the caller. Ordinary rewrites consolidate a
+multipart input when writing to stdout or `--output`; in-place multipart rewrites are rejected.
+`create --split` and `split` always produce filesystem files, and splitting stdin requires an
+explicit `split --output BASE_PATH` for part names.
+
 ### tar-like style
 
 If you prefer tar-like syntax, a bsdtar-compatible interface is available:
