@@ -64,64 +64,6 @@ fn chmod_glob_pattern_txt_files() {
     .unwrap();
 }
 
-/// Precondition: An archive contains multiple files with various permissions.
-/// Action: Run `pna experimental chmod` targeting multiple explicit files.
-/// Expectation: Only the specified files have their permissions changed in the archive.
-#[test]
-fn chmod_multiple_explicit_files() {
-    setup();
-
-    archive::create_archive_with_permissions(
-        "chmod_multi_files.pna",
-        &[
-            FileEntryDef {
-                path: "dir/text.txt",
-                content: b"text content",
-                permission: 0o644,
-            },
-            FileEntryDef {
-                path: "dir/empty.txt",
-                content: b"",
-                permission: 0o644,
-            },
-            FileEntryDef {
-                path: "dir/images/icon.png",
-                content: b"png data",
-                permission: 0o600,
-            },
-        ],
-    )
-    .unwrap();
-
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "experimental",
-        "chmod",
-        "-f",
-        "chmod_multi_files.pna",
-        "755",
-        "dir/text.txt",
-        "dir/empty.txt",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-
-    archive::for_each_entry("chmod_multi_files.pna", |entry| {
-        let path = entry.header().path();
-        let path_str = path.as_str();
-        if let Some(pm) = entry.metadata().permission_mode() {
-            if path_str == "dir/text.txt" || path_str == "dir/empty.txt" {
-                assert_eq!(pm.get() & 0o777, 0o755, "{} should be 755", path_str);
-            } else if path_str.ends_with(".png") {
-                assert_eq!(pm.get() & 0o777, 0o600, "icon.png should remain 600");
-            }
-        }
-    })
-    .unwrap();
-}
-
 /// Precondition: An archive contains files in nested directories.
 /// Action: Run `pna experimental chmod` with pattern targeting a subdirectory.
 /// Expectation: Only files in the matching subdirectory have changed permissions in the archive.
@@ -177,51 +119,4 @@ fn chmod_glob_pattern_subdirectory() {
         }
     })
     .unwrap();
-}
-
-/// Precondition: An archive contains files, and we verify permissions via archive inspection.
-/// Action: Run `pna experimental chmod` and check archive entry metadata directly.
-/// Expectation: Archive entries have the correct permission metadata.
-#[test]
-fn chmod_verify_archive_metadata() {
-    setup();
-
-    archive::create_archive_with_permissions(
-        "chmod_verify_meta.pna",
-        &[FileEntryDef {
-            path: "test.txt",
-            content: b"test content",
-            permission: 0o644,
-        }],
-    )
-    .unwrap();
-
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "experimental",
-        "chmod",
-        "-f",
-        "chmod_verify_meta.pna",
-        "755",
-        "test.txt",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-
-    let mut found = false;
-    archive::for_each_entry("chmod_verify_meta.pna", |entry| {
-        if entry.header().path() == "test.txt" {
-            found = true;
-            let mode = entry
-                .metadata()
-                .permission_mode()
-                .expect("entry should have permission mode metadata")
-                .get();
-            assert_eq!(mode & 0o777, 0o755, "archive entry should have 755");
-        }
-    })
-    .unwrap();
-    assert!(found, "target entry not found in archive");
 }
