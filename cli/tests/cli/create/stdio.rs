@@ -57,3 +57,15 @@ fn create_rejects_overwrite_without_a_file_destination() {
             "--overwrite requires --file PATH when creating an archive",
         ));
 }
+
+#[test]
+fn split_create_rejects_stdout_destination() {
+    setup();
+
+    cargo_bin_cmd!("pna")
+        .args(["create", "--unstable", "--split", "100kb"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains("--split requires --file PATH"));
+}
