@@ -11,11 +11,10 @@ mod read;
 mod reference;
 mod write;
 
-#[allow(deprecated)]
 pub use self::{
     attr::*,
     builder::{
-        DirEntryBuilder, EntryBuilder, FileEntryBuilder, HardLinkEntryBuilder, OpaqueEntryBuilder,
+        DirEntryBuilder, FileEntryBuilder, HardLinkEntryBuilder, OpaqueEntryBuilder,
         SolidEntryBuilder, SymlinkEntryBuilder,
     },
     content::*,
