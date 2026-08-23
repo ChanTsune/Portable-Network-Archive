@@ -37,6 +37,7 @@ fn sort_by_atime() {
         "pna",
         "--quiet",
         "sort",
+        "--overwrite",
         "-f",
         "sort_by_atime/unsorted.pna",
         "--by",

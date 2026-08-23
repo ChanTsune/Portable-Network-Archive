@@ -33,6 +33,7 @@ fn chmod_with_password_file() {
         "--quiet",
         "experimental",
         "chmod",
+        "--overwrite",
         "-f",
         "chmod_password_file.pna",
         "--password-file",

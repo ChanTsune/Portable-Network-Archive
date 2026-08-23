@@ -20,6 +20,7 @@ fn acl_set_output() {
         "set",
         "-f",
         "acl_set_output/zstd.pna",
+        "--overwrite",
         "--output",
         "acl_set_output/out.pna",
         "raw/text.txt",
