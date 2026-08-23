@@ -150,7 +150,7 @@ Portable-Network-Archive cli
 
 Create archive
 
-**Usage:** `pna create [OPTIONS] --file <ARCHIVE> [FILES]...`
+**Usage:** `pna create [OPTIONS] [FILES]...`
 
 **Command Alias:** `c`
 
@@ -172,7 +172,7 @@ Create archive
 * `--no-recursive` [alias: `no-recursion`] — Do not recursively add directories to the archives. This is the inverse option of --recursive
 
   Default value: `false`
-* `--overwrite` — Overwrite file
+* `--overwrite` — Replace an existing --file archive; requires --file
 
   Default value: `false`
 * `--no-overwrite` — Do not overwrite files. This is the inverse option of --overwrite
@@ -208,7 +208,7 @@ Create archive
 * `--no-preserve-acls` [alias: `no-keep-acl`] — Do not archive ACLs. This is the inverse option of --preserve-acls
 
   Default value: `false`
-* `--split <size>` — Splits archive by given size in bytes (minimum 64B)
+* `--split <size>` — Split the archive into filesystem parts (minimum 64B); requires --file
 * `--solid` — Compress multiple files together for better compression ratio
 
   Default value: `false`
@@ -283,7 +283,7 @@ Create archive
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
-* `-f`, `--file <ARCHIVE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Write the archive to this path; omit for standard output (a literal '-' is a file path)
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -313,7 +313,7 @@ Create archive
 
 Append files to archive
 
-**Usage:** `pna append [OPTIONS] --file <ARCHIVE> [FILES]...`
+**Usage:** `pna append [OPTIONS] [FILES]...`
 
 **Command Alias:** `a`
 
@@ -436,7 +436,14 @@ Append files to archive
 
 * `--argon2 <PARAMS>` — Use argon2 for password hashing
 * `--pbkdf2 <PARAMS>` — Use pbkdf2 for password hashing
-* `-f`, `--file <ARCHIVE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Read the archive from this path; omit for standard input (a literal '-' is a file path)
+* `--output <OUTPUT>` — Write the transformed archive to this path; omit for standard output (a literal '-' is a file path)
+* `--overwrite` — Replace an existing --output archive, or rewrite the --file input in place when --output is omitted
+
+  Default value: `false`
+* `--no-overwrite` — Deprecated: omit this flag to preserve existing output archives
+
+  Default value: `false`
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -466,7 +473,7 @@ Append files to archive
 
 Update entries in archive
 
-**Usage:** `pna update [OPTIONS] --file <ARCHIVE> [FILES]...`
+**Usage:** `pna update [OPTIONS] [FILES]...`
 
 ###### **Arguments:**
 
@@ -474,11 +481,11 @@ Update entries in archive
 
 ###### **Options:**
 
-* `--output <OUTPUT>` — Output file path
-* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+* `--output <OUTPUT>` — Write the transformed archive to this path; omit for standard output (a literal '-' is a file path)
+* `--overwrite` — Replace an existing --output archive, or rewrite the --file input in place when --output is omitted
 
   Default value: `false`
-* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+* `--no-overwrite` — Deprecated: omit this flag to preserve existing output archives
 
   Default value: `false`
 * `--one-file-system` — Stay in the same file system when collecting files
@@ -589,7 +596,7 @@ Update entries in archive
 * `--keep-solid` — Preserve solid entries without conversion
 
   Default value: `false`
-* `-f`, `--file <ARCHIVE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Read the archive from this path; omit for standard input (a literal '-' is a file path)
 * `--null` — Filenames or patterns are separated by null characters, not by newlines
 
   Default value: `false`
@@ -634,7 +641,7 @@ Update entries in archive
 
 Extract files from archive
 
-**Usage:** `pna extract [OPTIONS] --file <ARCHIVE> [FILES]...`
+**Usage:** `pna extract [OPTIONS] [FILES]...`
 
 **Command Alias:** `x`
 
@@ -644,7 +651,7 @@ Extract files from archive
 
 ###### **Options:**
 
-* `--overwrite` — Overwrite file
+* `--overwrite` — Overwrite existing extracted files
 
   Default value: `false`
 * `--no-overwrite` — Do not overwrite files. This is the inverse option of --overwrite
@@ -743,7 +750,7 @@ Extract files from archive
 * `--no-safe-writes` — Disable atomic extraction. This is the inverse option of --safe-writes
 
   Default value: `false`
-* `-f`, `--file <ARCHIVE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Read the archive from this path; omit for standard input (a literal '-' is a file path)
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -773,7 +780,7 @@ Extract files from archive
 
 List files in archive
 
-**Usage:** `pna list [OPTIONS] --file <ARCHIVE> [FILES]...`
+**Usage:** `pna list [OPTIONS] [FILES]...`
 
 **Command Aliases:** `l`, `ls`
 
@@ -851,7 +858,7 @@ List files in archive
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
-* `-f`, `--file <ARCHIVE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Read the archive from this path; omit for standard input (a literal '-' is a file path)
 * `--help` — Print help
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
@@ -881,7 +888,7 @@ List files in archive
 
 Delete entry from archive
 
-**Usage:** `pna delete [OPTIONS] --file <ARCHIVE> [FILES]...`
+**Usage:** `pna delete [OPTIONS] [FILES]...`
 
 ###### **Arguments:**
 
@@ -889,11 +896,11 @@ Delete entry from archive
 
 ###### **Options:**
 
-* `--output <OUTPUT>` — Output file path
-* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+* `--output <OUTPUT>` — Write the transformed archive to this path; omit for standard output (a literal '-' is a file path)
+* `--overwrite` — Replace an existing --output archive, or rewrite the --file input in place when --output is omitted
 
   Default value: `false`
-* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+* `--no-overwrite` — Deprecated: omit this flag to preserve existing output archives
 
   Default value: `false`
 * `--files-from <FILE>` — Read deleting files from given path
@@ -918,7 +925,7 @@ Delete entry from archive
 * `--keep-solid` — Preserve solid entries without conversion
 
   Default value: `false`
-* `-f`, `--file <ARCHIVE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Read the archive from this path; omit for standard input (a literal '-' is a file path)
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -948,14 +955,14 @@ Delete entry from archive
 
 Split archive
 
-**Usage:** `pna split [OPTIONS] --file <ARCHIVE>`
+**Usage:** `pna split [OPTIONS]`
 
 ###### **Options:**
 
-* `-f`, `--file <ARCHIVE>` — Archive file path
-* `--output <BASE_PATH>` — Base path used to name split archive parts. Relative paths resolve under --out-dir when given
+* `-f`, `--file <ARCHIVE>` — Read the archive from this path; omit for standard input (a literal '-' is a file path)
+* `--output <BASE_PATH>` — Base path used to name split archive parts; required when --file is omitted. Relative paths resolve under --out-dir when given
 * `--out-dir <DIRECTORY>` — Output directory for split archives
-* `--overwrite` — Overwrite file
+* `--overwrite` — Replace existing split part files
 
   Default value: `false`
 * `--no-overwrite` — Do not overwrite files. This is the inverse option of --overwrite
@@ -991,18 +998,18 @@ Split archive
 
 Concat archives
 
-**Usage:** `pna concat [OPTIONS] --files <FILES>`
+**Usage:** `pna concat [OPTIONS]`
 
 ###### **Options:**
 
-* `--overwrite` — Overwrite file
+* `-f`, `--file <INPUT>` — Archive input; repeat for multiple archives or omit all --file options for standard input (a literal '-' is a file path)
+* `--output <OUTPUT>` — Write the concatenated archive to this path; omit for standard output (a literal '-' is a file path)
+* `--overwrite` — Replace an existing --output archive
 
   Default value: `false`
 * `--no-overwrite` — Do not overwrite files. This is the inverse option of --overwrite
 
   Default value: `false`
-* `-f`, `--files <FILES>` — Archive files to concatenate
-* `--output <OUTPUT>` — Output archive file path
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -1032,7 +1039,7 @@ Concat archives
 
 Strip entries metadata
 
-**Usage:** `pna strip [OPTIONS] --file <ARCHIVE> [FILES]...`
+**Usage:** `pna strip [OPTIONS] [FILES]...`
 
 ###### **Arguments:**
 
@@ -1059,17 +1066,17 @@ Strip entries metadata
 * `--keep-solid` — Preserve solid entries without conversion
 
   Default value: `false`
-* `--output <OUTPUT>` — Output file path
-* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+* `--output <OUTPUT>` — Write the transformed archive to this path; omit for standard output (a literal '-' is a file path)
+* `--overwrite` — Replace an existing --output archive, or rewrite the --file input in place when --output is omitted
 
   Default value: `false`
-* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+* `--no-overwrite` — Deprecated: omit this flag to preserve existing output archives
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
-* `-f`, `--file <ARCHIVE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Read the archive from this path; omit for standard input (a literal '-' is a file path)
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -1097,18 +1104,18 @@ Strip entries metadata
 
 ## `pna sort`
 
-Sort entries in archive
+Sort entries in archive. The complete entry set is held in memory before output; stdin support does not make sorting memory-bounded.
 
-**Usage:** `pna sort [OPTIONS] --file <ARCHIVE>`
+**Usage:** `pna sort [OPTIONS]`
 
 ###### **Options:**
 
-* `-f`, `--file <ARCHIVE>` — Archive file path
-* `--output <OUTPUT>` — Output archive file path
-* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+* `-f`, `--file <ARCHIVE>` — Read the archive from this path; omit for standard input (a literal '-' is a file path)
+* `--output <OUTPUT>` — Write the transformed archive to this path; omit for standard output (a literal '-' is a file path)
+* `--overwrite` — Replace an existing --output archive, or rewrite the --file input in place when --output is omitted
 
   Default value: `false`
-* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+* `--no-overwrite` — Deprecated: omit this flag to preserve existing output archives
 
   Default value: `false`
 * `--by <KEY>` — Sort key in format KEY[:ORDER] (e.g., name, mtime:desc) [keys: name, ctime, mtime, atime] [orders: asc, desc]
@@ -1144,7 +1151,7 @@ Sort entries in archive
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
-* `-h`, `--help` — Print help
+* `-h`, `--help` — Print help (see a summary with '-h')
 
 
 
@@ -1152,7 +1159,7 @@ Sort entries in archive
 
 Upgrade archives created by older PNA versions
 
-**Usage:** `pna migrate [OPTIONS] --file <ARCHIVE> --output <OUTPUT>`
+**Usage:** `pna migrate [OPTIONS]`
 
 ###### **Options:**
 
@@ -1165,12 +1172,12 @@ Upgrade archives created by older PNA versions
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
-* `-f`, `--file <ARCHIVE>` — Archive file path
-* `--output <OUTPUT>` — Output file path
-* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+* `-f`, `--file <ARCHIVE>` — Read the archive from this path; omit for standard input (a literal '-' is a file path)
+* `--output <OUTPUT>` — Write the transformed archive to this path; omit for standard output (a literal '-' is a file path)
+* `--overwrite` — Replace an existing --output archive, or rewrite the --file input in place when --output is omitted
 
   Default value: `false`
-* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+* `--no-overwrite` — Deprecated: omit this flag to preserve existing output archives
 
   Default value: `false`
 * `--quiet` — Make some output more quiet (alias for --log-level off)
@@ -1242,7 +1249,7 @@ Manipulate extended attributes
 
 Get extended attributes of entries
 
-**Usage:** `pna xattr get [OPTIONS] --file <ARCHIVE> [FILES]...`
+**Usage:** `pna xattr get [OPTIONS] [FILES]...`
 
 ###### **Arguments:**
 
@@ -1250,7 +1257,7 @@ Get extended attributes of entries
 
 ###### **Options:**
 
-* `-f`, `--file <ARCHIVE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Read the archive from this path; omit for standard input (a literal '-' is a file path)
 * `-n`, `--name <NAME>` — Dump the value of the named extended attribute
 * `-d`, `--dump` — Dump the values of all matched extended attributes
 
@@ -1292,7 +1299,7 @@ Get extended attributes of entries
 
 Set extended attributes of entries
 
-**Usage:** `pna xattr set [OPTIONS] --file <ARCHIVE> [FILES]...`
+**Usage:** `pna xattr set [OPTIONS] [FILES]...`
 
 ###### **Arguments:**
 
@@ -1300,19 +1307,19 @@ Set extended attributes of entries
 
 ###### **Options:**
 
-* `-f`, `--file <ARCHIVE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Read the archive from this path; omit for standard input (a literal '-' is a file path)
+* `--output <OUTPUT>` — Write the transformed archive to this path; omit for standard output (a literal '-' is a file path)
+* `--overwrite` — Replace an existing --output archive, or rewrite the --file input in place when --output is omitted
+
+  Default value: `false`
+* `--no-overwrite` — Deprecated: omit this flag to preserve existing output archives
+
+  Default value: `false`
 * `-n`, `--name <NAME>` — Name of extended attribute
 * `-v`, `--value <VALUE>` — Value of extended attribute
 * `-x`, `--remove <NAME>` — Remove extended attribute
 * `--restore <FILE>` — Restore extended attributes from a file in the format generated by pna xattr get --dump. For compatibility, '-' temporarily reads from standard input; use --restore-from-stdin instead
 * `--restore-from-stdin` — Restore extended attributes from standard input in the format generated by pna xattr get --dump
-
-  Default value: `false`
-* `--output <OUTPUT>` — Output file path
-* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
-
-  Default value: `false`
-* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
 
   Default value: `false`
 * `--unsolid` — Convert solid entries to regular entries
@@ -1815,7 +1822,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 Update entries in archive (stabilized, use `pna update` command instead. this command will be removed in the future)
 
-**Usage:** `pna experimental update [OPTIONS] --file <ARCHIVE> [FILES]...`
+**Usage:** `pna experimental update [OPTIONS] [FILES]...`
 
 ###### **Arguments:**
 
@@ -1823,11 +1830,11 @@ Update entries in archive (stabilized, use `pna update` command instead. this co
 
 ###### **Options:**
 
-* `--output <OUTPUT>` — Output file path
-* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+* `--output <OUTPUT>` — Write the transformed archive to this path; omit for standard output (a literal '-' is a file path)
+* `--overwrite` — Replace an existing --output archive, or rewrite the --file input in place when --output is omitted
 
   Default value: `false`
-* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+* `--no-overwrite` — Deprecated: omit this flag to preserve existing output archives
 
   Default value: `false`
 * `--one-file-system` — Stay in the same file system when collecting files
@@ -1938,7 +1945,7 @@ Update entries in archive (stabilized, use `pna update` command instead. this co
 * `--keep-solid` — Preserve solid entries without conversion
 
   Default value: `false`
-* `-f`, `--file <ARCHIVE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Read the archive from this path; omit for standard input (a literal '-' is a file path)
 * `--null` — Filenames or patterns are separated by null characters, not by newlines
 
   Default value: `false`
@@ -1983,7 +1990,7 @@ Update entries in archive (stabilized, use `pna update` command instead. this co
 
 Change owner
 
-**Usage:** `pna experimental chown [OPTIONS] --file <ARCHIVE> <OWNER> [FILES]...`
+**Usage:** `pna experimental chown [OPTIONS] <OWNER> [FILES]...`
 
 ###### **Arguments:**
 
@@ -1992,7 +1999,14 @@ Change owner
 
 ###### **Options:**
 
-* `-f`, `--file <ARCHIVE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Read the archive from this path; omit for standard input (a literal '-' is a file path)
+* `--output <OUTPUT>` — Write the transformed archive to this path; omit for standard output (a literal '-' is a file path)
+* `--overwrite` — Replace an existing --output archive, or rewrite the --file input in place when --output is omitted
+
+  Default value: `false`
+* `--no-overwrite` — Deprecated: omit this flag to preserve existing output archives
+
+  Default value: `false`
 * `--numeric-owner` — force numeric owner and group IDs (no name resolution)
 
   Default value: `false`
@@ -2000,13 +2014,6 @@ Change owner
 
   Default value: `true`
 * `--no-owner-lookup` — do not resolve user and group
-
-  Default value: `false`
-* `--output <OUTPUT>` — Output file path
-* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
-
-  Default value: `false`
-* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
 
   Default value: `false`
 * `--unsolid` — Convert solid entries to regular entries
@@ -2047,7 +2054,7 @@ Change owner
 
 Change mode
 
-**Usage:** `pna experimental chmod [OPTIONS] --file <ARCHIVE> <MODE> [FILES]...`
+**Usage:** `pna experimental chmod [OPTIONS] <MODE> [FILES]...`
 
 ###### **Arguments:**
 
@@ -2056,12 +2063,12 @@ Change mode
 
 ###### **Options:**
 
-* `-f`, `--file <ARCHIVE>` — Archive file path
-* `--output <OUTPUT>` — Output file path
-* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+* `-f`, `--file <ARCHIVE>` — Read the archive from this path; omit for standard input (a literal '-' is a file path)
+* `--output <OUTPUT>` — Write the transformed archive to this path; omit for standard output (a literal '-' is a file path)
+* `--overwrite` — Replace an existing --output archive, or rewrite the --file input in place when --output is omitted
 
   Default value: `false`
-* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+* `--no-overwrite` — Deprecated: omit this flag to preserve existing output archives
 
   Default value: `false`
 * `--unsolid` — Convert solid entries to regular entries
@@ -2142,7 +2149,7 @@ Manipulate ACLs of entries
 
 Get acl of entries
 
-**Usage:** `pna experimental acl get [OPTIONS] --file <ARCHIVE> [FILES]...`
+**Usage:** `pna experimental acl get [OPTIONS] [FILES]...`
 
 ###### **Arguments:**
 
@@ -2154,7 +2161,7 @@ Get acl of entries
 * `-n`, `--numeric` — List numeric user and group IDs
 
   Default value: `false`
-* `-f`, `--file <ARCHIVE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Read the archive from this path; omit for standard input (a literal '-' is a file path)
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
@@ -2187,7 +2194,7 @@ Get acl of entries
 
 Set acl of entries
 
-**Usage:** `pna experimental acl set [OPTIONS] --file <ARCHIVE> [FILES]...`
+**Usage:** `pna experimental acl set [OPTIONS] [FILES]...`
 
 ###### **Arguments:**
 
@@ -2195,7 +2202,14 @@ Set acl of entries
 
 ###### **Options:**
 
-* `-f`, `--file <ARCHIVE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Read the archive from this path; omit for standard input (a literal '-' is a file path)
+* `--output <OUTPUT>` — Write the transformed archive to this path; omit for standard output (a literal '-' is a file path)
+* `--overwrite` — Replace an existing --output archive, or rewrite the --file input in place when --output is omitted
+
+  Default value: `false`
+* `--no-overwrite` — Deprecated: omit this flag to preserve existing output archives
+
+  Default value: `false`
 * `--set <SET>` — Set the ACL on the specified file.
 * `-m`, `--modify <MODIFY>` — Modify the ACL on the specified file. New entries will be added, and existing entries will be modified according to the entries argument.
 * `-x`, `--remove <REMOVE>` — Remove the ACL entries specified there from the access or default ACLs of the specified files.
@@ -2204,13 +2218,6 @@ Set acl of entries
   Default value: ``
 * `--restore <RESTORE>` — Restore from a file a permission backup created by `pna acl get *` or similar. All permissions of a complete directory subtree are restored using this mechanism
 * `--restore-from-stdin` — Restore a permission backup created by `pna acl get *` or similar from standard input
-
-  Default value: `false`
-* `--output <OUTPUT>` — Output file path
-* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
-
-  Default value: `false`
-* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
 
   Default value: `false`
 * `--unsolid` — Convert solid entries to regular entries
@@ -2328,7 +2335,7 @@ Chunk level operation
 
 List chunks
 
-**Usage:** `pna experimental chunk list [OPTIONS] --file <ARCHIVE>`
+**Usage:** `pna experimental chunk list [OPTIONS]`
 
 ###### **Options:**
 
@@ -2340,7 +2347,7 @@ List chunks
   Default value: `false`
 * `--type <TYPE>` — Only list chunks of the specified type
 * `--exclude-type <TYPE>` — Do not list chunks of the specified type
-* `-f`, `--file <ARCHIVE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Read the archive from this path; omit for standard input (a literal '-' is a file path)
 * `--help` — Print help
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
@@ -2399,7 +2406,7 @@ Print this message or the help of the given subcommand(s)
 
 Compare archive entries with filesystem
 
-**Usage:** `pna experimental diff [OPTIONS] --file <ARCHIVE> [FILES]...`
+**Usage:** `pna experimental diff [OPTIONS] [FILES]...`
 
 ###### **Arguments:**
 
@@ -2407,7 +2414,7 @@ Compare archive entries with filesystem
 
 ###### **Options:**
 
-* `-f`, `--file <ARCHIVE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Read the archive from this path; omit for standard input (a literal '-' is a file path)
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
@@ -2463,13 +2470,13 @@ Compare archive entries with filesystem
 
 Verify archive integrity
 
-**Usage:** `pna experimental verify [OPTIONS] --file <ARCHIVE>`
+**Usage:** `pna experimental verify [OPTIONS]`
 
 Note: for entries encrypted in CBC or CTR mode, a wrong password is indistinguishable from corruption. GCM mode instead reports a key mismatch, meaning the password does not match the key derivation parameters recorded for the entry: either the password is wrong, or those recorded parameters were themselves altered.
 
 ###### **Options:**
 
-* `-f`, `--file <ARCHIVE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Read the archive from this path; omit for standard input (a literal '-' is a file path)
 * `--fast` — Verify only chunk structure and CRC32. No entry data is decoded, so neither the entries contained in a solid block nor corruption that leaves a chunk's CRC32 intact are checked. Every entry whose chunks are intact is counted as ok, and no password is required.
 
   Default value: `false`

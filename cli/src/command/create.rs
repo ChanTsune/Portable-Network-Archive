@@ -1,6 +1,6 @@
 use crate::{
     cli::{
-        ArchiveFileArgs, CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileOperands,
+        ArchiveCreateArgs, CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileOperands,
         HashAlgorithmArgs, MissingTimePolicy, PasswordArgs,
     },
     command::{
@@ -83,7 +83,11 @@ pub(crate) struct CreateCommand {
         help = "Do not recursively add directories to the archives. This is the inverse option of --recursive"
     )]
     no_recursive: (),
-    #[arg(long, conflicts_with = "no_overwrite", help = "Overwrite file")]
+    #[arg(
+        long,
+        conflicts_with = "no_overwrite",
+        help = "Replace an existing --file archive; requires --file"
+    )]
     overwrite: bool,
     #[arg(
         long,
@@ -171,7 +175,7 @@ pub(crate) struct CreateCommand {
     #[arg(
         long,
         value_name = "size",
-        help = "Splits archive by given size in bytes (minimum 64B)"
+        help = "Split the archive into filesystem parts (minimum 64B); requires --file"
     )]
     pub(crate) split: Option<Option<ByteSize>>,
     #[arg(
@@ -403,7 +407,7 @@ pub(crate) struct CreateCommand {
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
-    pub(crate) archive: ArchiveFileArgs,
+    pub(crate) archive: ArchiveCreateArgs,
     #[command(flatten)]
     pub(crate) files: FileOperands,
 }
