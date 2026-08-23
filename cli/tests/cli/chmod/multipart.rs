@@ -58,17 +58,11 @@ fn chmod_multipart_archive_updates_consolidated_output() {
     .execute()
     .unwrap();
 
+    let (mode, contents) =
+        super::entry_snapshot("chmod_multipart/split/archive.pna", ENTRY_PATH, None);
+    assert_eq!(mode, 0o600);
     assert_eq!(
-        archive::entry_mode("chmod_multipart/split/archive.pna", ENTRY_PATH),
-        0o600
-    );
-    assert_eq!(
-        archive::entry_contents_with_password(
-            "chmod_multipart/split/archive.pna",
-            ENTRY_PATH,
-            None,
-        ),
-        content,
+        contents, content,
         "chmod must preserve content spanning multipart archive boundaries"
     );
 }

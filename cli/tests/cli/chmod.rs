@@ -11,16 +11,42 @@ use crate::utils::{archive, archive::FileEntryDef, setup};
 use clap::Parser;
 #[allow(deprecated)]
 use pna::Permission;
+use pna::prelude::*;
 use pna::{
     Archive, DirEntryBuilder, EntryName, FileEntryBuilder, HardLinkEntryBuilder, Metadata,
-    SymlinkEntryBuilder,
+    ReadOptions, SymlinkEntryBuilder,
 };
 use portable_network_archive::cli;
 use std::fs::File;
-use std::io::Write;
+use std::io::{Read, Write};
 
 const ENTRY_PATH: &str = "test.txt";
 const ENTRY_CONTENT: &[u8] = b"test content";
+
+fn entry_snapshot(path: &str, name: &str, password: Option<&str>) -> (u16, Vec<u8>) {
+    let options = ReadOptions::with_password(password.map(str::as_bytes));
+    let mut archive = Archive::open(path).unwrap();
+    let entry = archive
+        .entries_with_options(&options)
+        .find_map(|entry| {
+            let entry = entry.unwrap();
+            (entry.name() == name).then_some(entry)
+        })
+        .expect("target entry should exist");
+    let mode = entry
+        .metadata()
+        .permission_mode()
+        .expect("entry should have permission mode metadata")
+        .get()
+        & 0o777;
+    let mut contents = Vec::new();
+    entry
+        .reader(options)
+        .unwrap()
+        .read_to_end(&mut contents)
+        .unwrap();
+    (mode, contents)
+}
 
 /// Precondition: An archive contains a file with permission 0o777 (rwxrwxrwx).
 /// Action: Run `pna experimental chmod` with `-x` to remove execute permission for all.

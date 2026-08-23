@@ -2,7 +2,7 @@ use pna::ReadOptions;
 use pna::prelude::*;
 use std::{
     fs::File,
-    io::{self, Read, Write},
+    io::{self, Write},
     mem,
     path::Path,
 };
@@ -128,23 +128,6 @@ pub fn create_encrypted_archive_with_permissions(
     Ok(())
 }
 
-pub fn extract_single_entry(
-    path: impl AsRef<Path>,
-    name: &str,
-) -> io::Result<Option<pna::NormalEntry>> {
-    let mut archive = pna::Archive::open(path)?;
-    let entries = archive
-        .entries()
-        .extract_solid_entries(&ReadOptions::builder().build());
-    for entry in entries {
-        let entry = entry?;
-        if entry.header().path() == name {
-            return Ok(Some(entry));
-        }
-    }
-    Ok(None)
-}
-
 pub fn for_each_entry<F>(path: impl AsRef<Path>, f: F) -> io::Result<()>
 where
     F: FnMut(pna::NormalEntry),
@@ -163,64 +146,21 @@ where
     let password = password.into().map(|p| p.as_bytes());
     let mut archive = pna::Archive::open(path)?;
     let read_options = ReadOptions::with_password(password);
-    let entries = archive.entries().extract_solid_entries(&read_options);
+    let entries = archive.entries_with_options(&read_options);
     for entry in entries {
         f(entry?);
     }
     Ok(())
 }
 
-pub fn entry_mode(path: impl AsRef<Path>, name: &str) -> u16 {
-    entry_mode_with_password(path, name, None)
-}
-
-pub fn entry_mode_with_password(path: impl AsRef<Path>, name: &str, password: Option<&str>) -> u16 {
-    let mut mode = None;
-    for_each_entry_with_password(path, password, |entry| {
-        if entry.name() == name {
-            mode = Some(
-                entry
-                    .metadata()
-                    .permission_mode()
-                    .expect("entry should have permission mode metadata")
-                    .get()
-                    & 0o777,
-            );
-        }
-    })
-    .unwrap();
-    mode.expect("target entry should exist")
-}
-
-pub fn entry_contents_with_password(
-    path: impl AsRef<Path>,
-    name: &str,
-    password: Option<&str>,
-) -> Vec<u8> {
-    let password_bytes = password.map(str::as_bytes);
-    let mut contents = None;
-    for_each_entry_with_password(path, password, |entry| {
-        if entry.name() == name {
-            let mut reader = entry
-                .reader(pna::ReadOptions::with_password(password_bytes))
-                .unwrap();
-            let mut data = Vec::new();
-            reader.read_to_end(&mut data).unwrap();
-            contents = Some(data);
-        }
-    })
-    .unwrap();
-    contents.expect("target entry should exist")
-}
-
 pub fn read_symlink_target(entry: &pna::NormalEntry) -> String {
-    let mut target = Vec::new();
-    entry
-        .reader(pna::ReadOptions::with_password::<&[u8]>(None))
+    let pna::EntryContent::SymbolicLink(target) = entry
+        .content(pna::ReadOptions::with_password::<&[u8]>(None))
         .unwrap()
-        .read_to_end(&mut target)
-        .unwrap();
-    String::from_utf8(target).unwrap()
+    else {
+        panic!("entry should contain a symbolic link target");
+    };
+    target.to_string()
 }
 
 /// Creates a simple archive with named text entries.
