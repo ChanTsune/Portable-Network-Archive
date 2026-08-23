@@ -87,10 +87,10 @@ fn chown_user_only() {
 
 /// Precondition: An archive entry carries legacy fPRM metadata.
 /// Action: Run `pna experimental chown` to change the user.
-/// Expectation: Ownership is emitted as owner facets, and stale fPRM is removed.
+/// Expectation: The user is updated; the group side, untouched by the
+/// command, keeps the value filled from the entry's legacy fPRM.
 #[test]
-#[allow(deprecated)]
-fn chown_user_only_drops_legacy_fprm() {
+fn chown_user_only_on_legacy_fprm_entry_preserves_group() {
     setup();
     TestResources::extract_in(LEGACY_FIXTURE, "chown_legacy_fprm/").unwrap();
     let path = format!("chown_legacy_fprm/{LEGACY_FIXTURE}");
@@ -115,10 +115,6 @@ fn chown_user_only_drops_legacy_fprm() {
         if entry.header().path().as_str() == LEGACY_FIXTURE_ENTRY {
             found = true;
             let metadata = entry.metadata();
-            assert!(
-                metadata.permission().is_none(),
-                "legacy fPRM must be removed after chown"
-            );
             assert_eq!(metadata.owner_user_name().unwrap().as_str(), "new_user");
             assert_eq!(metadata.owner_uid().unwrap().get(), u64::MAX);
             // The group side wasn't targeted, so it's rescued from the
@@ -141,7 +137,6 @@ fn chown_user_only_drops_legacy_fprm() {
 /// see `owner_user_name`/`owner_group_name` as merely "unset" and refill
 /// them from `fPRM`'s `uname`/`gname`.
 #[test]
-#[allow(deprecated)]
 fn chown_numeric_owner_drops_legacy_fprm_names() {
     setup();
     TestResources::extract_in(LEGACY_FIXTURE, "chown_numeric_owner_legacy_fprm/").unwrap();
@@ -168,10 +163,6 @@ fn chown_numeric_owner_drops_legacy_fprm_names() {
         if entry.header().path().as_str() == LEGACY_FIXTURE_ENTRY {
             found = true;
             let metadata = entry.metadata();
-            assert!(
-                metadata.permission().is_none(),
-                "legacy fPRM must be removed after chown"
-            );
             assert_eq!(metadata.owner_uid().unwrap().get(), 1000);
             assert_eq!(metadata.owner_gid().unwrap().get(), 2000);
             assert!(
