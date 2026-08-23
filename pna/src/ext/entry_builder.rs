@@ -208,8 +208,6 @@ mod tests {
         assert!(out.chars().all(|c| c == two_byte_char));
     }
 
-    #[allow(deprecated)]
-    use libpna::Permission;
     use libpna::{Archive, OwnerGroupSid, OwnerUserSid, WriteOptions};
 
     #[allow(deprecated)]
@@ -225,6 +223,27 @@ mod tests {
         let mut a = Archive::read_header(&buf[..]).unwrap();
         let e = a.entries().skip_solid().next().unwrap().unwrap();
         e.metadata().clone()
+    }
+
+    /// Returns the metadata of the first entry in the 0.33.0
+    /// `zstd_keep_permission` fixture. Its 9 entries (all files, no
+    /// directories) carry only legacy `fPRM` (no owner facets): `uid=501
+    /// uname="kaihatsutarou" gid=20 gname="staff"`, mode `0o100644`
+    /// (unmasked, as legacy fPRM stores it). uid != gid and uname != gname,
+    /// so this source can actually catch a uid<->gid or uname<->gname
+    /// mix-up — `zstd_keep_all.pna` has both pairs equal and can't.
+    /// With the legacy permission setters removed, decoding a real fixture is
+    /// the public way to get a `Metadata` with `permission` set.
+    fn fixture_metadata() -> Metadata {
+        let src = include_bytes!("../../../resources/test/0.33.0/zstd_keep_permission.pna");
+        let mut a = Archive::read_header(src.as_slice()).unwrap();
+        a.entries()
+            .skip_solid()
+            .next()
+            .unwrap()
+            .unwrap()
+            .metadata()
+            .clone()
     }
 
     #[test]
@@ -250,62 +269,37 @@ mod tests {
     #[test]
     #[allow(deprecated)]
     fn add_metadata_translates_fprm_only_source() {
-        let src = Metadata::new().with_permission(Some(Permission::new(
-            7,
-            "legacy".to_string(),
-            8,
-            "grp".to_string(),
-            0o600,
-        )));
+        let src = fixture_metadata();
         let m = roundtrip(&src);
-        assert_eq!(m.owner_uid().map(|v| v.get()), Some(7));
-        assert_eq!(m.owner_gid().map(|v| v.get()), Some(8));
-        assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("legacy"));
-        assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("grp"));
-        assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o600));
+        assert_eq!(m.owner_uid().map(|v| v.get()), Some(501));
+        assert_eq!(m.owner_gid().map(|v| v.get()), Some(20));
+        assert_eq!(
+            m.owner_user_name().map(|v| v.as_str()),
+            Some("kaihatsutarou")
+        );
+        assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("staff"));
+        assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o644));
         assert!(m.permission().is_none());
     }
 
     #[test]
     #[allow(deprecated)]
     fn add_metadata_owner_facet_wins_over_fprm() {
-        let src = Metadata::new()
+        // Diagonal overrides (uid + gname) so a uid<->gid or uname<->gname
+        // mix-up in the rescue logic would surface as a wrong value: every
+        // one of the four differs from the other three.
+        let src = fixture_metadata()
             .with_owner_uid(Some(OwnerUid::from(1)))
-            .with_owner_user_name(Some(OwnerUserName::new("new").unwrap()))
-            .with_permission(Some(Permission::new(
-                7,
-                "legacy".to_string(),
-                8,
-                "grp".to_string(),
-                0o600,
-            )));
+            .with_owner_group_name(Some(OwnerGroupName::new("grp").unwrap()));
         let m = roundtrip(&src);
         assert_eq!(m.owner_uid().map(|v| v.get()), Some(1));
-        assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("new"));
-        assert_eq!(m.owner_gid().map(|v| v.get()), Some(8));
+        assert_eq!(
+            m.owner_user_name().map(|v| v.as_str()),
+            Some("kaihatsutarou")
+        );
+        assert_eq!(m.owner_gid().map(|v| v.get()), Some(20));
         assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("grp"));
-        assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o600));
+        assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o644));
         assert!(m.permission().is_none());
-    }
-
-    #[test]
-    #[allow(deprecated)]
-    fn add_metadata_truncates_overlong_fprm_name() {
-        let big_char = 'é';
-        assert_eq!(big_char.len_utf8(), 2);
-        let big = String::from(big_char).repeat(200); // 400 bytes
-        let src = Metadata::new().with_permission(Some(Permission::new(
-            7,
-            big,
-            8,
-            "grp".to_string(),
-            0o600,
-        )));
-        let m = roundtrip(&src);
-        let uname = m.owner_user_name().unwrap().as_str();
-        assert_eq!(uname.len(), 254);
-        assert_eq!(uname.chars().count(), 127);
-        assert!(uname.chars().all(|c| c == big_char));
-        assert_eq!(m.owner_uid().map(|v| v.get()), Some(7));
     }
 }

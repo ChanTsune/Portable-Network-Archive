@@ -929,21 +929,16 @@ mod tests {
                     .unwrap();
             builder.write_all(b"entry data").unwrap();
             // Attached via `with_metadata` on the built entry, which bypasses
-            // `EntryBuilderCore::metadata` entirely — the path the deleted
-            // builder-level fPRM rescue never covered either.
-            builder.build().unwrap().with_metadata(
-                Metadata::new()
-                    .with_created(Some(Duration::seconds(31)))
-                    .with_modified(Some(Duration::seconds(32)))
-                    .with_accessed(Some(Duration::seconds(33)))
-                    .with_permission(Some(Permission::new(
-                        1,
-                        "uname".into(),
-                        2,
-                        "gname".into(),
-                        0o775,
-                    ))),
-            )
+            // `EntryBuilderCore::metadata` entirely — proving the rescue in
+            // `try_for_each_metadata_facet` covers every construction path,
+            // not just the builder's own `metadata()` setter.
+            let mut metadata = Metadata::new()
+                .with_created(Some(Duration::seconds(31)))
+                .with_modified(Some(Duration::seconds(32)))
+                .with_accessed(Some(Duration::seconds(33)));
+            metadata.permission =
+                Some(Permission::new(1, "uname".into(), 2, "gname".into(), 0o775));
+            builder.build().unwrap().with_metadata(metadata)
         };
 
         let mut archive = Archive::write_header(Vec::new()).unwrap();
