@@ -105,6 +105,7 @@ fn xattr_set_multiple_entries_multipart() {
     .execute()
     .unwrap();
 
+    // Set xattr on all .txt files using an explicit consolidated output.
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
