@@ -17,7 +17,7 @@ pub(crate) mod time_filter;
 pub(crate) mod timestamp;
 
 pub(crate) use self::archive_source::{
-    EntryVisitor, ReadEntryVisitor, SourceConsumer, SplitArchiveReader,
+    EntryVisitor, OpenArchiveSource, ReadEntryVisitor, SourceConsumer, SplitArchiveReader,
 };
 pub(crate) use self::path::PathnameEditor;
 pub(crate) use self::permission::{ModeStrategy, OwnerOptions, OwnerStrategy, Umask};
