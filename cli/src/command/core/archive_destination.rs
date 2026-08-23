@@ -1,17 +1,27 @@
 use super::{ArchiveSource, StagedArchive, Umask};
 use std::{
-    fs,
+    fmt, fs,
     io::{self, Write},
     path::PathBuf,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-#[allow(dead_code)]
 pub(crate) enum ArchiveDestination {
     Stdout,
     CreateNew(PathBuf),
     Replace(PathBuf),
     InPlace(PathBuf),
+}
+
+impl fmt::Display for ArchiveDestination {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Stdout => f.write_str("standard output"),
+            Self::CreateNew(path) | Self::Replace(path) | Self::InPlace(path) => {
+                path.display().fmt(f)
+            }
+        }
+    }
 }
 
 /// Continuation run with the opened destination's writer. The writer's concrete type is
@@ -30,7 +40,6 @@ impl ArchiveDestination {
     /// Opens the destination, lets `consumer` write the archive, and publishes it once the
     /// consumer succeeds. Both filesystem destinations write through a plain [`fs::File`],
     /// so the write path monomorphizes twice: standard output and file.
-    #[allow(dead_code)]
     pub(crate) fn open_with<C: SinkConsumer>(
         self,
         umask: Umask,
@@ -134,7 +143,6 @@ pub(crate) fn resolve_transform_destination(
     }
 }
 
-#[allow(dead_code)]
 pub(crate) fn resolve_create_destination(
     file: Option<PathBuf>,
     overwrite: bool,
