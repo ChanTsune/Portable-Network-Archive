@@ -1,8 +1,20 @@
 use crate::utils::{archive, setup};
 use clap::Parser;
-use pna::ReadOptions;
+use pna::{Archive, NormalEntry, ReadOptions, prelude::*};
 use portable_network_archive::cli;
-use std::{fs, io::prelude::*};
+use std::{fs, io, io::prelude::*};
+
+fn extract_single_entry(path: &str, name: &str) -> io::Result<Option<NormalEntry>> {
+    let mut archive = Archive::open(path)?;
+    let options = ReadOptions::builder().build();
+    for entry in archive.entries_with_options(&options) {
+        let entry = entry?;
+        if entry.name() == name {
+            return Ok(Some(entry));
+        }
+    }
+    Ok(None)
+}
 
 /// Precondition: Archive contains an entry without mtime (mTIM chunk omitted).
 /// Action: Run `pna experimental update` without `--missing-time`.
@@ -143,7 +155,7 @@ fn update_missing_time_exclude_keeps_entry() {
     .unwrap();
 
     // Exclude policy keeps the mtime-less entry untouched: content is OLD.
-    let entry = archive::extract_single_entry(archive_path, source)
+    let entry = extract_single_entry(archive_path, source)
         .unwrap()
         .expect("entry should exist");
     let mut buf = Vec::new();
@@ -266,7 +278,7 @@ fn update_missing_time_future_datetime_keeps_entry() {
     .execute()
     .unwrap();
 
-    let entry = archive::extract_single_entry(archive_path, source)
+    let entry = extract_single_entry(archive_path, source)
         .unwrap()
         .expect("entry should exist");
     let mut buf = Vec::new();
