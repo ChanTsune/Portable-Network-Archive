@@ -1,7 +1,8 @@
 use crate::{
     chunk::{Ace, AcePlatform, Flag, Identifier, OwnerType, Permission},
     cli::{
-        FileArgs, PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs,
+        ArchiveFileArgs, FileOperands, PasswordArgs, SolidEntriesTransformStrategy,
+        SolidEntriesTransformStrategyArgs,
     },
     command::{
         Command, ask_password,
@@ -63,7 +64,9 @@ pub(crate) struct GetAclCommand {
     #[arg(short, long, help = "List numeric user and group IDs")]
     numeric: bool,
     #[command(flatten)]
-    file: FileArgs,
+    archive: ArchiveFileArgs,
+    #[command(flatten)]
+    files: FileOperands,
     #[command(flatten)]
     password: PasswordArgs,
 }
@@ -82,7 +85,9 @@ impl Command for GetAclCommand {
 )]
 pub(crate) struct SetAclCommand {
     #[command(flatten)]
-    file: FileArgs,
+    archive: ArchiveFileArgs,
+    #[command(flatten)]
+    files: FileOperands,
     #[arg(long, help = "Set the ACL on the specified file.")]
     set: Option<AclEntries>,
     #[arg(
@@ -287,15 +292,15 @@ impl FromStr for AclEntries {
 #[hooq::hooq(anyhow)]
 fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    if args.file.files.is_empty() {
+    if args.files.files.is_empty() {
         return Ok(());
     }
-    let files = args.file.files;
+    let files = args.files.files;
     let mut globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
     let platforms = args.platform.into_iter().collect::<HashSet<_>>();
     let numeric_owner = args.numeric;
 
-    let mut source = SplitArchiveReader::new(collect_split_archives(args.file.archive)?)?;
+    let mut source = SplitArchiveReader::new(collect_split_archives(args.archive.file)?)?;
     let read_options = ReadOptions::with_password(password.as_deref());
 
     source.for_each_entry(
@@ -336,7 +341,7 @@ fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
 #[hooq::hooq(anyhow)]
 fn archive_set_acl(args: SetAclCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    let files = args.file.files;
+    let files = args.files.files;
     let mut set_strategy = if args.restore_from_stdin {
         SetAclsStrategy::Restore(parse_acl_dump(io::stdin().lock())?)
     } else if let Some(path) = args.restore.as_deref() {
@@ -354,9 +359,9 @@ fn archive_set_acl(args: SetAclCommand, umask: Umask) -> anyhow::Result<()> {
         }
     };
 
-    let mut source = SplitArchiveReader::new(collect_split_archives(&args.file.archive)?)?;
+    let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive.file)?)?;
 
-    let output_path = args.file.archive.remove_part();
+    let output_path = args.archive.file.remove_part();
     let mut staged = StagedArchive::new(output_path, umask)?;
 
     match args.transform_strategy.strategy() {

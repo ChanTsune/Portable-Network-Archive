@@ -1,21 +1,21 @@
 use crate::{
-    cli::{GlobalContext, PasswordArgs},
+    cli::{ArchiveFileArgs, GlobalContext, PasswordArgs},
     command::{
         Command, ask_password,
         core::{collect_split_archives, run_read_entries},
     },
 };
-use clap::{Parser, ValueHint};
+use clap::Parser;
 use pna::{CipherMode, Encryption, NormalEntry, ReadEntry, ReadOptions, SolidEntry};
-use std::{io, path::PathBuf};
+use std::io;
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(
     after_long_help = "Note: for entries encrypted in CBC or CTR mode, a wrong password is indistinguishable from corruption. GCM mode instead reports a key mismatch, meaning the password does not match the key derivation parameters recorded for the entry: either the password is wrong, or those recorded parameters were themselves altered."
 )]
 pub(crate) struct VerifyCommand {
-    #[arg(short = 'f', long = "file", help = "Archive file path", value_hint = ValueHint::FilePath)]
-    archive: PathBuf,
+    #[command(flatten)]
+    archive: ArchiveFileArgs,
     #[arg(
         long,
         help = "Verify chunk structure and CRC32 only, without decoding entry data",
@@ -53,7 +53,7 @@ fn verify_archive(args: VerifyCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let password = password.as_deref();
     let read_options = ReadOptions::with_password(password);
-    let archives = collect_split_archives(&args.archive)?;
+    let archives = collect_split_archives(&args.archive.file)?;
     let mut report = VerifyReport::default();
     let mut solid_blocks = 0usize;
     let mut resyncing = false;

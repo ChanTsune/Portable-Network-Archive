@@ -1,5 +1,8 @@
 use crate::{
-    cli::{PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs},
+    cli::{
+        ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategy,
+        SolidEntriesTransformStrategyArgs,
+    },
     command::{
         Command, ask_password,
         core::{
@@ -14,12 +17,12 @@ use crate::{
 };
 use clap::{ArgAction, Parser, ValueHint, builder::ArgPredicate};
 use pna::NormalEntry;
-use std::{io, ops::Not, path::PathBuf, str::FromStr};
+use std::{io, ops::Not, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ChownCommand {
-    #[arg(short = 'f', long = "file", value_hint = ValueHint::FilePath)]
-    archive: PathBuf,
+    #[command(flatten)]
+    archive: ArchiveFileArgs,
     #[arg(help = "owner[:group]|:group")]
     owner: RawOwnership,
     #[arg(long, help = "force numeric owner and group IDs (no name resolution)")]
@@ -61,9 +64,9 @@ fn archive_chown(args: ChownCommand, umask: Umask) -> anyhow::Result<()> {
         .owner
         .lookup_platform_owner(args.numeric_owner, args.owner_lookup)?;
 
-    let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive)?)?;
+    let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive.file)?)?;
 
-    let output_path = args.archive.remove_part();
+    let output_path = args.archive.file.remove_part();
     let mut staged = StagedArchive::new(output_path, umask)?;
 
     match args.transform_strategy.strategy() {

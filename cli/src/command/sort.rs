@@ -1,5 +1,5 @@
 use crate::{
-    cli::PasswordArgs,
+    cli::{ArchiveFileArgs, PasswordArgs},
     command::{
         Command, ask_password,
         core::{SplitArchiveReader, StagedArchive, Umask, collect_split_archives},
@@ -120,8 +120,8 @@ impl FromStr for SortKey {
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) struct SortCommand {
-    #[arg(short = 'f', long = "file", help = "Archive file path", value_hint = ValueHint::FilePath)]
-    archive: PathBuf,
+    #[command(flatten)]
+    archive: ArchiveFileArgs,
     #[arg(long, help = "Output archive file path", value_hint = ValueHint::FilePath)]
     output: Option<PathBuf>,
     #[arg(
@@ -146,7 +146,7 @@ impl Command for SortCommand {
 #[hooq::hooq(anyhow)]
 fn sort_archive(args: SortCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    let archives = collect_split_archives(&args.archive)?;
+    let archives = collect_split_archives(&args.archive.file)?;
     let mut source = SplitArchiveReader::new(archives)?;
     let read_options = ReadOptions::with_password(password.as_deref());
     let mut entries = Vec::<NormalEntry<_>>::new();
@@ -177,7 +177,9 @@ fn sort_archive(args: SortCommand, umask: Umask) -> anyhow::Result<()> {
         std::cmp::Ordering::Equal
     });
 
-    let output = args.output.unwrap_or_else(|| args.archive.remove_part());
+    let output = args
+        .output
+        .unwrap_or_else(|| args.archive.file.remove_part());
     let mut staged = StagedArchive::new(output, umask)?;
     let mut archive = Archive::write_header(staged.as_file_mut())?;
     for entry in entries {

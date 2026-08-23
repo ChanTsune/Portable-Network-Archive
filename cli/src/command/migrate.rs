@@ -1,5 +1,8 @@
 use crate::{
-    cli::{PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs},
+    cli::{
+        ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategy,
+        SolidEntriesTransformStrategyArgs,
+    },
     command::{
         Command, ask_password,
         core::{
@@ -19,8 +22,8 @@ pub(crate) struct MigrateCommand {
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
     password: PasswordArgs,
-    #[arg(short = 'f', long = "file", value_hint = ValueHint::FilePath)]
-    archive: PathBuf,
+    #[command(flatten)]
+    archive: ArchiveFileArgs,
     #[arg(long, help = "Output file path", value_hint = ValueHint::AnyPath)]
     output: PathBuf,
 }
@@ -36,7 +39,7 @@ impl Command for MigrateCommand {
 fn migrate_metadata(args: MigrateCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
 
-    let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive)?)?;
+    let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive.file)?)?;
 
     let output_path = args.output;
     let mut staged = StagedArchive::new(output_path, umask)?;

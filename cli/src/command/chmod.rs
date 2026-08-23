@@ -1,5 +1,8 @@
 use crate::{
-    cli::{PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs},
+    cli::{
+        ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategy,
+        SolidEntriesTransformStrategyArgs,
+    },
     command::{
         Command, ask_password,
         core::{
@@ -19,12 +22,12 @@ use nom::{
     multi::{many0, many1, separated_list1},
 };
 use pna::{DataKind, NormalEntry};
-use std::{ops::BitOr, path::PathBuf, str::FromStr};
+use std::{ops::BitOr, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ChmodCommand {
-    #[arg(short = 'f', long = "file", value_hint = ValueHint::FilePath)]
-    archive: PathBuf,
+    #[command(flatten)]
+    archive: ArchiveFileArgs,
     #[arg(help = "mode")]
     mode: Mode,
     #[arg(value_hint = ValueHint::AnyPath)]
@@ -50,9 +53,9 @@ fn archive_chmod(args: ChmodCommand, umask: Umask) -> anyhow::Result<()> {
     }
     let mut globs = GlobPatterns::new(args.files.iter().map(|p| p.as_str()))?;
 
-    let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive)?)?;
+    let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive.file)?)?;
 
-    let output_path = args.archive.remove_part();
+    let output_path = args.archive.file.remove_part();
     let mut staged = StagedArchive::new(output_path, umask)?;
 
     match args.transform_strategy.strategy() {
