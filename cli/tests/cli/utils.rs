@@ -122,6 +122,17 @@ pub fn list_lines(records: &[&str]) -> String {
     out
 }
 
+/// Fragment of the message an `AlreadyExists` I/O error renders on the host platform. The
+/// wording comes from the operating system, not from pna: unix reports "File exists" while
+/// Windows reports "The file exists.".
+pub fn already_exists_message() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "The file exists."
+    } else {
+        "File exists"
+    }
+}
+
 pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
     fs::create_dir_all(&dst)?;
     for entry in fs::read_dir(src)? {
