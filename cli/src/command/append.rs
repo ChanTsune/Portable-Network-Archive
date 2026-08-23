@@ -1,17 +1,19 @@
 use crate::{
     cli::{
-        ArchiveFileArgs, CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileOperands,
-        HashAlgorithmArgs, MissingTimePolicy, PasswordArgs,
+        ArchiveFileArgs, ArchiveOutputArgs, CipherAlgorithmArgs, CompressionAlgorithmArgs,
+        DateTime, FileOperands, HashAlgorithmArgs, MissingTimePolicy, PasswordArgs,
     },
     command::{
         Command, ask_password,
         core::{
-            AclStrategy, CollectOptions, CollectedItem, CreateOptions, FflagsStrategy, KeepOptions,
-            MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
-            PermissionStrategyResolver, TimeFilterResolver, TimeFilters, TimestampStrategyResolver,
-            XattrStrategy, collect_items_from_paths, drain_entry_results, entry_option,
+            AclStrategy, ArchiveSource, CollectOptions, CollectedItem, CreateOptions,
+            FflagsStrategy, KeepOptions, MacMetadataStrategy, PathFilter, PathTransformers,
+            PathnameEditor, PermissionStrategyResolver, SourceConsumer, TimeFilterResolver,
+            TimeFilters, TimestampStrategyResolver, XattrStrategy,
+            archive_destination::{ArchiveDestination, SinkConsumer, resolve_append_destination},
+            collect_items_from_paths, drain_entry_results, entry_option,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
-            read_paths, read_paths_stdin, spawn_entry_results,
+            read_paths, read_paths_stdin, run_across_archive_readers, spawn_entry_results,
         },
     },
     utils::{PathPartExt, VCS_FILES, fs::HardlinkResolver},
@@ -379,22 +381,29 @@ pub(crate) struct AppendCommand {
     #[command(flatten)]
     pub(crate) archive: ArchiveFileArgs,
     #[command(flatten)]
+    output: ArchiveOutputArgs,
+    #[command(flatten)]
     pub(crate) files: FileOperands,
 }
 
 impl Command for AppendCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
-        append_to_archive(self)
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
+        append_to_archive(self, ctx.umask())
     }
 }
 
 #[hooq::hooq(anyhow)]
-fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
+fn append_to_archive(
+    args: AppendCommand,
+    umask: crate::command::core::Umask,
+) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    let archive_path = args.archive.require_file()?;
-    if !archive_path.exists() {
-        anyhow::bail!("{} is not exists", archive_path.display());
+    let source_arg = args.archive.source();
+    if let ArchiveSource::File(path) = &source_arg
+        && !path.exists()
+    {
+        anyhow::bail!("{} is not exists", path.display());
     }
     let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);
@@ -452,8 +461,6 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         ),
     };
 
-    let archive = open_archive_then_seek_to_end(&archive_path, false)?;
-
     let mut files = args.files.files;
     if args.files_from_stdin {
         files.extend(read_paths_stdin(args.null)?);
@@ -490,15 +497,122 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         .map(CollectedItem::Filesystem)
         .collect::<Vec<_>>();
 
+    let destination =
+        resolve_append_destination(&source_arg, args.output.output, args.output.overwrite)?;
+    match destination {
+        ArchiveDestination::InPlace(path) => {
+            let archive = open_archive_then_seek_to_end(path, false)?;
+            run_append_archive(
+                &create_options,
+                archive,
+                target_items,
+                &filter,
+                &time_filters,
+                password,
+                false,
+                false,
+            )
+        }
+        destination => destination.open_with(
+            umask,
+            AppendRewrite {
+                source: source_arg,
+                create_options: &create_options,
+                target_items,
+                filter: &filter,
+                time_filters: &time_filters,
+                password,
+            },
+        ),
+    }
+}
+
+/// Copies the base archive from `source` and appends the collected filesystem items into
+/// the opened destination.
+struct AppendRewrite<'a> {
+    source: ArchiveSource,
+    create_options: &'a CreateOptions,
+    target_items: Vec<CollectedItem>,
+    filter: &'a PathFilter<'a>,
+    time_filters: &'a TimeFilters,
+    password: Option<&'a [u8]>,
+}
+
+impl SinkConsumer for AppendRewrite<'_> {
+    type Output = ();
+
+    fn consume<W: io::Write>(self, mut writer: W) -> anyhow::Result<()> {
+        self.source.open()?.consume(AppendBase {
+            writer: &mut writer,
+            create_options: self.create_options,
+            target_items: self.target_items,
+            filter: self.filter,
+            time_filters: self.time_filters,
+            password: self.password,
+        })
+    }
+}
+
+/// Copies the base archive's raw entries into the writer, then appends the collected items.
+struct AppendBase<'a, W> {
+    writer: &'a mut W,
+    create_options: &'a CreateOptions,
+    target_items: Vec<CollectedItem>,
+    filter: &'a PathFilter<'a>,
+    time_filters: &'a TimeFilters,
+    password: Option<&'a [u8]>,
+}
+
+impl<W: io::Write> SourceConsumer for AppendBase<'_, W> {
+    type Output = anyhow::Result<()>;
+
+    fn readers<R: io::Read, I: Iterator<Item = R>>(self, readers: I) -> anyhow::Result<()> {
+        run_rewrite_append_archive(
+            readers,
+            self.writer,
+            self.create_options,
+            self.target_items,
+            self.filter,
+            self.time_filters,
+            self.password,
+            false,
+            false,
+        )
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn run_rewrite_append_archive<R: io::Read, W: io::Write>(
+    readers: impl IntoIterator<Item = R>,
+    writer: W,
+    create_options: &CreateOptions,
+    target_items: Vec<CollectedItem>,
+    filter: &PathFilter<'_>,
+    time_filters: &TimeFilters,
+    password: Option<&[u8]>,
+    verbose: bool,
+    allow_concatenated_archives: bool,
+) -> anyhow::Result<()> {
+    let mut output_archive = Archive::write_header(writer)?;
+    run_across_archive_readers(
+        readers,
+        |input_archive| {
+            for entry in input_archive.raw_entries() {
+                output_archive.add_entry(entry?)?;
+            }
+            Ok(())
+        },
+        allow_concatenated_archives,
+    )?;
     run_append_archive(
-        &create_options,
-        archive,
+        create_options,
+        output_archive,
         target_items,
-        &filter,
-        &time_filters,
+        filter,
+        time_filters,
         password,
-        false,
-        false,
+        verbose,
+        allow_concatenated_archives,
     )
 }
 

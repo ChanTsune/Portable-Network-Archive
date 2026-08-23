@@ -344,6 +344,7 @@ fn verify_with_wrong_password_on_mixed_cipher_mode_archive() {
         "pna",
         "--quiet",
         "a",
+        "--overwrite",
         "-f",
         "verify_mixed/verify_mixed.pna",
         "verify_mixed/appended/",
