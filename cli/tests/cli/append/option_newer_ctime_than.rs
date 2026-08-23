@@ -62,6 +62,7 @@ fn append_with_newer_ctime_than() {
         "pna",
         "--quiet",
         "a",
+        "--overwrite",
         "-f",
         "append_newer_ctime_than/test.pna",
         "--no-keep-dir",

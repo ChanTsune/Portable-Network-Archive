@@ -55,6 +55,7 @@ fn append_with_newer_mtime_than() {
         "pna",
         "--quiet",
         "a",
+        "--overwrite",
         "-f",
         "append_newer_mtime_than/test.pna",
         "--unstable",

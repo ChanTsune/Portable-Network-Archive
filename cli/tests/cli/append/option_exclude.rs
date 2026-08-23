@@ -30,6 +30,7 @@ fn append_exclude() {
         "pna",
         "--quiet",
         "append",
+        "--overwrite",
         "-f",
         "append_exclude/append.pna",
         "append_exclude/in/extra/",
