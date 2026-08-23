@@ -41,6 +41,8 @@ mod split;
 mod stdio_arbitration;
 #[cfg(not(target_family = "wasm"))]
 mod stdio_read;
+#[cfg(not(target_family = "wasm"))]
+mod stdout_purity;
 mod strip;
 mod update;
 #[cfg(not(target_family = "wasm"))]
