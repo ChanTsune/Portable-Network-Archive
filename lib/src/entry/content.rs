@@ -110,7 +110,6 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::util::io::TryIntoInner;
     use std::io::Write;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
@@ -267,43 +266,20 @@ mod tests {
         assert_eq!("raw", io::read_to_string(reader).unwrap());
     }
 
-    /// Wire format allows encrypted link entries, but the public builder
-    /// always writes links with store options; assemble one manually the
-    /// same way `SymlinkEntryBuilder::build` does. The header is finalized
-    /// before encryption because the stream key is derived from it.
     fn encrypted_symlink_entry(target: &str, password: &str) -> NormalEntry {
         let options = WriteOptions::builder()
             .encryption(Encryption::AES)
             .password(Some(password))
             .try_build()
             .unwrap();
-        let mut entry =
-            SymlinkEntryBuilder::new("l".into(), EntryReference::from_utf8_preserve_root(target))
-                .unwrap()
-                .build()
-                .unwrap();
-        entry.header.encryption = options.encryption();
-        entry.header.cipher_mode = options.cipher_mode();
-        let context =
-            get_writer_context(&options, ChunkType::FHED, &entry.header.to_bytes()).unwrap();
-        let mut writer = get_writer(crate::util::io::FlattenWriter::new(), &context).unwrap();
-        writer.write_all(target.as_bytes()).unwrap();
-        let mut data = writer
-            .try_into_inner()
-            .unwrap()
-            .try_into_inner()
-            .unwrap()
-            .inner;
-        let (prefix, phsf) = match context.cipher {
-            None => (None, None),
-            Some(WriteCipher { context: c, .. }) => (Some(c.prefix_bytes()), Some(c.phsf)),
-        };
-        if let Some(prefix) = prefix {
-            data.insert(0, prefix);
-        }
-        entry.phsf = phsf;
-        entry.data = data;
-        entry
+        SymlinkEntryBuilder::new_with_options(
+            "l".into(),
+            EntryReference::from_utf8_preserve_root(target),
+            options,
+        )
+        .unwrap()
+        .build()
+        .unwrap()
     }
 
     #[test]
