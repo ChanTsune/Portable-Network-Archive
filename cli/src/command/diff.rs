@@ -2,7 +2,7 @@ use crate::{
     cli::{ArchiveFileArgs, FileOperands, PasswordArgs},
     command::{
         Command, ExitCodeError, ask_password,
-        core::{SplitArchiveReader, cmp_at_stored_precision, collect_split_archives},
+        core::{EntryVisitor, cmp_at_stored_precision},
     },
     utils::{BsdGlobMatcher, io::streams_equal},
 };
@@ -17,7 +17,7 @@ use std::os::unix::fs::MetadataExt;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::time::SystemTime;
-use std::{collections::BTreeMap, fmt, fs, io, path::Path};
+use std::{borrow::Cow, collections::BTreeMap, fmt, fs, io, path::Path};
 
 #[derive(Parser, Clone, Debug)]
 pub(crate) struct DiffCommand {
@@ -258,29 +258,24 @@ fn diff_archive(ctx: &crate::cli::GlobalContext, args: DiffCommand) -> anyhow::R
         anyhow::bail!("{uncompared}");
     }
     let password = ask_password(args.password)?;
-    let archives = collect_split_archives(args.archive.require_file()?)?;
+    let source = args.archive.source();
 
     let mut globs = BsdGlobMatcher::new(args.files.files.iter().map(|s| s.as_str()));
     let filter_enabled = !globs.is_empty();
 
     let read_options = ReadOptions::with_password(password.as_deref());
-    let mut source = SplitArchiveReader::new(archives)?;
-    let mut diff_count = 0usize;
-    source.for_each_entry(
-        &read_options,
-        #[hooq::skip_all]
-        |entry| {
-            let entry = entry?;
-            let path = entry.header().path();
-
-            if filter_enabled && !globs.matches(path) {
-                return Ok(());
-            }
-
-            diff_count += compare_entry(entry, &read_options, &options, &mut uncompared)?;
-            Ok(())
-        },
-    )?;
+    let mut comparison = Comparison {
+        globs: &mut globs,
+        filter_enabled,
+        read_options: &read_options,
+        options: &options,
+        uncompared: &mut uncompared,
+        diff_count: 0,
+    };
+    source
+        .open()?
+        .for_each_entry(&read_options, &mut comparison)?;
+    let diff_count = comparison.diff_count;
 
     globs.ensure_all_matched()?;
 
@@ -290,6 +285,26 @@ fn diff_archive(ctx: &crate::cli::GlobalContext, args: DiffCommand) -> anyhow::R
     }
 
     Ok(diff_count)
+}
+
+struct Comparison<'a, 'g> {
+    globs: &'a mut BsdGlobMatcher<'g>,
+    filter_enabled: bool,
+    read_options: &'a ReadOptions,
+    options: &'a CompareOptions,
+    uncompared: &'a mut UncomparedFields,
+    diff_count: usize,
+}
+
+impl EntryVisitor for Comparison<'_, '_> {
+    fn visit(&mut self, entry: NormalEntry<Cow<'_, [u8]>>) -> io::Result<()> {
+        let path = entry.header().path();
+        if self.filter_enabled && !self.globs.matches(path) {
+            return Ok(());
+        }
+        self.diff_count += compare_entry(entry, self.read_options, self.options, self.uncompared)?;
+        Ok(())
+    }
 }
 
 /// Difference types detected during archive-filesystem comparison.
