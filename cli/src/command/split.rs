@@ -1,6 +1,9 @@
 use crate::{
     cli::ArchiveFileArgs,
-    command::{Command, core::write_split_archive},
+    command::{
+        Command,
+        core::{ArchiveSource, write_split_archive},
+    },
     utils::PathWithCwd,
 };
 use anyhow::{Context, ensure};
@@ -8,7 +11,7 @@ use bytesize::ByteSize;
 use clap::{ArgAction, Parser, ValueHint};
 use pna::{Archive, MIN_SPLIT_PART_BYTES, prelude::PathPartExt};
 use std::{
-    fs,
+    fs, io,
     path::{Path, PathBuf},
 };
 
@@ -97,7 +100,6 @@ fn resolved_path(path: &Path) -> Option<PathBuf> {
 
 #[hooq::hooq(anyhow)]
 fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
-    let archive_path = args.archive.require_file()?;
     let max_file_size = usize::try_from(args.max_size.unwrap_or_else(|| ByteSize::gb(1)).as_u64())
         .context("--max-size is too large for this platform")?;
     ensure!(
@@ -106,37 +108,83 @@ fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
         ByteSize::b(MIN_SPLIT_PART_BYTES as u64)
     );
 
+    let source = args.archive.source();
+    let source_path = match &source {
+        ArchiveSource::File(path) => Some(path.as_path()),
+        ArchiveSource::Stdin => None,
+    };
+    let requested_output = args
+        .output
+        .as_deref()
+        .or(source_path)
+        .context(
+            "archive input from standard input requires --output BASE_PATH to name the split parts",
+        )?
+        .to_path_buf();
     let base_out_file_name = match (&args.out_dir, &args.output) {
-        (Some(out_dir), Some(output)) => out_dir.join(output),
-        (Some(out_dir), None) => out_dir.join(archive_path.file_name().unwrap_or_default()),
-        (None, Some(output)) => output.clone(),
-        (None, None) => archive_path.clone(),
+        (Some(out_dir), Some(_)) => out_dir.join(requested_output),
+        (Some(out_dir), None) => out_dir.join(requested_output.file_name().unwrap_or_default()),
+        (None, _) => requested_output.to_path_buf(),
     };
     if let Some(parent) = base_out_file_name.parent() {
         fs::create_dir_all(parent)?;
     }
-    ensure_not_self_overwrite(&archive_path, &base_out_file_name)?;
 
-    let read_file = fs::File::open(&archive_path)?;
-    #[cfg(not(feature = "memmap"))]
-    let mut read_archive = Archive::read_header(read_file)?;
-    #[cfg(not(feature = "memmap"))]
-    let entries = read_archive.raw_entries();
-    #[cfg(feature = "memmap")]
-    let mapped_file = crate::utils::mmap::Mmap::try_from(read_file)?;
-    #[cfg(feature = "memmap")]
-    let mut read_archive = Archive::read_header_from_slice(&mapped_file[..])?;
-    #[cfg(feature = "memmap")]
-    let entries = read_archive.raw_entries_slice();
+    match source {
+        ArchiveSource::File(archive_path) => split_file_archive(
+            &archive_path,
+            &base_out_file_name,
+            max_file_size,
+            args.overwrite,
+        ),
+        ArchiveSource::Stdin => split_reader_archive(
+            io::stdin().lock(),
+            &base_out_file_name,
+            max_file_size,
+            args.overwrite,
+        ),
+    }
+    .with_context(|| {
+        format!(
+            "failed to create `{}`",
+            PathWithCwd::new(&base_out_file_name)
+        )
+    })
+}
 
-    write_split_archive(&base_out_file_name, entries, max_file_size, args.overwrite).with_context(
-        || {
-            format!(
-                "failed to create `{}`",
-                PathWithCwd::new(&base_out_file_name)
-            )
-        },
-    )
+fn split_reader_archive(
+    reader: impl io::Read,
+    output: &std::path::Path,
+    max_file_size: usize,
+    overwrite: bool,
+) -> anyhow::Result<()> {
+    let mut archive = Archive::read_header(reader)?;
+    write_split_archive(output, archive.raw_entries(), max_file_size, overwrite)
+}
+
+fn split_file_archive(
+    input: &std::path::Path,
+    output: &std::path::Path,
+    max_file_size: usize,
+    overwrite: bool,
+) -> anyhow::Result<()> {
+    ensure_not_self_overwrite(input, output)?;
+    let file = fs::File::open(input)?;
+    #[cfg(not(feature = "memmap"))]
+    {
+        split_reader_archive(file, output, max_file_size, overwrite)
+    }
+    #[cfg(feature = "memmap")]
+    {
+        let mapped_file = crate::utils::mmap::Mmap::try_from(file)?;
+        let mut archive = Archive::read_header_from_slice(&mapped_file[..])?;
+        write_split_archive(
+            output,
+            archive.raw_entries_slice(),
+            max_file_size,
+            overwrite,
+        )
+    }
 }
 
 #[cfg(test)]
