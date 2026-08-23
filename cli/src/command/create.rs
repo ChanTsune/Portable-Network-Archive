@@ -9,13 +9,15 @@ use crate::{
             AclStrategy, CollectOptions, CollectedItem, CreateOptions, EntryResult, FflagsStrategy,
             KeepOptions, MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
             PermissionStrategyResolver, TimeFilterResolver, TimeFilters, TimestampStrategyResolver,
-            XattrStrategy, collect_items_from_paths, drain_entry_results, entry_option,
+            Umask, XattrStrategy,
+            archive_destination::{SinkConsumer, resolve_create_destination},
+            collect_items_from_paths, drain_entry_results, entry_option,
             iter::ReorderByIndex,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin, spawn_entry_results, write_split_archive,
         },
     },
-    utils::{self, VCS_FILES, fs::HardlinkResolver},
+    utils::{VCS_FILES, fs::HardlinkResolver},
 };
 use anyhow::ensure;
 use bytesize::ByteSize;
@@ -23,7 +25,6 @@ use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
 use jiff::{SignedDuration, Unit};
 use pna::{Archive, MIN_SPLIT_PART_BYTES, SolidEntryBuilder, WriteOptions};
 use std::{
-    fs,
     io::{self, prelude::*},
     path::{Path, PathBuf},
     time::Instant,
@@ -409,16 +410,13 @@ pub(crate) struct CreateCommand {
 
 impl Command for CreateCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
-        create_archive(self)
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
+        create_archive(self, ctx.umask())
     }
 }
 
 #[hooq::hooq(anyhow)]
-fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
-    let password = ask_password(args.password)?;
-    let start = Instant::now();
-    let archive = args.archive.require_file()?;
+fn create_archive(args: CreateCommand, umask: Umask) -> anyhow::Result<()> {
     let max_file_size = args
         .split
         .map(|opt| {
@@ -433,10 +431,12 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
             ByteSize::b(MIN_SPLIT_PART_BYTES as u64)
         );
     }
-    if !args.overwrite && archive.exists() {
-        anyhow::bail!("{} already exists", archive.display());
-    }
-    log::info!("Create an archive: {}", archive.display());
+    let destination = max_file_size
+        .is_none()
+        .then(|| resolve_create_destination(args.archive.file.clone(), args.overwrite))
+        .transpose()?;
+    let password = ask_password(args.password)?;
+    let start = Instant::now();
     let mut files = args.files.files;
     if args.files_from_stdin {
         files.extend(read_paths_stdin(args.null)?);
@@ -487,9 +487,6 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         .map(CollectedItem::Filesystem)
         .collect::<Vec<_>>();
 
-    if let Some(parent) = archive.parent() {
-        fs::create_dir_all(parent)?;
-    }
     let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
         keep_permission: args.keep_permission,
         same_owner: true, // Creation always stores ownership; same_owner only matters for extraction.
@@ -535,6 +532,8 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         pathname_editor,
     };
     if let Some(size) = max_file_size {
+        let archive = args.archive.require_file()?;
+        log::info!("Create an archive: {}", archive.display());
         create_archive_with_split(
             &archive,
             creation_context,
@@ -547,8 +546,9 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
             false,
         )?;
     } else {
-        create_archive_file(
-            || utils::fs::file_create(&archive, args.overwrite),
+        let destination = destination.expect("ordinary create always resolves a destination");
+        log::info!("Create an archive: {destination}");
+        let entries = spawn_created_entries(
             creation_context,
             target_items,
             &filter,
@@ -556,7 +556,8 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
             password,
             false,
             false,
-        )?;
+        );
+        destination.open_with(umask, entries)?;
     }
     log::info!(
         "Successfully created an archive in {:#}",
@@ -578,6 +579,51 @@ pub(crate) struct CreationContext {
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn create_archive_file<W, F>(
     get_writer: F,
+    context: CreationContext,
+    target_items: Vec<CollectedItem>,
+    filter: &PathFilter<'_>,
+    time_filters: &TimeFilters,
+    password: Option<&[u8]>,
+    verbose: bool,
+    allow_concatenated_archives: bool,
+) -> anyhow::Result<W>
+where
+    W: Write,
+    F: FnOnce() -> io::Result<W>,
+{
+    let entries = spawn_created_entries(
+        context,
+        target_items,
+        filter,
+        time_filters,
+        password,
+        verbose,
+        allow_concatenated_archives,
+    );
+    write_created_entries(entries, get_writer()?)
+}
+
+/// Entries produced for a new archive, waiting for a destination to write them into.
+///
+/// Splitting production from writing keeps the destination unopened until every input has
+/// been read, and keeps the code that is generic over the destination down to the drain loop.
+pub(crate) struct CreatedEntries {
+    rx: std::sync::mpsc::Receiver<(usize, EntryResult)>,
+    write_option: WriteOptions,
+    solid: bool,
+    verbose: bool,
+}
+
+impl SinkConsumer for CreatedEntries {
+    type Output = ();
+
+    fn consume<W: Write>(self, writer: W) -> anyhow::Result<()> {
+        write_created_entries(self, writer)?;
+        Ok(())
+    }
+}
+
+fn spawn_created_entries(
     CreationContext {
         write_option,
         keep_options,
@@ -590,11 +636,7 @@ pub(crate) fn create_archive_file<W, F>(
     password: Option<&[u8]>,
     verbose: bool,
     allow_concatenated_archives: bool,
-) -> anyhow::Result<()>
-where
-    W: Write,
-    F: FnOnce() -> io::Result<W>,
-{
+) -> CreatedEntries {
     let option = if solid {
         WriteOptions::store()
     } else {
@@ -613,10 +655,25 @@ where
         password,
         allow_concatenated_archives,
     );
+    CreatedEntries {
+        rx,
+        write_option,
+        solid,
+        verbose,
+    }
+}
 
-    let file = get_writer()?;
+fn write_created_entries<W: Write>(
+    CreatedEntries {
+        rx,
+        write_option,
+        solid,
+        verbose,
+    }: CreatedEntries,
+    file: W,
+) -> anyhow::Result<W> {
     let buffered = io::BufWriter::with_capacity(64 * 1024, file);
-    if solid {
+    let mut buffered = if solid {
         let mut writer = Archive::write_solid_header(buffered, write_option)?;
         drain_entry_results(rx, |entry| {
             if verbose {
@@ -624,7 +681,7 @@ where
             }
             writer.add_entry(entry)
         })?;
-        writer.finalize()?;
+        writer.finalize()?
     } else {
         let mut writer = Archive::write_header(buffered)?;
         drain_entry_results(rx, |entry| {
@@ -633,9 +690,10 @@ where
             }
             writer.add_entry(entry)
         })?;
-        writer.finalize()?;
-    }
-    Ok(())
+        writer.finalize()?
+    };
+    buffered.flush()?;
+    Ok(buffered.into_inner().map_err(|error| error.into_error())?)
 }
 
 #[allow(clippy::too_many_arguments)]
