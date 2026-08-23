@@ -175,6 +175,11 @@ const PAIRS: &[(&[&str], &str, &str)] = &[
         "--overwrite",
         "--no-overwrite",
     ),
+    (
+        &["update", "--output", "out.pna"],
+        "--overwrite",
+        "--no-overwrite",
+    ),
 ];
 
 const DEPRECATED_NO_OVERWRITE_COMMANDS: &[&[&str]] = &[
@@ -207,6 +212,7 @@ const DEPRECATED_NO_OVERWRITE_COMMANDS: &[&[&str]] = &[
     ],
     &["migrate"],
     &["sort"],
+    &["update"],
 ];
 
 /// Precondition: A native command exposes a flag together with its `--no-` counterpart.

@@ -53,6 +53,7 @@ fn update_with_duplicate_source_argument_is_idempotent() {
         .args([
             "experimental",
             "update",
+            "--overwrite",
             "-f",
             &archive_path,
             "--sync",
@@ -130,6 +131,7 @@ fn update_with_overlapping_directory_and_file_arguments_does_not_warn() {
         .args([
             "experimental",
             "update",
+            "--overwrite",
             "-f",
             &archive_path,
             "--sync",
@@ -174,7 +176,14 @@ fn update_without_duplicate_targets_does_not_warn() {
     fs::write(&file_a, b"a-updated").unwrap();
 
     cargo_bin_cmd!("pna")
-        .args(["experimental", "update", "-f", &archive_path, &file_a])
+        .args([
+            "experimental",
+            "update",
+            "--overwrite",
+            "-f",
+            &archive_path,
+            &file_a,
+        ])
         .assert()
         .success()
         .stderr(predicate::str::contains("Multiple update sources").not());
@@ -210,6 +219,7 @@ fn update_with_conflicting_source_spellings_warns() {
         .args([
             "experimental",
             "update",
+            "--overwrite",
             "-f",
             &archive_path,
             &file,

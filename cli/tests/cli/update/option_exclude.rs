@@ -56,6 +56,7 @@ fn update_with_exclude() {
         "--quiet",
         "experimental",
         "update",
+        "--overwrite",
         "-f",
         "update_with_exclude/archive.pna",
         "update_with_exclude/in/",
