@@ -3,7 +3,8 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            Umask,
+            ArchiveSource, Umask,
+            archive_destination::ArchiveDestination,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
@@ -61,9 +62,10 @@ fn archive_chown(args: ChownCommand, umask: Umask) -> anyhow::Result<()> {
         .owner
         .lookup_platform_owner(args.numeric_owner, args.owner_lookup)?;
     let archive = args.archive.require_file()?;
+    let destination = ArchiveDestination::InPlace(archive.remove_part());
     execute_archive_transform(
-        &archive,
-        archive.remove_part(),
+        ArchiveSource::File(archive),
+        destination,
         umask,
         password.as_deref(),
         args.transform_strategy.strategy(),
