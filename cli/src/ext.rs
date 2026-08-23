@@ -201,27 +201,45 @@ impl<S: Display> Display for UserDisplay<S> {
 #[cfg(test)]
 mod resolved_ownership_tests {
     use super::*;
+    use pna::{Archive, Metadata, OwnerGroupName, OwnerUid, OwnerUserSid};
+
+    /// Returns the metadata of the first entry in the 0.33.0
+    /// `zstd_keep_permission` fixture. Its 9 entries (all files, no
+    /// directories) carry only legacy `fPRM` (no owner facets): `uid=501
+    /// uname="kaihatsutarou" gid=20 gname="staff"`, mode `0o100644`
+    /// (unmasked, as legacy fPRM stores it). uid != gid and uname != gname,
+    /// so this source can actually catch a uid<->gid or uname<->gname
+    /// mix-up — `zstd_keep_all.pna` has both pairs equal and can't.
+    /// With the legacy permission setters removed, decoding a real fixture is
+    /// the public way to get a `Metadata` with `permission` set.
+    fn fixture_metadata() -> Metadata {
+        let src = include_bytes!("../../resources/test/0.33.0/zstd_keep_permission.pna");
+        let mut archive = Archive::read_header(src.as_slice()).unwrap();
+        archive
+            .entries()
+            .skip_solid()
+            .next()
+            .unwrap()
+            .unwrap()
+            .metadata()
+            .clone()
+    }
 
     #[test]
     fn owner_facet_overwrites_fprm_baseline() {
-        #[allow(deprecated)]
-        let m = pna::Metadata::new()
-            .with_permission(Some(pna::Permission::new(
-                7,
-                "legacy".into(),
-                8,
-                "grp".into(),
-                0o600,
-            )))
-            .with_owner_uid(Some(pna::OwnerUid::from(1)))
-            .with_owner_user_name(Some(pna::OwnerUserName::new("new").unwrap()))
-            .with_owner_user_sid(Some(pna::OwnerUserSid::new("S-1-1").unwrap()));
-        let r = ResolvedOwnership::from_metadata(&m);
+        // Diagonal overrides (uid + gname) so a uid<->gid or uname<->gname
+        // mix-up in `from_metadata` would surface as a wrong value: every
+        // one of the four differs from the other three.
+        let metadata = fixture_metadata()
+            .with_owner_uid(Some(OwnerUid::from(1)))
+            .with_owner_group_name(Some(OwnerGroupName::new("grp").unwrap()))
+            .with_owner_user_sid(Some(OwnerUserSid::new("S-1-1").unwrap()));
+        let r = ResolvedOwnership::from_metadata(&metadata);
         assert_eq!(r.uid, Some(1));
-        assert_eq!(r.uname.as_deref(), Some("new"));
-        assert_eq!(r.gid, Some(8));
+        assert_eq!(r.uname.as_deref(), Some("kaihatsutarou"));
+        assert_eq!(r.gid, Some(20));
         assert_eq!(r.gname.as_deref(), Some("grp"));
-        assert_eq!(r.mode, Some(0o600));
+        assert_eq!(r.mode, Some(0o100644));
         assert_eq!(r.user_sid.as_deref(), Some("S-1-1"));
         assert_eq!(r.group_sid, None);
     }
@@ -234,17 +252,13 @@ mod resolved_ownership_tests {
 
     #[test]
     fn fprm_only_is_rescued() {
-        #[allow(deprecated)]
-        let m = pna::Metadata::new().with_permission(Some(pna::Permission::new(
-            5,
-            "u".into(),
-            6,
-            "g".into(),
-            0o644,
-        )));
-        let r = ResolvedOwnership::from_metadata(&m);
-        assert_eq!((r.uid, r.gid, r.mode), (Some(5), Some(6), Some(0o644)));
-        assert_eq!(r.uname.as_deref(), Some("u"));
-        assert_eq!(r.gname.as_deref(), Some("g"));
+        let metadata = fixture_metadata();
+        let r = ResolvedOwnership::from_metadata(&metadata);
+        assert_eq!(
+            (r.uid, r.gid, r.mode),
+            (Some(501), Some(20), Some(0o100644))
+        );
+        assert_eq!(r.uname.as_deref(), Some("kaihatsutarou"));
+        assert_eq!(r.gname.as_deref(), Some("staff"));
     }
 }

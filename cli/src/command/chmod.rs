@@ -93,7 +93,6 @@ fn archive_chmod(args: ChmodCommand, umask: Umask) -> anyhow::Result<()> {
 }
 
 #[inline]
-#[allow(deprecated)]
 fn transform_entry<T>(entry: NormalEntry<T>, mode: &Mode) -> NormalEntry<T> {
     let metadata = entry.metadata().clone();
     let own = crate::ext::ResolvedOwnership::from_metadata(&metadata);
@@ -102,7 +101,6 @@ fn transform_entry<T>(entry: NormalEntry<T>, mode: &Mode) -> NormalEntry<T> {
         .unwrap_or_else(|| default_permission_mode(entry.header().data_kind()));
     let new_mode = mode.apply_to(cur_mode);
     let metadata = metadata
-        .with_permission(None)
         .with_owner_uid(own.uid.map(pna::OwnerUid::from))
         .with_owner_gid(own.gid.map(pna::OwnerGid::from))
         .with_owner_user_name(

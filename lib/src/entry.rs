@@ -169,8 +169,10 @@ fn try_for_each_metadata_facet<E>(
         // A name too long for the owner-facet wire bound (255 bytes, a
         // 1-byte length prefix) cannot be represented as `OwnerUserName`/
         // `OwnerGroupName`; drop that facet rather than truncate or panic.
-        // `Permission::new` is still public at this stage, so this is
-        // reachable, if unlikely.
+        // A real `fPRM` chunk can't produce such a name — its own uname/gname
+        // fields are 1-byte-length-prefixed — so this only fires when
+        // `Permission` is constructed directly, which only `#[cfg(test)]`
+        // code can do.
         if let Ok(name) = OwnerUserName::new(value.uname()) {
             f(ChunkType::fONm, Cow::Owned(name.to_bytes()))?;
         }
@@ -1411,15 +1413,19 @@ mod tests {
                 .map(|(_, data)| data.clone())
         }
 
+        /// There is no public setter for `permission`, so this sets the
+        /// `pub(crate)` field directly.
+        fn set_permission(mut metadata: Metadata, permission: Permission) -> Metadata {
+            metadata.permission = Some(permission);
+            metadata
+        }
+
         #[test]
         fn permission_only_emits_five_owner_facets_and_no_fprm() {
-            let metadata = Metadata::new().with_permission(Some(Permission::new(
-                111,
-                "alice".to_string(),
-                222,
-                "staff".to_string(),
-                0o600,
-            )));
+            let metadata = set_permission(
+                Metadata::new(),
+                Permission::new(111, "alice".to_string(), 222, "staff".to_string(), 0o600),
+            );
             let facets = collect_facets(&metadata);
 
             assert!(facet(&facets, ChunkType::fPRM).is_none());
@@ -1447,15 +1453,10 @@ mod tests {
 
         #[test]
         fn existing_owner_facet_makes_permission_ignored_entirely() {
-            let metadata = Metadata::new()
-                .with_owner_uid(Some(OwnerUid::from(999u64)))
-                .with_permission(Some(Permission::new(
-                    111,
-                    "alice".to_string(),
-                    222,
-                    "staff".to_string(),
-                    0o600,
-                )));
+            let metadata = set_permission(
+                Metadata::new().with_owner_uid(Some(OwnerUid::from(999u64))),
+                Permission::new(111, "alice".to_string(), 222, "staff".to_string(), 0o600),
+            );
             let facets = collect_facets(&metadata);
 
             assert!(facet(&facets, ChunkType::fPRM).is_none());
@@ -1472,15 +1473,10 @@ mod tests {
 
         #[test]
         fn sid_only_facet_does_not_count_for_the_all_or_nothing_rule() {
-            let metadata = Metadata::new()
-                .with_owner_user_sid(Some(OwnerUserSid::new("S-1-5-21-1").unwrap()))
-                .with_permission(Some(Permission::new(
-                    111,
-                    "alice".to_string(),
-                    222,
-                    "staff".to_string(),
-                    0o600,
-                )));
+            let metadata = set_permission(
+                Metadata::new().with_owner_user_sid(Some(OwnerUserSid::new("S-1-5-21-1").unwrap())),
+                Permission::new(111, "alice".to_string(), 222, "staff".to_string(), 0o600),
+            );
             let facets = collect_facets(&metadata);
 
             assert!(facet(&facets, ChunkType::fPRM).is_none());
@@ -1513,13 +1509,10 @@ mod tests {
 
         #[test]
         fn permission_mode_from_st_mode_is_masked_to_0o7777() {
-            let metadata = Metadata::new().with_permission(Some(Permission::new(
-                0,
-                String::new(),
-                0,
-                String::new(),
-                0o100644,
-            )));
+            let metadata = set_permission(
+                Metadata::new(),
+                Permission::new(0, String::new(), 0, String::new(), 0o100644),
+            );
             let facets = collect_facets(&metadata);
 
             assert_eq!(
@@ -1532,13 +1525,10 @@ mod tests {
         #[test]
         fn overlong_name_facet_is_dropped_without_truncation_or_panic() {
             let long_name = "a".repeat(300);
-            let metadata = Metadata::new().with_permission(Some(Permission::new(
-                111,
-                long_name,
-                222,
-                "staff".to_string(),
-                0o600,
-            )));
+            let metadata = set_permission(
+                Metadata::new(),
+                Permission::new(111, long_name, 222, "staff".to_string(), 0o600),
+            );
             let facets = collect_facets(&metadata);
 
             // uid/gid/mode do not depend on the name and must still be written.
