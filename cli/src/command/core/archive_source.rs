@@ -152,6 +152,36 @@ impl OpenArchiveSource {
         }
     }
 
+    /// Rewrites every entry through `transform` into `writer`; `strategy` decides whether
+    /// solid blocks are kept or expanded on the way.
+    pub(crate) fn transform_entries<W, S>(
+        self,
+        writer: W,
+        password: Option<&[u8]>,
+        transform: &mut impl super::rewrite::EntryTransform,
+        strategy: S,
+    ) -> anyhow::Result<()>
+    where
+        W: io::Write,
+        S: TransformStrategy,
+    {
+        match self.0 {
+            Repr::File(mut source) => source.transform_entries(
+                writer,
+                password,
+                |entry| transform.transform(entry?),
+                strategy,
+            ),
+            Repr::Stdin(stdin) => super::run_transform_entries_readers(
+                writer,
+                [stdin],
+                || password,
+                |entry| transform.transform(entry?),
+                strategy,
+            ),
+        }
+    }
+
     /// Hands the archive parts to `consumer`, as memory-mapped bytes when this build maps
     /// file sources and as buffered readers otherwise.
     pub(crate) fn consume<C: SourceConsumer>(self, consumer: C) -> C::Output {

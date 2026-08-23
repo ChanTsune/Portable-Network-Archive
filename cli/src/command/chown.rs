@@ -3,7 +3,8 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            Umask, resolve_rewrite_output,
+            ArchiveSource, Umask,
+            archive_destination::ArchiveDestination,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
@@ -14,6 +15,7 @@ use crate::{
 };
 use clap::{ArgAction, Parser, ValueHint, builder::ArgPredicate};
 use pna::NormalEntry;
+use pna::prelude::PathPartExt;
 use std::{borrow::Cow, io, ops::Not, path::PathBuf, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -76,9 +78,12 @@ fn archive_chown(args: ChownCommand, umask: Umask) -> anyhow::Result<()> {
         .owner
         .lookup_platform_owner(args.numeric_owner, args.owner_lookup)?;
     let archive = args.archive.require_file()?;
-    let destination = resolve_rewrite_output(&archive, args.output, args.overwrite)?;
+    let destination = match args.output {
+        Some(output) => ArchiveDestination::Replace(output),
+        None => ArchiveDestination::InPlace(archive.remove_part()),
+    };
     execute_archive_transform(
-        &archive,
+        ArchiveSource::File(archive),
         destination,
         umask,
         password.as_deref(),

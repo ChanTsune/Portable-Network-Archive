@@ -26,10 +26,18 @@ fn strip_only_named_entries() {
     )
     .unwrap();
 
-    cli::Cli::try_parse_from(["pna", "--quiet", "strip", "-f", path, "strip.txt"])
-        .unwrap()
-        .execute()
-        .unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "strip",
+        "--overwrite",
+        "-f",
+        path,
+        "strip.txt",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
 
     let mut entries = Vec::new();
     archive::for_each_entry(path, |entry| {
