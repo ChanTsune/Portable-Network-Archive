@@ -106,13 +106,28 @@ pub fn create_encrypted_archive_with_permissions(
     entries: &[FileEntryDef],
     password: &str,
 ) -> io::Result<()> {
+    create_encrypted_archive_with_permissions_and_mode(
+        archive_path,
+        entries,
+        password,
+        pna::CipherMode::CTR,
+    )
+}
+
+/// Creates an encrypted archive with file entries having specific permissions and cipher mode.
+pub fn create_encrypted_archive_with_permissions_and_mode(
+    archive_path: impl AsRef<Path>,
+    entries: &[FileEntryDef],
+    password: &str,
+    cipher_mode: pna::CipherMode,
+) -> io::Result<()> {
     let file = File::create(archive_path)?;
     let mut archive = pna::Archive::write_header(file)?;
 
     let write_options = pna::WriteOptions::builder()
         .password(Some(password))
         .encryption(pna::Encryption::AES)
-        .cipher_mode(pna::CipherMode::CTR)
+        .cipher_mode(cipher_mode)
         .build();
 
     for entry_def in entries {
