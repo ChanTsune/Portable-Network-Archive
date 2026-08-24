@@ -151,6 +151,7 @@ mod platform {
             "pna",
             "--quiet",
             "append",
+            "--overwrite",
             "-f",
             archive_path,
             "--unstable",
