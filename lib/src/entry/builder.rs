@@ -8,6 +8,7 @@ pub use file::FileEntryBuilder;
 pub use link::{HardLinkEntryBuilder, SymlinkEntryBuilder};
 pub use solid::SolidEntryBuilder;
 
+#[cfg(test)]
 #[allow(deprecated)]
 use crate::entry::Permission;
 use crate::{
@@ -382,18 +383,6 @@ impl OpaqueEntryBuilder {
     #[inline]
     pub fn accessed(&mut self, since_unix_epoch: impl Into<Option<Duration>>) -> &mut Self {
         self.core.metadata.accessed = since_unix_epoch.into();
-        self
-    }
-
-    /// Sets the permission of the entry to the given owner, group, and permissions.
-    #[deprecated(
-        since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks; use `OpaqueEntryBuilder::metadata` with `Metadata::with_owner_uid`/`with_owner_gid`/`with_owner_user_name`/`with_owner_group_name`/`with_permission_mode`"
-    )]
-    #[allow(deprecated)]
-    #[inline]
-    pub fn permission(&mut self, permission: impl Into<Option<Permission>>) -> &mut Self {
-        self.core.metadata.permission = permission.into();
         self
     }
 
@@ -948,19 +937,21 @@ mod tests {
 
     #[test]
     #[allow(deprecated)]
-    fn metadata_setter_stores_permission_as_is_but_writer_derives_facets() {
+    fn permission_field_stored_as_is_but_writer_derives_facets() {
         let mut b = FileEntryBuilder::new("f".into()).unwrap();
-        b.metadata(Metadata::new().with_permission(Some(Permission::new(
+        let mut metadata = Metadata::new();
+        metadata.permission = Some(Permission::new(
             7,
             "legacy".to_string(),
             8,
             "grp".to_string(),
             0o600,
-        ))));
+        ));
+        b.metadata(metadata);
         let entry = b.build().unwrap();
 
-        // The setter stores the metadata as-is: `permission()` returns what
-        // was set, and the owner facets it never touched stay `None`.
+        // `permission()` returns what was stored, and the owner facets it
+        // never touched stay `None`.
         let m = entry.metadata();
         assert!(m.permission().is_some());
         assert_eq!(m.owner_uid(), None);

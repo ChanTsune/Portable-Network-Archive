@@ -171,18 +171,6 @@ impl Metadata {
         self
     }
 
-    /// Sets the permission of the entry.
-    #[deprecated(
-        since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks; use Metadata::with_owner_uid/with_owner_gid/with_owner_user_name/with_owner_group_name/with_owner_user_sid/with_owner_group_sid/with_permission_mode"
-    )]
-    #[allow(deprecated)]
-    #[inline]
-    pub fn with_permission(mut self, permission: Option<Permission>) -> Self {
-        self.permission = permission;
-        self
-    }
-
     /// Sets the owner user id facet (`fUId`).
     #[inline]
     pub fn with_owner_uid(mut self, value: Option<OwnerUid>) -> Self {

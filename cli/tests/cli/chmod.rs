@@ -7,12 +7,10 @@ mod password;
 mod password_file;
 mod unsolid;
 
-use crate::utils::{archive, archive::FileEntryDef, setup};
+use crate::utils::{EmbedExt, TestResources, archive, archive::FileEntryDef, setup};
 use clap::Parser;
-#[allow(deprecated)]
-use pna::Permission;
 use pna::{
-    Archive, DirEntryBuilder, EntryName, FileEntryBuilder, HardLinkEntryBuilder, Metadata,
+    Archive, DirEntryBuilder, EntryName, FileEntryBuilder, HardLinkEntryBuilder,
     SymlinkEntryBuilder,
 };
 use portable_network_archive::cli;
@@ -74,22 +72,12 @@ fn archive_chmod() {
 #[allow(deprecated)]
 fn archive_chmod_drops_legacy_fprm() {
     setup();
-    let path = "chmod_legacy_fprm.pna";
-    {
-        let mut archive = Archive::write_header(File::create(path).unwrap()).unwrap();
-        let mut builder =
-            FileEntryBuilder::new(EntryName::from_utf8_preserve_root(ENTRY_PATH)).unwrap();
-        builder.metadata(Metadata::new().with_permission(Some(Permission::new(
-            1000,
-            "user".to_string(),
-            1000,
-            "group".to_string(),
-            0o777,
-        ))));
-        builder.write_all(ENTRY_CONTENT).unwrap();
-        archive.add_entry(builder.build().unwrap()).unwrap();
-        archive.finalize().unwrap();
-    }
+    // The 0.33.0 `zstd_keep_permission` fixture's entries carry only legacy
+    // `fPRM` (no owner facets), mode `0o100644` unmasked for files.
+    const LEGACY_FIXTURE: &str = "0.33.0/zstd_keep_permission.pna";
+    TestResources::extract_in(LEGACY_FIXTURE, "chmod_legacy_fprm/").unwrap();
+    let path = format!("chmod_legacy_fprm/{LEGACY_FIXTURE}");
+    let target = "raw/text.txt";
 
     cli::Cli::try_parse_from([
         "pna",
@@ -97,22 +85,27 @@ fn archive_chmod_drops_legacy_fprm() {
         "experimental",
         "chmod",
         "-f",
-        path,
-        "644",
-        ENTRY_PATH,
+        path.as_str(),
+        "600",
+        target,
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    archive::for_each_entry(path, |entry| {
-        assert!(
-            entry.metadata().permission().is_none(),
-            "legacy fPRM must be removed after chmod"
-        );
-        assert_eq!(entry.metadata().permission_mode().unwrap().get(), 0o644);
+    let mut found = false;
+    archive::for_each_entry(&path, |entry| {
+        if entry.header().path().as_str() == target {
+            found = true;
+            assert!(
+                entry.metadata().permission().is_none(),
+                "legacy fPRM must be removed after chmod"
+            );
+            assert_eq!(entry.metadata().permission_mode().unwrap().get(), 0o600);
+        }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }
 
 /// Precondition: An archive entry has no permission metadata.
