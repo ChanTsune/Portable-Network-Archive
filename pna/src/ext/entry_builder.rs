@@ -1,8 +1,6 @@
 //! Provides extension traits for [`OpaqueEntryBuilder`].
 use crate::ext::{private, time::opt_system_time_to_duration};
-use libpna::{
-    Metadata, OpaqueEntryBuilder, OwnerGid, OwnerGroupName, OwnerUid, OwnerUserName, PermissionMode,
-};
+use libpna::{Metadata, OpaqueEntryBuilder};
 use std::time::SystemTime;
 
 /// [`OpaqueEntryBuilder`] extension trait.
@@ -11,14 +9,12 @@ use std::time::SystemTime;
 /// instead of the lower-level [`Duration`](libpna::Duration) representation.
 #[deprecated(
     since = "0.36.0",
-    note = "use `Metadata` with `MetadataTimeExt::with_*_time`; a deprecated `fPRM` permission with no owner facet set is written as the owner-facet chunks automatically"
+    note = "use `Metadata` with `MetadataTimeExt::with_*_time`"
 )]
 pub trait EntryBuilderExt: private::Sealed {
     /// Sets metadata from a [`Metadata`] instance.
     ///
     /// Copies metadata fields from the provided metadata to this entry builder.
-    /// Deprecated `fPRM` permission data in the metadata is rescued into the
-    /// owner-facet chunks; it is not copied back as `fPRM`.
     fn add_metadata(&mut self, metadata: &Metadata) -> &mut Self;
 
     /// Sets the created time using [`SystemTime`].
@@ -40,21 +36,6 @@ pub trait EntryBuilderExt: private::Sealed {
     fn accessed_time(&mut self, time: impl Into<Option<SystemTime>>) -> &mut Self;
 }
 
-/// Largest UTF-8 char-boundary prefix of `s` whose byte length is ≤ 255 —
-/// the `fONm`/`fGNm` owner-name wire bound (1-byte length prefix). Used to
-/// rescue a legacy fPRM name that exceeds the bounded owner-facet limit.
-fn owner_name_bounded(s: &str) -> &str {
-    const MAX: usize = u8::MAX as usize;
-    if s.len() <= MAX {
-        return s;
-    }
-    let mut end = MAX;
-    while !s.is_char_boundary(end) {
-        end -= 1;
-    }
-    &s[..end]
-}
-
 #[allow(deprecated)]
 impl EntryBuilderExt for OpaqueEntryBuilder {
     /// Sets metadata from a [`Metadata`] instance.
@@ -74,44 +55,18 @@ impl EntryBuilderExt for OpaqueEntryBuilder {
     /// # Ok(())
     /// # }
     /// ```
-    #[allow(deprecated)]
     #[inline]
     fn add_metadata(&mut self, metadata: &Metadata) -> &mut Self {
-        // Legacy fPRM from the supplied Metadata is read as a per-field rescue
-        // baseline and overwritten by owner facets when present.
-        let p = metadata.permission();
         self.created(metadata.created())
             .modified(metadata.modified())
             .accessed(metadata.accessed())
-            .owner_uid(
-                metadata
-                    .owner_uid()
-                    .or_else(|| p.map(|p| OwnerUid::from(p.uid()))),
-            )
-            .owner_gid(
-                metadata
-                    .owner_gid()
-                    .or_else(|| p.map(|p| OwnerGid::from(p.gid()))),
-            )
-            .owner_user_name(metadata.owner_user_name().cloned().or_else(|| {
-                p.map(|p| {
-                    OwnerUserName::new(owner_name_bounded(p.uname()))
-                        .expect("owner_name_bounded guarantees <= 255 bytes")
-                })
-            }))
-            .owner_group_name(metadata.owner_group_name().cloned().or_else(|| {
-                p.map(|p| {
-                    OwnerGroupName::new(owner_name_bounded(p.gname()))
-                        .expect("owner_name_bounded guarantees <= 255 bytes")
-                })
-            }))
+            .owner_uid(metadata.owner_uid())
+            .owner_gid(metadata.owner_gid())
+            .owner_user_name(metadata.owner_user_name().cloned())
+            .owner_group_name(metadata.owner_group_name().cloned())
             .owner_user_sid(metadata.owner_user_sid().cloned())
             .owner_group_sid(metadata.owner_group_sid().cloned())
-            .permission_mode(
-                metadata
-                    .permission_mode()
-                    .or_else(|| p.map(|p| PermissionMode::from(p.permissions()))),
-            )
+            .permission_mode(metadata.permission_mode())
             .link_target_type(metadata.link_target_type())
     }
 
@@ -129,7 +84,6 @@ impl EntryBuilderExt for OpaqueEntryBuilder {
     /// # Ok(())
     /// # }
     /// ```
-    #[allow(deprecated)]
     #[inline]
     fn created_time(&mut self, time: impl Into<Option<SystemTime>>) -> &mut Self {
         self.created(opt_system_time_to_duration(time.into()))
@@ -149,7 +103,6 @@ impl EntryBuilderExt for OpaqueEntryBuilder {
     /// # Ok(())
     /// # }
     /// ```
-    #[allow(deprecated)]
     #[inline]
     fn modified_time(&mut self, time: impl Into<Option<SystemTime>>) -> &mut Self {
         self.modified(opt_system_time_to_duration(time.into()))
@@ -169,7 +122,6 @@ impl EntryBuilderExt for OpaqueEntryBuilder {
     /// # Ok(())
     /// # }
     /// ```
-    #[allow(deprecated)]
     #[inline]
     fn accessed_time(&mut self, time: impl Into<Option<SystemTime>>) -> &mut Self {
         self.accessed(opt_system_time_to_duration(time.into()))
@@ -179,36 +131,10 @@ impl EntryBuilderExt for OpaqueEntryBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn owner_name_bounded_passes_through_short_ascii() {
-        assert_eq!(owner_name_bounded(""), "");
-        assert_eq!(owner_name_bounded("alice"), "alice");
-        let exactly_255 = "a".repeat(255);
-        assert_eq!(owner_name_bounded(&exactly_255), exactly_255);
-    }
-
-    #[test]
-    fn owner_name_bounded_truncates_long_ascii_to_255() {
-        let s = "a".repeat(300);
-        let out = owner_name_bounded(&s);
-        assert_eq!(out.len(), 255);
-        assert!(out.bytes().all(|b| b == b'a'));
-        assert_eq!(owner_name_bounded(&"a".repeat(256)).len(), 255);
-    }
-
-    #[test]
-    fn owner_name_bounded_truncates_on_utf8_boundary() {
-        let two_byte_char = 'é';
-        assert_eq!(two_byte_char.len_utf8(), 2);
-        let s = String::from(two_byte_char).repeat(200); // 400 bytes
-        let out = owner_name_bounded(&s);
-        assert_eq!(out.len(), 254);
-        assert_eq!(out.chars().count(), 127);
-        assert!(out.chars().all(|c| c == two_byte_char));
-    }
-
-    use libpna::{Archive, OwnerGroupSid, OwnerUserSid, WriteOptions};
+    use libpna::{
+        Archive, OwnerGid, OwnerGroupName, OwnerGroupSid, OwnerUid, OwnerUserName, OwnerUserSid,
+        PermissionMode, WriteOptions,
+    };
 
     #[allow(deprecated)]
     fn roundtrip(src: &Metadata) -> Metadata {
@@ -223,27 +149,6 @@ mod tests {
         let mut a = Archive::read_header(&buf[..]).unwrap();
         let e = a.entries().skip_solid().next().unwrap().unwrap();
         e.metadata().clone()
-    }
-
-    /// Returns the metadata of the first entry in the 0.33.0
-    /// `zstd_keep_permission` fixture. Its 9 entries (all files, no
-    /// directories) carry only legacy `fPRM` (no owner facets): `uid=501
-    /// uname="kaihatsutarou" gid=20 gname="staff"`, mode `0o100644`
-    /// (unmasked, as legacy fPRM stores it). uid != gid and uname != gname,
-    /// so this source can actually catch a uid<->gid or uname<->gname
-    /// mix-up — `zstd_keep_all.pna` has both pairs equal and can't.
-    /// With the legacy permission setters removed, decoding a real fixture is
-    /// the public way to get a `Metadata` with `permission` set.
-    fn fixture_metadata() -> Metadata {
-        let src = include_bytes!("../../../resources/test/0.33.0/zstd_keep_permission.pna");
-        let mut a = Archive::read_header(src.as_slice()).unwrap();
-        a.entries()
-            .skip_solid()
-            .next()
-            .unwrap()
-            .unwrap()
-            .metadata()
-            .clone()
     }
 
     #[test]
@@ -267,28 +172,16 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
-    fn add_metadata_translates_fprm_only_source() {
-        let src = fixture_metadata();
-        let m = roundtrip(&src);
-        assert_eq!(m.owner_uid().map(|v| v.get()), Some(501));
-        assert_eq!(m.owner_gid().map(|v| v.get()), Some(20));
-        assert_eq!(
-            m.owner_user_name().map(|v| v.as_str()),
-            Some("kaihatsutarou")
-        );
-        assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("staff"));
-        assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o644));
-        assert!(m.permission().is_none());
-    }
-
-    #[test]
-    #[allow(deprecated)]
-    fn add_metadata_owner_facet_wins_over_fprm() {
-        // Diagonal overrides (uid + gname) so a uid<->gid or uname<->gname
-        // mix-up in the rescue logic would surface as a wrong value: every
-        // one of the four differs from the other three.
-        let src = fixture_metadata()
+    fn add_metadata_preserves_unrelated_fields_after_partial_override() {
+        // Distinct literals (uid + gname overridden, gid + uname left alone)
+        // so a uid<->gid or uname<->gname mix-up would surface as a wrong
+        // value: every one of the four differs from the other three.
+        let src = Metadata::new()
+            .with_owner_uid(Some(OwnerUid::from(501)))
+            .with_owner_gid(Some(OwnerGid::from(20)))
+            .with_owner_user_name(Some(OwnerUserName::new("kaihatsutarou").unwrap()))
+            .with_owner_group_name(Some(OwnerGroupName::new("staff").unwrap()))
+            .with_permission_mode(Some(PermissionMode::from(0o644)))
             .with_owner_uid(Some(OwnerUid::from(1)))
             .with_owner_group_name(Some(OwnerGroupName::new("grp").unwrap()));
         let m = roundtrip(&src);
@@ -300,6 +193,5 @@ mod tests {
         assert_eq!(m.owner_gid().map(|v| v.get()), Some(20));
         assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("grp"));
         assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o644));
-        assert!(m.permission().is_none());
     }
 }

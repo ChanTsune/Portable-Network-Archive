@@ -4,7 +4,6 @@ use pna::Duration;
 use portable_network_archive::cli;
 use std::collections::BTreeMap;
 
-const PERMISSION_MODE_BITS: u16 = 0o7777;
 const LEGACY_FIXTURE: &str = "migrate_fprm_0_33_0/0.33.0/zstd_keep_all.pna";
 
 struct Captured {
@@ -18,12 +17,11 @@ struct Captured {
 
 /// Precondition: An fPRM-only archive carries ownership and timestamp metadata.
 /// Action: Run `pna migrate` to a new output archive.
-/// Expectation: Every entry's ownership is converted to owner-facet chunks
-/// (rescued from fPRM); the legacy fPRM chunk is not emitted; timestamps and
+/// Expectation: Every entry's ownership is preserved as owner-facet chunks
+/// (the reader already fills them from fPRM on the way in); timestamps and
 /// entry count are preserved.
 #[test]
-#[allow(deprecated)]
-fn migrate_converts_fprm_to_owner_facet() {
+fn migrate_preserves_ownership_from_legacy_fprm_source() {
     setup();
     TestResources::extract_in("0.33.0/zstd_keep_all.pna", "migrate_fprm_0_33_0/").unwrap();
 
@@ -31,17 +29,33 @@ fn migrate_converts_fprm_to_owner_facet() {
     archive::for_each_entry(LEGACY_FIXTURE, |entry| {
         let path = entry.header().path().to_string();
         let meta = entry.metadata();
-        let p = meta
-            .permission()
-            .expect("fixture entry should carry fPRM permission");
+        // The reader already folded the fixture's fPRM chunk into the owner
+        // facets, so the pre-migrate baseline is read from them directly.
         pre.insert(
             path,
             Captured {
-                uid: p.uid(),
-                gid: p.gid(),
-                uname: p.uname().to_string(),
-                gname: p.gname().to_string(),
-                mode: p.permissions(),
+                uid: meta
+                    .owner_uid()
+                    .expect("fixture entry should carry an owner uid")
+                    .get(),
+                gid: meta
+                    .owner_gid()
+                    .expect("fixture entry should carry an owner gid")
+                    .get(),
+                uname: meta
+                    .owner_user_name()
+                    .expect("fixture entry should carry an owner user name")
+                    .as_str()
+                    .to_owned(),
+                gname: meta
+                    .owner_group_name()
+                    .expect("fixture entry should carry an owner group name")
+                    .as_str()
+                    .to_owned(),
+                mode: meta
+                    .permission_mode()
+                    .expect("fixture entry should carry a permission mode")
+                    .get(),
                 modified: meta.modified(),
             },
         );
@@ -70,10 +84,6 @@ fn migrate_converts_fprm_to_owner_facet() {
         let expected = pre
             .get(&path)
             .unwrap_or_else(|| panic!("unexpected entry after migrate: {path}"));
-        assert!(
-            meta.permission().is_none(),
-            "fPRM must not be emitted after migrate for {path}"
-        );
         assert_eq!(
             meta.owner_uid().map(|v| v.get()),
             Some(expected.uid),
@@ -106,7 +116,7 @@ fn migrate_converts_fprm_to_owner_facet() {
         );
         assert_eq!(
             meta.permission_mode().map(|v| v.get()),
-            Some(expected.mode & PERMISSION_MODE_BITS),
+            Some(expected.mode),
             "mode {path}"
         );
         assert_eq!(

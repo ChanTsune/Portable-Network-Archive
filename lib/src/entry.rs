@@ -120,7 +120,6 @@ impl<W: WriteChunk> EntryChunkSink for EntryChunkWriter<'_, W> {
     }
 }
 
-#[allow(deprecated)]
 fn try_for_each_metadata_facet<E>(
     metadata: &Metadata,
     mut f: impl FnMut(ChunkType, Cow<[u8]>) -> Result<(), E>,
@@ -145,44 +144,6 @@ fn try_for_each_metadata_facet<E>(
         if nanos != 0 {
             f(ChunkType::aTNS, Cow::Borrowed(&nanos.to_be_bytes()))?;
         }
-    }
-    // A legacy `Permission` (fPRM) is written as the five owner facets it
-    // supplies, but only when none of them is already set: setting any one
-    // facet means the caller manages ownership through facets, and `Option`
-    // cannot tell "never set" from "explicitly cleared" (e.g. `chown
-    // --numeric-owner` clears the owner names), so a per-facet merge would
-    // resurrect a value the caller deliberately dropped.
-    let has_owner_facet = metadata.owner_uid.is_some()
-        || metadata.owner_gid.is_some()
-        || metadata.owner_user_name.is_some()
-        || metadata.owner_group_name.is_some()
-        || metadata.permission_mode.is_some();
-    if let Some(value) = metadata.permission.as_ref().filter(|_| !has_owner_facet) {
-        f(
-            ChunkType::fUId,
-            Cow::Borrowed(&OwnerUid::from(value.uid()).to_bytes()),
-        )?;
-        f(
-            ChunkType::fGId,
-            Cow::Borrowed(&OwnerGid::from(value.gid()).to_bytes()),
-        )?;
-        // A name too long for the owner-facet wire bound (255 bytes, a
-        // 1-byte length prefix) cannot be represented as `OwnerUserName`/
-        // `OwnerGroupName`; drop that facet rather than truncate or panic.
-        // A real `fPRM` chunk can't produce such a name — its own uname/gname
-        // fields are 1-byte-length-prefixed — so this only fires when
-        // `Permission` is constructed directly, which only `#[cfg(test)]`
-        // code can do.
-        if let Ok(name) = OwnerUserName::new(value.uname()) {
-            f(ChunkType::fONm, Cow::Owned(name.to_bytes()))?;
-        }
-        if let Ok(name) = OwnerGroupName::new(value.gname()) {
-            f(ChunkType::fGNm, Cow::Owned(name.to_bytes()))?;
-        }
-        f(
-            ChunkType::fMOd,
-            Cow::Borrowed(&PermissionMode::from(value.permissions()).to_bytes()),
-        )?;
     }
     if let Some(value) = metadata.owner_uid {
         f(ChunkType::fUId, Cow::Borrowed(&value.to_bytes()))?;
@@ -779,7 +740,6 @@ where
 {
     type Error = io::Error;
 
-    #[allow(deprecated)]
     #[inline]
     fn try_from(entry: RawEntry<T>) -> Result<Self, Self::Error> {
         let mut chunks = entry.0.into_iter();
@@ -886,6 +846,29 @@ where
         let mtime = mtime.map(|s| Duration::from_seconds_nanos(s, mtime_ns.unwrap_or(0)));
         let atime = atime.map(|s| Duration::from_seconds_nanos(s, atime_ns.unwrap_or(0)));
 
+        // A legacy `fPRM` chunk supplies five owner facets (all but the two
+        // SIDs, which it doesn't carry). If none of them arrived as their own
+        // chunk, treat the fPRM values as those facets. This must run after
+        // the chunk loop above, not inside the `fPRM` match arm: chunk order
+        // within an entry isn't guaranteed, so a facet chunk can arrive
+        // either side of `fPRM`, and the fill must not depend on which.
+        if let Some(p) = &permission
+            && owner_uid.is_none()
+            && owner_gid.is_none()
+            && owner_user_name.is_none()
+            && owner_group_name.is_none()
+            && permission_mode.is_none()
+        {
+            owner_uid = Some(OwnerUid::from(p.uid()));
+            owner_gid = Some(OwnerGid::from(p.gid()));
+            // fPRM's uname/gname are already bounded to 255 bytes on the
+            // wire (a 1-byte length prefix), so this can't fail in
+            // practice; `.ok()` just avoids a second, redundant bound.
+            owner_user_name = OwnerUserName::new(p.uname()).ok();
+            owner_group_name = OwnerGroupName::new(p.gname()).ok();
+            permission_mode = Some(PermissionMode::from(p.permissions()));
+        }
+
         Ok(Self {
             header,
             phsf,
@@ -896,7 +879,6 @@ where
                 created: ctime,
                 modified: mtime,
                 accessed: atime,
-                permission,
                 link_target_type,
                 owner_uid,
                 owner_gid,
@@ -917,7 +899,6 @@ where
     RawChunk<T>: Chunk + Into<RawChunk>,
     (ChunkType, T): Chunk + Into<RawChunk>,
 {
-    #[allow(deprecated)]
     #[inline]
     fn write_chunks_to<S: EntryChunkSink>(self, sink: &mut S) -> Result<(), S::Error> {
         sink.write_chunk((ChunkType::FHED, self.header.to_bytes()))?;
@@ -1390,166 +1371,222 @@ mod tests {
         assert_eq!(u128::MAX, u128_from_be_bytes_last(&u128::MAX.to_be_bytes()));
     }
 
-    #[allow(deprecated)]
-    mod permission_facet_priority {
+    mod owner_facet_fill_from_legacy_fprm {
         use super::*;
+
         #[cfg(all(target_family = "wasm", target_os = "unknown"))]
         use wasm_bindgen_test::wasm_bindgen_test as test;
 
-        fn collect_facets(metadata: &Metadata) -> Vec<(ChunkType, Vec<u8>)> {
-            let mut out = Vec::new();
-            try_for_each_metadata_facet(metadata, |ty, data| {
-                out.push((ty, data.into_owned()));
-                Ok::<(), Infallible>(())
-            })
-            .unwrap();
-            out
+        /// Raw `fPRM` chunk body: `uid(8) | uname_len(1) | uname | gid(8) |
+        /// gname_len(1) | gname | mode(2)`, all big-endian (mirrors
+        /// `Permission::try_from_bytes`). Asserts both names fit the 1-byte
+        /// length prefix before the `as u8` cast, so a name too long for the
+        /// format fails loudly here instead of silently truncating the length
+        /// byte and producing a malformed chunk.
+        fn fprm_body(uid: u64, uname: &str, gid: u64, gname: &str, mode: u16) -> Vec<u8> {
+            assert!(uname.len() <= u8::MAX as usize);
+            assert!(gname.len() <= u8::MAX as usize);
+            let mut body = Vec::new();
+            body.extend_from_slice(&uid.to_be_bytes());
+            body.push(uname.len() as u8);
+            body.extend_from_slice(uname.as_bytes());
+            body.extend_from_slice(&gid.to_be_bytes());
+            body.push(gname.len() as u8);
+            body.extend_from_slice(gname.as_bytes());
+            body.extend_from_slice(&mode.to_be_bytes());
+            body
         }
 
-        fn facet(facets: &[(ChunkType, Vec<u8>)], ty: ChunkType) -> Option<Vec<u8>> {
-            facets
-                .iter()
-                .find(|(t, _)| *t == ty)
-                .map(|(_, data)| data.clone())
-        }
-
-        /// There is no public setter for `permission`, so this sets the
-        /// `pub(crate)` field directly.
-        fn set_permission(mut metadata: Metadata, permission: Permission) -> Metadata {
-            metadata.permission = Some(permission);
-            metadata
-        }
-
-        #[test]
-        fn permission_only_emits_five_owner_facets_and_no_fprm() {
-            let metadata = set_permission(
-                Metadata::new(),
-                Permission::new(111, "alice".to_string(), 222, "staff".to_string(), 0o600),
-            );
-            let facets = collect_facets(&metadata);
-
-            assert!(facet(&facets, ChunkType::fPRM).is_none());
-            assert_eq!(
-                facet(&facets, ChunkType::fUId),
-                Some(OwnerUid::from(111u64).to_bytes().to_vec())
-            );
-            assert_eq!(
-                facet(&facets, ChunkType::fGId),
-                Some(OwnerGid::from(222u64).to_bytes().to_vec())
-            );
-            assert_eq!(
-                facet(&facets, ChunkType::fONm),
-                Some(OwnerUserName::new("alice").unwrap().to_bytes())
-            );
-            assert_eq!(
-                facet(&facets, ChunkType::fGNm),
-                Some(OwnerGroupName::new("staff").unwrap().to_bytes())
-            );
-            assert_eq!(
-                facet(&facets, ChunkType::fMOd),
-                Some(PermissionMode::from(0o600u16).to_bytes().to_vec())
-            );
+        /// Builds a `NormalEntry` from `FHED` + the given chunks (in the
+        /// given order) + `FEND`, decodes it, and returns its metadata. Lets
+        /// tests place `fPRM` before or after a facet chunk to prove the fill
+        /// doesn't depend on chunk arrival order.
+        fn metadata_from_chunks(chunks: Vec<RawChunk<Vec<u8>>>) -> Metadata {
+            let mut all = vec![RawChunk::from_data(
+                ChunkType::FHED,
+                EntryHeader::for_file(Compression::NO, Encryption::NO, CipherMode::CTR, "f".into())
+                    .to_bytes(),
+            )];
+            all.extend(chunks);
+            all.push(RawChunk::from_data(ChunkType::FEND, vec![]));
+            let entry: NormalEntry = RawEntry(all).try_into().unwrap();
+            entry.metadata().clone()
         }
 
         #[test]
-        fn existing_owner_facet_makes_permission_ignored_entirely() {
-            let metadata = set_permission(
-                Metadata::new().with_owner_uid(Some(OwnerUid::from(999u64))),
-                Permission::new(111, "alice".to_string(), 222, "staff".to_string(), 0o600),
-            );
-            let facets = collect_facets(&metadata);
+        fn fprm_only_fills_all_five_owner_facets() {
+            let metadata = metadata_from_chunks(vec![RawChunk::from_data(
+                ChunkType::fPRM,
+                fprm_body(111, "alice", 222, "staff", 0o600),
+            )]);
 
-            assert!(facet(&facets, ChunkType::fPRM).is_none());
+            assert_eq!(metadata.owner_uid().map(|v| v.get()), Some(111));
+            assert_eq!(metadata.owner_gid().map(|v| v.get()), Some(222));
             assert_eq!(
-                facet(&facets, ChunkType::fUId),
-                Some(OwnerUid::from(999u64).to_bytes().to_vec()),
-                "the set facet's own value must win, not the permission's"
+                metadata.owner_user_name().map(|v| v.as_str()),
+                Some("alice")
             );
-            assert!(facet(&facets, ChunkType::fGId).is_none());
-            assert!(facet(&facets, ChunkType::fONm).is_none());
-            assert!(facet(&facets, ChunkType::fGNm).is_none());
-            assert!(facet(&facets, ChunkType::fMOd).is_none());
+            assert_eq!(
+                metadata.owner_group_name().map(|v| v.as_str()),
+                Some("staff")
+            );
+            assert_eq!(metadata.permission_mode().map(|v| v.get()), Some(0o600));
+        }
+
+        /// The fill reads `p.uname()` straight into `OwnerUserName::new` via
+        /// `.ok()`, discarding a `LengthExceeded` error silently. That can't
+        /// happen today — `fPRM`'s uname is already bounded to 255 bytes by
+        /// its own 1-byte length prefix — but nothing enforces that the two
+        /// bounds (`fPRM`'s and `OwnerUserName`'s) stay in sync. Pin the
+        /// boundary: a name at the limit must still survive the fill.
+        #[test]
+        fn owner_name_at_the_255_byte_boundary_survives_the_fill() {
+            let long_name = "a".repeat(255);
+            let metadata = metadata_from_chunks(vec![RawChunk::from_data(
+                ChunkType::fPRM,
+                fprm_body(0, &long_name, 0, "g", 0o644),
+            )]);
+
+            assert_eq!(
+                metadata.owner_user_name().map(|v| v.as_str()),
+                Some(long_name.as_str())
+            );
+        }
+
+        #[test]
+        fn owner_facet_before_fprm_suppresses_the_fill() {
+            // `fPRM` is the LAST chunk here. A fill implemented inside the
+            // `fPRM` match arm would see `owner_uid` already set and could
+            // still be tempted to fill the other four from fPRM; folding the
+            // decision until after the full loop is what rules that out.
+            let metadata = metadata_from_chunks(vec![
+                RawChunk::from_data(ChunkType::fUId, OwnerUid::from(999u64).to_bytes().to_vec()),
+                RawChunk::from_data(
+                    ChunkType::fPRM,
+                    fprm_body(111, "alice", 222, "staff", 0o600),
+                ),
+            ]);
+
+            assert_eq!(
+                metadata.owner_uid().map(|v| v.get()),
+                Some(999),
+                "the entry's own facet must win, not fPRM's"
+            );
+            assert!(metadata.owner_gid().is_none());
+            assert!(metadata.owner_user_name().is_none());
+            assert!(metadata.owner_group_name().is_none());
+            assert!(metadata.permission_mode().is_none());
+        }
+
+        #[test]
+        fn owner_facet_after_fprm_still_suppresses_the_fill() {
+            // Same two chunks as above, reversed: `fPRM` is now FIRST. A fill
+            // implemented inside the `fPRM` match arm would see no facet set
+            // yet and fill all five from fPRM, then have the later `fUId`
+            // chunk merely overwrite one of them — the outcome must match the
+            // reversed order above regardless.
+            let metadata = metadata_from_chunks(vec![
+                RawChunk::from_data(
+                    ChunkType::fPRM,
+                    fprm_body(111, "alice", 222, "staff", 0o600),
+                ),
+                RawChunk::from_data(ChunkType::fUId, OwnerUid::from(999u64).to_bytes().to_vec()),
+            ]);
+
+            assert_eq!(metadata.owner_uid().map(|v| v.get()), Some(999));
+            assert!(metadata.owner_gid().is_none());
+            assert!(metadata.owner_user_name().is_none());
+            assert!(metadata.owner_group_name().is_none());
+            assert!(metadata.permission_mode().is_none());
         }
 
         #[test]
         fn sid_only_facet_does_not_count_for_the_all_or_nothing_rule() {
-            let metadata = set_permission(
-                Metadata::new().with_owner_user_sid(Some(OwnerUserSid::new("S-1-5-21-1").unwrap())),
-                Permission::new(111, "alice".to_string(), 222, "staff".to_string(), 0o600),
-            );
-            let facets = collect_facets(&metadata);
+            let metadata = metadata_from_chunks(vec![
+                RawChunk::from_data(
+                    ChunkType::fOSi,
+                    OwnerUserSid::new("S-1-5-21-1").unwrap().to_bytes(),
+                ),
+                RawChunk::from_data(
+                    ChunkType::fPRM,
+                    fprm_body(111, "alice", 222, "staff", 0o600),
+                ),
+            ]);
 
-            assert!(facet(&facets, ChunkType::fPRM).is_none());
             assert_eq!(
-                facet(&facets, ChunkType::fOSi),
-                Some(OwnerUserSid::new("S-1-5-21-1").unwrap().to_bytes()),
+                metadata.owner_user_sid().map(|v| v.as_str()),
+                Some("S-1-5-21-1"),
                 "guard: the SID must still be present for the five facets below to be meaningful"
             );
+            assert_eq!(metadata.owner_uid().map(|v| v.get()), Some(111));
+            assert_eq!(metadata.owner_gid().map(|v| v.get()), Some(222));
             assert_eq!(
-                facet(&facets, ChunkType::fUId),
-                Some(OwnerUid::from(111u64).to_bytes().to_vec())
+                metadata.owner_user_name().map(|v| v.as_str()),
+                Some("alice")
             );
             assert_eq!(
-                facet(&facets, ChunkType::fGId),
-                Some(OwnerGid::from(222u64).to_bytes().to_vec())
+                metadata.owner_group_name().map(|v| v.as_str()),
+                Some("staff")
             );
+            assert_eq!(metadata.permission_mode().map(|v| v.get()), Some(0o600));
+        }
+
+        #[test]
+        fn fprm_mode_is_masked_to_0o7777_by_the_fill() {
+            let metadata = metadata_from_chunks(vec![RawChunk::from_data(
+                ChunkType::fPRM,
+                fprm_body(0, "", 0, "", 0o100644),
+            )]);
+
             assert_eq!(
-                facet(&facets, ChunkType::fONm),
-                Some(OwnerUserName::new("alice").unwrap().to_bytes())
-            );
-            assert_eq!(
-                facet(&facets, ChunkType::fGNm),
-                Some(OwnerGroupName::new("staff").unwrap().to_bytes())
-            );
-            assert_eq!(
-                facet(&facets, ChunkType::fMOd),
-                Some(PermissionMode::from(0o600u16).to_bytes().to_vec())
+                metadata.permission_mode().map(|v| v.get()),
+                Some(0o644),
+                "the filled fMOd must mask off the file-type bits fPRM used to carry"
             );
         }
 
         #[test]
-        fn permission_mode_from_st_mode_is_masked_to_0o7777() {
-            let metadata = set_permission(
-                Metadata::new(),
-                Permission::new(0, String::new(), 0, String::new(), 0o100644),
-            );
-            let facets = collect_facets(&metadata);
+        fn no_fprm_leaves_facets_untouched() {
+            let metadata = metadata_from_chunks(vec![RawChunk::from_data(
+                ChunkType::fUId,
+                OwnerUid::from(1u64).to_bytes().to_vec(),
+            )]);
 
-            assert_eq!(
-                facet(&facets, ChunkType::fMOd),
-                Some(PermissionMode::from(0o644u16).to_bytes().to_vec()),
-                "fMOd must mask off the file-type bits fPRM used to carry"
-            );
+            assert_eq!(metadata.owner_uid().map(|v| v.get()), Some(1));
+            assert!(metadata.owner_gid().is_none());
         }
 
+        /// An entry decoded from a legacy `fPRM` chunk must be indistinguishable
+        /// from one that carried the same values as owner facets all along —
+        /// including under `Metadata`'s `Eq`/`Hash` derive, which see every
+        /// field. If `Metadata` still stored the decoded `fPRM` value in a
+        /// field no public getter exposes, this would fail: the two `Metadata`
+        /// values would compare unequal despite agreeing on every observable
+        /// facet.
         #[test]
-        fn overlong_name_facet_is_dropped_without_truncation_or_panic() {
-            let long_name = "a".repeat(300);
-            let metadata = set_permission(
-                Metadata::new(),
-                Permission::new(111, long_name, 222, "staff".to_string(), 0o600),
-            );
-            let facets = collect_facets(&metadata);
+        fn fprm_filled_metadata_equals_facet_only_metadata() {
+            let from_fprm = metadata_from_chunks(vec![RawChunk::from_data(
+                ChunkType::fPRM,
+                fprm_body(111, "alice", 222, "staff", 0o600),
+            )]);
+            let from_facets = metadata_from_chunks(vec![
+                RawChunk::from_data(ChunkType::fUId, OwnerUid::from(111u64).to_bytes().to_vec()),
+                RawChunk::from_data(ChunkType::fGId, OwnerGid::from(222u64).to_bytes().to_vec()),
+                RawChunk::from_data(
+                    ChunkType::fONm,
+                    OwnerUserName::new("alice").unwrap().to_bytes(),
+                ),
+                RawChunk::from_data(
+                    ChunkType::fGNm,
+                    OwnerGroupName::new("staff").unwrap().to_bytes(),
+                ),
+                RawChunk::from_data(
+                    ChunkType::fMOd,
+                    PermissionMode::from(0o600u16).to_bytes().to_vec(),
+                ),
+            ]);
 
-            // uid/gid/mode do not depend on the name and must still be written.
-            assert_eq!(
-                facet(&facets, ChunkType::fUId),
-                Some(OwnerUid::from(111u64).to_bytes().to_vec())
-            );
-            assert_eq!(
-                facet(&facets, ChunkType::fGId),
-                Some(OwnerGid::from(222u64).to_bytes().to_vec())
-            );
-            assert_eq!(
-                facet(&facets, ChunkType::fMOd),
-                Some(PermissionMode::from(0o600u16).to_bytes().to_vec())
-            );
-            // a name too long for the 1-byte length prefix is dropped, not truncated.
-            assert!(facet(&facets, ChunkType::fONm).is_none());
-            assert_eq!(
-                facet(&facets, ChunkType::fGNm),
-                Some(OwnerGroupName::new("staff").unwrap().to_bytes())
-            );
+            assert_eq!(from_fprm, from_facets);
         }
     }
 
