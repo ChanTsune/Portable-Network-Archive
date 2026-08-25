@@ -113,14 +113,20 @@ fn chmod_keep_solid_on_encrypted_solid_archive() {
     .execute()
     .unwrap();
 
-    assert_eq!(
-        archive::entry_mode_with_password(
-            "chmod_keep_solid_encrypted.pna",
-            ENTRY_PATH,
-            Some("password"),
-        ),
-        0o666,
-    );
+    let mut found = false;
+    archive::for_each_entry_with_password("chmod_keep_solid_encrypted.pna", "password", |entry| {
+        if entry.header().path() == ENTRY_PATH {
+            found = true;
+            let mode = entry
+                .metadata()
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
+            assert_eq!(mode & 0o777, 0o666, "-x on 0o777 should yield 0o666");
+        }
+    })
+    .unwrap();
+    assert!(found, "target entry not found in archive");
     assert_eq!(
         solid_headers("chmod_keep_solid_encrypted.pna"),
         headers_before
