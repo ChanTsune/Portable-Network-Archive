@@ -6,9 +6,9 @@ mod option_hex;
 mod option_keep_solid;
 mod option_password;
 mod option_remove;
+mod option_restore;
 #[cfg(not(target_family = "wasm"))]
 mod option_restore_from_stdin;
-mod option_restore;
 mod option_unsolid;
 mod overwrite;
 mod set_and_remove;

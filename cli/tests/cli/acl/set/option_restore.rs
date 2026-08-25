@@ -22,8 +22,6 @@ fn acl_set_restore() {
             "*",
         ])
         .assert();
-    let output = &assert.get_output().stdout;
-    fs::write("acl_set_restore/acl_dump.txt", output).unwrap();
     let expected = concat!(
         "# file: freebsd_acl.txt\n",
         "# owner: \n",
@@ -107,8 +105,9 @@ fn acl_set_restore() {
         "\n",
     ));
 
-    // Restore acl
-    cargo_bin_cmd!("pna")
+    // Restore ACLs from stdin.
+    let mut cmd = cargo_bin_cmd!("pna");
+    cmd.write_stdin(expected)
         .args([
             "--quiet",
             "experimental",
@@ -116,8 +115,7 @@ fn acl_set_restore() {
             "set",
             "-f",
             "acl_set_restore/mixed_acl.pna",
-            "--restore",
-            "acl_set_restore/acl_dump.txt",
+            "--restore-from-stdin",
         ])
         .assert()
         .success();
