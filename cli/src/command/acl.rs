@@ -26,6 +26,7 @@ use regex::Regex;
 use std::{
     collections::{HashMap, HashSet},
     fs, io,
+    path::PathBuf,
     str::FromStr,
 };
 
@@ -77,6 +78,7 @@ impl Command for GetAclCommand {
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(
     group(ArgGroup::new("set-flags").args(["set", "modify"])),
+    group(ArgGroup::new("restore-source").args(["restore", "restore_from_stdin"])),
 )]
 pub(crate) struct SetAclCommand {
     #[command(flatten)]
@@ -103,10 +105,15 @@ pub(crate) struct SetAclCommand {
     platform: AcePlatform,
     #[arg(
         long,
-        help = "Restore a permission backup created by `pna acl get *` or similar. All permissions of a complete directory subtree are restored using this mechanism. If a dash (-) is given as the file name, reads from standard input",
+        help = "Restore a permission backup created by `pna acl get *` or similar from a file. All permissions of a complete directory subtree are restored using this mechanism",
         value_hint = ValueHint::FilePath
     )]
-    restore: Option<String>,
+    restore: Option<PathBuf>,
+    #[arg(
+        long,
+        help = "Restore a permission backup created by `pna acl get *` or similar from standard input"
+    )]
+    restore_from_stdin: bool,
     #[command(flatten)]
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
@@ -330,7 +337,7 @@ fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
 fn archive_set_acl(args: SetAclCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let files = args.file.files;
-    let mut set_strategy = if let Some("-") = args.restore.as_deref() {
+    let mut set_strategy = if args.restore_from_stdin {
         SetAclsStrategy::Restore(parse_acl_dump(io::stdin().lock())?)
     } else if let Some(path) = args.restore.as_deref() {
         SetAclsStrategy::Restore(parse_acl_dump(io::BufReader::new(fs::File::open(path)?))?)
