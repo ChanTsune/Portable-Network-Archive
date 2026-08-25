@@ -8,7 +8,7 @@ mod option_password;
 mod option_remove;
 #[cfg(not(target_family = "wasm"))]
 mod option_restore_from_stdin;
-mod option_restore_from_file;
+mod option_restore;
 mod option_unsolid;
 mod overwrite;
 mod set_and_remove;
