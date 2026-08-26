@@ -258,7 +258,6 @@ impl TimeFilters {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cli::MissingTimePolicy;
     use std::time::Duration;
 
     fn now() -> SystemTime {
@@ -587,7 +586,6 @@ mod tests {
 
     mod missing_policy {
         use super::*;
-        use crate::cli::MissingTimePolicy;
 
         #[test]
         fn include_policy_passes_none_ctime() {

@@ -2190,7 +2190,6 @@ fn re_encrypt_entry_with_name(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cli::MissingTimePolicy;
     use std::collections::HashSet;
 
     const EMPTY_PATTERNS: [&str; 0] = [];
@@ -2851,7 +2850,7 @@ mod tests {
                 ItemSource::Archive(ArchiveSource::Stdin),
                 ItemSource::Archive(ArchiveSource::File(PathBuf::from("archive.pna"))),
             ];
-            assert!(super::validate_no_duplicate_stdin(&sources).is_ok());
+            assert!(validate_no_duplicate_stdin(&sources).is_ok());
         }
 
         #[test]
@@ -2860,13 +2859,13 @@ mod tests {
                 ItemSource::Archive(ArchiveSource::Stdin),
                 ItemSource::Archive(ArchiveSource::Stdin),
             ];
-            assert!(super::validate_no_duplicate_stdin(&sources).is_err());
+            assert!(validate_no_duplicate_stdin(&sources).is_err());
         }
 
         #[test]
         fn validate_no_duplicate_stdin_empty() {
             let sources: Vec<ItemSource> = vec![];
-            assert!(super::validate_no_duplicate_stdin(&sources).is_ok());
+            assert!(validate_no_duplicate_stdin(&sources).is_ok());
         }
     }
 

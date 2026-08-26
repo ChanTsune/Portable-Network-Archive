@@ -164,7 +164,6 @@ pub async fn skip_chunk<R: AsyncRead + AsyncSeek + Unpin + ?Sized>(
 #[cfg(all(test, not(target_family = "wasm")))]
 mod tests {
     use super::*;
-    use crate::Chunk;
     use futures_util::io::Cursor;
     use std::pin::Pin;
     use std::task::{Context, Poll, ready};

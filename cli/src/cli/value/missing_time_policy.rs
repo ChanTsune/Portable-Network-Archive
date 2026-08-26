@@ -1,10 +1,9 @@
+use crate::cli::value::{DateTime, DateTimeError};
 use std::{
     fmt::{self, Display, Formatter},
     str::FromStr,
     time::{SystemTime, UNIX_EPOCH},
 };
-
-use super::DateTime;
 
 #[derive(Clone, Copy, Eq, PartialEq, Hash, Debug)]
 pub(crate) enum MissingTimePolicy {
@@ -16,7 +15,7 @@ pub(crate) enum MissingTimePolicy {
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum MissingTimePolicyError {
     #[error(transparent)]
-    DateTime(#[from] super::DateTimeError),
+    DateTime(#[from] DateTimeError),
 }
 
 impl Display for MissingTimePolicy {

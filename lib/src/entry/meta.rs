@@ -971,7 +971,6 @@ mod tests {
 
     #[test]
     fn owner_string_newtype_bound_and_codec() {
-        use crate::entry::OwnerUserName;
         assert!(OwnerUserName::new("").is_ok());
         assert!(OwnerUserName::new("alice").is_ok());
         assert!(OwnerUserName::new("a".repeat(255)).is_ok());
@@ -993,7 +992,6 @@ mod tests {
 
     #[test]
     fn owner_uid_and_permission_mode_codec() {
-        use crate::entry::{OwnerUid, PermissionMode};
         let u = OwnerUid::from(1000u64);
         assert_eq!(u.get(), 1000);
         assert_eq!(u.to_bytes(), 1000u64.to_be_bytes());
@@ -1027,7 +1025,6 @@ mod tests {
 
     #[test]
     fn owner_id_facets_round_trip_via_entry() {
-        use crate::entry::{OwnerGid, OwnerUid};
         use crate::{Archive, FileEntryBuilder};
         let mut buf = Vec::new();
         {
@@ -1051,7 +1048,6 @@ mod tests {
 
     #[test]
     fn owner_name_facets_round_trip_via_entry() {
-        use crate::entry::{OwnerGroupName, OwnerUserName};
         use crate::{Archive, FileEntryBuilder};
         let mut buf = Vec::new();
         {
@@ -1075,7 +1071,6 @@ mod tests {
 
     #[test]
     fn owner_sid_facets_round_trip_via_entry() {
-        use crate::entry::{OwnerGroupSid, OwnerUserSid};
         use crate::{Archive, FileEntryBuilder};
         let mut buf = Vec::new();
         {
@@ -1105,7 +1100,6 @@ mod tests {
 
     #[test]
     fn fosi_length_prefixed_round_trip_and_empty() {
-        use crate::entry::{OwnerGroupSid, OwnerUserSid};
         use crate::{Archive, FileEntryBuilder};
         let mut buf = Vec::new();
         {
@@ -1130,7 +1124,6 @@ mod tests {
 
     #[test]
     fn permission_mode_facet_round_trip_via_entry() {
-        use crate::entry::PermissionMode;
         use crate::{Archive, FileEntryBuilder};
         let mut buf = Vec::new();
         {
@@ -1239,10 +1232,6 @@ mod tests {
     #[allow(deprecated)]
     #[test]
     fn fprm_alongside_owner_facets_reads_both_independently() {
-        use crate::entry::{
-            OwnerGid, OwnerGroupName, OwnerGroupSid, OwnerUid, OwnerUserName, OwnerUserSid,
-            PermissionMode,
-        };
         use crate::{Archive, ChunkType, FileEntryBuilder, RawChunk};
         let mut buf = Vec::new();
         {

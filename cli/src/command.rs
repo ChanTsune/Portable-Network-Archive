@@ -143,7 +143,7 @@ impl Cli {
 
 #[cfg(test)]
 mod tests {
-    use super::password_bytes_need_raw_mode;
+    use super::*;
 
     #[test]
     fn detects_lf_and_cr_as_newline() {

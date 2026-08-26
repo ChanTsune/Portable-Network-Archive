@@ -1,5 +1,6 @@
 //! Writing an archive across a sequence of size-bounded parts.
-use super::{ArchiveHeader, write_archive_framing};
+use super::write_archive_framing;
+use crate::archive::ArchiveHeader;
 use crate::{
     PNA_SIGNATURE,
     chunk::{Chunk, ChunkExt, ChunkType, MIN_CHUNK_BYTES_SIZE},
@@ -27,7 +28,7 @@ pub const MIN_SPLIT_PART_BYTES: usize = SPLIT_ARCHIVE_OVERHEAD_BYTES + MIN_CHUNK
 ///
 /// Every part is self-framed: opening a part writes the PNA signature and an
 /// `AHED` chunk, and switching to the next part writes `ANXT` then `AEND` to
-/// the part being closed. [`Archive::finalize`](super::Archive::finalize)
+/// the part being closed. [`Archive::finalize`](crate::archive::Archive::finalize)
 /// consumes this sink and writes the final `AEND` into its reserved tail space.
 ///
 /// If writing fails, the multipart output may be incomplete and this sink must be
@@ -251,7 +252,8 @@ impl<W: Write, F: FnMut(u32) -> io::Result<W>> WriteChunk for &mut SplitParts<W,
 
 #[cfg(test)]
 mod tests {
-    use super::super::Archive;
+    use super::*;
+    use crate::archive::Archive;
     use crate::{
         chunk::{Chunk, ChunkType},
         entry::{
@@ -384,7 +386,7 @@ mod tests {
     fn rejects_max_part_bytes_below_minimum() {
         let (_, next) = part_collector();
         // `Archive<SplitParts<..>>` isn't `Debug`, so match instead of `unwrap_err`.
-        match Archive::write_split_header(super::MIN_SPLIT_PART_BYTES - 1, next) {
+        match Archive::write_split_header(MIN_SPLIT_PART_BYTES - 1, next) {
             Err(err) => assert_eq!(err.kind(), io::ErrorKind::InvalidInput),
             Ok(_) => panic!("expected an error"),
         }
@@ -393,7 +395,7 @@ mod tests {
     #[test]
     fn rollover_rejects_part_count_overflow_before_closing_part() {
         let (parts, next) = part_collector();
-        let mut writer = super::SplitParts::new(1024, next).unwrap();
+        let mut writer = SplitParts::new(1024, next).unwrap();
         writer.parts = u32::MAX;
         assert_eq!(writer.parts(), u32::MAX);
         let bytes_before = parts.borrow()[0].0.borrow().clone();
@@ -459,7 +461,7 @@ mod tests {
         let (_, next) = part_collector();
         // Budget = MIN_SPLIT_PART_BYTES - SPLIT_ARCHIVE_OVERHEAD_BYTES = 12 bytes;
         // an FHED chunk always exceeds it.
-        let mut archive = Archive::write_split_header(super::MIN_SPLIT_PART_BYTES, next).unwrap();
+        let mut archive = Archive::write_split_header(MIN_SPLIT_PART_BYTES, next).unwrap();
         let entry = FileEntryBuilder::new("f".into()).unwrap().build().unwrap();
         let err = archive.add_entry(entry).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
@@ -469,7 +471,7 @@ mod tests {
     fn stream_chunk_that_can_never_fit_a_part_is_rejected() {
         // The 12-byte budget cannot hold even one byte of stream data.
         let (_, next) = part_collector();
-        let mut archive = Archive::write_split_header(super::MIN_SPLIT_PART_BYTES, next).unwrap();
+        let mut archive = Archive::write_split_header(MIN_SPLIT_PART_BYTES, next).unwrap();
         let err = archive
             .inner
             .write_chunk((ChunkType::FDAT, &[0u8; 1][..]))
@@ -497,7 +499,7 @@ mod tests {
     #[test]
     fn splits_stream_chunk_across_parts() {
         let (parts, next) = part_collector();
-        let max = super::MIN_SPLIT_PART_BYTES + 96; // margin small enough to force a mid-FDAT cut
+        let max = MIN_SPLIT_PART_BYTES + 96; // margin small enough to force a mid-FDAT cut
         let mut archive = Archive::write_split_header(max, next).unwrap();
         let options = WriteOptions::builder().compression(Compression::NO).build();
         let mut b = FileEntryBuilder::new_with_options("f".into(), &options).unwrap();
@@ -513,7 +515,7 @@ mod tests {
     #[test]
     fn split_writes_streaming_normal_entry_across_parts() {
         let (parts, next) = part_collector();
-        let max = super::MIN_SPLIT_PART_BYTES + 96; // margin small enough to force a mid-FDAT cut
+        let max = MIN_SPLIT_PART_BYTES + 96; // margin small enough to force a mid-FDAT cut
         let mut archive = Archive::write_split_header(max, next).unwrap();
         let options = WriteOptions::builder().compression(Compression::NO).build();
         archive
@@ -531,7 +533,7 @@ mod tests {
     #[test]
     fn part_fills_exactly_to_max_bytes() {
         let (parts, next) = part_collector();
-        let max = super::MIN_SPLIT_PART_BYTES + 96;
+        let max = MIN_SPLIT_PART_BYTES + 96;
         let mut archive = Archive::write_split_header(max, next).unwrap();
         let options = WriteOptions::builder().compression(Compression::NO).build();
         let mut b = FileEntryBuilder::new_with_options("f".into(), &options).unwrap();
@@ -547,7 +549,7 @@ mod tests {
     #[test]
     fn stream_chunk_split_across_parts_remains_decryptable() {
         let (parts, next) = part_collector();
-        let max = super::MIN_SPLIT_PART_BYTES + 64;
+        let max = MIN_SPLIT_PART_BYTES + 64;
         let mut archive = Archive::write_split_header(max, next).unwrap();
         let options = WriteOptions::builder()
             .compression(Compression::NO)
@@ -574,7 +576,7 @@ mod tests {
     #[test]
     fn splits_solid_entry_data_stream_across_parts() {
         let (parts, next) = part_collector();
-        let max = super::MIN_SPLIT_PART_BYTES + 96; // margin small enough to force a mid-SDAT cut
+        let max = MIN_SPLIT_PART_BYTES + 96; // margin small enough to force a mid-SDAT cut
         let mut archive = Archive::write_split_header(max, next).unwrap();
         let options = WriteOptions::builder().compression(Compression::NO).build();
         let mut solid = SolidEntryBuilder::new(options).unwrap();
@@ -592,7 +594,7 @@ mod tests {
     #[test]
     fn solid_split_writes_streaming_entries_across_parts() {
         let (parts, next) = part_collector();
-        let max = super::MIN_SPLIT_PART_BYTES + 96; // margin small enough to force a mid-SDAT cut
+        let max = MIN_SPLIT_PART_BYTES + 96; // margin small enough to force a mid-SDAT cut
         let options = WriteOptions::builder().compression(Compression::NO).build();
         let mut archive = Archive::write_solid_split_header(max, next, options).unwrap();
         archive
@@ -610,7 +612,7 @@ mod tests {
         let (_, next) = part_collector();
         let options = WriteOptions::builder().build();
         // `SolidArchive<SplitParts<..>>` isn't `Debug`, so match instead of `unwrap_err`.
-        match Archive::write_solid_split_header(super::MIN_SPLIT_PART_BYTES - 1, next, options) {
+        match Archive::write_solid_split_header(MIN_SPLIT_PART_BYTES - 1, next, options) {
             Err(err) => assert_eq!(err.kind(), io::ErrorKind::InvalidInput),
             Ok(_) => panic!("expected an error"),
         }
@@ -620,7 +622,7 @@ mod tests {
     fn raw_aend_is_budget_accounted() {
         // The budget is exactly one empty chunk.
         let (parts, next) = part_collector();
-        let mut archive = Archive::write_split_header(super::MIN_SPLIT_PART_BYTES, next).unwrap();
+        let mut archive = Archive::write_split_header(MIN_SPLIT_PART_BYTES, next).unwrap();
 
         archive
             .inner
@@ -638,7 +640,7 @@ mod tests {
             "raw AEND must debit the budget like any other chunk"
         );
 
-        part_bytes_within(&parts, super::MIN_SPLIT_PART_BYTES);
+        part_bytes_within(&parts, MIN_SPLIT_PART_BYTES);
     }
 
     #[test]
@@ -669,7 +671,7 @@ mod tests {
         archive.finalize().unwrap();
 
         let bytes = parts.borrow()[0].0.borrow().clone();
-        let chunk_offset = super::PART_HEADER_BYTES;
+        let chunk_offset = PART_HEADER_BYTES;
         assert_eq!(
             &bytes[chunk_offset..chunk_offset + 4],
             &0x0102_0304u32.to_be_bytes()
@@ -734,10 +736,10 @@ mod tests {
         // Part 0's writer fails partway through the ANXT/AEND tail that
         // `roll_over` writes to close it, so the rollover itself fails
         // before `next_part` is ever called for part 1.
-        let chunk_budget = ROLLOVER_PART_MAX - super::SPLIT_ARCHIVE_OVERHEAD_BYTES;
+        let chunk_budget = ROLLOVER_PART_MAX - SPLIT_ARCHIVE_OVERHEAD_BYTES;
         // Allows the signature, AHED, and entry "a"'s chunks through, but not
         // the closing ANXT chunk.
-        let limit = super::PART_HEADER_BYTES + chunk_budget;
+        let limit = PART_HEADER_BYTES + chunk_budget;
         let mut archive = Archive::write_split_header(ROLLOVER_PART_MAX, move |part_number| {
             assert_eq!(part_number, 0, "rollover must fail before opening part 1");
             Ok(FailAfter {

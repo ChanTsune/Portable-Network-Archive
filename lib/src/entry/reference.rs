@@ -123,7 +123,7 @@ impl EntryReference {
 
     /// Returns a sanitized reference with root separators removed.
     ///
-    /// Unlike [`EntryName::sanitize`](super::EntryName), this preserves prefixes, `.` and `..`
+    /// Unlike [`EntryName::sanitize`](crate::entry::EntryName), this preserves prefixes, `.` and `..`
     /// components because hardlink targets may legitimately contain relative
     /// traversals.
     #[inline]

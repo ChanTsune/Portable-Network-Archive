@@ -1,5 +1,5 @@
 //! Builders for symbolic link and hard link entries.
-use super::{EntryBuilderCore, data_writer};
+use crate::entry::builder::{EntryBuilderCore, data_writer};
 use crate::{
     CipherMode, Encryption, Metadata, NormalEntry, WriteOptions,
     chunk::RawChunk,

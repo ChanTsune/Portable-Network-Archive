@@ -546,7 +546,6 @@ mod tests {
     #[cfg(feature = "unstable-async")]
     #[tokio::test]
     async fn extract_async() -> io::Result<()> {
-        use crate::ReadOptions;
         use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
         let input = include_bytes!("../../../resources/test/zstd.pna");
