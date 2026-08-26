@@ -199,7 +199,7 @@ impl<S: Display> Display for UserDisplay<S> {
 }
 
 #[cfg(test)]
-mod resolved_ownership_tests {
+mod tests {
     use super::*;
 
     #[test]

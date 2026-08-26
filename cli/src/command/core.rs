@@ -2870,7 +2870,7 @@ mod tests {
         }
     }
 
-    mod detect_format_tests {
+    mod detect_format {
         use super::*;
         use std::io::Cursor;
 
