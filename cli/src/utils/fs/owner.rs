@@ -6,7 +6,7 @@ use std::io;
 
 #[cfg(not(any(windows, unix)))]
 mod imp {
-    use super::*;
+    use crate::utils::fs::owner::*;
 
     pub(crate) struct User;
     impl User {

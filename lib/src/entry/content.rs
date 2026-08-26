@@ -1,6 +1,6 @@
 //! Decoded view of entry data.
 
-use super::*;
+use crate::entry::*;
 use std::fmt;
 
 /// Decoded content of a [`NormalEntry`], interpreted according to its

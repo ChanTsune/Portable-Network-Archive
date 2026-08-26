@@ -1,5 +1,5 @@
 //! Builder for directory entries.
-use super::EntryBuilderCore;
+use crate::entry::builder::EntryBuilderCore;
 use crate::{
     Metadata, NormalEntry,
     chunk::RawChunk,

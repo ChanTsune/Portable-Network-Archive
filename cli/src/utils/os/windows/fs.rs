@@ -1,6 +1,6 @@
 pub(crate) mod owner;
 
-use super::security::{Sid, apply_security_info};
+use crate::utils::os::windows::security::{Sid, apply_security_info};
 use crate::utils::str::encode_wide;
 use std::io;
 use std::mem::size_of;

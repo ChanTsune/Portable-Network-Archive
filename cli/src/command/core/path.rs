@@ -5,7 +5,7 @@ use std::{
 };
 use typed_path::{Utf8WindowsComponent, Utf8WindowsPath};
 
-use super::PathTransformers;
+use crate::command::core::PathTransformers;
 
 /// Centralized path transformation editor, similar to libarchive's `edit_pathname`.
 ///
@@ -441,7 +441,7 @@ mod tests {
         // Example: path "old/a/b" with transform /old/new/ and strip=1
         // bsdtar order: "old/a/b" -> transform -> "new/a/b" -> strip 1 -> "a/b"
         // (wrong order would be: "old/a/b" -> strip 1 -> "a/b" -> transform -> "a/b")
-        use super::super::{PathTransformers, re::bsd::SubstitutionRules};
+        use crate::command::core::{PathTransformers, re::bsd::SubstitutionRules};
 
         // Format: /pattern/replacement/flags - first char is the delimiter
         let rules = SubstitutionRules::new(vec!["/old/new/".parse().unwrap()]);

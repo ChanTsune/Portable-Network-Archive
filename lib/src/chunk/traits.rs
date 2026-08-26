@@ -1,6 +1,6 @@
 //! Chunk trait defining the interface for PNA archive chunks.
 
-use super::ChunkType;
+use crate::chunk::ChunkType;
 
 /// A trait representing a chunk in a PNA archive.
 ///

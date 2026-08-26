@@ -3,7 +3,7 @@
 //! This module provides support for reading mtree manifest files via the `@file`
 //! syntax, allowing users to specify files to archive with metadata overrides.
 
-use super::{
+use crate::command::core::{
     CreateOptions, KeepOptions, OwnerStrategy, PathFilter, PathnameEditor, TimeFilters,
     TimestampStrategy,
 };

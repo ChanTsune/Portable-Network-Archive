@@ -1,5 +1,5 @@
 //! Builder for regular file entries.
-use super::{EntryBuilderCore, data_writer};
+use crate::entry::builder::{EntryBuilderCore, data_writer};
 use crate::{
     Metadata, NormalEntry, WriteOptions,
     chunk::RawChunk,

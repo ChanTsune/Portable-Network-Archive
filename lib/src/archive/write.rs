@@ -159,7 +159,7 @@ impl<W: Write, F: FnMut(u32) -> io::Result<W>> Archive<SplitParts<W, F>> {
     /// # Errors
     ///
     /// Returns an error with kind [`io::ErrorKind::InvalidInput`] if
-    /// `max_part_bytes` is below [`MIN_SPLIT_PART_BYTES`](super::MIN_SPLIT_PART_BYTES),
+    /// `max_part_bytes` is below [`MIN_SPLIT_PART_BYTES`](crate::archive::MIN_SPLIT_PART_BYTES),
     /// or an error from `next_part` or from writing the first part's framing.
     ///
     /// # Examples
@@ -200,7 +200,7 @@ impl<W: Write, F: FnMut(u32) -> io::Result<W>> Archive<SplitParts<W, F>> {
     /// # Errors
     ///
     /// Returns an error with kind [`io::ErrorKind::InvalidInput`] if
-    /// `max_part_bytes` is below [`MIN_SPLIT_PART_BYTES`](super::MIN_SPLIT_PART_BYTES),
+    /// `max_part_bytes` is below [`MIN_SPLIT_PART_BYTES`](crate::archive::MIN_SPLIT_PART_BYTES),
     /// or an error from `next_part` or from writing the first part's framing.
     ///
     /// # Examples

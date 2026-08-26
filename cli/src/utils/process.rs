@@ -6,7 +6,7 @@
 /// bsdtar excludes root-specific permission defaults from non-POSIX builds
 /// via `#ifndef _WIN32` (see libarchive/tar/bsdtar.c).
 #[cfg(unix)]
-pub(crate) use super::os::unix::process::is_running_as_root;
+pub(crate) use crate::utils::os::unix::process::is_running_as_root;
 
 #[cfg(not(unix))]
 pub(crate) fn is_running_as_root() -> bool {

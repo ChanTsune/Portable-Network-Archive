@@ -318,7 +318,6 @@ where
 mod tests {
     use super::*;
     use crate::cipher::aead::{KeyConfirmation, SegmentSize};
-    use crate::error::AeadError;
     use aes::Aes256;
     use aes_gcm::aead::Aead;
     use camellia::Camellia256;

@@ -1296,7 +1296,7 @@ where
 /// Extracts a regular file entry from the archive to the filesystem.
 ///
 /// In parallel extraction contexts, the caller must hold a
-/// [`PathOrderGuard`](super::core::path_lock::PathOrderGuard) for the entry's
+/// [`PathOrderGuard`](crate::command::core::path_lock::PathOrderGuard) for the entry's
 /// output path to guarantee archive-order writes.
 pub(crate) fn extract_file_entry<'a, T>(
     item: NormalEntry<T>,
@@ -1578,7 +1578,7 @@ where
     if item.header().data_kind() != DataKind::FILE {
         restore_path_timestamps(path, item.metadata(), keep_options)?;
     }
-    let ownership = crate::ext::ResolvedOwnership::from_metadata(item.metadata());
+    let ownership = ResolvedOwnership::from_metadata(item.metadata());
     // A permission-mode-only entry (`fMOd`) is not owner identity and must not
     // fall back to uid/gid 0.
     if let OwnerStrategy::Preserve { options } = &keep_options.owner_strategy
@@ -1751,7 +1751,7 @@ fn restore_acls(
 /// 2. Override uname/gname if specified, searching by name
 /// 3. Archive's uname/gname with fallback to archive's uid/gid
 fn resolve_owner(
-    ownership: &crate::ext::ResolvedOwnership,
+    ownership: &ResolvedOwnership,
     uname_override: Option<&str>,
     gname_override: Option<&str>,
     uid_override: Option<u32>,
@@ -1773,7 +1773,7 @@ fn resolve_owner(
 }
 
 #[inline]
-fn should_restore_owner(ownership: &crate::ext::ResolvedOwnership, options: &OwnerOptions) -> bool {
+fn should_restore_owner(ownership: &ResolvedOwnership, options: &OwnerOptions) -> bool {
     ownership.has_posix_owner_identity() || options.has_overrides()
 }
 
@@ -1782,7 +1782,7 @@ fn should_restore_owner(ownership: &crate::ext::ResolvedOwnership, options: &Own
 #[inline]
 fn restore_owner(
     path: &Path,
-    ownership: &crate::ext::ResolvedOwnership,
+    ownership: &ResolvedOwnership,
     options: &OwnerOptions,
 ) -> io::Result<()> {
     #[cfg(any(unix, windows))]
@@ -2021,7 +2021,7 @@ mod tests {
 
     #[test]
     fn mode_only_metadata_does_not_request_owner_restore() {
-        let ownership = crate::ext::ResolvedOwnership {
+        let ownership = ResolvedOwnership {
             mode: Some(0o644),
             ..Default::default()
         };
@@ -2030,7 +2030,7 @@ mod tests {
 
     #[test]
     fn explicit_owner_override_requests_owner_restore_without_archive_owner() {
-        let ownership = crate::ext::ResolvedOwnership {
+        let ownership = ResolvedOwnership {
             mode: Some(0o644),
             ..Default::default()
         };
@@ -2043,7 +2043,7 @@ mod tests {
 
     #[test]
     fn archive_owner_identity_requests_owner_restore() {
-        let ownership = crate::ext::ResolvedOwnership {
+        let ownership = ResolvedOwnership {
             uid: Some(1000),
             mode: Some(0o644),
             ..Default::default()

@@ -1,4 +1,4 @@
-use super::{SafeWriter, Umask};
+use crate::command::core::{SafeWriter, Umask};
 use crate::utils::GlobPatterns;
 use std::{fs, io, path::PathBuf};
 

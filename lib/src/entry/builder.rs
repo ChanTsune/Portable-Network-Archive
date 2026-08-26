@@ -621,14 +621,10 @@ impl AsyncWrite for OpaqueEntryBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ChunkType;
     use crate::ReadOptions;
     use crate::chunk::Chunk;
     use crate::entry::RawEntry;
     use crate::entry::private::SealedEntryExt;
-    use crate::entry::{
-        DirEntryBuilder, FileEntryBuilder, HardLinkEntryBuilder, SymlinkEntryBuilder,
-    };
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
@@ -705,15 +701,12 @@ mod tests {
     fn file_entry_builder_round_trips_data_and_metadata() {
         let mut b = FileEntryBuilder::new("f.txt".into()).unwrap();
         b.write_all(b"content").unwrap();
-        b.metadata(Metadata::new().with_modified(Some(crate::Duration::seconds(42))));
+        b.metadata(Metadata::new().with_modified(Some(Duration::seconds(42))));
         let entry = b.build().unwrap();
         let raw = RawEntry(entry.into_chunks());
         let restored = NormalEntry::try_from(raw).unwrap();
-        assert_eq!(restored.header().data_kind(), crate::DataKind::FILE);
-        assert_eq!(
-            restored.metadata().modified(),
-            Some(crate::Duration::seconds(42))
-        );
+        assert_eq!(restored.header().data_kind(), DataKind::FILE);
+        assert_eq!(restored.metadata().modified(), Some(Duration::seconds(42)));
         assert_eq!(restored.metadata().raw_file_size(), Some(7));
         let mut r = restored.reader(ReadOptions::builder().build()).unwrap();
         let mut buf = Vec::new();
@@ -742,14 +735,14 @@ mod tests {
     #[test]
     fn dir_entry_builder_round_trips() {
         let mut b = DirEntryBuilder::new("d/".into());
-        b.metadata(Metadata::new().with_permission_mode(Some(crate::PermissionMode::from(0o755))));
+        b.metadata(Metadata::new().with_permission_mode(Some(PermissionMode::from(0o755))));
         let entry = b.build().unwrap();
         let raw = RawEntry(entry.into_chunks());
         let restored = NormalEntry::try_from(raw).unwrap();
-        assert_eq!(restored.header().data_kind(), crate::DataKind::DIRECTORY);
+        assert_eq!(restored.header().data_kind(), DataKind::DIRECTORY);
         assert_eq!(
             restored.metadata().permission_mode(),
-            Some(crate::PermissionMode::from(0o755))
+            Some(PermissionMode::from(0o755))
         );
     }
 
@@ -871,7 +864,7 @@ mod tests {
 
     #[test]
     fn opaque_builder_round_trips_private_kind() {
-        let kind = crate::DataKind::new_private(200).unwrap();
+        let kind = DataKind::new_private(200).unwrap();
         let mut b = OpaqueEntryBuilder::new("custom".into(), kind).unwrap();
         b.write_all(b"opaque bytes").unwrap();
         let entry = b.build().unwrap();
@@ -891,7 +884,7 @@ mod tests {
 
     #[test]
     fn opaque_builder_with_file_kind_matches_file_entry_builder_wire() {
-        let mut a = OpaqueEntryBuilder::new("f".into(), crate::DataKind::FILE).unwrap();
+        let mut a = OpaqueEntryBuilder::new("f".into(), DataKind::FILE).unwrap();
         a.write_all(b"data").unwrap();
         let mut b = FileEntryBuilder::new("f".into()).unwrap();
         b.write_all(b"data").unwrap();
@@ -902,7 +895,7 @@ mod tests {
 
     #[test]
     fn opaque_builder_private_kind_omits_file_size() {
-        let kind = crate::DataKind::new_private(200).unwrap();
+        let kind = DataKind::new_private(200).unwrap();
         let mut b = OpaqueEntryBuilder::new("custom".into(), kind).unwrap();
         b.write_all(b"x").unwrap();
         let entry = b.build().unwrap();
@@ -911,14 +904,11 @@ mod tests {
 
     #[test]
     fn opaque_builder_metadata_replaces_previous() {
-        let mut b = OpaqueEntryBuilder::new("f".into(), crate::DataKind::FILE).unwrap();
-        b.metadata(Metadata::new().with_modified(Some(crate::Duration::seconds(1))));
-        b.metadata(Metadata::new().with_modified(Some(crate::Duration::seconds(2))));
+        let mut b = OpaqueEntryBuilder::new("f".into(), DataKind::FILE).unwrap();
+        b.metadata(Metadata::new().with_modified(Some(Duration::seconds(1))));
+        b.metadata(Metadata::new().with_modified(Some(Duration::seconds(2))));
         let entry = b.build().unwrap();
-        assert_eq!(
-            entry.metadata().modified(),
-            Some(crate::Duration::seconds(2))
-        );
+        assert_eq!(entry.metadata().modified(), Some(Duration::seconds(2)));
     }
 
     #[test]
@@ -1019,12 +1009,12 @@ mod tests {
     #[test]
     fn deprecated_builder_paths_match_new_builders() {
         let mut old = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
-        old.created(Some(crate::Duration::seconds(1)));
+        old.created(Some(Duration::seconds(1)));
         old.write_all(b"data").unwrap();
         let old = old.build().unwrap();
 
         let mut new = FileEntryBuilder::new("f".into()).unwrap();
-        new.metadata(Metadata::new().with_created(Some(crate::Duration::seconds(1))));
+        new.metadata(Metadata::new().with_created(Some(Duration::seconds(1))));
         new.write_all(b"data").unwrap();
         let new = new.build().unwrap();
 
@@ -1063,13 +1053,11 @@ mod tests {
     #[test]
     fn deprecated_new_dir_matches_dir_entry_builder_wire() {
         let mut old = EntryBuilder::new_dir("dir".into());
-        old.permission_mode(Some(crate::PermissionMode::from(0o755)));
+        old.permission_mode(Some(PermissionMode::from(0o755)));
         let old = old.build().unwrap();
 
         let mut new = DirEntryBuilder::new("dir".into());
-        new.metadata(
-            Metadata::new().with_permission_mode(Some(crate::PermissionMode::from(0o755))),
-        );
+        new.metadata(Metadata::new().with_permission_mode(Some(PermissionMode::from(0o755))));
         let new = new.build().unwrap();
 
         assert_eq!(old.into_chunks(), new.into_chunks());
