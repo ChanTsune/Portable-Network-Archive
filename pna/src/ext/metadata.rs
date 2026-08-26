@@ -387,7 +387,7 @@ fn fs_metadata_to_metadata(meta: &fs::Metadata) -> io::Result<Metadata> {
 }
 
 #[cfg(test)]
-mod time_ext_tests {
+mod tests {
     use super::*;
     use libpna::Duration;
 

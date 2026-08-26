@@ -180,7 +180,7 @@ pub fn remove_path<P: AsRef<Path>>(path: P) -> io::Result<()> {
 }
 
 #[cfg(all(test, windows))]
-mod windows_tests {
+mod tests {
     use super::normalize_windows_separators;
     use std::borrow::Cow;
     use std::ffi::OsString;
