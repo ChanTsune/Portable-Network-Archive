@@ -12,6 +12,7 @@ use crate::{
 use std::{
     collections::VecDeque,
     io::{self, BufRead, BufReader, Read},
+    marker::PhantomData,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -98,11 +99,7 @@ impl EntryCompletion {
 ///
 /// Dropping an unfinished entry poisons the cursor. Consume the session through
 /// one of its terminal operations before requesting another entry.
-pub struct StreamingEntries<R, P = NoParts>
-where
-    R: Read,
-    P: PartProvider<R>,
-{
+pub struct StreamingEntries<R, P = NoParts> {
     source: StreamingSource<R, P>,
     state: CursorState,
 }
@@ -140,8 +137,8 @@ impl<R: Read, P: PartProvider<R>> StreamingEntries<R, P> {
 
     /// Reads enough input to expose the next physical entry header.
     ///
-    /// This is a lending operation. The returned entry must be decoded, skipped,
-    /// or explicitly discarded before the next call.
+    /// This is a lending operation: the returned entry must be consumed before
+    /// the next call. Dropping it instead poisons the cursor.
     ///
     /// # Errors
     ///
@@ -312,7 +309,8 @@ impl<R: Read> Archive<R> {
 }
 
 /// A physical entry yielded by [`StreamingEntries`].
-pub enum StreamingReadEntry<'a, R: Read, P: PartProvider<R> = NoParts> {
+#[must_use = "decode or skip the entry; dropping it poisons the cursor"]
+pub enum StreamingReadEntry<'a, R, P = NoParts> {
     /// An independently encoded normal entry.
     Normal(NormalEntrySession<'a, R, P>),
     /// A solid block containing a nested entry stream.
@@ -335,8 +333,8 @@ impl<R: Read, P: PartProvider<R>> ChunkCursor for StreamingSource<R, P> {
 }
 
 /// A header-first session for one normal entry.
-#[must_use = "decode, skip, or explicitly discard the entry"]
-pub struct NormalEntrySession<'a, R: Read, P: PartProvider<R> = NoParts> {
+#[must_use = "decode or skip the entry"]
+pub struct NormalEntrySession<'a, R, P = NoParts> {
     inner: NormalEntrySessionCore<'a, StreamingSource<R, P>>,
 }
 
@@ -356,13 +354,15 @@ impl<'a, C: ChunkCursor> NormalEntrySessionCore<'a, C> {
 
     /// Opens a decoded streaming reader for the entry payload.
     ///
-    /// Each physical `FDAT` body is released only after its CRC has been
-    /// validated. The entry as a whole is not complete until the reader reaches
-    /// EOF or [`DecodedEntryReader::finish`] succeeds.
+    /// Bytes returned before EOF are provisional; an integrity failure can
+    /// still surface at any point up to completion.
     ///
-    /// Data returned before EOF is provisional: a later codec, padding, AEAD,
-    /// or terminator error can still invalidate the entry. Filesystem extractors
-    /// should publish a temporary output only after successful completion.
+    /// Completion does not guarantee that the payload is as long as the
+    /// producer wrote it, since not every compression method can detect a
+    /// truncated payload. Compare the bytes read against
+    /// [`Metadata::raw_file_size`] where a length guarantee is required.
+    ///
+    /// [`Metadata::raw_file_size`]: crate::Metadata::raw_file_size
     ///
     /// # Errors
     ///
@@ -453,8 +453,16 @@ impl<'a, R: Read, P: PartProvider<R>> NormalEntrySession<'a, R, P> {
 
     /// Opens a decoded streaming reader for the entry payload.
     ///
-    /// Data returned before EOF is provisional: a later codec, padding, AEAD,
-    /// or terminator error can still invalidate the entry.
+    /// Bytes returned before EOF are provisional; an integrity failure can
+    /// still surface at any point up to completion. The entry is complete once
+    /// the reader reaches EOF or [`DecodedEntryReader::finish`] returns `Ok`.
+    ///
+    /// Completion does not guarantee that the payload is as long as the
+    /// producer wrote it, since not every compression method can detect a
+    /// truncated payload. Compare the bytes read against
+    /// [`Metadata::raw_file_size`] where a length guarantee is required.
+    ///
+    /// [`Metadata::raw_file_size`]: crate::Metadata::raw_file_size
     ///
     /// # Errors
     ///
@@ -480,7 +488,7 @@ impl<'a, R: Read, P: PartProvider<R>> NormalEntrySession<'a, R, P> {
 
 /// A header-first session for one solid block.
 #[must_use = "skip or enter the solid block"]
-pub struct SolidEntrySession<'a, R: Read, P: PartProvider<R> = NoParts> {
+pub struct SolidEntrySession<'a, R, P = NoParts> {
     source: &'a mut StreamingSource<R, P>,
     header: SolidHeader,
     chunks: Vec<RawChunk>,
@@ -494,7 +502,10 @@ impl<'a, R: Read, P: PartProvider<R>> SolidEntrySession<'a, R, P> {
         &self.header
     }
 
-    /// Skips the encoded solid block while validating framing and CRC values.
+    /// Skips the solid block without decrypting or decompressing it.
+    ///
+    /// The block is validated as [`Self::entries`] validates it, so both accept
+    /// and reject the same archives.
     ///
     /// # Errors
     ///
@@ -502,9 +513,13 @@ impl<'a, R: Read, P: PartProvider<R>> SolidEntrySession<'a, R, P> {
     #[inline]
     pub fn skip(self) -> io::Result<()> {
         let Self {
-            source, mut lease, ..
+            source,
+            chunks,
+            mut lease,
+            ..
         } = self;
-        let result = skip_solid_chunks(source);
+        let mut encoded = EncodedSolidReader::new(source, chunks);
+        let result = encoded.finish_physical().and_then(|()| encoded.finish());
         match result {
             Ok(()) => {
                 lease.complete();
@@ -586,7 +601,7 @@ pub struct StreamingSolidEntries<'a, R: Read, P: PartProvider<R> = NoParts> {
 }
 
 /// A header-first session for one normal entry inside a solid block.
-#[must_use = "decode, skip, or explicitly discard the entry"]
+#[must_use = "decode or skip the entry"]
 pub struct SolidNormalEntrySession<'entry, 'archive, R: Read, P: PartProvider<R> = NoParts> {
     inner: NormalEntrySessionCore<'entry, SolidStreamingSource<'archive, R, P>>,
 }
@@ -601,6 +616,19 @@ impl<'entry, 'archive, R: Read, P: PartProvider<R>>
     }
 
     /// Opens a decoded streaming reader for the entry payload.
+    ///
+    /// Bytes returned before EOF are provisional; an integrity failure can
+    /// still surface at any point up to completion. The entry is complete once
+    /// the reader reaches EOF or [`SolidDecodedEntryReader::finish`] returns
+    /// `Ok`; the enclosing block is validated by
+    /// [`StreamingSolidEntries::finish`].
+    ///
+    /// Completion does not guarantee that the payload is as long as the
+    /// producer wrote it, since not every compression method can detect a
+    /// truncated payload. Compare the bytes read against
+    /// [`Metadata::raw_file_size`] where a length guarantee is required.
+    ///
+    /// [`Metadata::raw_file_size`]: crate::Metadata::raw_file_size
     ///
     /// # Errors
     ///
@@ -948,7 +976,38 @@ impl<R: Read, P: PartProvider<R>> Read for SolidDecodedEntryReader<'_, '_, R, P>
     }
 }
 
-struct EncodedEntryReader<'a, C> {
+/// Describes the chunk frame an encoded stream is built from.
+///
+/// Normal entries and solid blocks share one grammar and differ only in the
+/// chunk types that carry and terminate their payload.
+trait EncodedFrame {
+    /// Chunk type carrying payload bytes.
+    const DATA: ChunkType;
+    /// Chunk type terminating the stream.
+    const END: ChunkType;
+    /// Subject used in grammar errors.
+    const SUBJECT: &'static str;
+}
+
+struct NormalFrame;
+
+impl EncodedFrame for NormalFrame {
+    const DATA: ChunkType = ChunkType::FDAT;
+    const END: ChunkType = ChunkType::FEND;
+    const SUBJECT: &'static str = "normal entry";
+}
+
+struct SolidFrame;
+
+impl EncodedFrame for SolidFrame {
+    const DATA: ChunkType = ChunkType::SDAT;
+    const END: ChunkType = ChunkType::SEND;
+    const SUBJECT: &'static str = "solid entry";
+}
+
+/// Reads one encoded stream out of its chunk frame, retaining the chunks that
+/// are not payload so the entry can be reconstructed on completion.
+struct EncodedReader<'a, C, F> {
     source: &'a mut C,
     chunks: Vec<RawChunk>,
     current: io::Cursor<Vec<u8>>,
@@ -956,9 +1015,13 @@ struct EncodedEntryReader<'a, C> {
     encoded_size: u64,
     sequence: EntryChunkSequence,
     done: bool,
+    frame: PhantomData<F>,
 }
 
-impl<'a, C: ChunkCursor> EncodedEntryReader<'a, C> {
+type EncodedEntryReader<'a, C> = EncodedReader<'a, C, NormalFrame>;
+type EncodedSolidReader<'a, C> = EncodedReader<'a, C, SolidFrame>;
+
+impl<'a, C: ChunkCursor, F: EncodedFrame> EncodedReader<'a, C, F> {
     fn new(source: &'a mut C, chunks: Vec<RawChunk>) -> Self {
         Self {
             source,
@@ -968,6 +1031,7 @@ impl<'a, C: ChunkCursor> EncodedEntryReader<'a, C> {
             encoded_size: 0,
             sequence: EntryChunkSequence::default(),
             done: false,
+            frame: PhantomData,
         }
     }
 
@@ -987,43 +1051,42 @@ impl<'a, C: ChunkCursor> EncodedEntryReader<'a, C> {
 
     fn load_next(&mut self) -> io::Result<()> {
         let chunk = self.source.read_stream_chunk()?;
-        match chunk.ty() {
-            ChunkType::FDAT => {
-                self.sequence.observe_data(ChunkType::FDAT)?;
-                self.encoded_size = self
-                    .encoded_size
-                    .checked_add(chunk.data().len() as u64)
-                    .ok_or_else(|| {
-                        io::Error::new(io::ErrorKind::InvalidData, "entry encoded size overflow")
-                    })?;
-                self.current = io::Cursor::new(chunk.data);
-            }
-            ChunkType::FEND => {
-                self.chunks.push(chunk);
-                self.done = true;
-            }
-            ChunkType::PHSF => {
-                self.sequence.observe_phsf()?;
-                self.phsf = Some(
-                    String::from_utf8(chunk.data.clone())
-                        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?,
-                );
-                self.chunks.push(chunk);
-            }
-            ty if ty.is_critical() => {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("unexpected critical chunk `{ty}` in normal entry"),
-                ));
-            }
-            _ => {
-                self.sequence.observe_ancillary();
-                self.chunks.push(chunk);
-            }
+        let ty = chunk.ty();
+        if ty == F::DATA {
+            self.sequence.observe_data(F::DATA)?;
+            self.encoded_size = self
+                .encoded_size
+                .checked_add(chunk.data().len() as u64)
+                .ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidData, "entry encoded size overflow")
+                })?;
+            self.current = io::Cursor::new(chunk.data);
+        } else if ty == F::END {
+            self.chunks.push(chunk);
+            self.done = true;
+        } else if ty == ChunkType::PHSF {
+            self.sequence.observe_phsf()?;
+            self.phsf = Some(
+                String::from_utf8(chunk.data.clone())
+                    .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?,
+            );
+            self.chunks.push(chunk);
+        } else if ty.is_critical() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "unexpected critical chunk `{ty}` in {subject}",
+                    subject = F::SUBJECT
+                ),
+            ));
+        } else {
+            self.sequence.observe_ancillary();
+            self.chunks.push(chunk);
         }
         Ok(())
     }
 
+    /// Walks the remaining physical chunks without exposing their bodies.
     fn finish_physical(&mut self) -> io::Result<()> {
         self.current
             .set_position(self.current.get_ref().len() as u64);
@@ -1034,7 +1097,9 @@ impl<'a, C: ChunkCursor> EncodedEntryReader<'a, C> {
         }
         Ok(())
     }
+}
 
+impl<C: ChunkCursor> EncodedReader<'_, C, NormalFrame> {
     fn into_completion(self) -> io::Result<EntryCompletion> {
         if !self.done {
             return Err(io::Error::new(
@@ -1057,92 +1122,7 @@ impl<'a, C: ChunkCursor> EncodedEntryReader<'a, C> {
     }
 }
 
-impl<C: ChunkCursor> Read for EncodedEntryReader<'_, C> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        if buf.is_empty() {
-            return Ok(0);
-        }
-        loop {
-            let read = self.current.read(buf)?;
-            if read != 0 {
-                return Ok(read);
-            }
-            if self.done {
-                return Ok(0);
-            }
-            self.load_next()?;
-        }
-    }
-}
-
-struct EncodedSolidReader<'a, R: Read, P: PartProvider<R>> {
-    source: &'a mut StreamingSource<R, P>,
-    chunks: Vec<RawChunk>,
-    current: io::Cursor<Vec<u8>>,
-    phsf: Option<String>,
-    sequence: EntryChunkSequence,
-    done: bool,
-}
-
-impl<'a, R: Read, P: PartProvider<R>> EncodedSolidReader<'a, R, P> {
-    fn new(source: &'a mut StreamingSource<R, P>, chunks: Vec<RawChunk>) -> Self {
-        Self {
-            source,
-            chunks,
-            current: io::Cursor::new(Vec::new()),
-            phsf: None,
-            sequence: EntryChunkSequence::default(),
-            done: false,
-        }
-    }
-
-    fn phsf(&self) -> Option<&str> {
-        self.phsf.as_deref()
-    }
-
-    fn prepare(&mut self) -> io::Result<()> {
-        while !self.done && self.current.position() == self.current.get_ref().len() as u64 {
-            self.load_next()?;
-            if !self.current.get_ref().is_empty() {
-                break;
-            }
-        }
-        Ok(())
-    }
-
-    fn load_next(&mut self) -> io::Result<()> {
-        let chunk = self.source.read_logical_chunk()?;
-        match chunk.ty() {
-            ChunkType::SDAT => {
-                self.sequence.observe_data(ChunkType::SDAT)?;
-                self.current = io::Cursor::new(chunk.data);
-            }
-            ChunkType::SEND => {
-                self.chunks.push(chunk);
-                self.done = true;
-            }
-            ChunkType::PHSF => {
-                self.sequence.observe_phsf()?;
-                self.phsf = Some(
-                    String::from_utf8(chunk.data.clone())
-                        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?,
-                );
-                self.chunks.push(chunk);
-            }
-            ty if ty.is_critical() => {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("unexpected critical chunk `{ty}` in solid entry"),
-                ));
-            }
-            _ => {
-                self.sequence.observe_ancillary();
-                self.chunks.push(chunk);
-            }
-        }
-        Ok(())
-    }
-
+impl<C: ChunkCursor> EncodedReader<'_, C, SolidFrame> {
     fn finish(self) -> io::Result<()> {
         if !self.done {
             return Err(io::Error::new(
@@ -1154,7 +1134,7 @@ impl<'a, R: Read, P: PartProvider<R>> EncodedSolidReader<'a, R, P> {
     }
 }
 
-impl<R: Read, P: PartProvider<R>> Read for EncodedSolidReader<'_, R, P> {
+impl<C: ChunkCursor, F: EncodedFrame> Read for EncodedReader<'_, C, F> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if buf.is_empty() {
             return Ok(0);
@@ -1172,7 +1152,8 @@ impl<R: Read, P: PartProvider<R>> Read for EncodedSolidReader<'_, R, P> {
     }
 }
 
-type SolidPipeline<'a, R, P> = DecompressReader<DecryptReader<EncodedSolidReader<'a, R, P>>>;
+type SolidPipeline<'a, R, P> =
+    DecompressReader<DecryptReader<EncodedSolidReader<'a, StreamingSource<R, P>>>>;
 
 struct SolidDecodedReader<'a, R: Read, P: PartProvider<R>> {
     pipeline: Option<SolidPipeline<'a, R, P>>,
@@ -1249,27 +1230,6 @@ impl<R: Read, P: PartProvider<R>> Read for SolidDecodedReader<'_, R, P> {
                 self.stopped = Some((error.kind(), error.to_string()));
                 Err(error)
             }
-        }
-    }
-}
-
-fn skip_solid_chunks<R: Read, P: PartProvider<R>>(
-    source: &mut StreamingSource<R, P>,
-) -> io::Result<()> {
-    let mut sequence = EntryChunkSequence::default();
-    loop {
-        let chunk = source.read_logical_chunk()?;
-        match chunk.ty() {
-            ChunkType::SDAT => sequence.observe_data(ChunkType::SDAT)?,
-            ChunkType::SEND => return Ok(()),
-            ChunkType::PHSF => sequence.observe_phsf()?,
-            ty if ty.is_critical() => {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("unexpected critical chunk `{ty}` in solid entry"),
-                ));
-            }
-            _ => sequence.observe_ancillary(),
         }
     }
 }
