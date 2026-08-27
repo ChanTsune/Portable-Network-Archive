@@ -6,6 +6,7 @@ mod metadata;
 mod missing;
 mod multipart;
 mod no_diff;
+mod option_compare;
 mod option_format;
 mod path_filter;
 mod solid_archive;
