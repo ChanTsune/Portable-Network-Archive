@@ -5,6 +5,7 @@
 //! boundary means obtaining the next part from somewhere the archive itself
 //! cannot know about - a file next to the current one, a network range request,
 //! a buffer already in memory. [`PartProvider`] is that seam.
+use crate::{Chunk, ChunkType, archive::ArchiveHeader};
 use std::io::{self, Read};
 
 /// Supplies the next physical part of a multipart archive.
@@ -49,4 +50,52 @@ impl<R: Read> PartProvider<R> for NoParts {
     fn next_part(&mut self, _expected: u32) -> io::Result<Option<R>> {
         Ok(None)
     }
+}
+
+/// Returns the archive number the part after `current` must carry.
+///
+/// # Errors
+///
+/// Returns an error if `current` is [`u32::MAX`].
+pub(crate) fn next_part_number(current: u32) -> io::Result<u32> {
+    current
+        .checked_add(1)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "archive number overflow"))
+}
+
+/// The error reported when a provider cannot supply a part the archive needs.
+pub(crate) fn missing_part_error(expected: u32) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::NotFound,
+        format!("archive part {expected} is required"),
+    )
+}
+
+/// Validates a part's opening chunk and returns the header it carries.
+///
+/// # Errors
+///
+/// Returns an error if `chunk` is not an `AHED`, if its body is malformed, or
+/// if it numbers the archive anything other than `expected`.
+pub(crate) fn part_header(
+    chunk: &(impl Chunk + ?Sized),
+    expected: u32,
+) -> io::Result<ArchiveHeader> {
+    if chunk.ty() != ChunkType::AHED {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("expected `{}`, got `{}`", ChunkType::AHED, chunk.ty()),
+        ));
+    }
+    let header = ArchiveHeader::try_from_bytes(chunk.data())?;
+    if header.archive_number != expected {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "next archive number must be {expected}, got {}",
+                header.archive_number
+            ),
+        ));
+    }
+    Ok(header)
 }
