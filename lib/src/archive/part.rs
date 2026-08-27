@@ -15,6 +15,7 @@ use crate::{
     entry::RawEntry,
 };
 use std::{
+    borrow::Cow,
     io::{self, Read},
     iter::FusedIterator,
     mem,
@@ -136,6 +137,48 @@ impl<R: Read> ChunkSource for ReaderSource<R> {
     #[inline]
     fn read_chunk(&mut self, max_data_len: u32) -> io::Result<RawChunk<Vec<u8>>> {
         crate::io::read_chunk(&mut self.0, max_data_len)
+    }
+}
+
+/// The chunk source backed by a byte slice.
+///
+/// Chunk payloads borrow from the slice, so entries it produces stay zero-copy.
+pub(crate) struct SliceSource<'d>(&'d [u8]);
+
+impl<'d> SliceSource<'d> {
+    #[inline]
+    pub(crate) const fn new(bytes: &'d [u8]) -> Self {
+        Self(bytes)
+    }
+
+    #[inline]
+    pub(crate) const fn into_inner(self) -> &'d [u8] {
+        self.0
+    }
+}
+
+impl sealed::Sealed for SliceSource<'_> {}
+
+impl<'d> ChunkSource for SliceSource<'d> {
+    type Data = Cow<'d, [u8]>;
+    type Part = &'d [u8];
+
+    #[inline]
+    fn set_part(&mut self, part: &'d [u8]) {
+        self.0 = part;
+    }
+
+    #[inline]
+    fn read_signature(&mut self) -> io::Result<()> {
+        self.0 = crate::bytes::read_signature(self.0)?;
+        Ok(())
+    }
+
+    #[inline]
+    fn read_chunk(&mut self, max_data_len: u32) -> io::Result<RawChunk<Cow<'d, [u8]>>> {
+        let (chunk, rest) = crate::bytes::read_chunk(self.0, max_data_len)?;
+        self.0 = rest;
+        Ok(chunk.into())
     }
 }
 
@@ -430,6 +473,76 @@ impl<R: Read, P: PartProvider<R>> Iterator for IntoEntries<R, P> {
 
 impl<R: Read, P: PartProvider<R>> FusedIterator for IntoEntries<R, P> {}
 
+/// An owned iterator over the entries of an archive read from a byte slice.
+///
+/// Built by [`Archive::into_entries_slice`] and
+/// [`Archive::into_entries_slice_with_parts`](crate::Archive::into_entries_slice_with_parts).
+/// Entry payloads keep borrowing the bytes of the part they came from, across
+/// part boundaries included.
+///
+/// [`Archive::into_entries_slice`]: crate::Archive::into_entries_slice
+#[must_use = "iterate the entries; dropping this discards the archive"]
+pub struct IntoSliceEntries<'d, P = NoParts>(MultipartEntries<SliceSource<'d>, P>);
+
+impl<'d, P> IntoSliceEntries<'d, P> {
+    #[inline]
+    pub(crate) const fn new(
+        bytes: &'d [u8],
+        provider: P,
+        header: ArchiveHeader,
+        max_chunk_data_len: u32,
+        pending: Vec<RawChunk<Cow<'d, [u8]>>>,
+    ) -> Self {
+        Self(MultipartEntries::new(
+            SliceSource::new(bytes),
+            provider,
+            header,
+            max_chunk_data_len,
+            pending,
+        ))
+    }
+
+    /// Returns the bytes this iterator has not consumed.
+    ///
+    /// Once this iterator has yielded `None` those bytes begin past the end of
+    /// the archive, so an archive concatenated after it can be read from them.
+    /// Stopping earlier, or stopping on an error, leaves the position
+    /// unspecified.
+    #[inline]
+    pub fn into_inner(self) -> &'d [u8] {
+        self.0.into_source().into_inner()
+    }
+}
+
+impl<'d, P: PartProvider<&'d [u8]>> IntoSliceEntries<'d, P> {
+    /// Returns an iterator that decodes each solid entry into the entries it
+    /// contains.
+    #[inline]
+    pub fn extract_solid_entries(
+        self,
+        options: ReadOptions,
+    ) -> impl Iterator<Item = io::Result<NormalEntry<Cow<'d, [u8]>>>> {
+        self.0.extract_solid_entries(options)
+    }
+
+    /// Returns an iterator over the entries that are not in solid mode.
+    #[inline]
+    pub fn skip_solid(self) -> impl Iterator<Item = io::Result<NormalEntry<Cow<'d, [u8]>>>> {
+        self.0.skip_solid()
+    }
+}
+
+impl<'d, P: PartProvider<&'d [u8]>> Iterator for IntoSliceEntries<'d, P> {
+    type Item = io::Result<ReadEntry<Cow<'d, [u8]>>>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
+    }
+}
+
+impl<'d, P: PartProvider<&'d [u8]>> FusedIterator for IntoSliceEntries<'d, P> {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -516,6 +629,20 @@ mod tests {
             .collect()
     }
 
+    /// Writes `entries` into a single-part archive.
+    fn archive_bytes(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        let mut archive = Archive::write_header(&mut bytes).unwrap();
+        for (name, data) in entries {
+            let mut builder =
+                FileEntryBuilder::new_with_options((*name).into(), WriteOptions::store()).unwrap();
+            builder.write_all(data).unwrap();
+            archive.add_entry(builder.build().unwrap()).unwrap();
+        }
+        archive.finalize().unwrap();
+        bytes
+    }
+
     fn raw_archive(header: ArchiveHeader, chunks: &[(ChunkType, &[u8])]) -> Vec<u8> {
         let mut bytes = crate::PNA_SIGNATURE.to_vec();
         crate::io::write_chunk(&mut bytes, (ChunkType::AHED, header.to_bytes())).unwrap();
@@ -534,6 +661,16 @@ mod tests {
         let owned = Archive::read_header(&bytes[..]).unwrap();
         assert_eq!(names_and_contents(owned.into_entries()), expected);
         assert!(!expected.is_empty());
+    }
+
+    #[test]
+    fn into_entries_slice_matches_borrowing_iterator() {
+        let bytes = include_bytes!("../../../resources/test/zstd.pna");
+        let mut borrowed = Archive::read_header_from_slice(bytes).unwrap();
+        let expected = names_and_contents(borrowed.entries_slice());
+
+        let owned = Archive::read_header_from_slice(bytes).unwrap();
+        assert_eq!(names_and_contents(owned.into_entries_slice()), expected);
     }
 
     #[test]
@@ -564,6 +701,17 @@ mod tests {
 
         let archive = Archive::read_header(&parts[0][..]).unwrap();
         let read = names_and_contents(archive.into_entries_with_parts(provider_over(&parts)));
+        assert_eq!(read, vec![("big.bin".to_string(), payload)]);
+    }
+
+    #[test]
+    fn into_entries_slice_with_parts_resumes_entry_split_across_parts() {
+        let payload = vec![7u8; 8192];
+        let parts = split_archive(MIN_SPLIT_PART_BYTES + 64, &[("big.bin", &payload)]);
+        assert!(parts.len() >= 3);
+
+        let archive = Archive::read_header_from_slice(&parts[0]).unwrap();
+        let read = names_and_contents(archive.into_entries_slice_with_parts(provider_over(&parts)));
         assert_eq!(read, vec![("big.bin".to_string(), payload)]);
     }
 
@@ -693,5 +841,75 @@ mod tests {
         let mut entries = Archive::read_header(&bytes[..]).unwrap().into_entries();
         assert!(entries.next().is_none());
         assert!(entries.next().is_none());
+    }
+
+    #[test]
+    fn into_inner_resumes_a_concatenated_archive() {
+        let mut bytes = archive_bytes(&[("a.txt", b"first")]);
+        bytes.extend_from_slice(&archive_bytes(&[("b.txt", b"second")]));
+
+        // A borrowed provider outlives the iterator, so one part source spans
+        // every archive in the stream.
+        let mut provider = |_: u32| Ok(None::<&[u8]>);
+        let mut entries = Archive::read_header(&bytes[..])
+            .unwrap()
+            .into_entries_with_parts(&mut provider);
+        assert_eq!(
+            names_and_contents(&mut entries),
+            vec![("a.txt".to_string(), b"first".to_vec())]
+        );
+        let mut next = Archive::read_header(entries.into_inner()).unwrap();
+        assert_eq!(
+            names_and_contents(next.entries()),
+            vec![("b.txt".to_string(), b"second".to_vec())]
+        );
+
+        let mut entries = Archive::read_header_from_slice(&bytes)
+            .unwrap()
+            .into_entries_slice();
+        assert_eq!(
+            names_and_contents(&mut entries),
+            vec![("a.txt".to_string(), b"first".to_vec())]
+        );
+        let mut next = Archive::read_header_from_slice(entries.into_inner()).unwrap();
+        assert_eq!(
+            names_and_contents(next.entries_slice()),
+            vec![("b.txt".to_string(), b"second".to_vec())]
+        );
+    }
+
+    #[test]
+    fn into_entries_slice_borrows_payloads_from_every_part() {
+        let payload = vec![7u8; 8192];
+        let parts = split_archive(MIN_SPLIT_PART_BYTES + 64, &[("big.bin", &payload)]);
+        assert!(parts.len() >= 3);
+
+        let archive = Archive::read_header_from_slice(&parts[0]).unwrap();
+        let entries = archive
+            .into_entries_slice_with_parts(provider_over(&parts))
+            .collect::<io::Result<Vec<_>>>()
+            .unwrap();
+        let ReadEntry::Normal(entry) = &entries[0] else {
+            panic!("expected a normal entry");
+        };
+
+        // The payload crossed part boundaries, so it arrived as several `FDAT`
+        // fragments. Every one of them must still point into the part it came
+        // from rather than into a copy made while crossing.
+        assert!(entry.data.len() >= 2);
+        for fragment in &entry.data {
+            assert!(
+                matches!(fragment, Cow::Borrowed(_)),
+                "payload fragment was copied"
+            );
+            let start = fragment.as_ptr() as usize;
+            assert!(
+                parts.iter().any(|part| {
+                    let base = part.as_ptr() as usize;
+                    start >= base && start + fragment.len() <= base + part.len()
+                }),
+                "payload fragment does not borrow from any part"
+            );
+        }
     }
 }

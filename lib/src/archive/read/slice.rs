@@ -1,7 +1,8 @@
 //! Slice-based archive reading for memory-mapped access.
 
 use crate::{
-    Archive, Chunk, ChunkType, Entry, NormalEntry, RawChunk, ReadEntry, ReadOptions,
+    Archive, Chunk, ChunkType, Entry, IntoSliceEntries, NoParts, NormalEntry, PartProvider,
+    RawChunk, ReadEntry, ReadOptions,
     archive::{ArchiveHeader, read::ExtractSolidEntries},
     entry::RawEntry,
 };
@@ -131,6 +132,78 @@ impl<'d> Archive<&'d [u8]> {
         &'s mut self,
     ) -> impl Iterator<Item = io::Result<impl Entry + Sized + 'd>> + 's {
         RawEntries::<'s, 'd>(self)
+    }
+
+    /// Converts this archive into an owned iterator over its entries.
+    ///
+    /// Entry payloads keep borrowing the original bytes. Unlike
+    /// [`entries_slice`](Archive::entries_slice) the iterator owns the archive,
+    /// so it can outlive the binding it was built from. Reaching an `ANXT` chunk
+    /// is an error: use
+    /// [`into_entries_slice_with_parts`](Archive::into_entries_slice_with_parts)
+    /// to read a split archive.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// # use std::io;
+    /// use libpna::Archive;
+    /// use std::fs;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let bytes = fs::read("foo.pna")?;
+    /// let archive = Archive::read_header_from_slice(&bytes[..])?;
+    /// for entry in archive.into_entries_slice() {
+    ///     let entry = entry?;
+    ///     // process the entry
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn into_entries_slice(self) -> IntoSliceEntries<'d> {
+        self.into_entries_slice_with_parts(NoParts::NEW)
+    }
+
+    /// Converts this archive into an owned iterator that continues across the
+    /// parts `provider` supplies.
+    ///
+    /// An entry interrupted by a part boundary is resumed in place, and its
+    /// payload keeps borrowing from the parts it came from.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// # use std::io;
+    /// use libpna::Archive;
+    /// use std::fs;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let parts = [fs::read("foo.part1.pna")?, fs::read("foo.part2.pna")?];
+    /// let archive = Archive::read_header_from_slice(&parts[0])?;
+    /// // `expected` numbers archives from 0, one less than the file name suffix.
+    /// let entries = archive
+    ///     .into_entries_slice_with_parts(|expected: u32| {
+    ///         Ok(parts.get(expected as usize).map(|part| &part[..]))
+    ///     });
+    /// for entry in entries {
+    ///     let entry = entry?;
+    ///     // process the entry
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn into_entries_slice_with_parts<P: PartProvider<&'d [u8]>>(
+        self,
+        provider: P,
+    ) -> IntoSliceEntries<'d, P> {
+        let max_chunk_data_len = self.max_chunk_size.map_or(u32::MAX, |max| max.get());
+        IntoSliceEntries::new(
+            self.inner,
+            provider,
+            self.header,
+            max_chunk_data_len,
+            self.buf.into_iter().map(Into::into).collect(),
+        )
     }
 
     /// Reads the next archive from the provided bytes and returns a new [`Archive`].
