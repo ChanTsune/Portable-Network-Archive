@@ -3,7 +3,7 @@
 mod slice;
 
 use crate::{
-    archive::{Archive, ArchiveHeader},
+    archive::{Archive, ArchiveHeader, IntoEntries, NoParts, PartProvider},
     chunk::{Chunk, ChunkType, RawChunk},
     entry::{Entry, NormalEntry, RawEntry, ReadEntry, ReadOptions, SolidIntoEntries},
 };
@@ -107,6 +107,74 @@ impl<R: Read> Archive<R> {
         options: &ReadOptions,
     ) -> impl Iterator<Item = io::Result<NormalEntry>> + 'a {
         self.entries().extract_solid_entries(options)
+    }
+
+    /// Converts this archive into an owned iterator over its entries.
+    ///
+    /// Unlike [`entries`](Archive::entries) the iterator owns the archive, so it
+    /// can outlive the binding it was built from. Reaching an `ANXT` chunk is an
+    /// error: use [`into_entries_with_parts`](Archive::into_entries_with_parts)
+    /// to read a split archive.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// # use std::io;
+    /// use libpna::Archive;
+    /// use std::fs::File;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let archive = Archive::read_header(File::open("foo.pna")?)?;
+    /// for entry in archive.into_entries() {
+    ///     let entry = entry?;
+    ///     // process the entry
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn into_entries(self) -> IntoEntries<R> {
+        self.into_entries_with_parts(NoParts::NEW)
+    }
+
+    /// Converts this archive into an owned iterator that continues across the
+    /// parts `provider` supplies.
+    ///
+    /// An entry interrupted by a part boundary is resumed in place, so callers
+    /// see one flat sequence of entries regardless of how the archive was split.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// # use std::io;
+    /// use libpna::Archive;
+    /// use std::fs::File;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let archive = Archive::read_header(File::open("foo.part1.pna")?)?;
+    /// // `expected` numbers archives from 0, one less than the file name suffix.
+    /// let entries = archive.into_entries_with_parts(|expected: u32| {
+    ///     match File::open(format!("foo.part{}.pna", expected + 1)) {
+    ///         Ok(file) => Ok(Some(file)),
+    ///         Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+    ///         Err(e) => Err(e),
+    ///     }
+    /// });
+    /// for entry in entries {
+    ///     let entry = entry?;
+    ///     // process the entry
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn into_entries_with_parts<P: PartProvider<R>>(self, provider: P) -> IntoEntries<R, P> {
+        let max_chunk_data_len = self.max_chunk_size.map_or(u32::MAX, |max| max.get());
+        IntoEntries::new(
+            self.inner,
+            provider,
+            self.header,
+            max_chunk_data_len,
+            self.buf,
+        )
     }
 
     /// Reads the next archive from the provided reader and returns a new [`Archive`].
@@ -338,7 +406,10 @@ pub struct NormalEntries<'r, R>(ExtractSolidEntries<Entries<'r, R>, Vec<u8>>);
 impl<'r, R> NormalEntries<'r, R> {
     #[inline]
     pub(crate) fn new(reader: &'r mut Archive<R>, options: &ReadOptions) -> Self {
-        Self(ExtractSolidEntries::new(Entries::new(reader), options))
+        Self(ExtractSolidEntries::new(
+            Entries::new(reader),
+            options.clone(),
+        ))
     }
 }
 
@@ -361,10 +432,10 @@ pub(crate) struct ExtractSolidEntries<I, T: AsRef<[u8]>> {
 
 impl<I, T: AsRef<[u8]>> ExtractSolidEntries<I, T> {
     #[inline]
-    pub(crate) fn new(entries: I, options: &ReadOptions) -> Self {
+    pub(crate) fn new(entries: I, read_options: ReadOptions) -> Self {
         Self {
             entries,
-            read_options: options.clone(),
+            read_options,
             solid_iter: None,
         }
     }

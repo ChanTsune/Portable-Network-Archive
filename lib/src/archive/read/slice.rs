@@ -210,7 +210,7 @@ impl<'a, 'r> Entries<'a, 'r> {
         self,
         options: &ReadOptions,
     ) -> impl Iterator<Item = io::Result<NormalEntry<Cow<'r, [u8]>>>> + 'a {
-        ExtractSolidEntries::new(self, options)
+        ExtractSolidEntries::new(self, options.clone())
     }
 }
 
