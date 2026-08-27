@@ -18,6 +18,9 @@ use std::{
 pub trait PartProvider<R: Read> {
     /// Opens the part whose AHED archive number is expected to equal `expected`.
     ///
+    /// `expected` counts archives from 0, so it is one less than the `.partN.pna`
+    /// suffix conventionally given to the same part on disk.
+    ///
     /// Returning `Ok(None)` reports that the required part is unavailable and
     /// fails the current cursor rather than implicitly retrying it.
     ///
@@ -25,6 +28,15 @@ pub trait PartProvider<R: Read> {
     ///
     /// Returns any error encountered while locating or opening the part.
     fn next_part(&mut self, expected: u32) -> io::Result<Option<R>>;
+}
+
+/// Any closure of the same shape is a provider, mirroring the `next_part`
+/// closure taken by [`Archive::write_split_header`].
+impl<R: Read, F: FnMut(u32) -> io::Result<Option<R>>> PartProvider<R> for F {
+    #[inline]
+    fn next_part(&mut self, expected: u32) -> io::Result<Option<R>> {
+        self(expected)
+    }
 }
 
 /// Marker provider used internally for a single physical archive.

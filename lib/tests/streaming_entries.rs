@@ -396,3 +396,35 @@ fn follows_a_multipart_entry_through_the_provider() {
     );
     assert!(entries.next_entry().unwrap().is_none());
 }
+
+#[test]
+fn a_closure_serves_as_a_part_provider() {
+    let first = include_bytes!("../../resources/test/multipart.part1.pna");
+    let second = include_bytes!("../../resources/test/multipart.part2.pna");
+    let archive = Archive::read_header(Cursor::new(first.as_slice())).unwrap();
+    let mut requested = Vec::new();
+    let actual = {
+        let mut entries = archive.into_streaming_entries_with_parts(
+            ReadOptions::builder().build(),
+            |expected: u32| -> io::Result<Option<Cursor<&'static [u8]>>> {
+                requested.push(expected);
+                Ok(Some(Cursor::new(second.as_slice())))
+            },
+        );
+        let StreamingReadEntry::Normal(entry) = entries.next_entry().unwrap().unwrap() else {
+            panic!("expected normal entry");
+        };
+        let mut reader = entry.decoded().unwrap();
+        let mut actual = Vec::new();
+        reader.read_to_end(&mut actual).unwrap();
+        reader.finish().unwrap();
+        assert!(entries.next_entry().unwrap().is_none());
+        actual
+    };
+
+    assert_eq!(
+        actual,
+        include_bytes!("../../resources/test/multipart_test.txt")
+    );
+    assert_eq!(requested, [1], "`expected` numbers archives from 0");
+}
