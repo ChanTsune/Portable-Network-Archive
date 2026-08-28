@@ -1711,7 +1711,7 @@ where
 
 // Kept available in memmap builds for non-file sources introduced by the stdio stack.
 #[cfg_attr(feature = "memmap", allow(dead_code))]
-fn run_transform_entries_readers<'p, W, Provider, F, Transform>(
+fn run_transform_entries_readers<'d, 'p, W, Provider, F, Transform>(
     writer: W,
     archives: impl IntoIterator<Item = impl Read>,
     mut password_provider: Provider,
@@ -1721,7 +1721,9 @@ fn run_transform_entries_readers<'p, W, Provider, F, Transform>(
 where
     W: Write,
     Provider: FnMut() -> Option<&'p [u8]>,
-    F: FnMut(io::Result<NormalEntry>) -> io::Result<Option<NormalEntry>>,
+    F: FnMut(
+        io::Result<NormalEntry<Cow<'d, [u8]>>>,
+    ) -> io::Result<Option<NormalEntry<Cow<'d, [u8]>>>>,
     Transform: TransformStrategy,
 {
     let password = password_provider();
@@ -1729,7 +1731,14 @@ where
     let mut out_archive = Archive::write_header(writer)?;
     run_read_entries_readers(
         archives,
-        |entry| Transform::transform(&mut out_archive, &context, entry, &mut processor),
+        |entry| {
+            Transform::transform(
+                &mut out_archive,
+                &context,
+                entry.map(ReadEntry::<Cow<'d, [u8]>>::from),
+                &mut processor,
+            )
+        },
         false,
     )?;
     out_archive.finalize()?;

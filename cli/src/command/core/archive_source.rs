@@ -1,4 +1,3 @@
-#[cfg(feature = "memmap")]
 use std::borrow::Cow;
 use std::{fs, io};
 
@@ -30,8 +29,8 @@ impl SplitArchiveReader {
     }
 
     #[cfg(not(feature = "memmap"))]
-    pub(crate) fn transform_entries<W, F, S>(
-        &mut self,
+    pub(crate) fn transform_entries<'s, W, F, S>(
+        &'s mut self,
         writer: W,
         password: Option<&[u8]>,
         processor: F,
@@ -39,7 +38,9 @@ impl SplitArchiveReader {
     ) -> anyhow::Result<()>
     where
         W: io::Write,
-        F: FnMut(io::Result<NormalEntry>) -> io::Result<Option<NormalEntry>>,
+        F: FnMut(
+            io::Result<NormalEntry<Cow<'s, [u8]>>>,
+        ) -> io::Result<Option<NormalEntry<Cow<'s, [u8]>>>>,
         S: TransformStrategy,
     {
         super::run_transform_entries_readers(
@@ -76,12 +77,17 @@ impl SplitArchiveReader {
     }
 
     #[cfg(not(feature = "memmap"))]
-    pub(crate) fn for_each_entry(
-        &mut self,
+    pub(crate) fn for_each_entry<'s>(
+        &'s mut self,
         read_options: &ReadOptions,
-        processor: impl FnMut(io::Result<NormalEntry>) -> io::Result<()>,
+        mut processor: impl FnMut(io::Result<NormalEntry<Cow<'s, [u8]>>>) -> io::Result<()>,
     ) -> io::Result<()> {
-        super::run_process_archive_readers(self.files.drain(..), read_options, processor, false)
+        super::run_process_archive_readers(
+            self.files.drain(..),
+            read_options,
+            |entry| processor(entry.map(Into::into)),
+            false,
+        )
     }
 
     #[cfg(feature = "memmap")]
@@ -98,14 +104,14 @@ impl SplitArchiveReader {
     }
 
     #[cfg(not(feature = "memmap"))]
-    pub(crate) fn for_each_read_entry(
-        &mut self,
-        processor: impl FnMut(io::Result<ReadEntry>) -> io::Result<()>,
+    pub(crate) fn for_each_read_entry<'s>(
+        &'s mut self,
+        mut processor: impl FnMut(io::Result<ReadEntry<Cow<'s, [u8]>>>) -> io::Result<()>,
         allow_concatenated_archives: bool,
     ) -> io::Result<()> {
         super::run_read_entries_readers(
             self.files.drain(..),
-            processor,
+            |entry| processor(entry.map(Into::into)),
             allow_concatenated_archives,
         )
     }
