@@ -10,7 +10,6 @@ fn xattr_set_on_multipart_archive() {
     setup();
     TestResources::extract_in("raw/", "xattr_multipart/in/").unwrap();
 
-    // Create a regular archive first
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -24,7 +23,6 @@ fn xattr_set_on_multipart_archive() {
     .execute()
     .unwrap();
 
-    // Split the archive into multiple parts
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -41,7 +39,6 @@ fn xattr_set_on_multipart_archive() {
     .execute()
     .unwrap();
 
-    // Set xattr on an entry in the multipart archive (consolidates to archive.pna)
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -59,16 +56,13 @@ fn xattr_set_on_multipart_archive() {
     .execute()
     .unwrap();
 
-    // Verify xattr was applied in the consolidated output (archive.pna, not archive.part1.pna)
-    archive::for_each_entry("xattr_multipart/split/archive.pna", |entry| {
-        if entry.name() == "xattr_multipart/in/raw/empty.txt" {
-            let xattrs = entry.metadata().xattrs();
-            assert_eq!(xattrs.len(), 1, "entry should have exactly one xattr");
-            assert_eq!(xattrs[0].name(), "user.multipart");
-            assert_eq!(xattrs[0].value(), b"from_split");
-        }
-    })
-    .unwrap();
+    assert_eq!(
+        archive::xattrs_by_entry("xattr_multipart/split/archive.pna", None),
+        vec![(
+            "xattr_multipart/in/raw/empty.txt".to_string(),
+            vec![archive::xattr("user.multipart", b"from_split")]
+        )]
+    );
 }
 
 /// Precondition: A multipart archive exists with multiple entries across parts.
@@ -79,7 +73,6 @@ fn xattr_set_multiple_entries_multipart() {
     setup();
     TestResources::extract_in("raw/", "xattr_multipart_multi/in/").unwrap();
 
-    // Create and split archive
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -109,7 +102,6 @@ fn xattr_set_multiple_entries_multipart() {
     .execute()
     .unwrap();
 
-    // Set xattr on all .txt files using glob pattern (consolidates to archive.pna)
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -127,28 +119,28 @@ fn xattr_set_multiple_entries_multipart() {
     .execute()
     .unwrap();
 
-    // Verify xattr was applied to all matching entries in consolidated archive
-    let mut txt_count = 0;
-    archive::for_each_entry("xattr_multipart_multi/split/archive.pna", |entry| {
-        let path = entry.name();
-        if path.as_str().ends_with(".txt") {
-            txt_count += 1;
-            let xattrs = entry.metadata().xattrs();
-            assert_eq!(
-                xattrs.len(),
-                1,
-                "txt file {path} should have exactly one xattr"
-            );
-            assert_eq!(xattrs[0].name(), "user.filetype");
-            assert_eq!(xattrs[0].value(), b"text");
-        } else {
-            assert!(
-                entry.metadata().xattrs().is_empty(),
-                "non-txt file {path} should have no xattrs"
-            );
-        }
-    })
-    .unwrap();
-
-    assert!(txt_count > 0, "should have found at least one .txt file");
+    let mut applied_sorted_by_name =
+        archive::xattrs_by_entry("xattr_multipart_multi/split/archive.pna", None);
+    applied_sorted_by_name.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(
+        applied_sorted_by_name,
+        vec![
+            (
+                "xattr_multipart_multi/in/raw/empty.txt".to_string(),
+                vec![archive::xattr("user.filetype", b"text")]
+            ),
+            (
+                "xattr_multipart_multi/in/raw/first/second/third/pna.txt".to_string(),
+                vec![archive::xattr("user.filetype", b"text")]
+            ),
+            (
+                "xattr_multipart_multi/in/raw/parent/child.txt".to_string(),
+                vec![archive::xattr("user.filetype", b"text")]
+            ),
+            (
+                "xattr_multipart_multi/in/raw/text.txt".to_string(),
+                vec![archive::xattr("user.filetype", b"text")]
+            ),
+        ]
+    );
 }

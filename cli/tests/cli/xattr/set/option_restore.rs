@@ -24,7 +24,6 @@ fn xattr_restore_from_file() {
     .execute()
     .unwrap();
 
-    // Write the dump content to a file
     fs::write(
         "xattr_restore_file/xattrs.dump",
         concat!(
@@ -38,7 +37,6 @@ fn xattr_restore_from_file() {
     )
     .unwrap();
 
-    // Restore xattrs from file
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -53,35 +51,25 @@ fn xattr_restore_from_file() {
     .execute()
     .unwrap();
 
-    // Verify xattrs were restored
-    archive::for_each_entry("xattr_restore_file/archive.pna", |entry| {
-        match entry.name().as_str() {
-            "xattr_restore_file/in/raw/empty.txt" => {
-                let xattrs = entry.metadata().xattrs();
-                assert_eq!(xattrs.len(), 2);
-                assert!(
-                    xattrs
-                        .iter()
-                        .any(|x| x.name() == "user.author" && x.value() == b"pna team")
-                );
-                assert!(
-                    xattrs
-                        .iter()
-                        .any(|x| x.name() == "user.version" && x.value() == b"1.0")
-                );
-            }
-            "xattr_restore_file/in/raw/text.txt" => {
-                let xattrs = entry.metadata().xattrs();
-                assert_eq!(xattrs.len(), 1);
-                assert_eq!(xattrs[0].name(), "user.description");
-                assert_eq!(xattrs[0].value(), b"sample text file");
-            }
-            _ => {
-                assert!(entry.metadata().xattrs().is_empty());
-            }
-        }
-    })
-    .unwrap();
+    let mut applied_sorted_by_name =
+        archive::xattrs_by_entry("xattr_restore_file/archive.pna", None);
+    applied_sorted_by_name.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(
+        applied_sorted_by_name,
+        vec![
+            (
+                "xattr_restore_file/in/raw/empty.txt".to_string(),
+                vec![
+                    archive::xattr("user.author", b"pna team"),
+                    archive::xattr("user.version", b"1.0"),
+                ]
+            ),
+            (
+                "xattr_restore_file/in/raw/text.txt".to_string(),
+                vec![archive::xattr("user.description", b"sample text file")]
+            ),
+        ]
+    );
 }
 
 /// Precondition: An archive exists and a dump file contains hex-encoded xattr values.
@@ -105,7 +93,6 @@ fn xattr_restore_from_file_with_encodings() {
     .execute()
     .unwrap();
 
-    // Write dump with different encodings
     fs::write(
         "xattr_restore_enc/xattrs.dump",
         concat!(
@@ -131,28 +118,17 @@ fn xattr_restore_from_file_with_encodings() {
     .execute()
     .unwrap();
 
-    archive::for_each_entry("xattr_restore_enc/archive.pna", |entry| {
-        if entry.name() == "xattr_restore_enc/in/raw/empty.txt" {
-            let xattrs = entry.metadata().xattrs();
-            assert_eq!(xattrs.len(), 3);
-            assert!(
-                xattrs
-                    .iter()
-                    .any(|x| x.name() == "user.text" && x.value() == b"hello world")
-            );
-            assert!(
-                xattrs
-                    .iter()
-                    .any(|x| x.name() == "user.hex" && x.value() == b"HELLO")
-            );
-            assert!(
-                xattrs
-                    .iter()
-                    .any(|x| x.name() == "user.base64" && x.value() == b"Hello")
-            );
-        }
-    })
-    .unwrap();
+    assert_eq!(
+        archive::xattrs_by_entry("xattr_restore_enc/archive.pna", None),
+        vec![(
+            "xattr_restore_enc/in/raw/empty.txt".to_string(),
+            vec![
+                archive::xattr("user.text", b"hello world"),
+                archive::xattr("user.hex", b"HELLO"),
+                archive::xattr("user.base64", b"Hello"),
+            ]
+        )]
+    );
 }
 
 /// Precondition: An archive entry already has xattrs, and a dump file defines additional ones.
@@ -176,7 +152,6 @@ fn xattr_restore_from_file_merge() {
     .execute()
     .unwrap();
 
-    // Set initial xattrs
     for (name, value) in [
         ("user.existing", "original"),
         ("user.overwrite", "old_value"),
@@ -199,7 +174,6 @@ fn xattr_restore_from_file_merge() {
         .unwrap();
     }
 
-    // Write dump with new and overlapping xattrs
     fs::write(
         "xattr_restore_merge/xattrs.dump",
         concat!(
@@ -224,29 +198,15 @@ fn xattr_restore_from_file_merge() {
     .execute()
     .unwrap();
 
-    archive::for_each_entry("xattr_restore_merge/archive.pna", |entry| {
-        if entry.name() == "xattr_restore_merge/in/raw/empty.txt" {
-            let xattrs = entry.metadata().xattrs();
-            assert_eq!(xattrs.len(), 3, "should have 3 xattrs after merge");
-            assert!(
-                xattrs
-                    .iter()
-                    .any(|x| x.name() == "user.existing" && x.value() == b"original"),
-                "existing xattr should be preserved"
-            );
-            assert!(
-                xattrs
-                    .iter()
-                    .any(|x| x.name() == "user.new" && x.value() == b"added"),
-                "new xattr should be added"
-            );
-            assert!(
-                xattrs
-                    .iter()
-                    .any(|x| x.name() == "user.overwrite" && x.value() == b"new_value"),
-                "overlapping xattr should be overwritten"
-            );
-        }
-    })
-    .unwrap();
+    assert_eq!(
+        archive::xattrs_by_entry("xattr_restore_merge/archive.pna", None),
+        vec![(
+            "xattr_restore_merge/in/raw/empty.txt".to_string(),
+            vec![
+                archive::xattr("user.existing", b"original"),
+                archive::xattr("user.overwrite", b"new_value"),
+                archive::xattr("user.new", b"added"),
+            ]
+        )]
+    );
 }

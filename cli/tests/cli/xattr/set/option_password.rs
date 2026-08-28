@@ -8,7 +8,6 @@ use portable_network_archive::cli;
 #[test]
 fn xattr_set_with_password() {
     setup();
-    // Use pre-generated encrypted archive (password: "password")
     TestResources::extract_in("zstd_aes_ctr.pna", "xattr_password/").unwrap();
 
     cli::Cli::try_parse_from([
@@ -30,23 +29,13 @@ fn xattr_set_with_password() {
     .execute()
     .unwrap();
 
-    archive::for_each_entry_with_password("xattr_password/zstd_aes_ctr.pna", "password", |entry| {
-        if entry.name() == "raw/empty.txt" {
-            let xattrs = entry.metadata().xattrs();
-            assert_eq!(xattrs.len(), 1, "entry should have exactly one xattr");
-            assert_eq!(xattrs[0].name(), "user.author");
-            assert_eq!(xattrs[0].value(), b"pna developers");
-        } else {
-            // Non-target entries should remain unaffected (no xattrs)
-            assert!(
-                entry.metadata().xattrs().is_empty(),
-                "Entry {} should have no xattrs but has {:?}",
-                entry.name(),
-                entry.metadata().xattrs()
-            );
-        }
-    })
-    .unwrap();
+    assert_eq!(
+        archive::xattrs_by_entry("xattr_password/zstd_aes_ctr.pna", Some("password")),
+        vec![(
+            "raw/empty.txt".to_string(),
+            vec![archive::xattr("user.author", b"pna developers")]
+        )]
+    );
 }
 
 /// Precondition: A pre-generated encrypted archive exists and a password file contains the password.
@@ -55,7 +44,6 @@ fn xattr_set_with_password() {
 #[test]
 fn xattr_set_with_password_file() {
     setup();
-    // Use pre-generated encrypted archive (password: "password")
     TestResources::extract_in("zstd_aes_ctr.pna", "xattr_password_file/").unwrap();
 
     let password = "password";
@@ -80,39 +68,26 @@ fn xattr_set_with_password_file() {
     .execute()
     .unwrap();
 
-    archive::for_each_entry_with_password(
-        "xattr_password_file/zstd_aes_ctr.pna",
-        password,
-        |entry| {
-            if entry.name() == "raw/empty.txt" {
-                let xattrs = entry.metadata().xattrs();
-                assert_eq!(xattrs.len(), 1, "entry should have exactly one xattr");
-                assert_eq!(xattrs[0].name(), "user.version");
-                assert_eq!(xattrs[0].value(), b"1.0.0");
-            } else {
-                // Non-target entries should remain unaffected (no xattrs)
-                assert!(
-                    entry.metadata().xattrs().is_empty(),
-                    "Entry {} should have no xattrs but has {:?}",
-                    entry.name(),
-                    entry.metadata().xattrs()
-                );
-            }
-        },
-    )
-    .unwrap();
+    assert_eq!(
+        archive::xattrs_by_entry("xattr_password_file/zstd_aes_ctr.pna", Some(password)),
+        vec![(
+            "raw/empty.txt".to_string(),
+            vec![archive::xattr("user.version", b"1.0.0")]
+        )]
+    );
 }
 
 /// Precondition: A pre-generated encrypted archive exists.
 /// Action: Run `pna xattr set` with correct password, then with incorrect password.
-/// Expectation: The xattr set with wrong password does not affect the entry.
+/// Expectation: Xattrs are plaintext metadata chunks, so the wrong-password command still
+/// applies its xattr; only the encrypted file content requires the correct password. The
+/// archive is CTR (unauthenticated), so the wrong-password command's own result is
+/// unconstrained — only the postcondition is asserted.
 #[test]
-fn xattr_set_wrong_password_no_effect() {
+fn xattr_set_wrong_password_updates_metadata_only() {
     setup();
-    // Use pre-generated encrypted archive (password: "password")
     TestResources::extract_in("zstd_aes_ctr.pna", "xattr_wrong_password/").unwrap();
 
-    // Set an xattr with the correct password first
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -132,9 +107,7 @@ fn xattr_set_wrong_password_no_effect() {
     .execute()
     .unwrap();
 
-    // Attempt to set xattr with wrong password — may succeed or fail,
-    // but must not corrupt the archive or alter existing xattrs.
-    let _result = cli::Cli::try_parse_from([
+    let _ = cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "xattr",
@@ -152,30 +125,14 @@ fn xattr_set_wrong_password_no_effect() {
     .unwrap()
     .execute();
 
-    // Verify with correct password - original xattr should still be there
-    archive::for_each_entry_with_password(
-        "xattr_wrong_password/zstd_aes_ctr.pna",
-        "password",
-        |entry| {
-            if entry.name() == "raw/empty.txt" {
-                let xattrs = entry.metadata().xattrs();
-                // Original xattr should exist
-                assert!(
-                    xattrs
-                        .iter()
-                        .any(|x| x.name() == "user.original" && x.value() == b"original_value"),
-                    "original xattr should be preserved"
-                );
-            } else {
-                // Non-target entries should remain unaffected (no xattrs)
-                assert!(
-                    entry.metadata().xattrs().is_empty(),
-                    "Entry {} should have no xattrs but has {:?}",
-                    entry.name(),
-                    entry.metadata().xattrs()
-                );
-            }
-        },
-    )
-    .unwrap();
+    assert_eq!(
+        archive::xattrs_by_entry("xattr_wrong_password/zstd_aes_ctr.pna", Some("password")),
+        vec![(
+            "raw/empty.txt".to_string(),
+            vec![
+                archive::xattr("user.original", b"original_value"),
+                archive::xattr("user.wrong", b"wrong_value"),
+            ]
+        )]
+    );
 }
