@@ -153,6 +153,26 @@ where
     Ok(())
 }
 
+/// Entries that carry at least one xattr, sorted by entry path (directory
+/// traversal order differs between filesystems).
+pub fn xattrs_by_entry(
+    path: impl AsRef<Path>,
+    password: Option<&str>,
+) -> Vec<(String, Vec<pna::ExtendedAttribute>)> {
+    let mut out = Vec::new();
+    for_each_entry_with_password(path, password, |e| {
+        if !e.metadata().xattrs().is_empty() {
+            out.push((
+                e.header().path().to_string(),
+                e.metadata().xattrs().to_vec(),
+            ));
+        }
+    })
+    .unwrap();
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    out
+}
+
 pub fn read_symlink_target(entry: &pna::NormalEntry) -> String {
     let pna::EntryContent::SymbolicLink(target) = entry
         .content(pna::ReadOptions::with_password::<&[u8]>(None))

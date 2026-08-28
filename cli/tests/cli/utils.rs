@@ -95,7 +95,6 @@ pub fn skip_or_fail(capability: &str, condition: &str) {
 /// Capability names are the vocabulary of `PNA_TEST_REQUIRE`; keep them
 /// stable: `birthtime`, `mtime_nanos`, `xattr`, `nodump`, `chmod`, `setuid`,
 /// `root`, `unprivileged`, `mount`.
-#[allow(unused_macros)]
 macro_rules! skip_unless {
     ($capability:literal, $cond:expr) => {
         if !$cond {
@@ -103,6 +102,34 @@ macro_rules! skip_unless {
             return;
         }
     };
+}
+
+/// `false` only when the OS refuses the change; any other error is a test bug.
+#[cfg(unix)]
+#[track_caller]
+pub fn set_mode(path: impl AsRef<Path>, mode: u32) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    match fs::set_permissions(path, fs::Permissions::from_mode(mode)) {
+        Ok(()) => true,
+        Err(e) if e.kind() == io::ErrorKind::PermissionDenied => false,
+        Err(e) => panic!("set_permissions: {e}"),
+    }
+}
+
+/// Non-mutating probe: reading an absent attribute is `Ok(None)` on a
+/// filesystem with xattr support and `Unsupported` otherwise.
+///
+/// Ask this rather than `xattr::SUPPORTED_PLATFORM`, which is a compile-time
+/// constant and stays true on FreeBSD and NetBSD whether or not the mounted
+/// file system carries extended attributes.
+#[cfg(unix)]
+#[track_caller]
+pub fn fs_supports_xattr(path: impl AsRef<Path>) -> bool {
+    match xattr::get(path, "user.pna_test_probe") {
+        Ok(_) => true,
+        Err(e) if e.kind() == io::ErrorKind::Unsupported => false,
+        Err(e) => panic!("xattr::get: {e}"),
+    }
 }
 
 /// Spawns the `pna` binary under `mask` without touching this test process's

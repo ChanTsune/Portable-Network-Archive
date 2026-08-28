@@ -1,3 +1,5 @@
+#[cfg(unix)]
+use crate::utils::fs_supports_xattr;
 use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use portable_network_archive::cli;
@@ -242,11 +244,8 @@ fn xattr_set_preserved_in_archive() {
 #[cfg(unix)]
 fn xattr_round_trip_preservation() {
     setup();
-    if !xattr::SUPPORTED_PLATFORM {
-        eprintln!("Skipping xattr_round_trip_preservation: platform does not support xattr");
-        return;
-    }
     TestResources::extract_in("zstd.pna", "xattr_roundtrip/").unwrap();
+    skip_unless!("xattr", fs_supports_xattr("xattr_roundtrip/zstd.pna"));
 
     cli::Cli::try_parse_from([
         "pna",
@@ -280,16 +279,12 @@ fn xattr_round_trip_preservation() {
     .execute()
     .unwrap();
 
-    // If the filesystem does not support xattrs, the extract above could not
-    // have preserved them; skip the round-trip verification.
-    match xattr::get("xattr_roundtrip/out/raw/empty.txt", "user.roundtrip") {
-        Ok(Some(_)) => {}
-        Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
-            eprintln!("Skipping xattr round-trip verification: filesystem does not support xattrs");
-            return;
-        }
-        other => panic!("Unexpected xattr::get result: {:?}", other),
-    }
+    assert_eq!(
+        xattr::get("xattr_roundtrip/out/raw/empty.txt", "user.roundtrip")
+            .unwrap()
+            .as_deref(),
+        Some(b"preserved_value".as_slice())
+    );
 
     cli::Cli::try_parse_from([
         "pna",

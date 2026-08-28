@@ -8,28 +8,14 @@
 use crate::utils::archive;
 #[cfg(unix)]
 use crate::utils::pna_cmd_with_umask;
+#[cfg(unix)]
+use crate::utils::set_mode;
 use crate::utils::setup;
 use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::prelude::predicate;
 use std::fs;
 #[cfg(unix)]
-use std::io::ErrorKind;
-#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
-
-#[cfg(unix)]
-macro_rules! set_permissions_or_skip {
-    ($path:expr, $mode:expr) => {
-        match fs::set_permissions($path, fs::Permissions::from_mode($mode)) {
-            Ok(()) => {}
-            Err(e) if e.kind() == ErrorKind::PermissionDenied => {
-                eprintln!("Skipping test: insufficient permissions: {}", e);
-                return;
-            }
-            Err(e) => panic!("Failed to set permissions: {}", e),
-        }
-    };
-}
 
 // =============================================================================
 // Flag Validation Tests
@@ -233,7 +219,7 @@ fn bsdtar_extract_with_same_permissions_and_same_owner() {
 
     let file = format!("{base}/test.txt");
     fs::write(&file, "test content").unwrap();
-    set_permissions_or_skip!(&file, 0o751);
+    skip_unless!("chmod", set_mode(&file, 0o751));
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
@@ -318,7 +304,7 @@ fn bsdtar_extract_same_permissions_with_no_acls() {
 
     let file = format!("{base}/test.txt");
     fs::write(&file, "test content").unwrap();
-    set_permissions_or_skip!(&file, 0o752);
+    skip_unless!("chmod", set_mode(&file, 0o752));
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
@@ -403,7 +389,7 @@ fn bsdtar_extract_with_long_same_permissions_flag() {
 
     let file = format!("{base}/test.txt");
     fs::write(&file, "test content").unwrap();
-    set_permissions_or_skip!(&file, 0o755);
+    skip_unless!("chmod", set_mode(&file, 0o755));
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
@@ -486,7 +472,7 @@ fn bsdtar_extract_with_preserve_permissions_alias() {
 
     let file = format!("{base}/test.txt");
     fs::write(&file, "test content").unwrap();
-    set_permissions_or_skip!(&file, 0o754);
+    skip_unless!("chmod", set_mode(&file, 0o754));
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
@@ -573,7 +559,7 @@ fn bsdtar_extract_same_permissions_overridden_by_no_same_permissions() {
 
     let file = format!("{base}/test.txt");
     fs::write(&file, "test content").unwrap();
-    set_permissions_or_skip!(&file, 0o755);
+    skip_unless!("chmod", set_mode(&file, 0o755));
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
@@ -658,10 +644,7 @@ fn bsdtar_extract_no_same_permissions_with_keep_xattr() {
     let base = "bsdtar_no_same_p_keep_xattr";
     fs::create_dir_all(base).unwrap();
 
-    if !xattr_supported(base) {
-        eprintln!("Skipping test: xattr not supported on this filesystem");
-        return;
-    }
+    skip_unless!("xattr", xattr_supported(base));
 
     let file = format!("{base}/test.txt");
     fs::write(&file, "test content").unwrap();
@@ -786,10 +769,7 @@ fn bsdtar_extract_no_same_permissions_alone() {
 #[test]
 #[cfg(unix)]
 fn bsdtar_extract_without_p_masks_permissions() {
-    if nix::unistd::Uid::effective().is_root() {
-        eprintln!("Skipping: test requires non-root user (root defaults to preserve mode)");
-        return;
-    }
+    skip_unless!("unprivileged", !nix::unistd::Uid::effective().is_root());
     setup();
     let base = "bsdtar_extract_no_p_perm";
     fs::create_dir_all(base).unwrap();
@@ -797,7 +777,7 @@ fn bsdtar_extract_without_p_masks_permissions() {
     // Create file with executable permission
     let file = format!("{}/test.txt", base);
     fs::write(&file, "test content").unwrap();
-    set_permissions_or_skip!(&file, 0o755);
+    skip_unless!("chmod", set_mode(&file, 0o755));
 
     // Verify source file has expected permission
     let src_meta = fs::symlink_metadata(&file).unwrap();
@@ -859,7 +839,7 @@ fn bsdtar_extract_with_p_preserves_permissions() {
     // Create file with executable permission
     let file = format!("{}/test.txt", base);
     fs::write(&file, "test content").unwrap();
-    set_permissions_or_skip!(&file, 0o755);
+    skip_unless!("chmod", set_mode(&file, 0o755));
 
     // Create archive via bsdtar (stores mode+owner by default)
     let mut create_cmd = cargo_bin_cmd!("pna");
@@ -913,7 +893,7 @@ fn bsdtar_create_stores_permissions_by_default() {
     // Create file with executable permission
     let file = format!("{}/test.txt", base);
     fs::write(&file, "test content").unwrap();
-    set_permissions_or_skip!(&file, 0o755);
+    skip_unless!("chmod", set_mode(&file, 0o755));
 
     // Create archive via bsdtar and write to file
     let archive_path = format!("{}/archive.pna", base);
@@ -977,7 +957,7 @@ fn bsdtar_create_with_no_same_owner_omits_permission() {
     // Create file
     let file = format!("{}/test.txt", base);
     fs::write(&file, "test content").unwrap();
-    set_permissions_or_skip!(&file, 0o644);
+    skip_unless!("chmod", set_mode(&file, 0o644));
 
     // Create archive with --no-same-owner
     let archive_path = format!("{}/archive.pna", base);
@@ -1054,10 +1034,7 @@ fn bsdtar_extract_with_p_restores_xattr() {
     let base = "bsdtar_extract_p_xattr";
     fs::create_dir_all(base).unwrap();
 
-    if !xattr_supported(base) {
-        eprintln!("Skipping test: xattr not supported on this filesystem");
-        return;
-    }
+    skip_unless!("xattr", xattr_supported(base));
 
     // Create file with xattr
     let file = format!("{}/test.txt", base);
@@ -1123,17 +1100,14 @@ fn bsdtar_extract_with_p_restores_xattr() {
 #[test]
 #[cfg(unix)]
 fn bsdtar_extract_no_same_permissions_applies_mask() {
-    if nix::unistd::Uid::effective().is_root() {
-        eprintln!("Skipping: test requires non-root user");
-        return;
-    }
+    skip_unless!("unprivileged", !nix::unistd::Uid::effective().is_root());
     setup();
     let base = "bsdtar_extract_no_same_p_applies_mask";
     fs::create_dir_all(base).unwrap();
 
     let file = format!("{}/test.txt", base);
     fs::write(&file, "test content").unwrap();
-    set_permissions_or_skip!(&file, 0o755);
+    skip_unless!("chmod", set_mode(&file, 0o755));
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
@@ -1186,13 +1160,10 @@ fn bsdtar_extract_with_p_preserves_special_bits() {
 
     let file = format!("{}/setuid_file.txt", base);
     fs::write(&file, "test content").unwrap();
-    set_permissions_or_skip!(&file, 0o4755);
+    skip_unless!("chmod", set_mode(&file, 0o4755));
 
     let src_meta = fs::symlink_metadata(&file).unwrap();
-    if src_meta.permissions().mode() & 0o7777 != 0o4755 {
-        eprintln!("Skipping: filesystem doesn't support setuid bit");
-        return;
-    }
+    skip_unless!("setuid", src_meta.permissions().mode() & 0o7777 == 0o4755);
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
@@ -1237,17 +1208,14 @@ fn bsdtar_extract_with_p_preserves_special_bits() {
 #[test]
 #[cfg(unix)]
 fn bsdtar_extract_root_default_preserves_permissions() {
-    if !nix::unistd::Uid::effective().is_root() {
-        eprintln!("Skipping: test requires root user");
-        return;
-    }
+    skip_unless!("root", nix::unistd::Uid::effective().is_root());
     setup();
     let base = "bsdtar_extract_root_default";
     fs::create_dir_all(base).unwrap();
 
     let file = format!("{}/test.txt", base);
     fs::write(&file, "test content").unwrap();
-    set_permissions_or_skip!(&file, 0o755);
+    skip_unless!("chmod", set_mode(&file, 0o755));
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
@@ -1291,17 +1259,14 @@ fn bsdtar_extract_root_default_preserves_permissions() {
 #[test]
 #[cfg(unix)]
 fn bsdtar_extract_root_with_no_same_permissions_masks() {
-    if !nix::unistd::Uid::effective().is_root() {
-        eprintln!("Skipping: test requires root user");
-        return;
-    }
+    skip_unless!("root", nix::unistd::Uid::effective().is_root());
     setup();
     let base = "bsdtar_extract_root_no_same_p";
     fs::create_dir_all(base).unwrap();
 
     let file = format!("{}/test.txt", base);
     fs::write(&file, "test content").unwrap();
-    set_permissions_or_skip!(&file, 0o755);
+    skip_unless!("chmod", set_mode(&file, 0o755));
 
     let mut create_cmd = cargo_bin_cmd!("pna");
     let create_output = create_cmd
@@ -1350,10 +1315,7 @@ fn bsdtar_extract_without_p_does_not_restore_xattr() {
     let base = "bsdtar_extract_no_p_xattr";
     fs::create_dir_all(base).unwrap();
 
-    if !xattr_supported(base) {
-        eprintln!("Skipping test: xattr not supported on this filesystem");
-        return;
-    }
+    skip_unless!("xattr", xattr_supported(base));
 
     // Create file with xattr
     let file = format!("{}/test.txt", base);

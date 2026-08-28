@@ -1,5 +1,5 @@
 #[cfg(unix)]
-use crate::utils::{EmbedExt, TestResources, archive, setup};
+use crate::utils::{EmbedExt, TestResources, archive, set_mode, setup};
 #[cfg(unix)]
 use clap::Parser;
 #[cfg(unix)]
@@ -7,27 +7,7 @@ use portable_network_archive::cli;
 #[cfg(unix)]
 use std::fs;
 #[cfg(unix)]
-use std::io::ErrorKind;
-#[cfg(unix)]
 use std::os::unix::prelude::*;
-
-/// Helper macro to set permissions, skipping the test if permission denied.
-#[cfg(unix)]
-macro_rules! set_permissions_or_skip {
-    ($path:expr, $mode:expr) => {
-        match fs::set_permissions($path, fs::Permissions::from_mode($mode)) {
-            Ok(()) => {}
-            Err(e) if e.kind() == ErrorKind::PermissionDenied => {
-                eprintln!(
-                    "Skipping test: insufficient permissions to set file permissions: {}",
-                    e
-                );
-                return;
-            }
-            Err(e) => panic!("Failed to set permissions: {}", e),
-        }
-    };
-}
 
 /// Recursively remove a directory, restoring write permissions on files if needed.
 /// This is necessary because files with 0o000 permissions cannot be overwritten.
@@ -69,7 +49,7 @@ fn extract_preserves_executable_permission() {
     setup();
     TestResources::extract_in("raw/", "extract_perm_755/in/").unwrap();
 
-    set_permissions_or_skip!("extract_perm_755/in/raw/text.txt", 0o755);
+    skip_unless!("chmod", set_mode("extract_perm_755/in/raw/text.txt", 0o755));
 
     cli::Cli::try_parse_from([
         "pna",
@@ -130,7 +110,7 @@ fn extract_preserves_readonly_permission() {
     setup();
     TestResources::extract_in("raw/", "extract_perm_644/in/").unwrap();
 
-    set_permissions_or_skip!("extract_perm_644/in/raw/text.txt", 0o644);
+    skip_unless!("chmod", set_mode("extract_perm_644/in/raw/text.txt", 0o644));
 
     cli::Cli::try_parse_from([
         "pna",
@@ -191,7 +171,7 @@ fn extract_preserves_private_permission() {
     setup();
     TestResources::extract_in("raw/", "extract_perm_600/in/").unwrap();
 
-    set_permissions_or_skip!("extract_perm_600/in/raw/text.txt", 0o600);
+    skip_unless!("chmod", set_mode("extract_perm_600/in/raw/text.txt", 0o600));
 
     cli::Cli::try_parse_from([
         "pna",
@@ -255,11 +235,13 @@ fn extract_preserves_no_permission() {
     let _ = force_remove_dir_all("extract_perm_000");
     TestResources::extract_in("raw/", "extract_perm_000/in/").unwrap();
 
-    set_permissions_or_skip!("extract_perm_000/in/raw/text.txt", 0o000);
+    skip_unless!("chmod", set_mode("extract_perm_000/in/raw/text.txt", 0o000));
+    skip_unless!(
+        "root",
+        fs::File::open("extract_perm_000/in/raw/text.txt").is_ok()
+    );
 
-    // Creating an archive of a file with 0o000 permissions requires root
-    // privileges to read the file. Skip the test if we can't read the file.
-    let result = cli::Cli::try_parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -270,20 +252,8 @@ fn extract_preserves_no_permission() {
         "--keep-permission",
     ])
     .unwrap()
-    .execute();
-
-    if let Err(e) = &result {
-        // Check if the error is permission-related (use {:#} to include full error chain)
-        let full_error = format!("{:#}", e);
-        if full_error.contains("Permission denied") || full_error.contains("permission denied") {
-            eprintln!(
-                "Skipping test: insufficient permissions to read file with 0o000 mode: {}",
-                e
-            );
-            return;
-        }
-    }
-    result.unwrap();
+    .execute()
+    .unwrap();
 
     cli::Cli::try_parse_from([
         "pna",
@@ -319,7 +289,7 @@ fn extract_preserves_full_permission() {
     setup();
     TestResources::extract_in("raw/", "extract_perm_777/in/").unwrap();
 
-    set_permissions_or_skip!("extract_perm_777/in/raw/text.txt", 0o777);
+    skip_unless!("chmod", set_mode("extract_perm_777/in/raw/text.txt", 0o777));
 
     cli::Cli::try_parse_from([
         "pna",
@@ -380,10 +350,12 @@ fn extract_preserves_mixed_permissions() {
     setup();
     TestResources::extract_in("raw/", "extract_perm_mixed/in/").unwrap();
 
-    // Set different permissions for different files
-    set_permissions_or_skip!("extract_perm_mixed/in/raw/text.txt", 0o755);
-    set_permissions_or_skip!("extract_perm_mixed/in/raw/empty.txt", 0o644);
-    set_permissions_or_skip!("extract_perm_mixed/in/raw/images/icon.png", 0o600);
+    skip_unless!(
+        "chmod",
+        set_mode("extract_perm_mixed/in/raw/text.txt", 0o755)
+            && set_mode("extract_perm_mixed/in/raw/empty.txt", 0o644)
+            && set_mode("extract_perm_mixed/in/raw/images/icon.png", 0o600)
+    );
 
     cli::Cli::try_parse_from([
         "pna",
@@ -481,7 +453,7 @@ fn extract_preserves_directory_permission() {
     setup();
     TestResources::extract_in("raw/", "extract_dir_perm/in/").unwrap();
 
-    set_permissions_or_skip!("extract_dir_perm/in/raw/images", 0o750);
+    skip_unless!("chmod", set_mode("extract_dir_perm/in/raw/images", 0o750));
 
     cli::Cli::try_parse_from([
         "pna",
@@ -541,7 +513,10 @@ fn extract_encrypted_gcm_without_keep_permission_drops_setuid() {
     setup();
     TestResources::extract_in("raw/", "extract_gcm_setuid/in/").unwrap();
 
-    set_permissions_or_skip!("extract_gcm_setuid/in/raw/text.txt", 0o4755);
+    skip_unless!(
+        "chmod",
+        set_mode("extract_gcm_setuid/in/raw/text.txt", 0o4755)
+    );
 
     cli::Cli::try_parse_from([
         "pna",
