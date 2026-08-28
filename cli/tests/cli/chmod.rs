@@ -80,17 +80,10 @@ fn archive_chmod() {
     .execute()
     .unwrap();
 
-    archive::for_each_entry("chmod.pna", |entry| {
-        if entry.header().path() == ENTRY_PATH {
-            let mode = entry
-                .metadata()
-                .permission_mode()
-                .expect("entry should have permission mode metadata")
-                .get();
-            assert_eq!(mode & 0o777, 0o666, "-x on 0o777 should yield 0o666");
-        }
-    })
-    .unwrap();
+    assert_eq!(
+        archive::modes_by_entry("chmod.pna"),
+        vec![(ENTRY_PATH.to_string(), Some(0o666))]
+    );
 }
 
 /// Precondition: An archive entry carries legacy fPRM metadata.

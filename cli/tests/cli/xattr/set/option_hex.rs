@@ -10,7 +10,6 @@ fn xattr_set_hex() {
     setup();
     TestResources::extract_in("zstd.pna", "xattr_set_hex/").unwrap();
 
-    // Set hex encoded value
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -21,29 +20,18 @@ fn xattr_set_hex() {
         "--name",
         "user.hex",
         "--value",
-        "0x48656c6c6f20576f726c64", // "Hello World" in hex
+        "0x48656c6c6f20576f726c64",
         "raw/empty.txt",
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    // Verify the value was set correctly
-    archive::for_each_entry("xattr_set_hex/zstd.pna", |entry| {
-        if entry.name() == "raw/empty.txt" {
-            assert_eq!(
-                entry.metadata().xattrs(),
-                &[archive::xattr("user.hex", b"Hello World")]
-            );
-        } else {
-            // Non-target entries should remain unaffected (no xattrs)
-            assert!(
-                entry.metadata().xattrs().is_empty(),
-                "Entry {} should have no xattrs but has {:?}",
-                entry.name(),
-                entry.metadata().xattrs()
-            );
-        }
-    })
-    .unwrap();
+    assert_eq!(
+        archive::xattrs_by_entry("xattr_set_hex/zstd.pna", None),
+        vec![(
+            "raw/empty.txt".to_string(),
+            vec![archive::xattr("user.hex", b"Hello World")]
+        )]
+    );
 }

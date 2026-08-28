@@ -10,7 +10,6 @@ fn xattr_multiple_set_and_remove() {
     setup();
     TestResources::extract_in("zstd.pna", "xattr_multi/").unwrap();
 
-    // Set multiple xattrs
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -44,7 +43,6 @@ fn xattr_multiple_set_and_remove() {
     .execute()
     .unwrap();
 
-    // Remove one xattr
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -60,18 +58,11 @@ fn xattr_multiple_set_and_remove() {
     .execute()
     .unwrap();
 
-    archive::for_each_entry("xattr_multi/zstd.pna", |entry| {
-        if entry.name() == "raw/empty.txt" {
-            assert_eq!(entry.metadata().xattrs(), &[archive::xattr("user.b", b"B")]);
-        } else {
-            // Non-target entries should remain unaffected (no xattrs)
-            assert!(
-                entry.metadata().xattrs().is_empty(),
-                "Entry {} should have no xattrs but has {:?}",
-                entry.name(),
-                entry.metadata().xattrs()
-            );
-        }
-    })
-    .unwrap();
+    assert_eq!(
+        archive::xattrs_by_entry("xattr_multi/zstd.pna", None),
+        vec![(
+            "raw/empty.txt".to_string(),
+            vec![archive::xattr("user.b", b"B")]
+        )]
+    );
 }

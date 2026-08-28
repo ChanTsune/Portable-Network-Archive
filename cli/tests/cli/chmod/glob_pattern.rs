@@ -50,18 +50,15 @@ fn chmod_glob_pattern_txt_files() {
     .execute()
     .unwrap();
 
-    archive::for_each_entry("chmod_glob_txt.pna", |entry| {
-        let path = entry.header().path();
-        let path_str = path.as_str();
-        if let Some(pm) = entry.metadata().permission_mode() {
-            if path_str.ends_with(".txt") {
-                assert_eq!(pm.get() & 0o777, 0o755, "{} should be 755", path_str);
-            } else if path_str.ends_with(".png") {
-                assert_eq!(pm.get() & 0o777, 0o600, "icon.png should remain 600");
-            }
-        }
-    })
-    .unwrap();
+    assert_eq!(
+        archive::modes_by_entry("chmod_glob_txt.pna"),
+        vec![
+            ("dir/text.txt".to_string(), Some(0o755)),
+            ("dir/empty.txt".to_string(), Some(0o755)),
+            ("dir/sub/child.txt".to_string(), Some(0o755)),
+            ("dir/images/icon.png".to_string(), Some(0o600)),
+        ]
+    );
 }
 
 /// Precondition: An archive contains files in nested directories.
@@ -107,16 +104,12 @@ fn chmod_glob_pattern_subdirectory() {
     .execute()
     .unwrap();
 
-    archive::for_each_entry("chmod_glob_subdir.pna", |entry| {
-        let path = entry.header().path();
-        let path_str = path.as_str();
-        if let Some(pm) = entry.metadata().permission_mode() {
-            if path_str.contains("/images/") {
-                assert_eq!(pm.get() & 0o777, 0o755, "{} should be 755", path_str);
-            } else if path_str.ends_with(".txt") {
-                assert_eq!(pm.get() & 0o777, 0o644, "text.txt should remain 644");
-            }
-        }
-    })
-    .unwrap();
+    assert_eq!(
+        archive::modes_by_entry("chmod_glob_subdir.pna"),
+        vec![
+            ("dir/images/icon.png".to_string(), Some(0o755)),
+            ("dir/images/icon.svg".to_string(), Some(0o755)),
+            ("dir/text.txt".to_string(), Some(0o644)),
+        ]
+    );
 }

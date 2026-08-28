@@ -10,7 +10,6 @@ fn xattr_set_base64() {
     setup();
     TestResources::extract_in("zstd.pna", "xattr_set_base64/").unwrap();
 
-    // Set base64 encoded value (must start with 0s)
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -21,29 +20,18 @@ fn xattr_set_base64() {
         "--name",
         "user.base64",
         "--value",
-        "0sSGVsbG8gV29ybGQ=", // "Hello World" in base64
+        "0sSGVsbG8gV29ybGQ=",
         "raw/empty.txt",
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    // Verify the value was set correctly (decoded value)
-    archive::for_each_entry("xattr_set_base64/zstd.pna", |entry| {
-        if entry.name() == "raw/empty.txt" {
-            assert_eq!(
-                entry.metadata().xattrs(),
-                &[archive::xattr("user.base64", b"Hello World")]
-            );
-        } else {
-            // Non-target entries should remain unaffected (no xattrs)
-            assert!(
-                entry.metadata().xattrs().is_empty(),
-                "Entry {} should have no xattrs but has {:?}",
-                entry.name(),
-                entry.metadata().xattrs()
-            );
-        }
-    })
-    .unwrap();
+    assert_eq!(
+        archive::xattrs_by_entry("xattr_set_base64/zstd.pna", None),
+        vec![(
+            "raw/empty.txt".to_string(),
+            vec![archive::xattr("user.base64", b"Hello World")]
+        )]
+    );
 }

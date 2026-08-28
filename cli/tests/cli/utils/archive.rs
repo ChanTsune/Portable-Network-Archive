@@ -173,6 +173,20 @@ pub fn xattrs_by_entry(
     out
 }
 
+/// Permission mode (low 12 bits) of every entry, in archive order. A `Vec`
+/// rather than a map so that a duplicated entry is visible.
+pub fn modes_by_entry(path: impl AsRef<Path>) -> Vec<(String, Option<u16>)> {
+    let mut out = Vec::new();
+    for_each_entry(path, |e| {
+        out.push((
+            e.header().path().to_string(),
+            e.metadata().permission_mode().map(|m| m.get() & 0o7777),
+        ));
+    })
+    .unwrap();
+    out
+}
+
 pub fn read_symlink_target(entry: &pna::NormalEntry) -> String {
     let pna::EntryContent::SymbolicLink(target) = entry
         .content(pna::ReadOptions::with_password::<&[u8]>(None))
