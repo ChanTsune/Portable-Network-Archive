@@ -1,20 +1,18 @@
 use crate::{
-    cli::{
-        ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategy,
-        SolidEntriesTransformStrategyArgs,
-    },
+    cli::{ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategyArgs},
     command::{
         Command, ask_password,
         core::{
-            SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid, Umask, collect_split_archives,
+            Umask,
+            rewrite::{EntryTransform, execute_archive_transform},
         },
     },
     ext::*,
+    utils::GlobPatterns,
 };
 use clap::{Parser, ValueHint};
 use pna::{NormalEntry, RawChunk, prelude::*};
-use std::{io, path::PathBuf};
+use std::{borrow::Cow, io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) struct MigrateCommand {
@@ -38,33 +36,29 @@ impl Command for MigrateCommand {
 #[hooq::hooq(anyhow)]
 fn migrate_metadata(args: MigrateCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
+    execute_archive_transform(
+        &args.archive.file,
+        args.output,
+        umask,
+        password.as_deref(),
+        args.transform_strategy.strategy(),
+        MigrateTransform,
+    )
+}
 
-    let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive.file)?)?;
+struct MigrateTransform;
 
-    let output_path = args.output;
-    let mut staged = StagedArchive::new(output_path, umask)?;
+impl EntryTransform for MigrateTransform {
+    fn transform<'d>(
+        &mut self,
+        entry: NormalEntry<Cow<'d, [u8]>>,
+    ) -> io::Result<Option<NormalEntry<Cow<'d, [u8]>>>> {
+        convert_entry_to_owner_facet(entry).map(Some)
+    }
 
-    match args.transform_strategy.strategy() {
-        SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
-            staged.as_file_mut(),
-            password.as_deref(),
-            #[hooq::skip_all]
-            |entry| Ok(Some(convert_entry_to_owner_facet(entry?)?)),
-            TransformStrategyUnSolid,
-        ),
-        SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
-            staged.as_file_mut(),
-            password.as_deref(),
-            #[hooq::skip_all]
-            |entry| Ok(Some(convert_entry_to_owner_facet(entry?)?)),
-            TransformStrategyKeepSolid,
-        ),
-    }?;
-
-    drop(source);
-
-    staged.commit(None)?;
-    Ok(())
+    fn patterns(&self) -> Option<&GlobPatterns<'_>> {
+        None
+    }
 }
 
 #[inline]

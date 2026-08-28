@@ -1,20 +1,20 @@
 use crate::{
     cli::{
         ArchiveFileArgs, FileOperands, PasswordArgs, PrivateChunkType,
-        SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs,
+        SolidEntriesTransformStrategyArgs,
     },
     command::{
         Command, ask_password,
         core::{
-            SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid, Umask, collect_split_archives,
+            Umask,
+            rewrite::{EntryTransform, execute_archive_transform},
         },
     },
-    utils::PathPartExt,
+    utils::{GlobPatterns, PathPartExt},
 };
 use clap::{Args, Parser, ValueHint};
 use pna::{Metadata, NormalEntry, RawChunk, prelude::*};
-use std::path::PathBuf;
+use std::{borrow::Cow, io, path::PathBuf};
 
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) struct StripOptions {
@@ -73,32 +73,30 @@ impl Command for StripCommand {
 fn strip_metadata(args: StripCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let archive = args.archive.file;
-    let mut source = SplitArchiveReader::new(collect_split_archives(&archive)?)?;
-
     let output_path = args.output.unwrap_or_else(|| archive.remove_part());
-    let mut staged = StagedArchive::new(output_path, umask)?;
+    execute_archive_transform(
+        &archive,
+        output_path,
+        umask,
+        password.as_deref(),
+        args.transform_strategy.strategy(),
+        StripTransform(args.strip_options),
+    )
+}
 
-    match args.transform_strategy.strategy() {
-        SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
-            staged.as_file_mut(),
-            password.as_deref(),
-            #[hooq::skip_all]
-            |entry| Ok(Some(strip_entry_metadata(entry?, &args.strip_options))),
-            TransformStrategyUnSolid,
-        ),
-        SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
-            staged.as_file_mut(),
-            password.as_deref(),
-            #[hooq::skip_all]
-            |entry| Ok(Some(strip_entry_metadata(entry?, &args.strip_options))),
-            TransformStrategyKeepSolid,
-        ),
-    }?;
+struct StripTransform(StripOptions);
 
-    drop(source);
+impl EntryTransform for StripTransform {
+    fn transform<'d>(
+        &mut self,
+        entry: NormalEntry<Cow<'d, [u8]>>,
+    ) -> io::Result<Option<NormalEntry<Cow<'d, [u8]>>>> {
+        Ok(Some(strip_entry_metadata(entry, &self.0)))
+    }
 
-    staged.commit(None)?;
-    Ok(())
+    fn patterns(&self) -> Option<&GlobPatterns<'_>> {
+        None
+    }
 }
 
 #[inline]
