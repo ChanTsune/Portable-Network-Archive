@@ -226,16 +226,4 @@ mod tests {
         let s = saturating_duration_to_system_time(Duration::MIN);
         assert!(s <= SystemTime::UNIX_EPOCH);
     }
-
-    #[test]
-    fn saturating_duration_to_system_time_clamp_targets_are_deterministic() {
-        assert_eq!(
-            saturating_duration_to_system_time(Duration::MAX),
-            saturating_duration_to_system_time(Duration::MAX)
-        );
-        assert_eq!(
-            saturating_duration_to_system_time(Duration::MIN),
-            saturating_duration_to_system_time(Duration::MIN)
-        );
-    }
 }

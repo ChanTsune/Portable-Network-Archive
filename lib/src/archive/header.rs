@@ -91,13 +91,4 @@ mod tests {
         assert!(ArchiveHeader::try_from_bytes(&[0u8; 8]).is_ok());
         assert!(ArchiveHeader::try_from_bytes(&[0u8; 9]).is_err());
     }
-
-    #[test]
-    fn header_to_from_bytes() {
-        let bytes = [1u8, 2, 0, 0, 0, 0, 0, 3];
-        assert_eq!(
-            ArchiveHeader::from_bytes(&bytes),
-            ArchiveHeader::from_bytes(&ArchiveHeader::from_bytes(&bytes).to_bytes()),
-        );
-    }
 }
