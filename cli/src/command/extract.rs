@@ -594,7 +594,7 @@ pub(crate) struct OutputOption<'a> {
 }
 
 pub(crate) fn run_extract_archive_reader<'a, 'p, Provider>(
-    reader: impl IntoIterator<Item = impl Read> + Send,
+    reader: impl IntoIterator<Item = impl Read>,
     files: Vec<String>,
     mut password_provider: Provider,
     args: OutputOption<'a>,
@@ -620,7 +620,7 @@ where
     #[cfg(not(target_family = "wasm"))]
     {
         let (tx, rx) = std::sync::mpsc::channel();
-        rayon::scope_fifo(|s| -> anyhow::Result<()> {
+        rayon::in_place_scope_fifo(|s| -> anyhow::Result<()> {
             if fast_read && !globs.is_empty() {
                 run_process_archive_readers_stoppable(
                     reader,

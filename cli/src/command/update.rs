@@ -572,7 +572,7 @@ pub(crate) fn run_update_archive<Strategy, W>(
 ) -> anyhow::Result<()>
 where
     Strategy: TransformStrategy,
-    W: io::Write + Send,
+    W: io::Write,
 {
     let (tx, rx) = std::sync::mpsc::channel();
     let context = TransformContext::new(password);
@@ -611,7 +611,7 @@ where
         }
     }
 
-    rayon::scope_fifo(|s| -> anyhow::Result<()> {
+    rayon::in_place_scope_fifo(|s| -> anyhow::Result<()> {
         source.for_each_read_entry(
             |entry| {
                 Strategy::transform(out_archive, &context, entry, |entry| {
