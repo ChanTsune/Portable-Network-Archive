@@ -8,8 +8,8 @@ use std::io::{self, prelude::*};
 fn bench_write_archive(b: &mut Bencher, mut options: WriteOptionsBuilder) {
     let buf = [24; 1111];
     b.iter(|| {
-        let mut vec = Vec::with_capacity(10000);
-        let mut writer = Archive::write_header(&mut vec).unwrap();
+        let mut sink = io::sink();
+        let mut writer = Archive::write_header(&mut sink).unwrap();
         writer
             .add_entry({
                 let mut builder = FileEntryBuilder::new_with_options(
@@ -44,12 +44,14 @@ fn bench_read_archive(b: &mut Bencher, mut options: WriteOptionsBuilder) {
     b.iter(|| {
         let mut reader = Archive::read_header(vec.as_slice()).unwrap();
         for item in reader.entries().skip_solid() {
-            let mut buf = Vec::with_capacity(1000);
-            item.unwrap()
-                .reader(ReadOptions::with_password(Some("password")))
-                .unwrap()
-                .read_to_end(&mut buf)
-                .unwrap();
+            io::copy(
+                &mut item
+                    .unwrap()
+                    .reader(ReadOptions::with_password(Some("password")))
+                    .unwrap(),
+                &mut io::sink(),
+            )
+            .unwrap();
         }
     })
 }
@@ -73,14 +75,16 @@ fn bench_read_archive_from_slice(b: &mut Bencher, mut options: WriteOptionsBuild
     b.iter(|| {
         let mut reader = Archive::read_header_from_slice(vec.as_slice()).unwrap();
         for item in reader.entries_slice() {
-            let mut buf = Vec::with_capacity(1000);
             match item.unwrap() {
                 ReadEntry::Solid(_) => (),
                 ReadEntry::Normal(item) => {
-                    item.reader(ReadOptions::with_password(Some("password")))
-                        .unwrap()
-                        .read_to_end(&mut buf)
-                        .unwrap();
+                    io::copy(
+                        &mut item
+                            .reader(ReadOptions::with_password(Some("password")))
+                            .unwrap(),
+                        &mut io::sink(),
+                    )
+                    .unwrap();
                 }
             }
         }
@@ -294,8 +298,8 @@ fn bench_read_camellia_cbc_archive(c: &mut Criterion) {
 fn bench_write_empty_archive(c: &mut Criterion) {
     c.bench_function("write_empty_archive", |b| {
         b.iter(|| {
-            let mut vec = Vec::with_capacity(1000);
-            let writer = Archive::write_header(&mut vec).expect("failed to write header");
+            let mut sink = io::sink();
+            let writer = Archive::write_header(&mut sink).expect("failed to write header");
             writer.finalize().expect("failed to finalize");
         })
     });
