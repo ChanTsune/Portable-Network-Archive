@@ -1,13 +1,10 @@
 use crate::{
-    cli::{
-        ArchiveFileArgs, FileOperands, PasswordArgs, SolidEntriesTransformStrategy,
-        SolidEntriesTransformStrategyArgs,
-    },
+    cli::{ArchiveFileArgs, FileOperands, PasswordArgs, SolidEntriesTransformStrategyArgs},
     command::{
         Command, ask_password,
         core::{
-            SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid, Umask, collect_split_archives,
+            SplitArchiveReader, Umask, collect_split_archives,
+            rewrite::{EntryTransform, execute_archive_transform},
         },
     },
     utils::{GlobPatterns, PathPartExt},
@@ -19,6 +16,7 @@ use indexmap::IndexMap;
 use pna::{NormalEntry, ReadOptions};
 use regex::Regex;
 use std::{
+    borrow::Cow,
     collections::HashMap,
     fmt::{self, Display, Formatter, Write},
     fs, io,
@@ -249,7 +247,7 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
 fn archive_set_xattr(args: SetXattrCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let files = args.files.files;
-    let mut set_strategy = if args.restore_from_stdin {
+    let set_strategy = if args.restore_from_stdin {
         SetAttrStrategy::Restore(parse_dump(io::stdin().lock())?)
     } else if let Some(path) = args.restore.as_deref() {
         if path.as_os_str() == "-" {
@@ -273,32 +271,14 @@ fn archive_set_xattr(args: SetXattrCommand, umask: Umask) -> anyhow::Result<()> 
         }
     };
 
-    let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive.file)?)?;
-
-    let output_path = args.archive.file.remove_part();
-    let mut staged = StagedArchive::new(output_path, umask)?;
-
-    match args.transform_strategy.strategy() {
-        SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
-            staged.as_file_mut(),
-            password.as_deref(),
-            #[hooq::skip_all]
-            |entry| Ok(Some(set_strategy.transform_entry(entry?)?)),
-            TransformStrategyUnSolid,
-        ),
-        SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
-            staged.as_file_mut(),
-            password.as_deref(),
-            #[hooq::skip_all]
-            |entry| Ok(Some(set_strategy.transform_entry(entry?)?)),
-            TransformStrategyKeepSolid,
-        ),
-    }?;
-
-    drop(source);
-
-    staged.commit(set_strategy.globs())?;
-    Ok(())
+    execute_archive_transform(
+        &args.archive.file,
+        args.archive.file.remove_part(),
+        umask,
+        password.as_deref(),
+        args.transform_strategy.strategy(),
+        set_strategy,
+    )
 }
 
 enum SetAttrStrategy<'s> {
@@ -366,6 +346,19 @@ impl SetAttrStrategy<'_> {
                 }
             }
         }
+    }
+}
+
+impl EntryTransform for SetAttrStrategy<'_> {
+    fn transform<'d>(
+        &mut self,
+        entry: NormalEntry<Cow<'d, [u8]>>,
+    ) -> io::Result<Option<NormalEntry<Cow<'d, [u8]>>>> {
+        self.transform_entry(entry).map(Some)
+    }
+
+    fn patterns(&self) -> Option<&GlobPatterns<'_>> {
+        self.globs()
     }
 }
 

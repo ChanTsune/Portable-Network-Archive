@@ -189,7 +189,7 @@ fn sort_archive(args: SortCommand, umask: Umask) -> anyhow::Result<()> {
 
     drop(source);
 
-    staged.commit(None)?;
+    staged.commit()?;
 
     Ok(())
 }

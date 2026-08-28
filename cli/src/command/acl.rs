@@ -1,14 +1,11 @@
 use crate::{
     chunk::{Ace, AcePlatform, Flag, Identifier, OwnerType, Permission},
-    cli::{
-        ArchiveFileArgs, FileOperands, PasswordArgs, SolidEntriesTransformStrategy,
-        SolidEntriesTransformStrategyArgs,
-    },
+    cli::{ArchiveFileArgs, FileOperands, PasswordArgs, SolidEntriesTransformStrategyArgs},
     command::{
         Command, ask_password,
         core::{
-            SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid, Umask, collect_split_archives,
+            SplitArchiveReader, Umask, collect_split_archives,
+            rewrite::{EntryTransform, execute_archive_transform},
         },
     },
     ext::{Acls, NormalEntryExt},
@@ -25,6 +22,7 @@ use nom::{
 use pna::{Chunk, NormalEntry, RawChunk, ReadOptions};
 use regex::Regex;
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
     fs, io,
     path::PathBuf,
@@ -342,7 +340,7 @@ fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
 fn archive_set_acl(args: SetAclCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let files = args.files.files;
-    let mut set_strategy = if args.restore_from_stdin {
+    let set_strategy = if args.restore_from_stdin {
         SetAclsStrategy::Restore(parse_acl_dump(io::stdin().lock())?)
     } else if let Some(path) = args.restore.as_deref() {
         SetAclsStrategy::Restore(parse_acl_dump(io::BufReader::new(fs::File::open(path)?))?)
@@ -359,32 +357,14 @@ fn archive_set_acl(args: SetAclCommand, umask: Umask) -> anyhow::Result<()> {
         }
     };
 
-    let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive.file)?)?;
-
-    let output_path = args.archive.file.remove_part();
-    let mut staged = StagedArchive::new(output_path, umask)?;
-
-    match args.transform_strategy.strategy() {
-        SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
-            staged.as_file_mut(),
-            password.as_deref(),
-            #[hooq::skip_all]
-            |entry| Ok(Some(set_strategy.transform_entry(entry?))),
-            TransformStrategyUnSolid,
-        ),
-        SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
-            staged.as_file_mut(),
-            password.as_deref(),
-            #[hooq::skip_all]
-            |entry| Ok(Some(set_strategy.transform_entry(entry?))),
-            TransformStrategyKeepSolid,
-        ),
-    }?;
-
-    drop(source);
-
-    staged.commit(set_strategy.globs())?;
-    Ok(())
+    execute_archive_transform(
+        &args.archive.file,
+        args.archive.file.remove_part(),
+        umask,
+        password.as_deref(),
+        args.transform_strategy.strategy(),
+        set_strategy,
+    )
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -465,6 +445,19 @@ impl SetAclsStrategy<'_> {
                 }
             }
         }
+    }
+}
+
+impl EntryTransform for SetAclsStrategy<'_> {
+    fn transform<'d>(
+        &mut self,
+        entry: NormalEntry<Cow<'d, [u8]>>,
+    ) -> io::Result<Option<NormalEntry<Cow<'d, [u8]>>>> {
+        Ok(Some(self.transform_entry(entry)))
+    }
+
+    fn patterns(&self) -> Option<&GlobPatterns<'_>> {
+        self.globs()
     }
 }
 

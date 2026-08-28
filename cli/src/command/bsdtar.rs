@@ -1550,7 +1550,7 @@ fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
     out_archive.finalize()?;
     drop(source);
 
-    staged.commit(None)?;
+    staged.commit()?;
 
     Ok(())
 }

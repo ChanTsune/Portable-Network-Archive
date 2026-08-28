@@ -552,7 +552,7 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
     out_archive.finalize()?;
     drop(source);
 
-    staged.commit(None)?;
+    staged.commit()?;
 
     Ok(())
 }
