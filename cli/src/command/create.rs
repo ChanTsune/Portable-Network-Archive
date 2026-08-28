@@ -575,7 +575,7 @@ pub(crate) struct CreationContext {
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn create_archive_file<W, F>(
-    mut get_writer: F,
+    get_writer: F,
     CreationContext {
         write_option,
         keep_options,
@@ -591,7 +591,7 @@ pub(crate) fn create_archive_file<W, F>(
 ) -> anyhow::Result<()>
 where
     W: Write,
-    F: FnMut() -> io::Result<W> + Send,
+    F: FnOnce() -> io::Result<W>,
 {
     let option = if solid {
         WriteOptions::store()
