@@ -1343,6 +1343,47 @@ impl TransformStrategy for TransformStrategyKeepSolid {
     }
 }
 
+/// Reports a stream that ends at a part boundary as a missing subsequent archive.
+fn map_missing_next_archive(e: io::Error) -> io::Error {
+    if e.kind() == io::ErrorKind::UnexpectedEof {
+        io::Error::new(
+            io::ErrorKind::NotFound,
+            "Archive is split, but no subsequent archives are found",
+        )
+    } else {
+        e
+    }
+}
+
+/// Advances a split archive to its next part, continuing on the current reader
+/// when the provider has no further archive to hand out.
+fn next_archive_part_reader<R: Read>(
+    archive: Archive<R>,
+    next: Option<R>,
+) -> io::Result<Archive<R>> {
+    match next {
+        Some(reader) => archive.read_next_archive(reader),
+        None => archive
+            .read_next_archive_in_stream()
+            .map_err(map_missing_next_archive),
+    }
+}
+
+/// Advances a split archive to its next part, continuing in the current bytes
+/// when the provider has no further archive to hand out.
+#[cfg(feature = "memmap")]
+fn next_archive_part_bytes<'d>(
+    archive: Archive<&'d [u8]>,
+    next: Option<&'d [u8]>,
+) -> io::Result<Archive<&'d [u8]>> {
+    match next {
+        Some(bytes) => archive.read_next_archive_from_slice(bytes),
+        None => archive
+            .read_next_archive_in_stream_from_slice()
+            .map_err(map_missing_next_archive),
+    }
+}
+
 pub(crate) fn run_across_archive_readers<R, F>(
     provider: impl IntoIterator<Item = R>,
     mut processor: F,
@@ -1357,13 +1398,7 @@ where
     loop {
         processor(&mut archive)?;
         if archive.has_next_archive() {
-            let next_reader = iter.next().ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "Archive is split, but no subsequent archives are found",
-                )
-            })?;
-            archive = archive.read_next_archive(next_reader)?;
+            archive = next_archive_part_reader(archive, iter.next())?;
             continue;
         }
         if !allow_concatenated_archives {
@@ -1395,13 +1430,7 @@ where
             break;
         }
         if archive.has_next_archive() {
-            let next_reader = iter.next().ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "Archive is split, but no subsequent archives are found",
-                )
-            })?;
-            archive = archive.read_next_archive(next_reader)?;
+            archive = next_archive_part_reader(archive, iter.next())?;
             continue;
         }
         if !allow_concatenated_archives {
@@ -1478,13 +1507,7 @@ where
     loop {
         processor(&mut archive)?;
         if archive.has_next_archive() {
-            let next_reader = iter.next().ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "Archive is split, but no subsequent archives are found",
-                )
-            })?;
-            archive = archive.read_next_archive_from_slice(next_reader)?;
+            archive = next_archive_part_bytes(archive, iter.next())?;
             continue;
         }
         if !allow_concatenated_archives {
@@ -1553,13 +1576,7 @@ where
             break;
         }
         if archive.has_next_archive() {
-            let next_reader = iter.next().ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "Archive is split, but no subsequent archives are found",
-                )
-            })?;
-            archive = archive.read_next_archive_from_slice(next_reader)?;
+            archive = next_archive_part_bytes(archive, iter.next())?;
             continue;
         }
         if !allow_concatenated_archives {

@@ -1137,7 +1137,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
         )
     } else {
         run_extract_archive_reader(
-            std::iter::repeat_with(|| io::stdin().lock()),
+            std::iter::once_with(|| io::stdin().lock()),
             files,
             || password.as_deref(),
             out_option,
@@ -1227,7 +1227,7 @@ fn run_list_archive(args: BsdtarCommand) -> anyhow::Result<()> {
         )
     } else {
         crate::command::list::run_list_archive(
-            std::iter::repeat_with(|| io::stdin().lock()),
+            std::iter::once_with(|| io::stdin().lock()),
             password.as_deref(),
             files_globs,
             filter,
