@@ -1,5 +1,6 @@
 //! Slice-based archive reading for memory-mapped access.
 
+use super::verify_next_archive_number;
 use crate::{
     Archive, Chunk, ChunkType, Entry, NormalEntry, RawChunk, ReadEntry, ReadOptions,
     archive::{ArchiveHeader, read::ExtractSolidEntries},
@@ -140,22 +141,32 @@ impl<'d> Archive<&'d [u8]> {
     /// Returns an error if an I/O error occurs while reading from the bytes.
     #[inline]
     pub fn read_next_archive_from_slice(self, bytes: &[u8]) -> io::Result<Archive<&[u8]>> {
-        let current_header = self.header;
         let mut next = Archive::read_header_from_slice_with_buffer(bytes, self.buf)?;
         next.max_chunk_size = self.max_chunk_size;
-        let next_number = current_header
-            .archive_number
-            .checked_add(1)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "archive number overflow"))?;
-        if next_number != next.header.archive_number {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    "next archive number must be {next_number} (expected previous + 1, detected: {})",
-                    next.header.archive_number
-                ),
-            ));
-        }
+        verify_next_archive_number(&self.header, &next.header)?;
+        Ok(next)
+    }
+
+    /// Reads the archive that follows this one in the same bytes and returns a new [`Archive`].
+    ///
+    /// Use this when the parts of a split archive are concatenated in a single byte
+    /// sequence instead of one sequence per part.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while reading from the bytes.
+    #[inline]
+    pub fn read_next_archive_in_stream_from_slice(self) -> io::Result<Self> {
+        let Self {
+            inner,
+            header,
+            max_chunk_size,
+            buf,
+            ..
+        } = self;
+        let mut next = Self::read_header_from_slice_with_buffer(inner, buf)?;
+        next.max_chunk_size = max_chunk_size;
+        verify_next_archive_number(&header, &next.header)?;
         Ok(next)
     }
 }
@@ -403,5 +414,53 @@ mod tests {
             second.entries_slice().next().unwrap().unwrap_err().kind(),
             io::ErrorKind::InvalidData
         );
+    }
+
+    #[test]
+    fn next_archive_in_stream_from_slice_reads_the_part_that_follows() {
+        let mut bytes = Vec::new();
+        let first = Archive::write_header(&mut bytes).unwrap();
+        let mut second = first.split_to_next_archive(Vec::new()).unwrap();
+
+        second
+            .write_file(
+                "a".into(),
+                Metadata::new(),
+                WriteOptions::store(),
+                |writer| writer.write_all(b"12345678"),
+            )
+            .unwrap();
+        let second_bytes = second.finalize().unwrap();
+        bytes.extend_from_slice(&second_bytes);
+
+        let mut first = Archive::read_header_from_slice(&bytes).unwrap();
+        first.set_max_chunk_size(NonZeroU32::new(7).unwrap());
+        assert!(first.entries_slice().next().is_none());
+        assert!(first.has_next_archive());
+
+        let mut second = first.read_next_archive_in_stream_from_slice().unwrap();
+        assert_eq!(
+            second.entries_slice().next().unwrap().unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+    }
+
+    #[test]
+    fn next_archive_in_stream_from_slice_rejects_non_consecutive_number() {
+        let mut bytes = Vec::new();
+        Archive::write_header(&mut bytes)
+            .unwrap()
+            .finalize()
+            .unwrap();
+        let independent = bytes.clone();
+        bytes.extend_from_slice(&independent);
+
+        let mut first = Archive::read_header_from_slice(&bytes).unwrap();
+        assert!(first.entries_slice().next().is_none());
+        let err = first
+            .read_next_archive_in_stream_from_slice()
+            .err()
+            .unwrap();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
     }
 }
