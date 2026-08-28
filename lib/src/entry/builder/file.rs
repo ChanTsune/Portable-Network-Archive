@@ -1,7 +1,7 @@
 //! Builder for regular file entries.
 use super::{EntryBuilderCore, data_writer};
 use crate::{
-    Metadata, NormalEntry, WriteOptions,
+    Metadata, NormalEntry, SparseMap, WriteOptions,
     chunk::RawChunk,
     cipher::CipherWriter,
     compress::CompressionWriter,
@@ -82,9 +82,9 @@ impl FileEntryBuilder {
 
     /// Sets the metadata of the entry, replacing any previously set metadata.
     ///
-    /// The raw file size and compressed size recorded in the given metadata
-    /// are ignored; [`build()`](Self::build) computes them from the written
-    /// data.
+    /// The raw file size and compressed size in the given metadata are
+    /// ignored; [`build()`](Self::build) records the written length, or
+    /// [`SparseMap::logical_size`] when a sparse map is set.
     #[inline]
     pub fn metadata(&mut self, metadata: Metadata) -> &mut Self {
         self.core.metadata(metadata);
@@ -95,6 +95,14 @@ impl FileEntryBuilder {
     #[inline]
     pub fn add_extra_chunk<T: Into<RawChunk>>(&mut self, chunk: T) -> &mut Self {
         self.core.add_extra_chunk(chunk);
+        self
+    }
+
+    /// Sets the sparse extent map for this file. Written bytes must equal the
+    /// sum of region sizes; holes are omitted from the payload.
+    #[inline]
+    pub fn sparse_map(&mut self, sparse_map: Option<SparseMap>) -> &mut Self {
+        self.core.set_sparse_map(sparse_map);
         self
     }
 
@@ -111,10 +119,8 @@ impl FileEntryBuilder {
         self
     }
 
-    /// Sets whether to store the raw file size in the entry metadata.
-    ///
-    /// When `true` (the default), the raw file size is recorded; when
-    /// `false`, it is omitted.
+    /// Sets whether to record the `fSIZ` size hint (default `true`): the
+    /// written length, or the sparse map's logical size when one is set.
     #[inline]
     pub fn store_file_size(&mut self, store: bool) -> &mut Self {
         self.store_file_size = store;
@@ -125,12 +131,21 @@ impl FileEntryBuilder {
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while building entry into buffer.
+    /// Returns an error if finalizing the data pipeline fails, or if a sparse
+    /// map is set and the written length differs from its data size.
     #[inline]
     #[must_use = "building an entry without using it is wasteful"]
     pub fn build(self) -> io::Result<NormalEntry> {
+        let sparse_logical_size = if let Some(map) = self.core.sparse_map() {
+            map.check_payload_len(self.file_size)?;
+            Some(u128::from(map.logical_size()))
+        } else {
+            None
+        };
         let data = self.data.try_into_inner()?.try_into_inner()?.inner;
-        let raw_file_size = self.store_file_size.then_some(self.file_size);
+        let raw_file_size = self
+            .store_file_size
+            .then_some(sparse_logical_size.unwrap_or(self.file_size));
         Ok(self.core.build(data, raw_file_size))
     }
 }
@@ -168,5 +183,23 @@ impl AsyncWrite for FileEntryBuilder {
     #[inline]
     fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Poll::Ready(Ok(()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::DataRegion;
+
+    #[test]
+    fn sparse_file_size_hint_uses_logical_size() {
+        let mut builder = FileEntryBuilder::new("sparse".into()).unwrap();
+        builder.write_all(b"data").unwrap();
+        builder.sparse_map(Some(
+            SparseMap::try_new(10, vec![DataRegion::new(2, 4)]).unwrap(),
+        ));
+        let entry = builder.build().unwrap();
+
+        assert_eq!(entry.metadata().raw_file_size(), Some(10));
     }
 }

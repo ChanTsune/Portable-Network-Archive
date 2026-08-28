@@ -28,7 +28,7 @@ use anyhow::Context;
 use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
 use pna::{
     DataKind, EntryContent, EntryName, EntryReference, LinkTargetType, NormalEntry, ReadOptions,
-    prelude::*,
+    SparseMap, prelude::*,
 };
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
@@ -1293,6 +1293,99 @@ where
     Ok(Some((path, remove_existing)))
 }
 
+fn copy_sparse_regions_to_seekable(
+    file: &mut fs::File,
+    reader: &mut impl Read,
+    map: &SparseMap,
+) -> io::Result<()> {
+    for region in map.data_regions() {
+        file.seek(io::SeekFrom::Start(region.offset()))?;
+        let copied = io::copy(&mut (&mut *reader).take(region.size()), file)?;
+        if copied != region.size() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "sparse payload ended early",
+            ));
+        }
+    }
+    file.set_len(map.logical_size())?;
+    let mut probe = [0u8; 1];
+    if reader.read(&mut probe)? != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "sparse payload contains trailing data",
+        ));
+    }
+    Ok(())
+}
+
+fn write_zeros(writer: &mut impl Write, mut len: u64) -> io::Result<()> {
+    let zeros = [0u8; 64 * 1024];
+    while len != 0 {
+        let n = len.min(zeros.len() as u64) as usize;
+        writer.write_all(&zeros[..n])?;
+        len -= n as u64;
+    }
+    Ok(())
+}
+
+fn copy_sparse_logical(
+    writer: &mut impl Write,
+    reader: &mut impl Read,
+    map: &SparseMap,
+) -> io::Result<()> {
+    let mut logical_pos = 0u64;
+    for region in map.data_regions() {
+        if region.offset() > logical_pos {
+            write_zeros(writer, region.offset() - logical_pos)?;
+        }
+        let copied = io::copy(&mut (&mut *reader).take(region.size()), writer)?;
+        if copied != region.size() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "sparse payload ended early",
+            ));
+        }
+        logical_pos = region.offset() + region.size();
+    }
+    if map.logical_size() > logical_pos {
+        write_zeros(writer, map.logical_size() - logical_pos)?;
+    }
+    let mut probe = [0u8; 1];
+    if reader.read(&mut probe)? != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "sparse payload contains trailing data",
+        ));
+    }
+    Ok(())
+}
+
+fn restore_file_payload<T: AsRef<[u8]>>(
+    file: &mut fs::File,
+    item: &NormalEntry<T>,
+    read_options: &ReadOptions,
+) -> io::Result<()>
+where
+    pna::RawChunk<T>: Chunk,
+{
+    let mut reader = item.reader(read_options)?;
+    let Some(map) = item.sparse_map() else {
+        let mut writer = io::BufWriter::with_capacity(64 * 1024, file);
+        io::copy(&mut reader, &mut writer)?;
+        writer.flush()?;
+        return Ok(());
+    };
+    match utils::sparse::mark_sparse(file) {
+        Ok(()) => copy_sparse_regions_to_seekable(file, &mut reader, map),
+        Err(error) => {
+            log::warn!("Could not mark sparse output; restoring allocated file instead: {error}");
+            file.seek(io::SeekFrom::Start(0))?;
+            copy_sparse_logical(file, &mut reader, map)
+        }
+    }
+}
+
 /// Extracts a regular file entry from the archive to the filesystem.
 ///
 /// In parallel extraction contexts, the caller must hold a
@@ -1338,23 +1431,15 @@ where
 
     if *safe_writes {
         let mut safe_writer = SafeWriter::new(&path)?;
-        {
-            let mut writer = io::BufWriter::with_capacity(64 * 1024, safe_writer.as_file_mut());
-            let mut reader = item.reader(read_options)?;
-            io::copy(&mut reader, &mut writer)?;
-            writer.flush()?;
-        }
+        restore_file_payload(safe_writer.as_file_mut(), &item, read_options)?;
         restore_timestamps(safe_writer.as_file_mut(), item.metadata(), keep_options)?;
         safe_writer.persist()?;
     } else {
         if remove_existing {
             utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
         }
-        let file = utils::fs::file_create(&path, remove_existing)?;
-        let mut writer = io::BufWriter::with_capacity(64 * 1024, file);
-        let mut reader = item.reader(read_options)?;
-        io::copy(&mut reader, &mut writer)?;
-        let mut file = writer.into_inner().map_err(|e| e.into_error())?;
+        let mut file = utils::fs::file_create(&path, remove_existing)?;
+        restore_file_payload(&mut file, &item, read_options)?;
         restore_timestamps(&mut file, item.metadata(), keep_options)?;
     }
 
@@ -1871,7 +1956,12 @@ where
 
     let mut reader = item.reader(read_options)?;
     let mut stdout = io::stdout().lock();
-    io::copy(&mut reader, &mut stdout)?;
+    match item.sparse_map() {
+        Some(map) => copy_sparse_logical(&mut stdout, &mut reader, map)?,
+        None => {
+            io::copy(&mut reader, &mut stdout)?;
+        }
+    }
     stdout.flush()?;
     Ok(())
 }

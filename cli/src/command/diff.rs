@@ -12,7 +12,7 @@ use crate::command::core::cmp_at_stored_precision;
 use clap::{Parser, ValueEnum};
 #[cfg(unix)]
 use pna::prelude::SystemTimeDurationExt;
-use pna::{DataKind, EntryContent, NormalEntry, ReadOptions};
+use pna::{DataKind, EntryContent, NormalEntry, ReadOptions, SparseMap};
 use same_file::is_same_file;
 #[cfg(unix)]
 use std::cmp::Ordering;
@@ -22,7 +22,7 @@ use std::os::unix::fs::MetadataExt;
 use std::os::unix::fs::PermissionsExt;
 #[cfg(unix)]
 use std::time::SystemTime;
-use std::{fmt, fs, io, path::Path};
+use std::{fmt, fs, io, io::Read, path::Path};
 
 #[derive(Parser, Clone, Debug)]
 pub(crate) struct DiffCommand {
@@ -333,6 +333,48 @@ fn compare_directory_metadata<T: AsRef<[u8]>>(
     Vec::new()
 }
 
+fn read_zeroes(reader: &mut impl Read, mut len: u64) -> io::Result<bool> {
+    let mut buf = [0u8; 64 * 1024];
+    while len != 0 {
+        let limit = len.min(buf.len() as u64) as usize;
+        let read = reader.read(&mut buf[..limit])?;
+        if read == 0 || buf[..read].iter().any(|byte| *byte != 0) {
+            return Ok(false);
+        }
+        len -= read as u64;
+    }
+    Ok(true)
+}
+
+fn sparse_streams_equal(
+    mut fs_file: fs::File,
+    mut archive_reader: impl Read,
+    map: &SparseMap,
+) -> io::Result<bool> {
+    let mut logical_pos = 0u64;
+    for region in map.data_regions() {
+        if region.offset() > logical_pos
+            && !read_zeroes(&mut fs_file, region.offset() - logical_pos)?
+        {
+            return Ok(false);
+        }
+        if !streams_equal(
+            (&mut fs_file).take(region.size()),
+            (&mut archive_reader).take(region.size()),
+        )? {
+            return Ok(false);
+        }
+        logical_pos = region.offset() + region.size();
+    }
+    if map.logical_size() > logical_pos
+        && !read_zeroes(&mut fs_file, map.logical_size() - logical_pos)?
+    {
+        return Ok(false);
+    }
+    let mut probe = [0u8; 1];
+    Ok(archive_reader.read(&mut probe)? == 0)
+}
+
 fn compare_entry<T: AsRef<[u8]>>(
     entry: NormalEntry<T>,
     read_options: &ReadOptions,
@@ -359,14 +401,22 @@ fn compare_entry<T: AsRef<[u8]>>(
             }
 
             let fs_size = meta.len();
-            let archive_size = entry.metadata().raw_file_size();
+            let archive_size = entry
+                .sparse_map()
+                .map(|map| u128::from(map.logical_size()))
+                .or_else(|| entry.metadata().raw_file_size());
             if archive_size.is_some_and(|s| s != fs_size as u128) {
                 report(&DiffKind::SizeDiffers, path_str, options.format);
                 diff_count += 1;
             } else {
                 let fs_file = fs::File::open(path)?;
                 let archive_reader = entry.reader(read_options)?;
-                if !streams_equal(fs_file, archive_reader)? {
+                let equal = if let Some(map) = entry.sparse_map() {
+                    sparse_streams_equal(fs_file, archive_reader, map)?
+                } else {
+                    streams_equal(fs_file, archive_reader)?
+                };
+                if !equal {
                     report(&DiffKind::ContentsDiffer, path_str, options.format);
                     diff_count += 1;
                 }

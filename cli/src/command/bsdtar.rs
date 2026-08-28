@@ -973,6 +973,7 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
             args.absolute_paths,
             true,
         ),
+        sparse: false,
     };
     if let Some(file) = archive_file {
         create_archive_file(
@@ -1294,6 +1295,7 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
             args.absolute_paths,
             true,
         ),
+        sparse: false,
     };
 
     // NOTE: "-" will use stdin/out
@@ -1456,6 +1458,7 @@ fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
             args.absolute_paths,
             true,
         ),
+        sparse: false,
     };
 
     // NOTE: "-" is not supported for update mode

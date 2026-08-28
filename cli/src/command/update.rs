@@ -477,6 +477,7 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
             false,
             false,
         ),
+        sparse: false,
     };
 
     let archives = collect_split_archives(&args.file.archive)?;

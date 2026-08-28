@@ -448,6 +448,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
             false,
             false,
         ),
+        sparse: false,
     };
 
     let archive = open_archive_then_seek_to_end(&archive_path, false)?;

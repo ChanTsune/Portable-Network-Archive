@@ -151,11 +151,14 @@ fn verify_entry(
     }
     match read_through(entry, read_options) {
         Ok(size) => {
+            let source_size = entry
+                .sparse_map()
+                .map_or(u128::from(size), |map| u128::from(map.logical_size()));
             if let Some(hint) = entry.metadata().raw_file_size()
-                && hint != u128::from(size)
+                && hint != source_size
             {
                 log::warn!(
-                    "{}: size hint (fSIZ) mismatch: recorded {hint}, actual {size}",
+                    "{}: size hint (fSIZ) mismatch: recorded {hint}, actual {source_size}",
                     entry.name()
                 );
             }

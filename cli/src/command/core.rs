@@ -339,6 +339,7 @@ pub(crate) struct CreateOptions {
     pub(crate) option: WriteOptions,
     pub(crate) keep_options: KeepOptions,
     pub(crate) pathname_editor: PathnameEditor,
+    pub(crate) sparse: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -883,9 +884,7 @@ fn copy_buffered(file: fs::File, writer: &mut impl Write) -> io::Result<()> {
 }
 
 #[inline]
-pub(crate) fn write_from_path(writer: &mut impl Write, path: impl AsRef<Path>) -> io::Result<()> {
-    let path = path.as_ref();
-    let mut file = fs::File::open(path)?;
+fn write_from_file(writer: &mut impl Write, mut file: fs::File) -> io::Result<()> {
     let file_size = file
         .metadata()
         .ok()
@@ -909,12 +908,41 @@ pub(crate) fn write_from_path(writer: &mut impl Write, path: impl AsRef<Path>) -
     copy_buffered(file, writer)
 }
 
+#[inline]
+pub(crate) fn write_from_path(writer: &mut impl Write, path: impl AsRef<Path>) -> io::Result<()> {
+    write_from_file(writer, fs::File::open(path)?)
+}
+
+pub(crate) fn write_sparse_from_path(
+    entry: &mut FileEntryBuilder,
+    path: impl AsRef<Path>,
+) -> io::Result<()> {
+    let mut file = fs::File::open(path)?;
+    let Some(map) = utils::sparse::detect_sparse_map(&file)? else {
+        file.seek(io::SeekFrom::Start(0))?;
+        return write_from_file(entry, file);
+    };
+    for region in map.data_regions() {
+        file.seek(io::SeekFrom::Start(region.offset()))?;
+        let copied = io::copy(&mut (&mut file).take(region.size()), entry)?;
+        if copied != region.size() {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "file changed while reading sparse extent",
+            ));
+        }
+    }
+    entry.sparse_map(Some(map));
+    Ok(())
+}
+
 pub(crate) fn create_entry(
     item: &CollectedEntry,
     CreateOptions {
         option,
         keep_options,
         pathname_editor,
+        sparse,
     }: &CreateOptions,
 ) -> io::Result<Option<NormalEntry>> {
     let CollectedEntry {
@@ -954,7 +982,11 @@ pub(crate) fn create_entry(
         }
         StoreAs::File => {
             let mut entry = FileEntryBuilder::new_with_options(entry_name, option)?;
-            write_from_path(&mut entry, path)?;
+            if *sparse {
+                write_sparse_from_path(&mut entry, path)?;
+            } else {
+                write_from_path(&mut entry, path)?;
+            }
             entry.metadata(build_entry_metadata(path, keep_options, metadata)?);
             for chunk in collect_extra_chunks(path, keep_options, metadata)? {
                 entry.add_extra_chunk(chunk);
@@ -2000,6 +2032,7 @@ fn transform_normal_entry(
         option,
         pathname_editor,
         keep_options,
+        sparse: _,
     }: &CreateOptions,
     password: Option<&[u8]>,
     reencrypt_options: &mut ReencryptOptionsCache,
@@ -2171,6 +2204,7 @@ fn re_encrypt_entry_with_name(
         DataKind::FILE => {
             let mut builder = FileEntryBuilder::new_with_options(new_name, &*options)?;
             io::copy(&mut entry.reader(read_options)?, &mut builder)?;
+            builder.sparse_map(entry.sparse_map().cloned());
             builder.build()?
         }
         // Kinds with no builder that takes both a payload and write options —
@@ -2300,6 +2334,47 @@ mod tests {
         let mut out = Vec::new();
         reader.read_to_end(&mut out).unwrap();
         assert_eq!(out, b"secret payload");
+    }
+
+    /// The decoded reader yields only the compact data regions, so a rebuilt
+    /// entry without the source map would store hole-stripped bytes as a
+    /// dense file.
+    #[test]
+    fn gcm_reencrypt_preserves_sparse_map() {
+        let source_options = WriteOptions::builder()
+            .encryption(pna::Encryption::AES)
+            .cipher_mode(pna::CipherMode::GCM)
+            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .password(Some("password"))
+            .build();
+        let map = pna::SparseMap::try_new(
+            32,
+            vec![pna::DataRegion::new(4, 4), pna::DataRegion::new(20, 4)],
+        )
+        .unwrap();
+        let mut source =
+            FileEntryBuilder::new_with_options("original".into(), &source_options).unwrap();
+        source.write_all(b"abcdwxyz").unwrap();
+        source.sparse_map(Some(map.clone()));
+        let source = source.build().unwrap();
+        let mut cache = ReencryptOptionsCache::new();
+
+        let renamed = re_encrypt_entry_with_name(
+            &source,
+            "renamed".into(),
+            b"password",
+            &source_options,
+            &mut cache,
+        )
+        .unwrap();
+
+        assert_eq!(renamed.sparse_map(), Some(&map));
+        let mut reader = renamed
+            .reader(pna::ReadOptions::with_password(Some("password")))
+            .unwrap();
+        let mut out = Vec::new();
+        reader.read_to_end(&mut out).unwrap();
+        assert_eq!(out, b"abcdwxyz");
     }
 
     /// An archive may mix cipher algorithms, so entries that differ in one must

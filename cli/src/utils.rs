@@ -9,6 +9,7 @@ pub(crate) mod mmap;
 pub(crate) mod os;
 mod path;
 pub(crate) mod process;
+pub(crate) mod sparse;
 pub(crate) mod str;
 mod windows_glob;
 
