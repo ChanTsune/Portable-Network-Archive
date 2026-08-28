@@ -295,17 +295,19 @@ mod tests {
     fn aes256_cbc_wrong_key_does_not_recover_plaintext() {
         let ct = encrypt_aes256_cbc(&KAT_KEY, &KAT_IV, KAT_PLAINTEXT).unwrap();
         let wrong_key = [0x99u8; 32];
-        if let Ok(recovered) = decrypt_aes256_cbc(&wrong_key, &ct) {
-            assert_ne!(recovered.as_slice(), KAT_PLAINTEXT.as_slice())
-        }
+        assert_ne!(
+            decrypt_aes256_cbc(&wrong_key, &ct).ok().as_deref(),
+            Some(KAT_PLAINTEXT.as_slice())
+        );
     }
 
     #[test]
     fn camellia256_cbc_wrong_key_does_not_recover_plaintext() {
         let ct = encrypt_camellia256_cbc(&KAT_KEY, &KAT_IV, KAT_PLAINTEXT).unwrap();
         let wrong_key = [0x99u8; 32];
-        if let Ok(recovered) = decrypt_camellia256_cbc(&wrong_key, &ct) {
-            assert_ne!(recovered.as_slice(), KAT_PLAINTEXT.as_slice())
-        }
+        assert_ne!(
+            decrypt_camellia256_cbc(&wrong_key, &ct).ok().as_deref(),
+            Some(KAT_PLAINTEXT.as_slice())
+        );
     }
 }
