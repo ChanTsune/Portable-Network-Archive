@@ -9,6 +9,7 @@ pub(crate) mod path_lock;
 mod path_transformer;
 pub(crate) mod permission;
 pub(crate) mod re;
+pub(crate) mod rewrite;
 pub(crate) mod safe_writer;
 mod staged_archive;
 pub(crate) mod time_filter;
