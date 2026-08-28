@@ -1,13 +1,10 @@
 use crate::{
-    cli::{
-        ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategy,
-        SolidEntriesTransformStrategyArgs,
-    },
+    cli::{ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategyArgs},
     command::{
         Command, ask_password,
         core::{
-            SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid, Umask, collect_split_archives,
+            Umask,
+            rewrite::{EntryTransform, execute_archive_transform},
         },
     },
     utils::{GlobPatterns, PathPartExt},
@@ -22,7 +19,7 @@ use nom::{
     multi::{many0, many1, separated_list1},
 };
 use pna::{DataKind, NormalEntry};
-use std::{ops::BitOr, str::FromStr};
+use std::{borrow::Cow, io, ops::BitOr, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ChmodCommand {
@@ -51,48 +48,40 @@ fn archive_chmod(args: ChmodCommand, umask: Umask) -> anyhow::Result<()> {
     if args.files.is_empty() {
         return Ok(());
     }
-    let mut globs = GlobPatterns::new(args.files.iter().map(|p| p.as_str()))?;
+    let globs = GlobPatterns::new(args.files.iter().map(|p| p.as_str()))?;
+    execute_archive_transform(
+        &args.archive.file,
+        args.archive.file.remove_part(),
+        umask,
+        password.as_deref(),
+        args.transform_strategy.strategy(),
+        ChmodTransform {
+            globs,
+            mode: args.mode,
+        },
+    )
+}
 
-    let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive.file)?)?;
+struct ChmodTransform<'g> {
+    globs: GlobPatterns<'g>,
+    mode: Mode,
+}
 
-    let output_path = args.archive.file.remove_part();
-    let mut staged = StagedArchive::new(output_path, umask)?;
+impl EntryTransform for ChmodTransform<'_> {
+    fn transform<'d>(
+        &mut self,
+        entry: NormalEntry<Cow<'d, [u8]>>,
+    ) -> io::Result<Option<NormalEntry<Cow<'d, [u8]>>>> {
+        Ok(Some(if self.globs.matches_any(entry.name()) {
+            transform_entry(entry, &self.mode)
+        } else {
+            entry
+        }))
+    }
 
-    match args.transform_strategy.strategy() {
-        SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
-            staged.as_file_mut(),
-            password.as_deref(),
-            #[hooq::skip_all]
-            |entry| {
-                let entry = entry?;
-                if globs.matches_any(entry.name()) {
-                    Ok(Some(transform_entry(entry, &args.mode)))
-                } else {
-                    Ok(Some(entry))
-                }
-            },
-            TransformStrategyUnSolid,
-        ),
-        SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
-            staged.as_file_mut(),
-            password.as_deref(),
-            #[hooq::skip_all]
-            |entry| {
-                let entry = entry?;
-                if globs.matches_any(entry.name()) {
-                    Ok(Some(transform_entry(entry, &args.mode)))
-                } else {
-                    Ok(Some(entry))
-                }
-            },
-            TransformStrategyKeepSolid,
-        ),
-    }?;
-
-    drop(source);
-
-    staged.commit(Some(&globs))?;
-    Ok(())
+    fn patterns(&self) -> Option<&GlobPatterns<'_>> {
+        Some(&self.globs)
+    }
 }
 
 #[inline]

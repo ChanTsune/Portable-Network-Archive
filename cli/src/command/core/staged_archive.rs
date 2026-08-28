@@ -1,5 +1,4 @@
 use crate::command::core::{SafeWriter, Umask};
-use crate::utils::GlobPatterns;
 use std::{fs, io, path::PathBuf};
 
 /// An archive rewrite held in a temp file until the checks that must precede it have passed.
@@ -49,15 +48,9 @@ impl StagedArchive {
     }
 
     /// Puts the staged archive in place of the original.
-    ///
-    /// `patterns` holds the patterns the run was asked to match, or is `None` for commands
-    /// that take none. A pattern that matched nothing aborts the commit.
     #[inline]
     #[cfg_attr(not(unix), allow(unused_mut))]
-    pub(crate) fn commit(mut self, patterns: Option<&GlobPatterns>) -> anyhow::Result<()> {
-        if let Some(patterns) = patterns {
-            patterns.ensure_all_matched()?;
-        }
+    pub(crate) fn commit(mut self) -> io::Result<()> {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -127,24 +120,9 @@ mod tests {
 
         let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022)).unwrap();
         staged.as_file_mut().write_all(b"rewritten").unwrap();
-        staged.commit(None).unwrap();
+        staged.commit().unwrap();
 
         assert_eq!(fs::read(&output).unwrap(), b"rewritten");
-        assert!(entries_beside(&dir, "archive.pna").is_empty());
-    }
-
-    #[test]
-    fn commit_is_refused_when_a_pattern_matched_nothing() {
-        let dir = test_dir("unmatched");
-        let output = dir.join("archive.pna");
-        fs::write(&output, b"original").unwrap();
-
-        let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022)).unwrap();
-        staged.as_file_mut().write_all(b"rewritten").unwrap();
-        let patterns = GlobPatterns::new(["absent"]).unwrap();
-
-        assert!(staged.commit(Some(&patterns)).is_err());
-        assert_eq!(fs::read(&output).unwrap(), b"original");
         assert!(entries_beside(&dir, "archive.pna").is_empty());
     }
 
@@ -165,7 +143,7 @@ mod tests {
 
         let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022)).unwrap();
         staged.as_file_mut().write_all(b"rewritten").unwrap();
-        staged.commit(None).unwrap();
+        staged.commit().unwrap();
 
         assert_eq!(mode_of(&output), 0o666);
     }
@@ -181,7 +159,7 @@ mod tests {
 
         let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022)).unwrap();
         staged.as_file_mut().write_all(b"rewritten").unwrap();
-        staged.commit(None).unwrap();
+        staged.commit().unwrap();
 
         assert_eq!(mode_of(&output), 0o755);
     }
@@ -194,7 +172,7 @@ mod tests {
 
         let mut staged = StagedArchive::new(output.clone(), Umask::new(0o007)).unwrap();
         staged.as_file_mut().write_all(b"written").unwrap();
-        staged.commit(None).unwrap();
+        staged.commit().unwrap();
 
         assert_eq!(mode_of(&output), 0o660);
     }
@@ -210,7 +188,7 @@ mod tests {
 
         let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022)).unwrap();
         staged.as_file_mut().write_all(b"written").unwrap();
-        staged.commit(None).unwrap();
+        staged.commit().unwrap();
 
         assert!(output.is_file());
         assert_eq!(mode_of(&output), 0o644);
@@ -229,7 +207,7 @@ mod tests {
 
         let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022)).unwrap();
         staged.as_file_mut().write_all(b"written").unwrap();
-        staged.commit(None).unwrap();
+        staged.commit().unwrap();
 
         assert_eq!(fs::read(&output).unwrap(), b"written");
         assert_eq!(mode_of(&output), 0o644);
@@ -254,7 +232,7 @@ mod tests {
 
         let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022)).unwrap();
         staged.as_file_mut().write_all(b"written").unwrap();
-        staged.commit(None).unwrap();
+        staged.commit().unwrap();
 
         assert_eq!(fs::read(&output).unwrap(), b"written");
     }

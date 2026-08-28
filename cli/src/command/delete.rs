@@ -1,20 +1,17 @@
 use crate::{
-    cli::{
-        ArchiveFileArgs, FileOperands, PasswordArgs, SolidEntriesTransformStrategy,
-        SolidEntriesTransformStrategyArgs,
-    },
+    cli::{ArchiveFileArgs, FileOperands, PasswordArgs, SolidEntriesTransformStrategyArgs},
     command::{
         Command, ask_password,
         core::{
-            PathFilter, SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid, Umask, collect_split_archives, read_paths, read_paths_stdin,
+            PathFilter, Umask, read_paths, read_paths_stdin,
+            rewrite::{EntryTransform, execute_archive_transform},
         },
     },
     utils::{GlobPatterns, PathPartExt, VCS_FILES},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::NormalEntry;
-use std::path::PathBuf;
+use std::{borrow::Cow, io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(
@@ -109,7 +106,7 @@ fn delete_file_from_archive(args: DeleteCommand, umask: Umask) -> anyhow::Result
     } else if let Some(path) = args.files_from {
         files.extend(read_paths(path, args.null)?);
     }
-    let mut globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
+    let globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
 
     let mut exclude = args.exclude;
     if let Some(p) = args.exclude_from {
@@ -125,34 +122,35 @@ fn delete_file_from_archive(args: DeleteCommand, umask: Umask) -> anyhow::Result
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
 
-    let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive.file)?)?;
-
     let output_path = args
         .output
         .unwrap_or_else(|| args.archive.file.remove_part());
-    let mut staged = StagedArchive::new(output_path, umask)?;
+    execute_archive_transform(
+        &args.archive.file,
+        output_path,
+        umask,
+        password.as_deref(),
+        args.transform_strategy.strategy(),
+        DeleteTransform { globs, filter },
+    )
+}
 
-    match args.transform_strategy.strategy() {
-        SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
-            staged.as_file_mut(),
-            password.as_deref(),
-            #[hooq::skip_all]
-            |entry| Ok(filter_entry(&mut globs, &filter, entry?)),
-            TransformStrategyUnSolid,
-        ),
-        SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
-            staged.as_file_mut(),
-            password.as_deref(),
-            #[hooq::skip_all]
-            |entry| Ok(filter_entry(&mut globs, &filter, entry?)),
-            TransformStrategyKeepSolid,
-        ),
-    }?;
+struct DeleteTransform<'g, 'f> {
+    globs: GlobPatterns<'g>,
+    filter: PathFilter<'f>,
+}
 
-    drop(source);
+impl EntryTransform for DeleteTransform<'_, '_> {
+    fn transform<'d>(
+        &mut self,
+        entry: NormalEntry<Cow<'d, [u8]>>,
+    ) -> io::Result<Option<NormalEntry<Cow<'d, [u8]>>>> {
+        Ok(filter_entry(&mut self.globs, &self.filter, entry))
+    }
 
-    staged.commit(Some(&globs))?;
-    Ok(())
+    fn patterns(&self) -> Option<&GlobPatterns<'_>> {
+        Some(&self.globs)
+    }
 }
 
 #[inline]

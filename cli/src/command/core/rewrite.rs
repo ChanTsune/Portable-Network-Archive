@@ -53,5 +53,97 @@ pub(crate) fn execute_archive_transform(
         ),
     }?;
     drop(source);
-    staged.commit(transform.patterns())
+    if let Some(patterns) = transform.patterns() {
+        patterns.ensure_all_matched()?;
+    }
+    staged.commit()?;
+    Ok(())
+}
+
+#[cfg(test)]
+#[cfg(not(target_family = "wasm"))]
+mod tests {
+    use super::*;
+    use pna::{Archive, FileEntryBuilder};
+    use std::fs;
+
+    /// Drops every entry so a committed rewrite is distinguishable from the original bytes.
+    struct DropAll<'s>(GlobPatterns<'s>);
+
+    impl EntryTransform for DropAll<'_> {
+        fn transform<'d>(
+            &mut self,
+            entry: NormalEntry<Cow<'d, [u8]>>,
+        ) -> io::Result<Option<NormalEntry<Cow<'d, [u8]>>>> {
+            self.0.matches_any(entry.name());
+            Ok(None)
+        }
+
+        fn patterns(&self) -> Option<&GlobPatterns<'_>> {
+            Some(&self.0)
+        }
+    }
+
+    fn test_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join("pna_rewrite_test").join(name);
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn write_archive(path: &Path) -> Vec<u8> {
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        archive
+            .add_entry(
+                FileEntryBuilder::new("present.txt".into())
+                    .unwrap()
+                    .build()
+                    .unwrap(),
+            )
+            .unwrap();
+        let bytes = archive.finalize().unwrap();
+        fs::write(path, &bytes).unwrap();
+        bytes
+    }
+
+    fn entries_beside(dir: &Path, archive: &str) -> Vec<String> {
+        fs::read_dir(dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|name| name != archive)
+            .collect()
+    }
+
+    fn rewrite(archive: &Path, pattern: &str) -> anyhow::Result<()> {
+        execute_archive_transform(
+            archive,
+            archive.to_path_buf(),
+            Umask::new(0o022),
+            None,
+            SolidEntriesTransformStrategy::UnSolid,
+            DropAll(GlobPatterns::new([pattern]).unwrap()),
+        )
+    }
+
+    #[test]
+    fn unmatched_pattern_refuses_the_rewrite_and_keeps_the_original() {
+        let dir = test_dir("unmatched");
+        let archive = dir.join("archive.pna");
+        let original = write_archive(&archive);
+
+        assert!(rewrite(&archive, "absent").is_err());
+        assert_eq!(fs::read(&archive).unwrap(), original);
+        assert!(entries_beside(&dir, "archive.pna").is_empty());
+    }
+
+    #[test]
+    fn matched_pattern_replaces_the_original() {
+        let dir = test_dir("matched");
+        let archive = dir.join("archive.pna");
+        let original = write_archive(&archive);
+
+        rewrite(&archive, "present.txt").unwrap();
+        assert_ne!(fs::read(&archive).unwrap(), original);
+        assert!(entries_beside(&dir, "archive.pna").is_empty());
+    }
 }

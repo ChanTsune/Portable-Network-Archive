@@ -1,13 +1,10 @@
 use crate::{
-    cli::{
-        ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategy,
-        SolidEntriesTransformStrategyArgs,
-    },
+    cli::{ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategyArgs},
     command::{
         Command, ask_password,
         core::{
-            SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid, Umask, collect_split_archives,
+            Umask,
+            rewrite::{EntryTransform, execute_archive_transform},
         },
     },
     utils::{
@@ -17,7 +14,7 @@ use crate::{
 };
 use clap::{ArgAction, Parser, ValueHint, builder::ArgPredicate};
 use pna::NormalEntry;
-use std::{io, ops::Not, str::FromStr};
+use std::{borrow::Cow, io, ops::Not, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ChownCommand {
@@ -58,52 +55,41 @@ fn archive_chown(args: ChownCommand, umask: Umask) -> anyhow::Result<()> {
     if args.files.is_empty() {
         return Ok(());
     }
-    let mut globs = GlobPatterns::new(args.files.iter().map(|p| p.as_ref()))?;
+    let globs = GlobPatterns::new(args.files.iter().map(|p| p.as_ref()))?;
 
     let owner = args
         .owner
         .lookup_platform_owner(args.numeric_owner, args.owner_lookup)?;
+    execute_archive_transform(
+        &args.archive.file,
+        args.archive.file.remove_part(),
+        umask,
+        password.as_deref(),
+        args.transform_strategy.strategy(),
+        ChownTransform { globs, owner },
+    )
+}
 
-    let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive.file)?)?;
+struct ChownTransform<'g> {
+    globs: GlobPatterns<'g>,
+    owner: Ownership,
+}
 
-    let output_path = args.archive.file.remove_part();
-    let mut staged = StagedArchive::new(output_path, umask)?;
+impl EntryTransform for ChownTransform<'_> {
+    fn transform<'d>(
+        &mut self,
+        entry: NormalEntry<Cow<'d, [u8]>>,
+    ) -> io::Result<Option<NormalEntry<Cow<'d, [u8]>>>> {
+        Ok(Some(if self.globs.matches_any(entry.name()) {
+            transform_entry(entry, &self.owner)
+        } else {
+            entry
+        }))
+    }
 
-    match args.transform_strategy.strategy() {
-        SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
-            staged.as_file_mut(),
-            password.as_deref(),
-            #[hooq::skip_all]
-            |entry| {
-                let entry = entry?;
-                if globs.matches_any(entry.name()) {
-                    Ok(Some(transform_entry(entry, &owner)))
-                } else {
-                    Ok(Some(entry))
-                }
-            },
-            TransformStrategyUnSolid,
-        ),
-        SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
-            staged.as_file_mut(),
-            password.as_deref(),
-            #[hooq::skip_all]
-            |entry| {
-                let entry = entry?;
-                if globs.matches_any(entry.name()) {
-                    Ok(Some(transform_entry(entry, &owner)))
-                } else {
-                    Ok(Some(entry))
-                }
-            },
-            TransformStrategyKeepSolid,
-        ),
-    }?;
-
-    drop(source);
-
-    staged.commit(Some(&globs))?;
-    Ok(())
+    fn patterns(&self) -> Option<&GlobPatterns<'_>> {
+        Some(&self.globs)
+    }
 }
 
 #[inline]
