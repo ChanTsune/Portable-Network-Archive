@@ -12,6 +12,24 @@ use std::{
     mem::swap,
 };
 
+/// Verifies that `next` is the archive that follows `current` as its next part.
+fn verify_next_archive_number(current: &ArchiveHeader, next: &ArchiveHeader) -> io::Result<()> {
+    let expected = current
+        .archive_number
+        .checked_add(1)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "archive number overflow"))?;
+    if expected != next.archive_number {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "next archive number must be {expected} (expected previous + 1, detected: {})",
+                next.archive_number
+            ),
+        ));
+    }
+    Ok(())
+}
+
 impl<R: Read> Archive<R> {
     /// Reads the archive header from the provided reader and returns a new [`Archive`].
     ///
@@ -116,22 +134,32 @@ impl<R: Read> Archive<R> {
     /// Returns an error if an I/O error occurs while reading from the reader.
     #[inline]
     pub fn read_next_archive<OR: Read>(self, reader: OR) -> io::Result<Archive<OR>> {
-        let current_header = self.header;
         let mut next = Archive::<OR>::read_header_with_buffer(reader, self.buf)?;
         next.max_chunk_size = self.max_chunk_size;
-        let next_number = current_header
-            .archive_number
-            .checked_add(1)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "archive number overflow"))?;
-        if next_number != next.header.archive_number {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    "next archive number must be {next_number} (expected previous + 1, detected: {})",
-                    next.header.archive_number
-                ),
-            ));
-        }
+        verify_next_archive_number(&self.header, &next.header)?;
+        Ok(next)
+    }
+
+    /// Reads the archive that follows this one on the same reader and returns a new [`Archive`].
+    ///
+    /// Use this when the parts of a split archive arrive on a single stream, such as
+    /// standard input, instead of one reader per part.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while reading from the reader.
+    #[inline]
+    pub fn read_next_archive_in_stream(self) -> io::Result<Self> {
+        let Self {
+            inner,
+            header,
+            max_chunk_size,
+            buf,
+            ..
+        } = self;
+        let mut next = Self::read_header_with_buffer(inner, buf)?;
+        next.max_chunk_size = max_chunk_size;
+        verify_next_archive_number(&header, &next.header)?;
         Ok(next)
     }
 }
@@ -511,6 +539,48 @@ mod tests {
         let first = Archive::read_header(&first_bytes[..]).unwrap();
         let next = archive_bytes(ArchiveHeader::new(0, 0, 5));
         let err = first.read_next_archive(&next[..]).err().unwrap();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn read_next_archive_in_stream_reads_the_part_that_follows() {
+        use crate::{Metadata, WriteOptions};
+        use std::{io::Write, num::NonZeroU32};
+
+        let mut bytes = Vec::new();
+        let first = Archive::write_header(&mut bytes).unwrap();
+        let mut second = first.split_to_next_archive(Vec::new()).unwrap();
+        second
+            .write_file(
+                "a".into(),
+                Metadata::new(),
+                WriteOptions::store(),
+                |writer| writer.write_all(b"12345678"),
+            )
+            .unwrap();
+        let second_bytes = second.finalize().unwrap();
+        bytes.extend_from_slice(&second_bytes);
+
+        let mut first = Archive::read_header(&bytes[..]).unwrap();
+        first.set_max_chunk_size(NonZeroU32::new(7).unwrap());
+        assert!(first.entries().next().is_none());
+        assert!(first.has_next_archive());
+
+        let mut second = first.read_next_archive_in_stream().unwrap();
+        assert_eq!(
+            second.entries().next().unwrap().unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+    }
+
+    #[test]
+    fn read_next_archive_in_stream_rejects_non_consecutive_number() {
+        let mut bytes = archive_bytes(ArchiveHeader::new(0, 0, 0));
+        bytes.extend_from_slice(&archive_bytes(ArchiveHeader::new(0, 0, 0)));
+
+        let mut first = Archive::read_header(&bytes[..]).unwrap();
+        assert!(first.entries().next().is_none());
+        let err = first.read_next_archive_in_stream().err().unwrap();
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
     }
 
