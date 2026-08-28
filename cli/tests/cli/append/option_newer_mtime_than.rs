@@ -1,7 +1,10 @@
-use crate::utils::{archive, setup, time::ensure_mtime_order};
+use crate::utils::{
+    archive, setup,
+    time::{DURATION_24_HOURS, set_mtime},
+};
 use clap::Parser;
 use portable_network_archive::cli;
-use std::{collections::HashSet, fs, thread, time::Duration};
+use std::{collections::HashSet, fs, time::SystemTime};
 
 /// Precondition: An archive exists with an older file, and the source tree contains a reference file and a newer file.
 /// Action: Run `pna append` with `--newer-mtime-than` pointing to the reference file.
@@ -13,13 +16,9 @@ fn append_with_newer_mtime_than() {
     let older_file = "append_newer_mtime_than/older.txt";
     let newer_file = "append_newer_mtime_than/newer.txt";
 
-    // Create directory
     fs::create_dir_all("append_newer_mtime_than").unwrap();
-
-    // Create the older file
     fs::write(older_file, "older file content").unwrap();
 
-    // Create an archive with the older file
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -33,24 +32,13 @@ fn append_with_newer_mtime_than() {
     .execute()
     .unwrap();
 
-    // Wait to ensure distinct mtime
-    thread::sleep(Duration::from_millis(10));
-
-    // Create the reference file
+    let now = SystemTime::now();
     fs::write(reference_file, "reference time marker").unwrap();
-
-    // Wait to ensure the next file has a newer mtime
-    thread::sleep(Duration::from_millis(10));
-
-    // Create the newer file
     fs::write(newer_file, "newer file content").unwrap();
-    let reference_mtime = fs::metadata(reference_file).unwrap().modified().unwrap();
-    if !ensure_mtime_order(older_file, newer_file, reference_mtime) {
-        eprintln!("Skipping test: unable to produce strict mtime ordering on this filesystem");
-        return;
-    }
+    set_mtime(older_file, now - 2 * DURATION_24_HOURS);
+    set_mtime(reference_file, now - DURATION_24_HOURS);
+    set_mtime(newer_file, now);
 
-    // Append to the archive with the `--newer-mtime-than` option
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -68,36 +56,14 @@ fn append_with_newer_mtime_than() {
     .execute()
     .unwrap();
 
-    // Verify archive contents
     let mut seen = HashSet::new();
     archive::for_each_entry("append_newer_mtime_than/test.pna", |entry| {
         seen.insert(entry.header().path().to_string());
     })
     .unwrap();
 
-    // older_file should be included (from original archive creation)
-    assert!(
-        seen.contains(older_file),
-        "older file should be in archive from initial creation: {older_file}"
-    );
-
-    // reference_file should NOT be included (mtime == reference)
-    assert!(
-        !seen.contains(reference_file),
-        "reference file should NOT be appended: {reference_file}"
-    );
-
-    // newer_file should be included (appended because mtime > reference)
-    assert!(
-        seen.contains(newer_file),
-        "newer file should be appended: {newer_file}"
-    );
-
-    // Verify that exactly two entries exist
     assert_eq!(
-        seen.len(),
-        2,
-        "Expected exactly 2 entries, but found {}: {seen:?}",
-        seen.len()
+        seen,
+        HashSet::from([older_file.to_string(), newer_file.to_string()])
     );
 }
