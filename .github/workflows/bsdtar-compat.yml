@@ -34,7 +34,6 @@ on:
       - '.github/scripts/jsonify-bsdtar-output.py'
 
 env:
-  # Keeps the checkout ref and the build cache key in lockstep.
   LIBARCHIVE_REF: v3.8.5
 
 jobs:
@@ -90,7 +89,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: libarchive
-          key: "libarchive-${{ env.LIBARCHIVE_REF }}-${{ matrix.name }}-${{ runner.arch }}-${{ env.ImageVersion }}"
+          key: "libarchive-${{ env.LIBARCHIVE_REF }}-${{ matrix.name }}-${{ runner.arch }}"
 
       - name: Clone libarchive
         if: ${{ steps.libarchive_cache.outputs.cache-hit != 'true' }}
@@ -268,7 +267,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: libarchive
-          key: "libarchive-${{ env.LIBARCHIVE_REF }}-${{ matrix.name }}-${{ runner.arch }}-${{ env.ImageVersion }}"
+          key: "libarchive-${{ env.LIBARCHIVE_REF }}-${{ matrix.name }}-${{ runner.arch }}"
 
       - name: Clone libarchive
         if: ${{ steps.libarchive_cache.outputs.cache-hit != 'true' }}
