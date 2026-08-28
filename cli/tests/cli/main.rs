@@ -1,4 +1,6 @@
 #![cfg_attr(target_os = "wasi", feature(wasi_ext))]
+#[macro_use]
+pub mod utils;
 mod acl;
 mod append;
 #[cfg(not(target_family = "wasm"))]
@@ -35,7 +37,6 @@ mod sort;
 mod split;
 mod strip;
 mod update;
-pub mod utils;
 #[cfg(not(target_family = "wasm"))]
 mod verify;
 mod xattr;

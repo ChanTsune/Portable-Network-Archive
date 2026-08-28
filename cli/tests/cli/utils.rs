@@ -73,6 +73,38 @@ pub fn setup() {
     std::env::set_current_dir(env!("CARGO_TARGET_TMPDIR")).expect("Failed to set current dir");
 }
 
+/// Environment variable listing capabilities (comma-separated) whose absence
+/// is a failure rather than a skip. CI sets it per job so that a precondition
+/// which should hold on that runner cannot silently turn a test green.
+pub const REQUIRE_ENV: &str = "PNA_TEST_REQUIRE";
+
+pub fn is_required(list: &str, capability: &str) -> bool {
+    list.split(',').map(str::trim).any(|c| c == capability)
+}
+
+#[track_caller]
+pub fn skip_or_fail(capability: &str, condition: &str) {
+    let list = std::env::var(REQUIRE_ENV).unwrap_or_default();
+    if is_required(&list, capability) {
+        panic!("{REQUIRE_ENV} lists `{capability}` but `{condition}` is false");
+    }
+    eprintln!("skipped: `{capability}` unavailable (`{condition}` is false)");
+}
+
+/// Leaves the current test when a runtime-only precondition is unmet.
+/// Capability names are the vocabulary of `PNA_TEST_REQUIRE`; keep them
+/// stable: `birthtime`, `mtime_nanos`, `xattr`, `nodump`, `chmod`, `setuid`,
+/// `root`, `unprivileged`, `mount`.
+#[allow(unused_macros)]
+macro_rules! skip_unless {
+    ($capability:literal, $cond:expr) => {
+        if !$cond {
+            $crate::utils::skip_or_fail($capability, stringify!($cond));
+            return;
+        }
+    };
+}
+
 /// Spawns the `pna` binary under `mask` without touching this test process's
 /// own umask, which `libc::umask` would otherwise change process-wide (it is
 /// not thread-local) and race with unrelated tests running concurrently in
@@ -151,4 +183,27 @@ pub fn remove_with_empty_parents(path: impl AsRef<Path>) -> io::Result<()> {
         Ok(())
     }
     inner(path.as_ref())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_required;
+
+    #[test]
+    fn is_required_matches_whole_comma_separated_items() {
+        let cases = [
+            ("", "xattr", false),
+            ("xattr", "xattr", true),
+            ("birthtime, xattr ,root", "xattr", true),
+            ("xattrs", "xattr", false),
+            ("xattr", "xattrs", false),
+        ];
+        for (list, capability, expected) in cases {
+            assert_eq!(
+                is_required(list, capability),
+                expected,
+                "{list:?} / {capability}"
+            );
+        }
+    }
 }
