@@ -5,55 +5,60 @@ use std::{
 
 pub const DURATION_24_HOURS: Duration = Duration::from_secs(24 * 60 * 60);
 
-/// Waits until the file at `path` has a timestamp newer than `baseline`.
-/// The `get_time` function extracts the relevant timestamp from metadata.
-pub fn wait_until_time_newer_than<F>(path: &str, baseline: SystemTime, get_time: F) -> bool
-where
-    F: Fn(&fs::Metadata) -> Option<SystemTime>,
-{
-    const MAX_ATTEMPTS: usize = 500;
-    const SLEEP_MS: u64 = 10;
-    for _ in 0..MAX_ATTEMPTS {
-        if fs::metadata(path)
-            .ok()
-            .and_then(|meta| get_time(&meta))
-            .map(|time| time > baseline)
-            .unwrap_or(false)
-        {
-            return true;
-        }
-        thread::sleep(Duration::from_millis(SLEEP_MS));
-    }
-    false
+#[cfg(not(target_family = "wasm"))]
+#[track_caller]
+pub fn set_mtime(path: &str, at: SystemTime) {
+    filetime::set_file_mtime(path, filetime::FileTime::from_system_time(at)).unwrap();
 }
 
-/// Confirms that the file at `path` has a timestamp older than `baseline`.
-/// The `get_time` function extracts the relevant timestamp from metadata.
-pub fn confirm_time_older_than<F>(path: &str, baseline: SystemTime, get_time: F) -> bool
-where
-    F: Fn(&fs::Metadata) -> Option<SystemTime>,
-{
+#[track_caller]
+pub fn birth_time(path: &str) -> SystemTime {
+    fs::metadata(path).unwrap().created().unwrap()
+}
+
+/// `created()` also succeeds on file systems that keep no birth time and answer
+/// with the epoch for every file (OpenBSD FFS), where no amount of re-creating
+/// can order two files. Such a value means the capability is absent, not that a
+/// file predates the epoch.
+#[track_caller]
+pub fn birth_time_recorded(path: &str) -> bool {
     fs::metadata(path)
-        .ok()
-        .and_then(|meta| get_time(&meta))
-        .map(|time| time < baseline)
-        .unwrap_or(false)
+        .unwrap()
+        .created()
+        .is_ok_and(|born| born > SystemTime::UNIX_EPOCH)
 }
 
-/// Ensures that `older` file has a ctime older than `reference` and
-/// `newer` file has a ctime newer than `reference`.
-pub fn ensure_ctime_order(older: &str, newer: &str, reference: SystemTime) -> bool {
-    if !confirm_time_older_than(older, reference, |m| m.created().ok()) {
-        return false;
+/// Birth time cannot be set, only observed, and it is fixed at creation, so
+/// ordering against `baseline` is obtained by re-creating the file until its
+/// birth time is strictly later.
+///
+/// Each attempt is written to a fresh path rather than `path` itself: on NTFS,
+/// re-creating the same name within roughly 15 seconds of deleting it restores
+/// the original creation time (file-system tunneling), so retrying in place
+/// would observe the same birth time forever. The winning attempt is renamed
+/// onto `path`, which preserves its creation time on both NTFS and Unix; the
+/// birth time is read back afterwards because tunneling applies to the
+/// destination name too when `path` already existed.
+#[track_caller]
+pub fn create_file_born_after(path: &str, content: &str, baseline: SystemTime) -> SystemTime {
+    const MAX_ATTEMPTS: usize = 300;
+    for attempt in 0..MAX_ATTEMPTS {
+        let attempt_path = format!("{path}.attempt{attempt}");
+        fs::write(&attempt_path, content).unwrap();
+        let born = birth_time(&attempt_path);
+        if born > baseline {
+            fs::rename(&attempt_path, path).unwrap();
+            let renamed = birth_time(path);
+            assert!(
+                renamed > baseline,
+                "{path}: renaming onto an existing name reverted the birth time to {renamed:?}"
+            );
+            return renamed;
+        }
+        fs::remove_file(&attempt_path).unwrap();
+        thread::sleep(Duration::from_millis(10));
     }
-    wait_until_time_newer_than(newer, reference, |m| m.created().ok())
-}
-
-/// Ensures that `older` file has an mtime older than `reference` and
-/// `newer` file has an mtime newer than `reference`.
-pub fn ensure_mtime_order(older: &str, newer: &str, reference: SystemTime) -> bool {
-    if !confirm_time_older_than(older, reference, |m| m.modified().ok()) {
-        return false;
-    }
-    wait_until_time_newer_than(newer, reference, |m| m.modified().ok())
+    panic!(
+        "{path}: could not obtain a birth time later than {baseline:?} in {MAX_ATTEMPTS} attempts"
+    );
 }

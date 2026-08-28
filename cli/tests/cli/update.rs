@@ -20,10 +20,12 @@ mod option_mtime;
 mod option_newer_ctime;
 mod option_newer_ctime_than;
 mod option_newer_mtime;
+#[cfg(not(target_family = "wasm"))]
 mod option_newer_mtime_than;
 mod option_older_ctime;
 mod option_older_ctime_than;
 mod option_older_mtime;
+#[cfg(not(target_family = "wasm"))]
 mod option_older_mtime_than;
 mod option_output;
 mod option_recursive;

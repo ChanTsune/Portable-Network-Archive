@@ -1,7 +1,10 @@
-use crate::utils::{archive, setup, time::wait_until_time_newer_than};
+use crate::utils::{
+    archive, setup,
+    time::{DURATION_24_HOURS, set_mtime},
+};
 use clap::Parser;
 use portable_network_archive::cli;
-use std::{collections::HashSet, fs, thread, time::Duration};
+use std::{collections::HashSet, fs, time::SystemTime};
 
 /// Precondition: An archive exists with files to update, and the source tree contains a reference file and files with varying modification times.
 /// Action: Run `pna experimental update` with `--older-mtime-than` pointing to the reference file.
@@ -31,30 +34,13 @@ fn update_with_older_mtime_than() {
     .execute()
     .unwrap();
 
-    thread::sleep(Duration::from_millis(10));
+    let now = SystemTime::now();
     fs::write(&file_to_update, "updated content").unwrap();
-    let updated_mtime = fs::metadata(&file_to_update).unwrap().modified().unwrap();
-
-    thread::sleep(Duration::from_millis(10));
     fs::write(&reference_file, "reference marker").unwrap();
-    let reference_mtime = fs::metadata(&reference_file).unwrap().modified().unwrap();
-
-    if updated_mtime >= reference_mtime {
-        eprintln!(
-            "Skipping test: unable to ensure updated file mtime < reference on this filesystem"
-        );
-        return;
-    }
-
-    thread::sleep(Duration::from_millis(10));
     fs::write(&file_to_skip, "skip content").unwrap();
-
-    if !wait_until_time_newer_than(&file_to_skip, reference_mtime, |m| m.modified().ok()) {
-        eprintln!(
-            "Skipping test: unable to ensure skip file is newer than reference on this filesystem"
-        );
-        return;
-    }
+    set_mtime(&file_to_update, now - DURATION_24_HOURS);
+    set_mtime(&reference_file, now);
+    set_mtime(&file_to_skip, now + DURATION_24_HOURS);
 
     cli::Cli::try_parse_from([
         "pna",
@@ -79,10 +65,7 @@ fn update_with_older_mtime_than() {
     })
     .unwrap();
 
-    assert!(
-        !seen.contains(&file_to_skip),
-        "file newer than reference should not have been added: {file_to_skip}"
-    );
+    assert_eq!(seen, HashSet::from([file_to_update.clone()]));
 
     cli::Cli::try_parse_from([
         "pna",

@@ -8,11 +8,13 @@ mod option_exclude_vcs;
 mod option_newer_ctime;
 mod option_newer_ctime_than;
 mod option_newer_mtime;
+#[cfg(not(target_family = "wasm"))]
 mod option_newer_mtime_than;
 #[cfg(any(windows, target_os = "macos"))]
 mod option_older_ctime;
 mod option_older_ctime_than;
 mod option_older_mtime;
+#[cfg(not(target_family = "wasm"))]
 mod option_older_mtime_than;
 
 use crate::utils::{EmbedExt, TestResources, diff::assert_dirs_equal, setup};

@@ -1,7 +1,10 @@
-use crate::utils::{archive, setup, time::ensure_ctime_order};
+use crate::utils::{
+    archive, setup,
+    time::{birth_time, birth_time_recorded, create_file_born_after},
+};
 use clap::Parser;
 use portable_network_archive::cli;
-use std::{collections::HashSet, fs, thread, time::Duration};
+use std::{collections::HashSet, fs};
 
 /// Precondition: The source tree contains files with strictly ordered creation times and a reference file.
 /// Action: Run `pna create` with `--older-ctime-than` pointing to the reference file.
@@ -17,24 +20,14 @@ fn create_with_older_ctime_than() {
     fs::create_dir_all("create_older_ctime_than").unwrap();
     fs::write(older_file, "older file content").unwrap();
 
-    if fs::metadata(older_file).unwrap().created().is_err() {
-        eprintln!("Skipping test: creation time (birth time) not supported on this filesystem");
-        return;
-    }
+    skip_unless!("birthtime", birth_time_recorded(older_file));
 
-    thread::sleep(Duration::from_millis(10));
-    fs::write(reference_file, "reference file content").unwrap();
-    let reference_ctime = fs::metadata(reference_file).unwrap().created().unwrap();
-
-    thread::sleep(Duration::from_millis(10));
-    fs::write(newer_file, "newer file content").unwrap();
-
-    if !ensure_ctime_order(older_file, newer_file, reference_ctime) {
-        eprintln!(
-            "Skipping test: unable to establish strict creation time ordering on this filesystem"
-        );
-        return;
-    }
+    let reference_ctime = create_file_born_after(
+        reference_file,
+        "reference file content",
+        birth_time(older_file),
+    );
+    create_file_born_after(newer_file, "newer file content", reference_ctime);
 
     cli::Cli::try_parse_from([
         "pna",
@@ -61,22 +54,5 @@ fn create_with_older_ctime_than() {
     })
     .unwrap();
 
-    assert!(
-        seen.contains(older_file),
-        "older file should be included: {older_file}"
-    );
-    assert!(
-        !seen.contains(reference_file),
-        "reference file should NOT be included: {reference_file}"
-    );
-    assert!(
-        !seen.contains(newer_file),
-        "newer file should NOT be included: {newer_file}"
-    );
-    assert_eq!(
-        seen.len(),
-        1,
-        "Expected exactly 1 entry, but found {}: {seen:?}",
-        seen.len()
-    );
+    assert_eq!(seen, HashSet::from([older_file.to_string()]));
 }
