@@ -31,17 +31,25 @@ pub(crate) type InternalDataWriter<W> = CompressionWriter<CipherWriter<W>>;
 pub(crate) type InternalArchiveDataWriter<W> = InternalDataWriter<ChunkStreamWriter<W>>;
 
 /// Writer for an entry payload that is compressed and encrypted according to the given options.
-pub struct EntryDataWriter<W: WriteChunk>(InternalArchiveDataWriter<W>);
+pub struct EntryDataWriter<W: WriteChunk> {
+    inner: InternalArchiveDataWriter<W>,
+    written: u64,
+}
 
 impl<W: WriteChunk> Write for EntryDataWriter<W> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.write(buf)
+        let written = self.inner.write(buf)?;
+        self.written = self
+            .written
+            .checked_add(written as u64)
+            .ok_or_else(|| io::Error::other("entry payload length overflow"))?;
+        Ok(written)
     }
 
     #[inline]
     fn flush(&mut self) -> io::Result<()> {
-        self.0.flush()
+        self.inner.flush()
     }
 }
 
@@ -50,19 +58,25 @@ impl<W: WriteChunk> Write for EntryDataWriter<W> {
 /// Passed to the closure in [`SolidArchive::write_file`] and
 /// [`SolidArchive::write_opaque`]. Data is compressed and encrypted with the
 /// other entries in the solid archive.
-pub struct SolidArchiveEntryDataWriter<'w, W: WriteChunk>(
-    InternalArchiveDataWriter<&'w mut InternalArchiveDataWriter<W>>,
-);
+pub struct SolidArchiveEntryDataWriter<'w, W: WriteChunk> {
+    inner: InternalArchiveDataWriter<&'w mut InternalArchiveDataWriter<W>>,
+    written: u64,
+}
 
 impl<W: WriteChunk> Write for SolidArchiveEntryDataWriter<'_, W> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.write(buf)
+        let written = self.inner.write(buf)?;
+        self.written = self
+            .written
+            .checked_add(written as u64)
+            .ok_or_else(|| io::Error::other("entry payload length overflow"))?;
+        Ok(written)
     }
 
     #[inline]
     fn flush(&mut self) -> io::Result<()> {
-        self.0.flush()
+        self.inner.flush()
     }
 }
 
@@ -296,9 +310,12 @@ where
             option,
             self.max_chunk_size,
             |w| {
-                let mut w = EntryDataWriter(w);
+                let mut w = EntryDataWriter {
+                    inner: w,
+                    written: 0,
+                };
                 f(&mut w)?;
-                Ok(w.0)
+                Ok((w.inner, w.written))
             },
         )
     }
@@ -333,9 +350,12 @@ where
             option,
             self.max_chunk_size,
             |w| {
-                let mut w = EntryDataWriter(w);
+                let mut w = EntryDataWriter {
+                    inner: w,
+                    written: 0,
+                };
                 f(&mut w)?;
-                Ok(w.0)
+                Ok((w.inner, w.written))
             },
         )
     }
@@ -687,9 +707,12 @@ impl<W: WriteChunk> SolidArchive<W> {
             option,
             self.max_chunk_size,
             |w| {
-                let mut w = SolidArchiveEntryDataWriter(w);
+                let mut w = SolidArchiveEntryDataWriter {
+                    inner: w,
+                    written: 0,
+                };
                 f(&mut w)?;
-                Ok(w.0)
+                Ok((w.inner, w.written))
             },
         )
     }
@@ -723,9 +746,12 @@ impl<W: WriteChunk> SolidArchive<W> {
             WriteOptions::store(),
             self.max_chunk_size,
             |w| {
-                let mut w = SolidArchiveEntryDataWriter(w);
+                let mut w = SolidArchiveEntryDataWriter {
+                    inner: w,
+                    written: 0,
+                };
                 f(&mut w)?;
-                Ok(w.0)
+                Ok((w.inner, w.written))
             },
         )
     }
@@ -800,12 +826,21 @@ pub(crate) fn write_stream_entry<W, F>(
 where
     W: WriteChunk,
     for<'a> &'a mut W: WriteChunk,
-    F: FnOnce(InternalArchiveDataWriter<&mut W>) -> io::Result<InternalArchiveDataWriter<&mut W>>,
+    F: FnOnce(
+        InternalArchiveDataWriter<&mut W>,
+    ) -> io::Result<(InternalArchiveDataWriter<&mut W>, u64)>,
 {
     let EntryWriteAttributes {
         metadata,
+        sparse_map,
         extra_chunks,
     } = attributes;
+    if sparse_map.is_some() && kind != DataKind::FILE {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "SPAR is only valid for file entries",
+        ));
+    }
     let header = EntryHeader::new_with_options(
         kind,
         option.compression(),
@@ -818,6 +853,9 @@ where
     for chunk in extra_chunks {
         inner.write_chunk(chunk)?;
     }
+    if let Some(map) = &sparse_map {
+        inner.write_chunk((ChunkType::SPAR, map.to_bytes()))?;
+    }
     write_metadata_facets(inner, &metadata)?;
     let context = get_writer_context(option, ChunkType::FHED, &header_bytes)?;
     if let Some(WriteCipher { context: c, .. }) = &context.cipher {
@@ -829,7 +867,10 @@ where
             c.write_prefix(&mut writer)?;
         }
         let writer = get_writer(writer, &context)?;
-        let mut writer = f(writer)?;
+        let (mut writer, written) = f(writer)?;
+        if let Some(map) = &sparse_map {
+            map.check_payload_len(written.into())?;
+        }
         writer.flush()?;
         writer.try_into_inner()?.try_into_inner()?.into_inner()
     };

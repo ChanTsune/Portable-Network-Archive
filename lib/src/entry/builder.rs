@@ -13,8 +13,8 @@ use crate::{
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{
-        DataKind, EntryHeader, EntryName, Metadata, NormalEntry, WriteCipher, WriteOption,
-        WriteOptions, get_writer, get_writer_context,
+        DataKind, EntryHeader, EntryName, Metadata, NormalEntry, SparseMap, WriteCipher,
+        WriteOption, WriteOptions, get_writer, get_writer_context,
     },
     util::io::{FlattenWriter, TryIntoInner},
 };
@@ -70,6 +70,7 @@ pub(crate) struct EntryBuilderCore {
     prefix: Option<Vec<u8>>,
     max_chunk_size: NonZeroU32,
     metadata: Metadata,
+    sparse_map: Option<SparseMap>,
     extra_chunks: Vec<RawChunk>,
 }
 
@@ -81,6 +82,7 @@ impl EntryBuilderCore {
             prefix: None,
             max_chunk_size: NonZeroU32::MAX,
             metadata: Metadata::new(),
+            sparse_map: None,
             extra_chunks: Vec::new(),
         }
     }
@@ -103,6 +105,14 @@ impl EntryBuilderCore {
         self.metadata = metadata;
     }
 
+    pub(crate) fn set_sparse_map(&mut self, sparse_map: Option<SparseMap>) {
+        self.sparse_map = sparse_map;
+    }
+
+    pub(crate) fn sparse_map(&self) -> Option<&SparseMap> {
+        self.sparse_map.as_ref()
+    }
+
     pub(crate) fn add_extra_chunk(&mut self, chunk: impl Into<RawChunk>) {
         self.extra_chunks.push(chunk.into());
     }
@@ -123,6 +133,7 @@ impl EntryBuilderCore {
             extra: self.extra_chunks,
             data,
             metadata: self.metadata,
+            sparse_map: self.sparse_map,
         }
     }
 }

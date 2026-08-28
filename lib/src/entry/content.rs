@@ -28,7 +28,8 @@ use std::fmt;
 /// ```
 #[non_exhaustive]
 pub enum EntryContent<'a> {
-    /// Regular file. Streaming reader over the decoded file contents.
+    /// Regular file. Reader over the decoded payload; see [`EntryDataReader`]
+    /// for sparse entries.
     File(EntryDataReader<'a>),
     /// Directory. Directories carry no content.
     Directory,

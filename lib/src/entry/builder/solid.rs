@@ -20,19 +20,25 @@ use std::{
 ///
 /// Passed to the closure in [`SolidEntryBuilder::write_file`] or
 /// [`SolidEntryBuilder::write_opaque`].
-pub struct SolidEntryDataWriter<'a>(
-    InternalArchiveDataWriter<&'a mut InternalDataWriter<FlattenWriter>>,
-);
+pub struct SolidEntryDataWriter<'a> {
+    inner: InternalArchiveDataWriter<&'a mut InternalDataWriter<FlattenWriter>>,
+    written: u64,
+}
 
 impl Write for SolidEntryDataWriter<'_> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.write(buf)
+        let written = self.inner.write(buf)?;
+        self.written = self
+            .written
+            .checked_add(written as u64)
+            .ok_or_else(|| io::Error::other("entry payload length overflow"))?;
+        Ok(written)
     }
 
     #[inline]
     fn flush(&mut self) -> io::Result<()> {
-        self.0.flush()
+        self.inner.flush()
     }
 }
 
@@ -179,9 +185,12 @@ impl SolidEntryBuilder {
             option,
             self.max_file_chunk_size,
             |w| {
-                let mut writer = SolidEntryDataWriter(w);
+                let mut writer = SolidEntryDataWriter {
+                    inner: w,
+                    written: 0,
+                };
                 f(&mut writer)?;
-                Ok(writer.0)
+                Ok((writer.inner, writer.written))
             },
         )
     }
@@ -217,9 +226,12 @@ impl SolidEntryBuilder {
             WriteOptions::store(),
             self.max_file_chunk_size,
             |w| {
-                let mut writer = SolidEntryDataWriter(w);
+                let mut writer = SolidEntryDataWriter {
+                    inner: w,
+                    written: 0,
+                };
                 f(&mut writer)?;
-                Ok(writer.0)
+                Ok((writer.inner, writer.written))
             },
         )
     }

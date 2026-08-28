@@ -9,14 +9,14 @@ use crate::{
 use bitflags::bitflags;
 use clap::{Parser, ValueEnum};
 use pna::prelude::SystemTimeDurationExt;
-use pna::{DataKind, EntryContent, NormalEntry, ReadOptions};
+use pna::{DataKind, EntryContent, NormalEntry, ReadOptions, SparseMap};
 use std::cmp::Ordering;
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::time::SystemTime;
-use std::{collections::BTreeMap, fmt, fs, io, path::Path};
+use std::{collections::BTreeMap, fmt, fs, io, io::Read, path::Path};
 
 #[derive(Parser, Clone, Debug)]
 pub(crate) struct DiffCommand {
@@ -523,6 +523,48 @@ fn compare_metadata<T: AsRef<[u8]>>(
     diffs
 }
 
+fn read_zeroes(reader: &mut impl Read, mut len: u64) -> io::Result<bool> {
+    let mut buf = [0u8; 64 * 1024];
+    while len != 0 {
+        let limit = len.min(buf.len() as u64) as usize;
+        let read = reader.read(&mut buf[..limit])?;
+        if read == 0 || buf[..read].iter().any(|byte| *byte != 0) {
+            return Ok(false);
+        }
+        len -= read as u64;
+    }
+    Ok(true)
+}
+
+fn sparse_streams_equal(
+    mut fs_file: fs::File,
+    mut archive_reader: impl Read,
+    map: &SparseMap,
+) -> io::Result<bool> {
+    let mut logical_pos = 0u64;
+    for region in map.data_regions() {
+        if region.offset() > logical_pos
+            && !read_zeroes(&mut fs_file, region.offset() - logical_pos)?
+        {
+            return Ok(false);
+        }
+        if !streams_equal(
+            (&mut fs_file).take(region.size()),
+            (&mut archive_reader).take(region.size()),
+        )? {
+            return Ok(false);
+        }
+        logical_pos = region.offset() + region.size();
+    }
+    if map.logical_size() > logical_pos
+        && !read_zeroes(&mut fs_file, map.logical_size() - logical_pos)?
+    {
+        return Ok(false);
+    }
+    let mut probe = [0u8; 1];
+    Ok(archive_reader.read(&mut probe)? == 0)
+}
+
 fn compare_entry<T: AsRef<[u8]>>(
     entry: NormalEntry<T>,
     read_options: &ReadOptions,
@@ -589,8 +631,13 @@ fn compare_data<T: AsRef<[u8]>>(
         DataKind::FILE => {
             if options.enabled(CompareField::Size, data_kind) {
                 // fSIZ is a recorded size, not a measured one, so it settles the
-                // question only when the caller asked about size.
-                match entry.metadata().raw_file_size() {
+                // question only when the caller asked about size. A sparse map's
+                // logical size is authoritative when present.
+                let archive_size = entry
+                    .sparse_map()
+                    .map(|map| u128::from(map.logical_size()))
+                    .or_else(|| entry.metadata().raw_file_size());
+                match archive_size {
                     Some(archive_size) if archive_size != fs_meta.len() as u128 => {
                         return Ok(Some(DiffKind::SizeDiffers));
                     }
@@ -602,10 +649,17 @@ fn compare_data<T: AsRef<[u8]>>(
                     ),
                 }
             }
-            if options.enabled(CompareField::Content, data_kind)
-                && !streams_equal(fs::File::open(path)?, entry.reader(read_options)?)?
-            {
-                return Ok(Some(DiffKind::ContentsDiffer));
+            if options.enabled(CompareField::Content, data_kind) {
+                let fs_file = fs::File::open(path)?;
+                let archive_reader = entry.reader(read_options)?;
+                let equal = if let Some(map) = entry.sparse_map() {
+                    sparse_streams_equal(fs_file, archive_reader, map)?
+                } else {
+                    streams_equal(fs_file, archive_reader)?
+                };
+                if !equal {
+                    return Ok(Some(DiffKind::ContentsDiffer));
+                }
             }
             Ok(None)
         }

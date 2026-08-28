@@ -114,6 +114,8 @@ impl ChunkType {
     pub const SDAT: ChunkType = ChunkType(*b"SDAT");
     /// Solid mode data stream end marker.
     pub const SEND: ChunkType = ChunkType(*b"SEND");
+    /// Sparse file extent map.
+    pub const SPAR: ChunkType = ChunkType(*b"SPAR");
 
     // -- Ancillary chunks --
     /// Raw file size.

@@ -2,7 +2,10 @@
 
 use crate::utils::setup;
 use assert_cmd::cargo::{CommandCargoExt, cargo_bin_cmd};
-use pna::{Archive, DirEntryBuilder, FileEntryBuilder, HardLinkEntryBuilder, SymlinkEntryBuilder};
+use pna::{
+    Archive, DataRegion, DirEntryBuilder, FileEntryBuilder, HardLinkEntryBuilder, SparseMap,
+    SymlinkEntryBuilder,
+};
 use std::{
     io::{Read, Write},
     process::{Command, Stdio},
@@ -50,6 +53,35 @@ fn build_large_archive(content_size: usize) -> Vec<u8> {
     }
     archive.add_entry(builder.build().unwrap()).unwrap();
     archive.finalize().unwrap()
+}
+
+fn build_sparse_archive() -> Vec<u8> {
+    let mut archive = Archive::write_header(Vec::new()).unwrap();
+
+    let map = SparseMap::try_new(16, vec![DataRegion::new(2, 3), DataRegion::new(10, 2)]).unwrap();
+    let mut builder = FileEntryBuilder::new("sparse.bin".into()).unwrap();
+    builder.write_all(b"abcde").unwrap();
+    builder.sparse_map(Some(map));
+    archive.add_entry(builder.build().unwrap()).unwrap();
+
+    archive.finalize().unwrap()
+}
+
+/// Precondition: Archive contains a sparse file entry with holes at the start,
+///   middle, and end.
+/// Action: Extract to stdout.
+/// Expectation: stdout carries the logical file with zero-filled holes.
+#[test]
+fn bsdtar_extract_with_to_stdout_fills_sparse_holes() {
+    setup();
+    let archive_data = build_sparse_archive();
+
+    cargo_bin_cmd!("pna")
+        .write_stdin(archive_data)
+        .args(["compat", "bsdtar", "--unstable", "-xOf", "-"])
+        .assert()
+        .success()
+        .stdout(b"\0\0abc\0\0\0\0\0de\0\0\0\0".to_vec());
 }
 
 /// Precondition: Archive contains a mix of File and non-File entries.
