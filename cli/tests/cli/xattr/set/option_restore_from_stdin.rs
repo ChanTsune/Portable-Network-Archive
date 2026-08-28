@@ -1,4 +1,6 @@
-use crate::utils::{EmbedExt, TestResources, diff::assert_dirs_equal, setup};
+#[cfg(unix)]
+use crate::utils::fs_supports_xattr;
+use crate::utils::{EmbedExt, TestResources, archive, diff::assert_dirs_equal, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::prelude::*;
 
@@ -84,22 +86,35 @@ fn xattr_set_restore() {
 
     assert_dirs_equal("xattr_set_restore/in/", "xattr_set_restore/out/");
 
-    #[cfg(unix)]
-    if xattr::SUPPORTED_PLATFORM {
-        // Check if xattr is supported on this filesystem
-        match xattr::get("xattr_set_restore/out/raw/empty.txt", "user.name") {
-            Ok(Some(value)) => {
-                assert_eq!(value, b"pna");
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
-                eprintln!(
-                    "Skipping xattr verification: filesystem does not support extended attributes"
-                );
-                return;
-            }
-            other => panic!("Unexpected result: {:?}", other),
-        }
+    assert_eq!(
+        archive::xattrs_by_entry("xattr_set_restore/xattr_set_restore.pna", None),
+        vec![
+            (
+                "xattr_set_restore/in/raw/empty.txt".to_string(),
+                vec![
+                    archive::xattr("user.name", b"pna"),
+                    archive::xattr("user.value", b"inspired by png data structure"),
+                ],
+            ),
+            (
+                "xattr_set_restore/in/raw/parent/child.txt".to_string(),
+                vec![archive::xattr("user.meta", &[1, 2, 3, 4, 5])],
+            ),
+        ]
+    );
 
+    #[cfg(unix)]
+    {
+        skip_unless!(
+            "xattr",
+            fs_supports_xattr("xattr_set_restore/out/raw/empty.txt")
+        );
+        assert_eq!(
+            xattr::get("xattr_set_restore/out/raw/empty.txt", "user.name")
+                .unwrap()
+                .as_deref(),
+            Some(b"pna".as_slice())
+        );
         assert_eq!(
             xattr::get("xattr_set_restore/out/raw/empty.txt", "user.value")
                 .unwrap()

@@ -49,9 +49,14 @@ fn update_keeps_entry_when_only_subsecond_differs() {
 
     let with_nanos = whole_second + Duration::from_nanos(123_456_700);
     filetime::set_file_mtime(&file_path, filetime::FileTime::from_system_time(with_nanos)).unwrap();
-    if fs::metadata(&file_path).unwrap().modified().unwrap() != with_nanos {
-        return;
-    }
+    skip_unless!(
+        "mtime_nanos",
+        fs::symlink_metadata(&file_path)
+            .unwrap()
+            .modified()
+            .unwrap()
+            == with_nanos
+    );
 
     cli::Cli::try_parse_from([
         "pna",

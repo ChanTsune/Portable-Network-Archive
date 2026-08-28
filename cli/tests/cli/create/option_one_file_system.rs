@@ -38,10 +38,7 @@ mod platform {
     #[test]
     fn create_with_one_file_system() {
         setup();
-        if !can_mount_tmpfs() {
-            eprintln!("Skipping test: cannot create tmpfs mount (requires root)");
-            return;
-        }
+        skip_unless!("mount", can_mount_tmpfs());
 
         let _ = fs::remove_dir_all("option_one_file_system_mount");
         fs::create_dir_all("option_one_file_system_mount/in/subdir").unwrap();
@@ -63,10 +60,10 @@ mod platform {
             ])
             .status()
             .expect("failed to execute mount");
-        if !mount_status.success() {
-            eprintln!("Skipping test: failed to mount tmpfs");
-            return;
-        }
+        assert!(
+            mount_status.success(),
+            "mount failed after can_mount_tmpfs() probe succeeded"
+        );
 
         fs::write(
             "option_one_file_system_mount/in/subdir/tmpfs_file.txt",
