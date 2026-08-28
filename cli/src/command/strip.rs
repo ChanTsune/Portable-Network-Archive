@@ -74,28 +74,50 @@ fn strip_metadata(args: StripCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let archive = args.archive.file;
     let output_path = args.output.unwrap_or_else(|| archive.remove_part());
+    let globs = if args.files.files.is_empty() {
+        None
+    } else {
+        Some(GlobPatterns::new(
+            args.files.files.iter().map(String::as_str),
+        )?)
+    };
     execute_archive_transform(
         &archive,
         output_path,
         umask,
         password.as_deref(),
         args.transform_strategy.strategy(),
-        StripTransform(args.strip_options),
+        StripTransform {
+            options: args.strip_options,
+            globs,
+        },
     )
 }
 
-struct StripTransform(StripOptions);
+struct StripTransform<'g> {
+    options: StripOptions,
+    /// `None` selects every entry.
+    globs: Option<GlobPatterns<'g>>,
+}
 
-impl EntryTransform for StripTransform {
+impl EntryTransform for StripTransform<'_> {
     fn transform<'d>(
         &mut self,
         entry: NormalEntry<Cow<'d, [u8]>>,
     ) -> io::Result<Option<NormalEntry<Cow<'d, [u8]>>>> {
-        Ok(Some(strip_entry_metadata(entry, &self.0)))
+        let selected = match &mut self.globs {
+            Some(globs) => globs.matches_any(entry.name()),
+            None => true,
+        };
+        Ok(Some(if selected {
+            strip_entry_metadata(entry, &self.options)
+        } else {
+            entry
+        }))
     }
 
     fn patterns(&self) -> Option<&GlobPatterns<'_>> {
-        None
+        self.globs.as_ref()
     }
 }
 
