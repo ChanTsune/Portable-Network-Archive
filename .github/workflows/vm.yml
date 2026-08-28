@@ -31,6 +31,8 @@ permissions:
 
 env:
   RUST_BACKTRACE: 1
+  # These VMs run the suite as root, so a skip for want of privilege is a defect.
+  PNA_TEST_REQUIRE: root
 
 jobs:
   solaris-test:
@@ -45,7 +47,7 @@ jobs:
         id: test
         uses: vmactions/solaris-vm@315163f088b66e55bbcc45928bd224d4973b2312 # v1.3.8
         with:
-          envs: "RUST_BACKTRACE"
+          envs: "RUST_BACKTRACE PNA_TEST_REQUIRE"
           copyback: false
           disable-cache: true
           usesh: true
@@ -75,7 +77,7 @@ jobs:
         id: test
         uses: vmactions/NetBSD-vm@00081e82b14bc40114eb97f32b4455306828516b # v1.4.6
         with:
-          envs: "RUST_BACKTRACE"
+          envs: "RUST_BACKTRACE PNA_TEST_REQUIRE"
           copyback: false
           disable-cache: true
           usesh: true
@@ -105,7 +107,7 @@ jobs:
         id: test
         uses: vmactions/freebsd-vm@d0518f912576ae759075aa00fb9fe27037940271 # v1.5.4
         with:
-          envs: "RUST_BACKTRACE"
+          envs: "RUST_BACKTRACE PNA_TEST_REQUIRE"
           copyback: false
           disable-cache: true
           usesh: true
@@ -167,7 +169,7 @@ jobs:
         id: test
         uses: vmactions/OpenBSD-vm@e6c68b637a12e83519688d115d57d5b0b53923cd # v1.4.6
         with:
-          envs: "RUST_BACKTRACE"
+          envs: "RUST_BACKTRACE PNA_TEST_REQUIRE"
           copyback: false
           disable-cache: true
           usesh: true
@@ -221,7 +223,7 @@ jobs:
         id: test
         uses: vmactions/omnios-vm@f777b9ef6bf644b6c9a33e018bd158b5b1982f06 # v1.3.5
         with:
-          envs: "RUST_BACKTRACE"
+          envs: "RUST_BACKTRACE PNA_TEST_REQUIRE"
           copyback: false
           disable-cache: true
           usesh: true
