@@ -1,3 +1,8 @@
+mod file_operands;
+mod keep_solid;
+mod missing_file;
+mod unsolid;
+
 use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use pna::Duration;
