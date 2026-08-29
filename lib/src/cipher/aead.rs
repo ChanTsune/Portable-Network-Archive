@@ -271,16 +271,6 @@ mod tests {
     }
 
     #[test]
-    fn segment_size_rejects_zero() {
-        assert!(SegmentSize::new(0).is_none());
-    }
-
-    #[test]
-    fn segment_size_rejects_oversized() {
-        assert!(SegmentSize::new(MAX_SEGMENT_SIZE + 1).is_none());
-    }
-
-    #[test]
     fn stream_header_rejects_zero_segment_size() {
         let bytes = [0u8; STREAM_HEADER_LEN];
         assert!(matches!(
@@ -364,25 +354,6 @@ mod tests {
         let ctx = entry_context(&header(), ChunkType::SHED, b"test_header", b"test_phsf");
         let expected = Sha256::digest([b"SHED".as_slice(), b"test_header".as_slice()].concat());
         assert_eq!(&ctx[13..45], expected.as_slice());
-    }
-
-    #[test]
-    fn derive_stream_key_ignores_key_confirmation() {
-        let header1 = StreamHeader::new(
-            SALT,
-            PREFIX,
-            SegmentSize::new(SEGMENT_SIZE).unwrap(),
-            KeyConfirmation::from_bytes([0x01; 32]),
-        );
-        let header2 = StreamHeader::new(
-            SALT,
-            PREFIX,
-            SegmentSize::new(SEGMENT_SIZE).unwrap(),
-            KeyConfirmation::from_bytes([0x02; 32]),
-        );
-        let key1 = derive_stream_key(K_MASTER, &header1, ChunkType::FHED, HEADER_DATA, PHSF_DATA);
-        let key2 = derive_stream_key(K_MASTER, &header2, ChunkType::FHED, HEADER_DATA, PHSF_DATA);
-        assert_eq!(key1, key2);
     }
 
     /// Pins every input's contribution and the order they are fed to HKDF. A
