@@ -113,6 +113,7 @@ pub fn skip_chunk(bytes: &[u8]) -> io::Result<(ChunkType, &[u8])> {
 mod tests {
     use super::*;
     use crate::Chunk;
+    use crate::chunk::test_support::{raw_chunk_bytes, valid_chunk_bytes};
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
@@ -137,24 +138,6 @@ mod tests {
             read_signature(b"xxxxxxxx").unwrap_err().kind(),
             io::ErrorKind::InvalidData
         );
-    }
-
-    fn valid_chunk_bytes() -> Vec<u8> {
-        vec![
-            0x00, 0x00, 0x00, 0x04, // chunk length
-            b'F', b'D', b'A', b'T', // chunk type
-            0xAA, 0xBB, 0xCC, 0xDD, // chunk data
-            0x47, 0xF3, 0x2B, 0x10, // CRC-32
-        ]
-    }
-
-    fn raw_chunk_bytes(ty: [u8; 4], data: &[u8]) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(data.len() + 12);
-        bytes.extend_from_slice(&(data.len() as u32).to_be_bytes());
-        bytes.extend_from_slice(&ty);
-        bytes.extend_from_slice(data);
-        bytes.extend_from_slice(&crate::format::chunk_crc(&ty, data).to_be_bytes());
-        bytes
     }
 
     #[test]
