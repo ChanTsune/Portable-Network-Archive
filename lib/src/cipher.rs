@@ -6,12 +6,12 @@ mod gcm;
 mod stream;
 
 use crate::util::io::TryIntoInner;
+#[cfg(test)]
+pub(crate) use aead::MAX_SEGMENT_SIZE;
 pub(crate) use aead::{
     DEFAULT_SEGMENT_SIZE, STREAM_HEADER_LEN, SegmentSize, StreamHeader, StreamKey,
     derive_stream_key, key_confirmation,
 };
-#[cfg(test)]
-pub(crate) use aead::{GCM_TAG_LEN, MAX_SEGMENT_SIZE, segment_nonce};
 use aes::Aes256;
 use camellia::Camellia256;
 use cipher::block_padding::Pkcs7;

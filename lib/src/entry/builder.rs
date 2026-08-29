@@ -949,18 +949,18 @@ mod tests {
         ))));
         let entry = b.build().unwrap();
 
-        // The setter stores the metadata as-is: `permission()` returns what
-        // was set, and the owner facets it never touched stay `None`.
         let m = entry.metadata();
-        assert!(m.permission().is_some());
+        let p = m.permission().unwrap();
+        assert_eq!(
+            (p.uid(), p.uname(), p.gid(), p.gname(), p.permissions()),
+            (7, "legacy", 8, "grp", 0o600)
+        );
         assert_eq!(m.owner_uid(), None);
         assert_eq!(m.owner_gid(), None);
         assert_eq!(m.owner_user_name(), None);
         assert_eq!(m.owner_group_name(), None);
         assert_eq!(m.permission_mode(), None);
 
-        // The chunks this entry writes carry the facets derived from that
-        // permission, and no fPRM.
         let chunks = entry.into_chunks();
         assert!(!chunks.iter().any(|c| c.ty == ChunkType::fPRM));
         assert_eq!(
@@ -1065,16 +1065,14 @@ mod tests {
 
     mod gcm {
         use super::*;
-        use crate::cipher::{
-            GCM_TAG_LEN, STREAM_HEADER_LEN, StreamHeader, StreamKey, derive_stream_key,
-            segment_nonce,
-        };
+        use crate::cipher::{STREAM_HEADER_LEN, StreamHeader, derive_stream_key};
         use crate::{CipherMode, Encryption, HashAlgorithm};
         use aes::Aes256;
         use aes_gcm::AesGcm;
         use aes_gcm::aead::array::Array;
         use aes_gcm::aead::{Aead, AeadCore, KeyInit, consts::U12};
         use camellia::Camellia256;
+        use std::ops::Range;
         // `use super::*` re-imports `test` from the parent's own
         // `#[cfg(...)] use wasm_bindgen_test::... as test;`, but a
         // glob-imported name loses to (rather than shadows) the `#[test]`
@@ -1098,37 +1096,22 @@ mod tests {
             StreamHeader::try_from_bytes(bytes.try_into().unwrap()).unwrap()
         }
 
-        fn gcm_decrypt<C>(
-            k_stream: &StreamKey,
-            nonce_prefix: &[u8; 7],
-            segment_size: u32,
-            ciphertext: &[u8],
-        ) -> Result<Vec<u8>, aes_gcm::aead::Error>
-        where
-            AesGcm<C, U12>: KeyInit + Aead + AeadCore<NonceSize = U12>,
-        {
-            let cipher = AesGcm::<C, U12>::new_from_slice(k_stream.as_bytes()).unwrap();
-            let full = segment_size as usize + GCM_TAG_LEN;
-            let mut out = Vec::new();
-            let mut rest = ciphertext;
-            let mut counter = 0u32;
-            while rest.len() > full {
-                let (segment, tail) = rest.split_at(full);
-                let nonce = Array::<u8, U12>::from(segment_nonce(nonce_prefix, counter, false));
-                out.extend_from_slice(&cipher.decrypt(&nonce, segment)?);
-                rest = tail;
-                counter += 1;
-            }
-            let nonce = Array::<u8, U12>::from(segment_nonce(nonce_prefix, counter, true));
-            out.extend_from_slice(&cipher.decrypt(&nonce, rest)?);
-            Ok(out)
+        fn nonce(prefix: &[u8; 7], counter: u32, final_flag: u8) -> Array<u8, U12> {
+            let mut n = [0u8; 12];
+            n[..7].copy_from_slice(prefix);
+            n[7..11].copy_from_slice(&counter.to_be_bytes());
+            n[11] = final_flag;
+            Array::from(n)
         }
 
-        fn assert_gcm_file_roundtrip<C>(encryption: Encryption, segment_size: u32, plain: &[u8])
-        where
+        fn assert_gcm_file_segments<C>(
+            encryption: Encryption,
+            plain: &[u8],
+            segments: &[(Range<usize>, u32, u8, &[u8])],
+        ) where
             AesGcm<C, U12>: KeyInit + Aead + AeadCore<NonceSize = U12>,
         {
-            let options = gcm_write_options(encryption, segment_size);
+            let options = gcm_write_options(encryption, 4);
             let mut builder =
                 FileEntryBuilder::new_with_options("dir/file".into(), &options).unwrap();
             builder.write_all(plain).unwrap();
@@ -1136,10 +1119,9 @@ mod tests {
 
             let cipher = options.cipher().unwrap();
             assert_eq!(entry.phsf.as_deref(), Some(cipher.derived.phsf.as_str()));
-
             assert_eq!(entry.data[0].len(), STREAM_HEADER_LEN);
             let header = stream_header(&entry.data[0]);
-            assert_eq!(header.segment_size().get(), segment_size);
+            assert_eq!(header.segment_size().get(), 4);
             assert!(header.confirms_key(cipher.derived.key.as_bytes()));
 
             let k_stream = derive_stream_key(
@@ -1149,53 +1131,63 @@ mod tests {
                 &entry.header.to_bytes(),
                 cipher.derived.phsf.as_bytes(),
             );
+            let aead = AesGcm::<C, U12>::new_from_slice(k_stream.as_bytes()).unwrap();
             let ciphertext = entry.data[1..].concat();
-            let decrypted =
-                gcm_decrypt::<C>(&k_stream, &header.nonce_prefix, segment_size, &ciphertext)
-                    .unwrap();
-            assert_eq!(decrypted, plain);
+            assert_eq!(ciphertext.len(), segments.last().unwrap().0.end);
+            for (range, counter, final_flag, expected) in segments {
+                assert_eq!(
+                    aead.decrypt(
+                        &nonce(&header.nonce_prefix, *counter, *final_flag),
+                        &ciphertext[range.clone()]
+                    )
+                    .unwrap(),
+                    *expected,
+                    "segment {counter}"
+                );
+            }
         }
+
+        const HELLO_SEGMENTS: [(Range<usize>, u32, u8, &[u8]); 4] = [
+            (0..20, 0, 0x00, b"hell"),
+            (20..40, 1, 0x00, b"o gc"),
+            (40..60, 2, 0x00, b"m st"),
+            (60..80, 3, 0x01, b"ream"),
+        ];
 
         #[test]
         fn new_file_gcm_aes_decrypts_to_plaintext() {
-            assert_gcm_file_roundtrip::<Aes256>(Encryption::AES, 4, b"hello gcm stream");
+            assert_gcm_file_segments::<Aes256>(
+                Encryption::AES,
+                b"hello gcm stream",
+                &HELLO_SEGMENTS,
+            );
         }
 
         #[test]
         fn new_file_gcm_camellia_decrypts_to_plaintext() {
-            assert_gcm_file_roundtrip::<Camellia256>(Encryption::CAMELLIA, 4, b"hello gcm stream");
+            assert_gcm_file_segments::<Camellia256>(
+                Encryption::CAMELLIA,
+                b"hello gcm stream",
+                &HELLO_SEGMENTS,
+            );
         }
 
         #[test]
         fn new_file_gcm_multiple_segments_decrypts_to_plaintext() {
-            assert_gcm_file_roundtrip::<Aes256>(Encryption::AES, 4, b"0123456789");
+            assert_gcm_file_segments::<Aes256>(
+                Encryption::AES,
+                b"0123456789",
+                &[
+                    (0..20, 0, 0x00, b"0123"),
+                    (20..40, 1, 0x00, b"4567"),
+                    (40..58, 2, 0x01, b"89"),
+                ],
+            );
         }
 
         #[test]
         fn new_file_gcm_empty_plaintext_is_tag_only_segment() {
-            let options = gcm_write_options(Encryption::AES, 4);
-            let mut builder =
-                FileEntryBuilder::new_with_options("dir/file".into(), &options).unwrap();
-            builder.write_all(b"").unwrap();
-            let entry = builder.build().unwrap();
-
-            let ciphertext = entry.data[1..].concat();
-            assert_eq!(ciphertext.len(), GCM_TAG_LEN);
-
-            let cipher = options.cipher().unwrap();
-            let header = stream_header(&entry.data[0]);
-            let k_stream = derive_stream_key(
-                cipher.derived.key.as_bytes(),
-                &header,
-                ChunkType::FHED,
-                &entry.header.to_bytes(),
-                cipher.derived.phsf.as_bytes(),
-            );
-            assert!(
-                gcm_decrypt::<Aes256>(&k_stream, &header.nonce_prefix, 4, &ciphertext)
-                    .unwrap()
-                    .is_empty()
-            );
+            assert_gcm_file_segments::<Aes256>(Encryption::AES, b"", &[(0..16, 0, 0x01, b"")]);
         }
 
         #[test]
@@ -1222,7 +1214,7 @@ mod tests {
 
         #[test]
         fn solid_gcm_decrypts_with_shed_header_type() {
-            let options = gcm_write_options(Encryption::AES, 4);
+            let options = gcm_write_options(Encryption::AES, 1024);
             let mut builder = SolidEntryBuilder::new(&options).unwrap();
             builder
                 .write_file("dir/file".into(), Metadata::new(), |w| {
@@ -1234,7 +1226,6 @@ mod tests {
             let cipher = options.cipher().unwrap();
             let header = stream_header(&entry.data[0]);
             let ciphertext = entry.data[1..].concat();
-
             let solid_key = derive_stream_key(
                 cipher.derived.key.as_bytes(),
                 &header,
@@ -1242,16 +1233,23 @@ mod tests {
                 &entry.header.to_bytes(),
                 cipher.derived.phsf.as_bytes(),
             );
-            assert!(
-                !gcm_decrypt::<Aes256>(
-                    &solid_key,
-                    &header.nonce_prefix,
-                    header.segment_size().get(),
-                    &ciphertext
-                )
+            let aead = AesGcm::<Aes256, U12>::new_from_slice(solid_key.as_bytes()).unwrap();
+            let plain = aead
+                .decrypt(&nonce(&header.nonce_prefix, 0, 0x01), ciphertext.as_slice())
+                .unwrap();
+
+            let mut store_entry =
+                FileEntryBuilder::new_with_options("dir/file".into(), WriteOptions::store())
+                    .unwrap();
+            store_entry.store_file_size(false);
+            store_entry.write_all(b"solid gcm payload").unwrap();
+            let mut expected = Vec::new();
+            store_entry
+                .build()
                 .unwrap()
-                .is_empty()
-            );
+                .write_in(&mut expected)
+                .unwrap();
+            assert_eq!(plain, expected);
         }
     }
 }
