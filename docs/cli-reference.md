@@ -2342,7 +2342,21 @@ Compare archive entries with filesystem
 * `--full-compare` — Compare directory mtime and ownership (by default, only mode is compared for directories)
 
   Default value: `false`
-* `--format <FORMAT>` — Output format. plain: tar-style text. jsonl: one JSON Lines record per difference with fields `path`, `kind` (one of: missing, size, content, mode, mtime, uid, gid, type, symlink, hardlink) and, for kind=hardlink only, `target` (the stored link target). mode/mtime/uid/gid comparisons only occur on Unix.
+* `--compare <COMPARE>` — Compare only selected fields; repeat or separate values with commas. `default` stands for the fields compared when this option is omitted, and combines with any other value rather than replacing it. Missing paths and file type mismatches are reported regardless of the selection. Naming a field that cannot be compared - unsupported on this platform, or no value recorded in the archive - reports the differences it did find and then exits 2, so a run with both differences and uncomparable fields is indistinguishable from an uncomparable-only run by exit code alone. Conflicts with --full-compare.
+
+  Possible values:
+  - `default`:
+    Not a field; adds the default fields
+  - `size`
+  - `content`
+  - `mtime`
+  - `mode`
+  - `uid`
+  - `gid`
+  - `symlink`
+  - `hardlink`
+
+* `--format <FORMAT>` — Output format. plain: GNU tar --diff style text. jsonl: one JSON Lines record per difference with fields `path`, `kind` (one of: missing, size, content, mode, mtime, uid, gid, type, symlink, hardlink) and, for kind=hardlink only, `target` (the stored link target). mode/uid/gid comparisons only occur on Unix.
 
   Default value: `plain`
 
