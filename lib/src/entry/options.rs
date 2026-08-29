@@ -1520,22 +1520,6 @@ mod tests {
         let _ = WriteOptions::builder().encryption(Encryption::AES).build();
     }
 
-    #[test]
-    fn cipher_mode_2_from_byte_returns_gcm() {
-        assert_eq!(CipherMode::from_byte(2), CipherMode::GCM);
-    }
-
-    #[test]
-    fn cipher_mode_gcm_to_byte_is_2() {
-        assert_eq!(CipherMode::GCM.to_byte(), 2);
-    }
-
-    #[test]
-    fn cipher_mode_gcm_roundtrips_through_byte() {
-        let byte = CipherMode::GCM.to_byte();
-        assert_eq!(CipherMode::from_byte(byte), CipherMode::GCM);
-    }
-
     fn test_output(byte: u8) -> Output {
         Output::new(&[byte; 32]).unwrap()
     }
@@ -1816,6 +1800,8 @@ mod tests {
     fn cipher_mode_known_constants_map_to_spec_bytes() {
         assert_eq!(CipherMode::CBC.to_byte(), 0);
         assert_eq!(CipherMode::CTR.to_byte(), 1);
+        assert_eq!(CipherMode::GCM.to_byte(), 2);
+        assert_eq!(CipherMode::from_byte(2), CipherMode::GCM);
     }
 
     #[test]
