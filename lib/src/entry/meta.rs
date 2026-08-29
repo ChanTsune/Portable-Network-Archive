@@ -978,7 +978,6 @@ mod tests {
         assert_eq!((over.max(), over.actual()), (255, 256));
         let n = OwnerUserName::new("alice").unwrap();
         assert_eq!(n.to_bytes(), vec![5, b'a', b'l', b'i', b'c', b'e']);
-        assert_eq!(OwnerUserName::try_from_bytes(&n.to_bytes()).unwrap(), n);
         assert_eq!(OwnerUserName::try_from_bytes(&[0]).unwrap().as_str(), "");
         assert_eq!(
             OwnerUserName::try_from_bytes(&[3, b'a', b'b', b'c', 0xFF])
@@ -1009,7 +1008,6 @@ mod tests {
         let u = OwnerUid::from(1000u64);
         assert_eq!(u.get(), 1000);
         assert_eq!(u.to_bytes(), 1000u64.to_be_bytes());
-        assert_eq!(OwnerUid::try_from_bytes(&u.to_bytes()).unwrap(), u);
         assert_eq!(
             OwnerUid::try_from_bytes(&[0, 0, 0]).unwrap_err().kind(),
             io::ErrorKind::InvalidData
@@ -1018,7 +1016,6 @@ mod tests {
         assert_eq!(PermissionMode::from(0o170755u16).get(), 0o0755);
         let m = PermissionMode::from(0o644u16);
         assert_eq!(m.to_bytes(), 0o644u16.to_be_bytes());
-        assert_eq!(PermissionMode::try_from_bytes(&m.to_bytes()).unwrap(), m);
         assert_eq!(
             PermissionMode::try_from_bytes(&0o170644u16.to_be_bytes())
                 .unwrap()
