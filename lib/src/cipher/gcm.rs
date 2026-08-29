@@ -327,6 +327,34 @@ mod tests {
     const PREFIX: [u8; 7] = [3u8; 7];
     const SEG: u32 = 4;
 
+    /// AES-256-GCM under key `[7u8; 32]`, nonce = `[3u8; 7] ‖ counter (u32 BE) ‖ final flag`,
+    /// no AAD, segment size 4, 16-byte tag appended per segment; produced by an
+    /// implementation outside this crate. Regenerating these from `GcmEncryptWriter`
+    /// would bless whatever it currently does and lose the only external check.
+    const CT_EMPTY: [u8; 16] = [
+        0x72, 0x8b, 0xbc, 0x7c, 0xcb, 0xd8, 0x69, 0x08, 0xa3, 0x0d, 0x9f, 0xe1, 0x72, 0x49, 0x33,
+        0x36,
+    ];
+    const CT_ABC: [u8; 19] = [
+        0x0c, 0xc6, 0xd0, 0xde, 0x0a, 0x2e, 0xd1, 0x47, 0xec, 0x2b, 0x11, 0x9a, 0x37, 0xdd, 0xcc,
+        0xee, 0x8d, 0x50, 0xaf,
+    ];
+    const CT_ABCD: [u8; 20] = [
+        0x0c, 0xc6, 0xd0, 0x2f, 0x02, 0xa4, 0x64, 0x07, 0x20, 0x2c, 0xea, 0x8f, 0x9d, 0xc9, 0xbe,
+        0x34, 0x43, 0x13, 0x49, 0x2d,
+    ];
+    const CT_ABCDEFGH: [u8; 40] = [
+        0x6c, 0x0b, 0x40, 0x87, 0x21, 0xd8, 0x5e, 0xbb, 0xe5, 0x86, 0x94, 0xd3, 0x2e, 0x44, 0x90,
+        0x6e, 0xf6, 0x22, 0x9f, 0x2f, 0xc3, 0xfc, 0xd2, 0xe6, 0x23, 0x11, 0xff, 0x57, 0xe5, 0x8a,
+        0x52, 0x23, 0x41, 0xe2, 0xa5, 0xb0, 0xf2, 0xc1, 0xad, 0xd6,
+    ];
+    const CT_ABCDEFGHI: [u8; 57] = [
+        0x6c, 0x0b, 0x40, 0x87, 0x21, 0xd8, 0x5e, 0xbb, 0xe5, 0x86, 0x94, 0xd3, 0x2e, 0x44, 0x90,
+        0x6e, 0xf6, 0x22, 0x9f, 0x2f, 0xa5, 0x62, 0x8c, 0x08, 0x20, 0xaa, 0x39, 0x58, 0x9d, 0x6f,
+        0x6d, 0xdd, 0xbe, 0x08, 0x07, 0x80, 0x3c, 0x36, 0x31, 0x24, 0xc0, 0xea, 0x0b, 0xda, 0x83,
+        0x24, 0x2f, 0x7f, 0x71, 0x27, 0xf5, 0x8b, 0xb3, 0xcc, 0x06, 0x23, 0x7c,
+    ];
+
     fn header(segment_size: u32) -> StreamHeader {
         StreamHeader::new(
             [0u8; 32],
@@ -356,31 +384,6 @@ mod tests {
         w.finish().unwrap()
     }
 
-    fn decrypt_stream<C>(plain_len: usize, ciphertext: &[u8]) -> Vec<u8>
-    where
-        AesGcm<C, U12>: KeyInit + Aead + AeadCore<NonceSize = U12>,
-    {
-        let cipher = AesGcm::<C, U12>::new_from_slice(KEY.as_bytes()).unwrap();
-        let non_final = if plain_len == 0 {
-            0
-        } else {
-            (plain_len - 1) / SEG as usize
-        };
-        let mut out = Vec::new();
-        let mut rest = ciphertext;
-        let mut counter = 0u32;
-        for _ in 0..non_final {
-            let nonce = Array::<u8, U12>::from(segment_nonce(&PREFIX, counter, false));
-            let (segment, tail) = rest.split_at(SEG as usize + GCM_TAG_LEN);
-            out.extend_from_slice(&cipher.decrypt(&nonce, segment).unwrap());
-            rest = tail;
-            counter += 1;
-        }
-        let nonce = Array::<u8, U12>::from(segment_nonce(&PREFIX, counter, true));
-        out.extend_from_slice(&cipher.decrypt(&nonce, rest).unwrap());
-        out
-    }
-
     #[derive(Default)]
     struct RecordingWriter {
         bytes: Vec<u8>,
@@ -407,68 +410,43 @@ mod tests {
         let output = writer.finish().unwrap();
 
         assert_eq!(output.write_sizes, [SEG as usize, GCM_TAG_LEN]);
-        assert_eq!(
-            decrypt_stream::<Aes256>(SEG as usize, &output.bytes),
-            b"abcd"
-        );
+        assert_eq!(output.bytes, CT_ABCD);
     }
 
     #[test]
     fn empty_plaintext_emits_single_tag_only_segment() {
-        let ct = encrypt_all::<Aes256>(b"");
-        assert_eq!(ct.len(), GCM_TAG_LEN);
-        assert_eq!(decrypt_stream::<Aes256>(0, &ct).as_slice(), b"");
+        assert_eq!(encrypt_all::<Aes256>(b""), CT_EMPTY);
     }
 
     #[test]
     fn below_segment_size_emits_single_final_segment() {
-        let plain = b"abc";
-        let ct = encrypt_all::<Aes256>(plain);
-        assert_eq!(ct.len(), plain.len() + GCM_TAG_LEN);
-        assert_eq!(decrypt_stream::<Aes256>(plain.len(), &ct).as_slice(), plain);
-    }
-
-    #[test]
-    fn exact_segment_size_has_no_trailing_empty_segment() {
-        let plain = b"abcd";
-        let ct = encrypt_all::<Aes256>(plain);
-        assert_eq!(ct.len(), plain.len() + GCM_TAG_LEN);
-        assert_eq!(decrypt_stream::<Aes256>(plain.len(), &ct).as_slice(), plain);
+        assert_eq!(encrypt_all::<Aes256>(b"abc"), CT_ABC);
     }
 
     #[test]
     fn two_segments_split_into_non_final_and_final() {
-        let plain = b"abcdefgh";
-        let ct = encrypt_all::<Aes256>(plain);
-        assert_eq!(ct.len(), plain.len() + 2 * GCM_TAG_LEN);
-        assert_eq!(decrypt_stream::<Aes256>(plain.len(), &ct).as_slice(), plain);
+        assert_eq!(encrypt_all::<Aes256>(b"abcdefgh"), CT_ABCDEFGH);
     }
 
     #[test]
     fn partial_tail_after_two_full_segments() {
-        let plain = b"abcdefghi";
-        let ct = encrypt_all::<Aes256>(plain);
-        assert_eq!(ct.len(), plain.len() + 3 * GCM_TAG_LEN);
-        assert_eq!(decrypt_stream::<Aes256>(plain.len(), &ct).as_slice(), plain);
+        assert_eq!(encrypt_all::<Aes256>(b"abcdefghi"), CT_ABCDEFGHI);
     }
 
     #[test]
     fn output_independent_of_write_boundaries() {
-        let plain = b"abcdefghi";
-        assert_eq!(
-            encrypt_all::<Aes256>(plain),
-            encrypt_byte_by_byte::<Aes256>(plain)
-        );
+        assert_eq!(encrypt_byte_by_byte::<Aes256>(b"abcdefghi"), CT_ABCDEFGHI);
     }
 
     #[test]
     fn camellia_segments_decrypt_with_the_derived_nonces() {
-        let plain = b"abcdefgh";
-        let ct = encrypt_all::<Camellia256>(plain);
-        assert_eq!(
-            decrypt_stream::<Camellia256>(plain.len(), &ct).as_slice(),
-            plain
-        );
+        let ct = encrypt_all::<Camellia256>(b"abcdefgh");
+        let cipher = AesGcm::<Camellia256, U12>::new_from_slice(KEY.as_bytes()).unwrap();
+        let (seg0, seg1) = ct.split_at(SEG as usize + GCM_TAG_LEN);
+        let nonce0 = Array::<u8, U12>::from([3, 3, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0x00]);
+        let nonce1 = Array::<u8, U12>::from([3, 3, 3, 3, 3, 3, 3, 0, 0, 0, 1, 0x01]);
+        assert_eq!(cipher.decrypt(&nonce0, seg0).unwrap(), b"abcd");
+        assert_eq!(cipher.decrypt(&nonce1, seg1).unwrap(), b"efgh");
     }
 
     fn decrypt_all<C>(ciphertext: Vec<u8>) -> io::Result<Vec<u8>>
