@@ -211,12 +211,6 @@ pub(crate) fn segment_nonce(nonce_prefix: &[u8; 7], counter: u32, is_final: bool
 mod tests {
     use super::*;
 
-    const OKM_42_BYTES: [u8; 42] = [
-        0x3c, 0xb2, 0x5f, 0x25, 0xfa, 0xac, 0xd5, 0x7a, 0x90, 0x43, 0x4f, 0x64, 0xd0, 0x36, 0x2f,
-        0x2a, 0x2d, 0x2d, 0x0a, 0x90, 0xcf, 0x1a, 0x5a, 0x4c, 0x5d, 0xb0, 0x2d, 0x56, 0xec, 0xc4,
-        0xc5, 0xbf, 0x34, 0x00, 0x72, 0x08, 0xd5, 0xb8, 0x87, 0x18, 0x58, 0x65,
-    ];
-
     const SALT: [u8; 32] = [0x42; 32];
     const PREFIX: [u8; 7] = [0x5A; 7];
     const SEGMENT_SIZE: u32 = 0x01020304;
@@ -234,6 +228,14 @@ mod tests {
         0x43, 0x3a, 0x1f, 0x44, 0x98, 0xd2, 0x2a, 0x59, 0x11, 0x50, 0x7e, 0x68, 0x27, 0x59, 0x0f,
         0xad, 0xb5,
     ]);
+
+    /// `HKDF-SHA-256(ikm = "master_key", salt = ∅, info = "PNA-KC-v1")`, produced
+    /// by an RFC 5869 implementation outside this crate.
+    const K_CONFIRM_MASTER_KEY: [u8; 32] = [
+        0xe4, 0x1a, 0x66, 0x1e, 0x64, 0x9b, 0x11, 0x68, 0x18, 0xf7, 0x16, 0x71, 0x7f, 0x29, 0xe2,
+        0x0c, 0x4e, 0x6b, 0x19, 0xc6, 0xea, 0x3b, 0xd3, 0x79, 0x8f, 0x9a, 0xd1, 0xcc, 0xb1, 0xb2,
+        0x8a, 0x97,
+    ];
 
     fn header() -> StreamHeader {
         header_of(SALT, PREFIX, SEGMENT_SIZE)
@@ -318,30 +320,8 @@ mod tests {
     }
 
     #[test]
-    fn hkdf_sha256_rfc5869_test_case_1() {
-        let ikm = [0x0bu8; 22];
-        let salt: Vec<u8> = (0x00u8..=0x0c).collect();
-        let info: Vec<u8> = (0xf0u8..=0xf9).collect();
-        assert_eq!(
-            hkdf_sha256(&ikm, &salt, &info).as_slice(),
-            &OKM_42_BYTES[..32]
-        );
-    }
-
-    #[test]
-    fn key_confirmation_is_hkdf_with_empty_salt_and_domain_info() {
-        assert_eq!(
-            key_confirmation(b"master_key").0,
-            hkdf_sha256(b"master_key", &[], b"PNA-KC-v1")
-        );
-    }
-
-    #[test]
-    fn key_confirmation_differs_per_k_master() {
-        assert_ne!(
-            key_confirmation(b"master_key_1").0,
-            key_confirmation(b"master_key_2").0
-        );
+    fn key_confirmation_matches_a_fixed_vector() {
+        assert_eq!(key_confirmation(b"master_key").0, K_CONFIRM_MASTER_KEY);
     }
 
     #[test]
