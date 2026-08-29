@@ -311,21 +311,29 @@ mod tests {
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
     #[test]
-    fn entry_header_try_from_bytes() {
-        assert!(EntryHeader::try_from_bytes(&[]).is_err());
+    fn entry_header_to_bytes_follows_fhed_layout() {
+        let header = EntryHeader::for_file(
+            Compression::XZ,
+            Encryption::AES,
+            CipherMode::GCM,
+            "file".into(),
+        );
+        assert_eq!(header.to_bytes(), b"\x00\x00\x00\x04\x01\x02file");
     }
 
     #[test]
-    fn entry_header_to_from_bytes() {
-        let header = EntryHeader::for_file(
-            Compression::ZSTANDARD,
-            Encryption::CAMELLIA,
-            CipherMode::CTR,
-            "file".into(),
+    fn entry_header_try_from_bytes_requires_six_fixed_bytes() {
+        assert_eq!(
+            EntryHeader::try_from_bytes(&[]).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
         );
         assert_eq!(
-            header,
-            EntryHeader::try_from_bytes(&header.to_bytes()).unwrap(),
+            EntryHeader::try_from_bytes(&[0; 5]).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+        assert_eq!(
+            EntryHeader::try_from_bytes(&[0; 6]).unwrap(),
+            EntryHeader::for_file(Compression::NO, Encryption::NO, CipherMode::CBC, "".into())
         );
     }
 
@@ -348,7 +356,10 @@ mod tests {
 
     #[test]
     fn solid_header_try_from_bytes() {
-        assert!(SolidHeader::try_from_bytes(&[0; 5]).is_ok());
+        assert_eq!(
+            SolidHeader::try_from_bytes(&[0; 5]).unwrap(),
+            SolidHeader::new(Compression::NO, Encryption::NO, CipherMode::CBC)
+        );
         assert_eq!(
             SolidHeader::try_from_bytes(&[0; 4]).unwrap_err().kind(),
             io::ErrorKind::InvalidData,
@@ -360,11 +371,10 @@ mod tests {
     }
 
     #[test]
-    fn solid_header_to_from_bytes() {
-        let header = SolidHeader::new(Compression::ZSTANDARD, Encryption::AES, CipherMode::CBC);
+    fn solid_header_to_bytes_follows_shed_layout() {
         assert_eq!(
-            header,
-            SolidHeader::try_from_bytes(&header.to_bytes()).unwrap(),
+            SolidHeader::new(Compression::ZSTANDARD, Encryption::AES, CipherMode::CBC).to_bytes(),
+            [0x00, 0x00, 0x02, 0x01, 0x00]
         );
     }
 

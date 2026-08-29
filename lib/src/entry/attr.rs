@@ -248,16 +248,24 @@ mod tests {
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
+    const NAME_VALUE: [u8; 17] = [
+        0, 0, 0, 4, b'n', b'a', b'm', b'e', 0, 0, 0, 5, b'v', b'a', b'l', b'u', b'e',
+    ];
+
     #[test]
-    fn xattr() {
+    fn xattr_to_bytes_is_length_prefixed_name_then_value() {
         let xattr = ExtendedAttribute::new(
             XattrName::try_from("name").unwrap(),
             XattrValue::try_from(b"value".as_slice()).unwrap(),
         );
-        assert_eq!(
-            xattr,
-            ExtendedAttribute::try_from_bytes(&xattr.to_bytes()).unwrap()
-        );
+        assert_eq!(xattr.to_bytes(), NAME_VALUE);
+    }
+
+    #[test]
+    fn xattr_try_from_bytes_reads_length_prefixed_name_then_value() {
+        let xattr = ExtendedAttribute::try_from_bytes(&NAME_VALUE).unwrap();
+        assert_eq!(xattr.name(), "name");
+        assert_eq!(xattr.value(), b"value");
     }
 
     #[test]
