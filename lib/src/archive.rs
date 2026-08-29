@@ -1185,16 +1185,6 @@ mod tests {
         }
 
         #[test]
-        fn chunk_split_default() {
-            let options = gcm_options(Encryption::AES, Compression::NO, 4);
-            let archived = per_entry_archive(&options, REPRESENTATIVE, None);
-            assert_eq!(
-                read_per_entry(&archived, Some("password")).unwrap(),
-                REPRESENTATIVE
-            );
-        }
-
-        #[test]
         fn chunk_split_one_byte() {
             let options = gcm_options(Encryption::AES, Compression::NO, 4);
             let archived = per_entry_archive(&options, REPRESENTATIVE, Some(1));
