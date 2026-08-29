@@ -267,6 +267,34 @@ impl<'a> From<RawEntry<&'a [u8]>> for RawEntry<Cow<'a, [u8]>> {
     }
 }
 
+impl From<RawEntry<Vec<u8>>> for RawEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: RawEntry<Vec<u8>>) -> Self {
+        Self(value.0.into_iter().map(Into::into).collect())
+    }
+}
+
+impl<'a> From<RawEntry<Cow<'a, [u8]>>> for RawEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: RawEntry<Cow<'a, [u8]>>) -> Self {
+        Self(value.0.into_iter().map(Into::into).collect())
+    }
+}
+
+impl<'a> From<RawEntry<&'a [u8]>> for RawEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: RawEntry<&'a [u8]>) -> Self {
+        Self(value.0.into_iter().map(Into::into).collect())
+    }
+}
+
+impl From<RawEntry<Box<[u8]>>> for RawEntry<Vec<u8>> {
+    #[inline]
+    fn from(value: RawEntry<Box<[u8]>>) -> Self {
+        Self(value.0.into_iter().map(Into::into).collect())
+    }
+}
+
 /// Reader for Entry data.
 pub struct EntryDataReader<'r>(EntryReader<EncodedDataReader<'r>>);
 
@@ -419,6 +447,46 @@ impl From<ReadEntry<Vec<u8>>> for ReadEntry<Cow<'_, [u8]>> {
 impl<'a> From<ReadEntry<&'a [u8]>> for ReadEntry<Cow<'a, [u8]>> {
     #[inline]
     fn from(value: ReadEntry<&'a [u8]>) -> Self {
+        match value {
+            ReadEntry::Solid(s) => Self::Solid(s.into()),
+            ReadEntry::Normal(r) => Self::Normal(r.into()),
+        }
+    }
+}
+
+impl From<ReadEntry<Vec<u8>>> for ReadEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: ReadEntry<Vec<u8>>) -> Self {
+        match value {
+            ReadEntry::Solid(s) => Self::Solid(s.into()),
+            ReadEntry::Normal(r) => Self::Normal(r.into()),
+        }
+    }
+}
+
+impl<'a> From<ReadEntry<Cow<'a, [u8]>>> for ReadEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: ReadEntry<Cow<'a, [u8]>>) -> Self {
+        match value {
+            ReadEntry::Solid(s) => Self::Solid(s.into()),
+            ReadEntry::Normal(r) => Self::Normal(r.into()),
+        }
+    }
+}
+
+impl<'a> From<ReadEntry<&'a [u8]>> for ReadEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: ReadEntry<&'a [u8]>) -> Self {
+        match value {
+            ReadEntry::Solid(s) => Self::Solid(s.into()),
+            ReadEntry::Normal(r) => Self::Normal(r.into()),
+        }
+    }
+}
+
+impl From<ReadEntry<Box<[u8]>>> for ReadEntry<Vec<u8>> {
+    #[inline]
+    fn from(value: ReadEntry<Box<[u8]>>) -> Self {
         match value {
             ReadEntry::Solid(s) => Self::Solid(s.into()),
             ReadEntry::Normal(r) => Self::Normal(r.into()),
@@ -669,6 +737,54 @@ impl<'a> From<SolidEntry<&'a [u8]>> for SolidEntry<Cow<'a, [u8]>> {
 impl From<SolidEntry<Vec<u8>>> for SolidEntry<Cow<'_, [u8]>> {
     #[inline]
     fn from(value: SolidEntry<Vec<u8>>) -> Self {
+        Self {
+            header: value.header,
+            phsf: value.phsf,
+            data: value.data.into_iter().map(Into::into).collect(),
+            extra: value.extra.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<SolidEntry<Vec<u8>>> for SolidEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: SolidEntry<Vec<u8>>) -> Self {
+        Self {
+            header: value.header,
+            phsf: value.phsf,
+            data: value.data.into_iter().map(Into::into).collect(),
+            extra: value.extra.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl<'a> From<SolidEntry<Cow<'a, [u8]>>> for SolidEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: SolidEntry<Cow<'a, [u8]>>) -> Self {
+        Self {
+            header: value.header,
+            phsf: value.phsf,
+            data: value.data.into_iter().map(Into::into).collect(),
+            extra: value.extra.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl<'a> From<SolidEntry<&'a [u8]>> for SolidEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: SolidEntry<&'a [u8]>) -> Self {
+        Self {
+            header: value.header,
+            phsf: value.phsf,
+            data: value.data.into_iter().map(Into::into).collect(),
+            extra: value.extra.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<SolidEntry<Box<[u8]>>> for SolidEntry<Vec<u8>> {
+    #[inline]
+    fn from(value: SolidEntry<Box<[u8]>>) -> Self {
         Self {
             header: value.header,
             phsf: value.phsf,
@@ -1230,6 +1346,58 @@ impl<'a> From<NormalEntry<&'a [u8]>> for NormalEntry<Cow<'a, [u8]>> {
     }
 }
 
+impl From<NormalEntry<Vec<u8>>> for NormalEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: NormalEntry<Vec<u8>>) -> Self {
+        Self {
+            header: value.header,
+            phsf: value.phsf,
+            extra: value.extra.into_iter().map(Into::into).collect(),
+            data: value.data.into_iter().map(Into::into).collect(),
+            metadata: value.metadata,
+        }
+    }
+}
+
+impl<'a> From<NormalEntry<Cow<'a, [u8]>>> for NormalEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: NormalEntry<Cow<'a, [u8]>>) -> Self {
+        Self {
+            header: value.header,
+            phsf: value.phsf,
+            extra: value.extra.into_iter().map(Into::into).collect(),
+            data: value.data.into_iter().map(Into::into).collect(),
+            metadata: value.metadata,
+        }
+    }
+}
+
+impl<'a> From<NormalEntry<&'a [u8]>> for NormalEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: NormalEntry<&'a [u8]>) -> Self {
+        Self {
+            header: value.header,
+            phsf: value.phsf,
+            extra: value.extra.into_iter().map(Into::into).collect(),
+            data: value.data.into_iter().map(Into::into).collect(),
+            metadata: value.metadata,
+        }
+    }
+}
+
+impl From<NormalEntry<Box<[u8]>>> for NormalEntry<Vec<u8>> {
+    #[inline]
+    fn from(value: NormalEntry<Box<[u8]>>) -> Self {
+        Self {
+            header: value.header,
+            phsf: value.phsf,
+            extra: value.extra.into_iter().map(Into::into).collect(),
+            data: value.data.into_iter().map(Into::into).collect(),
+            metadata: value.metadata,
+        }
+    }
+}
+
 /// A structure representing the split [`Entry`] for archive splitting.
 #[deprecated(since = "TBD", note = "use Archive::write_split_header instead")]
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -1351,21 +1519,25 @@ mod tests {
         check_impl::<NormalEntry<Cow<[u8]>>>();
         check_impl::<NormalEntry<&[u8]>>();
         check_impl::<NormalEntry<[u8; 1]>>();
+        check_impl::<NormalEntry<Box<[u8]>>>();
 
         check_impl::<SolidEntry<Vec<u8>>>();
         check_impl::<SolidEntry<Cow<[u8]>>>();
         check_impl::<SolidEntry<&[u8]>>();
         check_impl::<SolidEntry<[u8; 1]>>();
+        check_impl::<SolidEntry<Box<[u8]>>>();
 
         check_impl::<ReadEntry<Vec<u8>>>();
         check_impl::<ReadEntry<Cow<[u8]>>>();
         check_impl::<ReadEntry<&[u8]>>();
         check_impl::<ReadEntry<[u8; 1]>>();
+        check_impl::<ReadEntry<Box<[u8]>>>();
 
         check_impl::<RawEntry<Vec<u8>>>();
         check_impl::<RawEntry<Cow<[u8]>>>();
         check_impl::<RawEntry<&[u8]>>();
         check_impl::<RawEntry<[u8; 1]>>();
+        check_impl::<RawEntry<Box<[u8]>>>();
     }
 
     #[test]
