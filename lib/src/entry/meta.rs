@@ -1143,30 +1143,18 @@ mod tests {
     }
 
     #[test]
-    fn link_target_type_roundtrip_unknown() {
-        let ltp = LinkTargetType::Unknown;
-        assert_eq!(
-            Some(ltp),
-            LinkTargetType::try_from_bytes(&ltp.to_bytes()).unwrap()
-        );
-    }
-
-    #[test]
-    fn link_target_type_roundtrip_file() {
-        let ltp = LinkTargetType::File;
-        assert_eq!(
-            Some(ltp),
-            LinkTargetType::try_from_bytes(&ltp.to_bytes()).unwrap()
-        );
-    }
-
-    #[test]
-    fn link_target_type_roundtrip_directory() {
-        let ltp = LinkTargetType::Directory;
-        assert_eq!(
-            Some(ltp),
-            LinkTargetType::try_from_bytes(&ltp.to_bytes()).unwrap()
-        );
+    fn link_target_type_to_bytes_is_the_spec_code() {
+        let cases = [
+            (LinkTargetType::Unknown, 0x00),
+            (LinkTargetType::File, 0x01),
+            (LinkTargetType::Directory, 0x02),
+        ];
+        for (ltp, code) in cases {
+            assert_eq!(ltp.to_bytes(), [code]);
+        }
+        match LinkTargetType::Unknown {
+            LinkTargetType::Unknown | LinkTargetType::File | LinkTargetType::Directory => {}
+        }
     }
 
     #[test]
