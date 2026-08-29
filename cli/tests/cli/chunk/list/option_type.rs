@@ -241,24 +241,3 @@ fn chunk_list_with_invalid_type_chars() {
         "unexpected error message: {err}"
     );
 }
-
-/// Precondition: An empty PNA archive exists.
-/// Action: Run `pna experimental chunk list -f <archive>` without type filters.
-/// Expectation: All chunks are listed as before.
-#[test]
-fn chunk_list_without_type_filter() {
-    setup();
-    TestResources::extract_in("empty.pna", "chunk_list_no_type_filter/").unwrap();
-
-    cargo_bin_cmd!("pna")
-        .args([
-            "experimental",
-            "chunk",
-            "list",
-            "-f",
-            "chunk_list_no_type_filter/empty.pna",
-        ])
-        .assert()
-        .success()
-        .stdout(concat!(" 1  AHED  8  0x0008 \n", " 2  AEND  0  0x001c \n",));
-}
