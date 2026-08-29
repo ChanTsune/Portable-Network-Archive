@@ -971,10 +971,11 @@ mod tests {
 
     #[test]
     fn owner_string_newtype_bound_and_codec() {
-        assert!(OwnerUserName::new("").is_ok());
-        assert!(OwnerUserName::new("alice").is_ok());
-        assert!(OwnerUserName::new("a".repeat(255)).is_ok());
-        assert!(OwnerUserName::new("a".repeat(256)).is_err());
+        assert_eq!(OwnerUserName::new("").unwrap().as_str(), "");
+        assert_eq!(OwnerUserName::new("alice").unwrap().as_str(), "alice");
+        assert_eq!(OwnerUserName::new("a".repeat(255)).unwrap().len(), 255);
+        let over = OwnerUserName::new("a".repeat(256)).unwrap_err();
+        assert_eq!((over.max(), over.actual()), (255, 256));
         let n = OwnerUserName::new("alice").unwrap();
         assert_eq!(n.to_bytes(), vec![5, b'a', b'l', b'i', b'c', b'e']);
         assert_eq!(OwnerUserName::try_from_bytes(&n.to_bytes()).unwrap(), n);
@@ -985,9 +986,22 @@ mod tests {
                 .as_str(),
             "abc"
         );
-        assert!(OwnerUserName::try_from_bytes(&[]).is_err());
-        assert!(OwnerUserName::try_from_bytes(&[5, b'a']).is_err());
-        assert!(OwnerUserName::try_from_bytes(&[1, 0xFF]).is_err());
+        assert_eq!(
+            OwnerUserName::try_from_bytes(&[]).unwrap_err().kind(),
+            io::ErrorKind::UnexpectedEof
+        );
+        assert_eq!(
+            OwnerUserName::try_from_bytes(&[5, b'a'])
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::UnexpectedEof
+        );
+        assert_eq!(
+            OwnerUserName::try_from_bytes(&[1, 0xFF])
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidData
+        );
     }
 
     #[test]
@@ -996,7 +1010,10 @@ mod tests {
         assert_eq!(u.get(), 1000);
         assert_eq!(u.to_bytes(), 1000u64.to_be_bytes());
         assert_eq!(OwnerUid::try_from_bytes(&u.to_bytes()).unwrap(), u);
-        assert!(OwnerUid::try_from_bytes(&[0, 0, 0]).is_err());
+        assert_eq!(
+            OwnerUid::try_from_bytes(&[0, 0, 0]).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
         assert_eq!(PermissionMode::from(0o7777u16).get(), 0o7777);
         assert_eq!(PermissionMode::from(0o170755u16).get(), 0o0755);
         let m = PermissionMode::from(0o644u16);
@@ -1008,7 +1025,10 @@ mod tests {
                 .get(),
             0o0644
         );
-        assert!(PermissionMode::try_from_bytes(&[0]).is_err());
+        assert_eq!(
+            PermissionMode::try_from_bytes(&[0]).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
     }
 
     #[test]
@@ -1165,7 +1185,10 @@ mod tests {
 
     #[test]
     fn link_target_type_empty_bytes() {
-        assert!(LinkTargetType::try_from_bytes(&[]).is_err());
+        assert_eq!(
+            LinkTargetType::try_from_bytes(&[]).unwrap_err().kind(),
+            io::ErrorKind::UnexpectedEof
+        );
     }
 
     #[test]
@@ -1179,7 +1202,10 @@ mod tests {
             LinkTargetType::try_from(2u8).unwrap(),
             LinkTargetType::Directory
         );
-        assert!(LinkTargetType::try_from(3u8).is_err());
+        assert_eq!(
+            LinkTargetType::try_from(3u8).unwrap_err().to_string(),
+            "unknown value 3"
+        );
     }
 
     #[test]
