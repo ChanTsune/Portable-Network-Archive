@@ -115,6 +115,13 @@ impl<const N: usize> From<(ChunkType, [u8; N])> for RawChunk<Vec<u8>> {
     }
 }
 
+impl From<(ChunkType, Box<[u8]>)> for RawChunk<Vec<u8>> {
+    #[inline]
+    fn from(value: (ChunkType, Box<[u8]>)) -> Self {
+        RawChunk::<Box<[u8]>>::from(value).into()
+    }
+}
+
 impl<'d> RawChunk<&'d [u8]> {
     pub(crate) fn from_slice(ty: ChunkType, data: &'d [u8]) -> Self {
         let chunk = (ty, data);
@@ -152,6 +159,66 @@ impl<'a> From<RawChunk<&'a [u8]>> for RawChunk<Vec<u8>> {
 }
 
 impl<const N: usize> From<RawChunk<[u8; N]>> for RawChunk<Vec<u8>> {
+    #[inline]
+    fn from(value: RawChunk<[u8; N]>) -> Self {
+        Self {
+            length: value.length,
+            ty: value.ty,
+            data: value.data.into(),
+            crc: value.crc,
+        }
+    }
+}
+
+impl From<RawChunk<Box<[u8]>>> for RawChunk<Vec<u8>> {
+    #[inline]
+    fn from(value: RawChunk<Box<[u8]>>) -> Self {
+        Self {
+            length: value.length,
+            ty: value.ty,
+            data: value.data.into(),
+            crc: value.crc,
+        }
+    }
+}
+
+impl From<RawChunk<Vec<u8>>> for RawChunk<Box<[u8]>> {
+    #[inline]
+    fn from(value: RawChunk<Vec<u8>>) -> Self {
+        Self {
+            length: value.length,
+            ty: value.ty,
+            data: value.data.into(),
+            crc: value.crc,
+        }
+    }
+}
+
+impl<'a> From<RawChunk<Cow<'a, [u8]>>> for RawChunk<Box<[u8]>> {
+    #[inline]
+    fn from(value: RawChunk<Cow<'a, [u8]>>) -> Self {
+        Self {
+            length: value.length,
+            ty: value.ty,
+            data: value.data.into(),
+            crc: value.crc,
+        }
+    }
+}
+
+impl<'a> From<RawChunk<&'a [u8]>> for RawChunk<Box<[u8]>> {
+    #[inline]
+    fn from(value: RawChunk<&'a [u8]>) -> Self {
+        Self {
+            length: value.length,
+            ty: value.ty,
+            data: value.data.into(),
+            crc: value.crc,
+        }
+    }
+}
+
+impl<const N: usize> From<RawChunk<[u8; N]>> for RawChunk<Box<[u8]>> {
     #[inline]
     fn from(value: RawChunk<[u8; N]>) -> Self {
         Self {
@@ -503,6 +570,7 @@ mod tests {
         check_impl::<RawChunk<Cow<[u8]>>>();
         check_impl::<RawChunk<&[u8]>>();
         check_impl::<RawChunk<[u8; 1]>>();
+        check_impl::<RawChunk<Box<[u8]>>>();
     }
 
     #[test]
