@@ -625,6 +625,7 @@ mod tests {
     use crate::chunk::Chunk;
     use crate::entry::RawEntry;
     use crate::entry::private::SealedEntryExt;
+    use crate::entry::test_support::entry_bytes;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
@@ -888,9 +889,10 @@ mod tests {
         a.write_all(b"data").unwrap();
         let mut b = FileEntryBuilder::new("f".into()).unwrap();
         b.write_all(b"data").unwrap();
-        let ac: Vec<_> = a.build().unwrap().into_chunks();
-        let bc: Vec<_> = b.build().unwrap().into_chunks();
-        assert_eq!(ac, bc);
+        assert_eq!(
+            entry_bytes(a.build().unwrap()),
+            entry_bytes(b.build().unwrap())
+        );
     }
 
     #[test]
@@ -1018,7 +1020,7 @@ mod tests {
         new.write_all(b"data").unwrap();
         let new = new.build().unwrap();
 
-        assert_eq!(old.into_chunks(), new.into_chunks());
+        assert_eq!(entry_bytes(old), entry_bytes(new));
     }
 
     #[allow(deprecated)]
@@ -1032,7 +1034,7 @@ mod tests {
             .unwrap()
             .build()
             .unwrap();
-        assert_eq!(old.into_chunks(), new.into_chunks());
+        assert_eq!(entry_bytes(old), entry_bytes(new));
     }
 
     #[allow(deprecated)]
@@ -1046,7 +1048,7 @@ mod tests {
             .unwrap()
             .build()
             .unwrap();
-        assert_eq!(old.into_chunks(), new.into_chunks());
+        assert_eq!(entry_bytes(old), entry_bytes(new));
     }
 
     #[allow(deprecated)]
@@ -1060,7 +1062,7 @@ mod tests {
         new.metadata(Metadata::new().with_permission_mode(Some(PermissionMode::from(0o755))));
         let new = new.build().unwrap();
 
-        assert_eq!(old.into_chunks(), new.into_chunks());
+        assert_eq!(entry_bytes(old), entry_bytes(new));
     }
 
     mod gcm {
