@@ -1505,6 +1505,20 @@ fn u128_from_be_bytes_last(bytes: &[u8]) -> u128 {
 }
 
 #[cfg(test)]
+pub(crate) mod test_support {
+    use super::*;
+
+    /// Serializes `entry` through the production writer and returns the wire bytes.
+    pub(crate) fn entry_bytes(entry: impl SealedEntryExt) -> Vec<u8> {
+        let mut buf = Vec::new();
+        entry
+            .write_in(&mut buf)
+            .expect("writing to a Vec is infallible");
+        buf
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::io::Write;
