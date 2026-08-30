@@ -1516,11 +1516,25 @@ pub(crate) mod test_support {
             .expect("writing to a Vec is infallible");
         buf
     }
+
+    /// Serializes `entry` and parses the wire bytes back into chunks.
+    pub(crate) fn entry_chunks(entry: impl SealedEntryExt) -> Vec<RawChunk> {
+        let bytes = entry_bytes(entry);
+        let mut reader = io::Cursor::new(&bytes[..]);
+        let mut chunks = Vec::new();
+        while (reader.position() as usize) < bytes.len() {
+            chunks.push(
+                crate::io::read_chunk(&mut reader, u32::MAX).expect("entry bytes must parse"),
+            );
+        }
+        chunks
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::entry::test_support::entry_chunks;
     use std::io::Write;
     use std::sync::LazyLock;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
@@ -2156,7 +2170,7 @@ mod tests {
         let mut builder = FileEntryBuilder::new("f".into()).unwrap();
         builder.metadata(Metadata::new().with_xattrs(vec![xattr.clone()]));
         let entry = builder.build().unwrap();
-        let restored = NormalEntry::try_from(RawEntry(entry.into_chunks())).unwrap();
+        let restored = NormalEntry::try_from(RawEntry(entry_chunks(entry))).unwrap();
         assert_eq!(restored.metadata().xattrs(), &[xattr]);
     }
 
