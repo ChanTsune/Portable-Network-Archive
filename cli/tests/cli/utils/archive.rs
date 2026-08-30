@@ -153,8 +153,12 @@ where
     Ok(())
 }
 
-/// Entries that carry at least one xattr, sorted by entry path (directory
-/// traversal order differs between filesystems).
+/// Entries that carry at least one xattr, keyed by the name as stored in FHED
+/// and sorted by it (directory traversal order differs between filesystems).
+///
+/// The stored name rather than `header().path()`, which sanitizes away a
+/// leading `/`, `./` and unresolved `..` — the corruption an archive rewrite
+/// can introduce. `pna xattr set` matches entries on the stored name too.
 pub fn xattrs_by_entry(
     path: impl AsRef<Path>,
     password: Option<&str>,
@@ -162,10 +166,7 @@ pub fn xattrs_by_entry(
     let mut out = Vec::new();
     for_each_entry_with_password(path, password, |e| {
         if !e.metadata().xattrs().is_empty() {
-            out.push((
-                e.header().path().to_string(),
-                e.metadata().xattrs().to_vec(),
-            ));
+            out.push((e.name().to_string(), e.metadata().xattrs().to_vec()));
         }
     })
     .unwrap();
