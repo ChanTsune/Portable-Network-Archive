@@ -2177,7 +2177,7 @@ mod tests {
     #[test]
     fn empty_xattrs_emit_no_xatr_chunk() {
         let entry = FileEntryBuilder::new("f".into()).unwrap().build().unwrap();
-        assert!(entry.into_chunks().iter().all(|c| c.ty != ChunkType::xATR));
+        assert!(entry_chunks(entry).iter().all(|c| c.ty != ChunkType::xATR));
     }
 
     #[allow(deprecated)]
@@ -2201,7 +2201,7 @@ mod tests {
         );
         builder.write_all(b"data").unwrap();
         let entry = builder.build().unwrap();
-        let chunks = entry.into_chunks();
+        let chunks = entry_chunks(entry);
 
         let fdat_pos = chunks.iter().position(|c| c.ty == ChunkType::FDAT).unwrap();
         for ty in [ChunkType::cTIM, ChunkType::fMOd, ChunkType::xATR] {

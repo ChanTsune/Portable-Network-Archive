@@ -773,15 +773,12 @@ mod tests {
         let b = SymlinkEntryBuilder::new_with_options("link".into(), "secret/target".into(), opt)
             .unwrap();
         let entry = b.build().unwrap();
-        for chunk in entry.clone().into_chunks() {
-            assert!(
-                !chunk
-                    .data()
-                    .windows(b"secret/target".len())
-                    .any(|w| w == b"secret/target"),
-                "link target must not appear in plaintext"
-            );
-        }
+        assert!(
+            !entry_bytes(entry.clone())
+                .windows(b"secret/target".len())
+                .any(|w| w == b"secret/target"),
+            "link target must not appear in plaintext"
+        );
         match entry
             .content(ReadOptions::with_password(Some("pass")))
             .unwrap()
@@ -799,9 +796,7 @@ mod tests {
         let b = SymlinkEntryBuilder::new_with_options("link".into(), "target".into(), opt).unwrap();
         let entry = b.build().unwrap();
         assert_eq!(entry.header().compression(), crate::Compression::ZSTANDARD);
-        let data_chunk = entry
-            .clone()
-            .into_chunks()
+        let data_chunk = entry_chunks(entry.clone())
             .into_iter()
             .find(|c| c.ty() == ChunkType::FDAT)
             .unwrap();
@@ -835,15 +830,12 @@ mod tests {
         let b =
             HardLinkEntryBuilder::new_with_options("link".into(), "secret".into(), opt).unwrap();
         let entry = b.build().unwrap();
-        for chunk in entry.clone().into_chunks() {
-            assert!(
-                !chunk
-                    .data()
-                    .windows(b"secret".len())
-                    .any(|w| w == b"secret"),
-                "link target must not appear in plaintext"
-            );
-        }
+        assert!(
+            !entry_bytes(entry.clone())
+                .windows(b"secret".len())
+                .any(|w| w == b"secret"),
+            "link target must not appear in plaintext"
+        );
         match entry
             .content(ReadOptions::with_password(Some("pass")))
             .unwrap()
@@ -952,7 +944,7 @@ mod tests {
         assert_eq!(m.owner_group_name(), None);
         assert_eq!(m.permission_mode(), None);
 
-        let chunks = entry.into_chunks();
+        let chunks = entry_chunks(entry);
         assert!(!chunks.iter().any(|c| c.ty == ChunkType::fPRM));
         assert_eq!(
             chunks
