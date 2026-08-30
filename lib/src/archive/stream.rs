@@ -3,7 +3,7 @@
 use super::{Archive, ArchiveHeader};
 use crate::{
     Chunk, ChunkType, EntryHeader, Metadata, NormalEntry, RawChunk, ReadOptions, SolidHeader,
-    archive::part::{NoParts, PartProvider},
+    archive::part::{NoParts, PartProvider, missing_part_error, next_part_number, part_header},
     cipher::DecryptReader,
     compress::DecompressReader,
     entry::{RawEntry, decompress_reader, decrypt_reader},
@@ -240,36 +240,14 @@ impl<R: Read, P: PartProvider<R>> StreamingSource<R, P> {
     }
 
     fn open_next_part(&mut self) -> io::Result<()> {
-        let expected =
-            self.header.archive_number.checked_add(1).ok_or_else(|| {
-                io::Error::new(io::ErrorKind::InvalidData, "archive number overflow")
-            })?;
-        let next = self.provider.next_part(expected)?.ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::NotFound,
-                format!("archive part {expected} is required"),
-            )
-        })?;
-        self.reader = next;
+        let expected = next_part_number(self.header.archive_number)?;
+        self.reader = self
+            .provider
+            .next_part(expected)?
+            .ok_or_else(|| missing_part_error(expected))?;
         crate::io::read_signature(&mut self.reader)?;
         let chunk = crate::io::read_chunk(&mut self.reader, self.max_chunk_data_len)?;
-        if chunk.ty() != ChunkType::AHED {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("expected `{}`, got `{}`", ChunkType::AHED, chunk.ty()),
-            ));
-        }
-        let header = ArchiveHeader::try_from_bytes(chunk.data())?;
-        if header.archive_number != expected {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    "next archive number must be {expected}, got {}",
-                    header.archive_number
-                ),
-            ));
-        }
-        self.header = header;
+        self.header = part_header(&chunk, expected)?;
         Ok(())
     }
 }
