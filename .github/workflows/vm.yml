@@ -99,6 +99,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 50
     name: Test on FreeBSD
+    env:
+      # This job exists to exercise POSIX.1e ACLs and extended attributes on
+      # the UFS image mounted below, so a skip for want of xattr means that
+      # mount stopped delivering them.
+      PNA_TEST_REQUIRE: root,xattr
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
