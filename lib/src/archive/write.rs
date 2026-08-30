@@ -447,7 +447,7 @@ impl<W: WriteChunk> Archive<W> {
     /// #    Ok(())
     /// # }
     /// ```
-    #[deprecated(since = "TBD", note = "use Archive::write_split_header instead")]
+    #[deprecated(since = "0.38.0", note = "use Archive::write_split_header instead")]
     #[allow(deprecated)]
     #[inline]
     pub fn add_entry_part<T>(&mut self, entry_part: EntryPart<T>) -> io::Result<usize>
