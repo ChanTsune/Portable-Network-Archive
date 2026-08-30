@@ -1399,7 +1399,7 @@ impl From<NormalEntry<Box<[u8]>>> for NormalEntry<Vec<u8>> {
 }
 
 /// A structure representing the split [`Entry`] for archive splitting.
-#[deprecated(since = "TBD", note = "use Archive::write_split_header instead")]
+#[deprecated(since = "0.38.0", note = "use Archive::write_split_header instead")]
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EntryPart<T = Vec<u8>>(pub(crate) Vec<RawChunk<T>>);
 
