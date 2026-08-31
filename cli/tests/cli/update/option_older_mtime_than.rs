@@ -61,6 +61,7 @@ fn update_with_older_mtime_than() {
         "--quiet",
         "experimental",
         "update",
+        "--overwrite",
         "--file",
         &archive_path,
         &file_to_update,

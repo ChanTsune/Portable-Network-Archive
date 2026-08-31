@@ -1,34 +1,37 @@
 use crate::{
     cli::{
-        ArchiveFileArgs, CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileOperands,
-        HashAlgorithmArgs, MissingTimePolicy, PasswordArgs, SolidEntriesTransformStrategy,
-        SolidEntriesTransformStrategyArgs,
+        ArchiveFileArgs, ArchiveOutputArgs, CipherAlgorithmArgs, CompressionAlgorithmArgs,
+        DateTime, FileOperands, HashAlgorithmArgs, MissingTimePolicy, PasswordArgs,
+        SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs,
     },
     command::{
         Command, ask_password,
         core::{
-            AclStrategy, CollectOptions, CollectedEntry, CreateOptions, FflagsStrategy,
-            KeepOptions, MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
-            PermissionStrategyResolver, SplitArchiveReader, StagedArchive, TimeFilterResolver,
-            TimestampStrategyResolver, TransformContext, TransformStrategy,
+            AclStrategy, ArchiveSource, CollectOptions, CollectedEntry, CreateOptions,
+            FflagsStrategy, KeepOptions, MacMetadataStrategy, OpenArchiveSource, PathFilter,
+            PathTransformers, PathnameEditor, PermissionStrategyResolver, ReadEntryVisitor,
+            TimeFilterResolver, TimestampStrategyResolver, TransformContext, TransformStrategy,
             TransformStrategyKeepSolid, TransformStrategyUnSolid, Umask, XattrStrategy,
-            cmp_at_stored_precision, collect_items_from_paths, collect_split_archives,
-            create_entry, entry_option,
+            archive_destination::{SinkConsumer, resolve_transform_destination},
+            cmp_at_stored_precision, collect_items_from_paths, create_entry, entry_option,
             iter::ReorderByIndex,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin,
         },
     },
-    utils::{PathPartExt, VCS_FILES, fs::HardlinkResolver},
+    utils::{VCS_FILES, fs::HardlinkResolver},
 };
 use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
 use indexmap::IndexMap;
 use pna::prelude::SystemTimeDurationExt;
-use pna::{Archive, EntryName, Metadata};
+use pna::{Archive, EntryName, Metadata, NormalEntry, ReadEntry};
 use std::{
+    borrow::Cow,
     cmp::Ordering,
     fs, io,
+    marker::PhantomData,
     path::{Path, PathBuf},
+    sync::mpsc::Sender,
 };
 
 #[derive(Parser, Clone, Debug)]
@@ -53,8 +56,8 @@ use std::{
     group(ArgGroup::new("mtime-newer-than-source").args(["newer_mtime", "newer_mtime_than"])),
 )]
 pub(crate) struct UpdateCommand {
-    #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
-    output: Option<PathBuf>,
+    #[command(flatten)]
+    output: ArchiveOutputArgs,
     #[arg(
         long,
         requires = "unstable",
@@ -420,10 +423,14 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
     let transform_strategy = args.transform_strategy.strategy();
     let sync = args.sync;
     let password = ask_password(args.password)?;
-    let archive_path = args.archive.require_file()?;
-    if !archive_path.exists() {
-        anyhow::bail!("{} is not exists", archive_path.display());
+    let source_arg = args.archive.source();
+    if let ArchiveSource::File(path) = &source_arg
+        && !path.exists()
+    {
+        anyhow::bail!("{} is not exists", path.display());
     }
+    let destination =
+        resolve_transform_destination(&source_arg, args.output.output, args.output.overwrite)?;
     let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);
     let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
@@ -481,8 +488,6 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
         ),
     };
 
-    let archives = collect_split_archives(&archive_path)?;
-
     let mut files = args.files.files;
     if args.files_from_stdin {
         files.extend(read_paths_stdin(args.null)?);
@@ -518,48 +523,74 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
     let mut resolver = HardlinkResolver::new(collect_options.follow_links);
     let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
 
-    let output_path = args.output.unwrap_or_else(|| archive_path.remove_part());
-    let mut staged = StagedArchive::new(output_path, umask)?;
-    let mut out_archive = Archive::write_header(staged.as_file_mut())?;
-
-    let mut source = SplitArchiveReader::new(archives)?;
-    match transform_strategy {
-        SolidEntriesTransformStrategy::UnSolid => run_update_archive(
-            &mut source,
+    destination.open_with(
+        umask,
+        UpdateEntries {
+            source: source_arg,
             password,
-            &create_options,
+            create_options: &create_options,
             target_items,
             sync,
             missing_time,
-            &mut out_archive,
-            TransformStrategyUnSolid,
-            false,
-            false,
-        ),
-        SolidEntriesTransformStrategy::KeepSolid => run_update_archive(
-            &mut source,
-            password,
-            &create_options,
-            target_items,
-            sync,
-            missing_time,
-            &mut out_archive,
-            TransformStrategyKeepSolid,
-            false,
-            false,
-        ),
-    }?;
-    out_archive.finalize()?;
-    drop(source);
-
-    staged.commit()?;
+            strategy: transform_strategy,
+        },
+    )?;
 
     Ok(())
 }
 
+/// Merges the archive from `source` with the collected filesystem items into the opened
+/// destination.
+struct UpdateEntries<'a> {
+    source: ArchiveSource,
+    password: Option<&'a [u8]>,
+    create_options: &'a CreateOptions,
+    target_items: Vec<CollectedEntry>,
+    sync: bool,
+    missing_time: MissingTimePolicy,
+    strategy: SolidEntriesTransformStrategy,
+}
+
+impl SinkConsumer for UpdateEntries<'_> {
+    type Output = ();
+
+    fn consume<W: io::Write>(self, writer: W) -> anyhow::Result<()> {
+        let mut out_archive = Archive::write_header(writer)?;
+        let source = self.source.open()?;
+        match self.strategy {
+            SolidEntriesTransformStrategy::UnSolid => run_update_archive(
+                source,
+                self.password,
+                self.create_options,
+                self.target_items,
+                self.sync,
+                self.missing_time,
+                &mut out_archive,
+                TransformStrategyUnSolid,
+                false,
+                false,
+            ),
+            SolidEntriesTransformStrategy::KeepSolid => run_update_archive(
+                source,
+                self.password,
+                self.create_options,
+                self.target_items,
+                self.sync,
+                self.missing_time,
+                &mut out_archive,
+                TransformStrategyKeepSolid,
+                false,
+                false,
+            ),
+        }?;
+        out_archive.finalize()?;
+        Ok(())
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn run_update_archive<Strategy, W>(
-    source: &mut SplitArchiveReader,
+    source: OpenArchiveSource,
     password: Option<&[u8]>,
     create_options: &CreateOptions,
     target_items: Vec<CollectedEntry>,
@@ -613,44 +644,16 @@ where
 
     rayon::in_place_scope_fifo(|s| -> anyhow::Result<()> {
         source.for_each_read_entry(
-            |entry| {
-                Strategy::transform(out_archive, &context, entry, |entry| {
-                    let entry = entry?;
-                    if let Some((idx, item)) = target_files_mapping
-                        .get_mut(entry.header().path())
-                        .and_then(Option::take)
-                    {
-                        let need_update =
-                            is_newer_than_archive(missing_time, &item.metadata, entry.metadata());
-                        if need_update {
-                            let tx = tx.clone();
-                            let create_options = create_options.clone();
-                            s.spawn_fifo(move |_| {
-                                log::debug!("Updating: {}", item.path.display());
-                                tx.send((idx, create_entry(&item, &create_options)))
-                                    .unwrap_or_else(|_| {
-                                        unreachable!("receiver is held by scope owner")
-                                    });
-                            });
-                            // `--sync` controls whether the archive is forcibly
-                            // realigned to the disk state. With sync the old
-                            // archive entry is dropped and replaced by the new
-                            // one (PNA-native semantics). Without sync the old
-                            // entry is preserved and the new one is appended,
-                            // matching bsdtar's append-only `-u` behavior
-                            // (duplicate entries are allowed; later wins on
-                            // extraction).
-                            if sync { Ok(None) } else { Ok(Some(entry)) }
-                        } else {
-                            Ok(Some(entry))
-                        }
-                    } else if sync && !exists_on_disk(entry.header().path().as_path()) {
-                        log::debug!("Removing (sync): {}", entry.header().path());
-                        Ok(None)
-                    } else {
-                        Ok(Some(entry))
-                    }
-                })
+            EntryUpdate::<Strategy, W> {
+                out_archive,
+                context: &context,
+                target_files_mapping: &mut target_files_mapping,
+                tx: &tx,
+                scope: s,
+                create_options,
+                sync,
+                missing_time,
+                strategy: PhantomData,
             },
             allow_concatenated_archives,
         )?;
@@ -679,6 +682,71 @@ where
     }
 
     Ok(())
+}
+
+/// Merges one archive entry with the collected filesystem items: refreshes it, drops it, or
+/// passes it through, and schedules the replacement entry on the Rayon scope.
+struct EntryUpdate<'a, 'scope, Strategy, W> {
+    out_archive: &'a mut Archive<W>,
+    context: &'a TransformContext<'a>,
+    target_files_mapping: &'a mut IndexMap<EntryName, Option<(usize, CollectedEntry)>>,
+    tx: &'a Sender<(usize, io::Result<Option<NormalEntry>>)>,
+    scope: &'a rayon::ScopeFifo<'scope>,
+    create_options: &'a CreateOptions,
+    sync: bool,
+    missing_time: MissingTimePolicy,
+    strategy: PhantomData<fn() -> Strategy>,
+}
+
+impl<Strategy, W> ReadEntryVisitor for EntryUpdate<'_, '_, Strategy, W>
+where
+    Strategy: TransformStrategy,
+    W: io::Write,
+{
+    fn visit(&mut self, entry: ReadEntry<Cow<'_, [u8]>>) -> io::Result<()> {
+        let (sync, missing_time) = (self.sync, self.missing_time);
+        let (mapping, tx, scope, create_options) = (
+            &mut *self.target_files_mapping,
+            self.tx,
+            self.scope,
+            self.create_options,
+        );
+        Strategy::transform(&mut *self.out_archive, self.context, Ok(entry), |entry| {
+            let entry = entry?;
+            if let Some((idx, item)) = mapping
+                .get_mut(entry.header().path())
+                .and_then(Option::take)
+            {
+                let need_update =
+                    is_newer_than_archive(missing_time, &item.metadata, entry.metadata());
+                if need_update {
+                    let tx = tx.clone();
+                    let create_options = create_options.clone();
+                    scope.spawn_fifo(move |_| {
+                        log::debug!("Updating: {}", item.path.display());
+                        tx.send((idx, create_entry(&item, &create_options)))
+                            .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
+                    });
+                    // `--sync` controls whether the archive is forcibly
+                    // realigned to the disk state. With sync the old
+                    // archive entry is dropped and replaced by the new
+                    // one (PNA-native semantics). Without sync the old
+                    // entry is preserved and the new one is appended,
+                    // matching bsdtar's append-only `-u` behavior
+                    // (duplicate entries are allowed; later wins on
+                    // extraction).
+                    if sync { Ok(None) } else { Ok(Some(entry)) }
+                } else {
+                    Ok(Some(entry))
+                }
+            } else if sync && !exists_on_disk(entry.header().path().as_path()) {
+                log::debug!("Removing (sync): {}", entry.header().path());
+                Ok(None)
+            } else {
+                Ok(Some(entry))
+            }
+        })
+    }
 }
 
 // Ambiguous errors such as PermissionDenied count as existing, so pruning

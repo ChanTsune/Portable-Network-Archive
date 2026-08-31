@@ -65,6 +65,7 @@ fn update_with_older_ctime_than() {
         "--quiet",
         "experimental",
         "update",
+        "--overwrite",
         "--file",
         &archive_path,
         &file_to_update,
