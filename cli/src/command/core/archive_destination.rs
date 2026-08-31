@@ -121,7 +121,37 @@ impl Drop for CreateNewArchive {
     }
 }
 
+/// Destination of a command that rewrites `source` entry by entry.
+///
+/// An in-place rewrite of one part of a multipart archive is refused: the staged rewrite would
+/// replace that part with the consolidated archive and leave the other parts stale.
 pub(crate) fn resolve_transform_destination(
+    source: &ArchiveSource,
+    output: Option<PathBuf>,
+    overwrite: bool,
+) -> anyhow::Result<ArchiveDestination> {
+    let destination = resolve_output_destination(source, output, overwrite)?;
+    if let ArchiveDestination::InPlace(path) = &destination
+        && path.is_part()
+    {
+        anyhow::bail!(
+            "multipart archive sources cannot be rewritten in place; specify --output PATH or omit --overwrite to write the consolidated archive to standard output"
+        );
+    }
+    Ok(destination)
+}
+
+/// Destination of a command that appends to `source`. Appending in place extends the last part
+/// of a multipart archive, so unlike a rewrite it is allowed there.
+pub(crate) fn resolve_append_destination(
+    source: &ArchiveSource,
+    output: Option<PathBuf>,
+    overwrite: bool,
+) -> anyhow::Result<ArchiveDestination> {
+    resolve_output_destination(source, output, overwrite)
+}
+
+fn resolve_output_destination(
     source: &ArchiveSource,
     output: Option<PathBuf>,
     overwrite: bool,
@@ -136,9 +166,6 @@ pub(crate) fn resolve_transform_destination(
 
     match (source, overwrite) {
         (_, false) => Ok(ArchiveDestination::Stdout),
-        (ArchiveSource::File(path), true) if path.is_part() => anyhow::bail!(
-            "multipart archive sources cannot be rewritten in place; specify --output PATH or omit --overwrite to write the consolidated archive to standard output"
-        ),
         (ArchiveSource::File(path), true) => Ok(ArchiveDestination::InPlace(path.clone())),
         (ArchiveSource::Stdin, true) => anyhow::bail!(
             "--overwrite requires a filesystem destination; specify --output PATH or provide the source with --file"
@@ -164,22 +191,6 @@ pub(crate) fn resolve_create_destination(
 #[cfg(not(target_family = "wasm"))]
 mod tests {
     use super::*;
-
-    /// Writes `payload`, then reports the outcome a selector validation would have.
-    struct WriteAndValidate<'a> {
-        payload: &'a [u8],
-        valid: bool,
-    }
-
-    impl SinkConsumer for WriteAndValidate<'_> {
-        type Output = ();
-
-        fn consume<W: Write>(self, mut writer: W) -> anyhow::Result<()> {
-            writer.write_all(self.payload)?;
-            anyhow::ensure!(self.valid, "selector matched nothing");
-            Ok(())
-        }
-    }
 
     fn test_dir(name: &str) -> PathBuf {
         let dir = std::env::temp_dir()
@@ -272,6 +283,16 @@ mod tests {
     }
 
     #[test]
+    fn append_destination_allows_multipart_sources_in_place() {
+        let source = ArchiveSource::File(PathBuf::from("archive.part1.pna"));
+
+        assert_eq!(
+            resolve_append_destination(&source, None, true).unwrap(),
+            ArchiveDestination::InPlace(PathBuf::from("archive.part1.pna"))
+        );
+    }
+
+    #[test]
     fn create_destination_covers_its_contract_matrix() {
         let file = || Some(PathBuf::from("archive.pna"));
         let cases = [
@@ -301,6 +322,22 @@ mod tests {
         }
     }
 
+    /// Writes `payload`, then reports the outcome a selector validation would have.
+    struct WriteAndValidate<'a> {
+        payload: &'a [u8],
+        valid: bool,
+    }
+
+    impl SinkConsumer for WriteAndValidate<'_> {
+        type Output = ();
+
+        fn consume<W: Write>(self, mut writer: W) -> anyhow::Result<()> {
+            writer.write_all(self.payload)?;
+            anyhow::ensure!(self.valid, "selector matched nothing");
+            Ok(())
+        }
+    }
+
     #[test]
     fn create_new_never_clobbers_an_existing_file() {
         let path = test_dir("no_clobber").join("archive.pna");
@@ -327,7 +364,6 @@ mod tests {
     #[test]
     fn failed_create_new_validation_removes_the_partial_archive() {
         let path = test_dir("create_new_validation").join("archive.pna");
-
         let result = ArchiveDestination::CreateNew(path.clone()).open_with(
             Umask::new(0o022),
             WriteAndValidate {
@@ -367,7 +403,6 @@ mod tests {
             } else {
                 ArchiveDestination::InPlace(path.clone())
             };
-
             let result = destination.open_with(
                 Umask::new(0o022),
                 WriteAndValidate {
