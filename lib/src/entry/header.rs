@@ -144,8 +144,7 @@ impl EntryHeader {
             std::str::from_utf8(&bytes[6..])
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
         );
-        let sanitized = path.sanitize();
-        let header = Self {
+        Ok(Self {
             major: bytes[0],
             minor: bytes[1],
             data_kind: DataKind::from_byte(bytes[2]),
@@ -154,9 +153,7 @@ impl EntryHeader {
             cipher_mode: CipherMode::from_byte(bytes[5]),
             sanitized_path: OnceLock::new(),
             name: path,
-        };
-        let _ = header.sanitized_path.set(sanitized);
-        Ok(header)
+        })
     }
 }
 
