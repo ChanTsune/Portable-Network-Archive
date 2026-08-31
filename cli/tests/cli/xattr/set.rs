@@ -1,6 +1,8 @@
 mod basic;
 mod missing_file;
 mod multipart;
+#[cfg(not(target_family = "wasm"))]
+mod multipart_stdio;
 mod option_base64;
 mod option_hex;
 mod option_keep_solid;
