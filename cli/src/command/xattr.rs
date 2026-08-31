@@ -207,7 +207,8 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
     let dump_option = DumpOption::new(args.dump, args.name.as_deref(), args.regex_match.as_deref())
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive.file)?)?;
+    let mut source =
+        SplitArchiveReader::new(collect_split_archives(args.archive.require_file()?)?)?;
     let read_options = ReadOptions::with_password(password.as_deref());
 
     source.for_each_entry(
@@ -271,9 +272,10 @@ fn archive_set_xattr(args: SetXattrCommand, umask: Umask) -> anyhow::Result<()> 
         }
     };
 
+    let archive = args.archive.require_file()?;
     execute_archive_transform(
-        &args.archive.file,
-        args.archive.file.remove_part(),
+        &archive,
+        archive.remove_part(),
         umask,
         password.as_deref(),
         args.transform_strategy.strategy(),

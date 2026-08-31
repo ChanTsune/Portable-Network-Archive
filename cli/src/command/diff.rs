@@ -258,7 +258,7 @@ fn diff_archive(ctx: &crate::cli::GlobalContext, args: DiffCommand) -> anyhow::R
         anyhow::bail!("{uncompared}");
     }
     let password = ask_password(args.password)?;
-    let archives = collect_split_archives(&args.archive.file)?;
+    let archives = collect_split_archives(args.archive.require_file()?)?;
 
     let mut globs = BsdGlobMatcher::new(args.files.files.iter().map(|s| s.as_str()));
     let filter_enabled = !globs.is_empty();
