@@ -1,22 +1,21 @@
 use criterion::{Bencher, Criterion, criterion_group, criterion_main};
 use libpna::{
-    Archive, CipherMode, Compression, Encryption, FileEntryBuilder, ReadEntry, ReadOptions,
-    WriteOptions, WriteOptionsBuilder,
+    Archive, CipherMode, Compression, Encryption, EntryName, FileEntryBuilder, ReadEntry,
+    ReadOptions, WriteOptions, WriteOptionsBuilder,
 };
 use std::io::{self, prelude::*};
 
 fn bench_write_archive(b: &mut Bencher, mut options: WriteOptionsBuilder) {
     let buf = [24; 1111];
+    let name: EntryName = "bench".into();
+    let write_options = options.password(Some("password")).build();
     b.iter(|| {
         let mut sink = io::sink();
         let mut writer = Archive::write_header(&mut sink).unwrap();
         writer
             .add_entry({
-                let mut builder = FileEntryBuilder::new_with_options(
-                    "bench".into(),
-                    options.password(Some("password")).build(),
-                )
-                .unwrap();
+                let mut builder =
+                    FileEntryBuilder::new_with_options(name.clone(), &write_options).unwrap();
                 builder.write_all(&buf).unwrap();
                 builder.build().unwrap()
             })
@@ -40,15 +39,13 @@ fn bench_read_archive(b: &mut Bencher, mut options: WriteOptionsBuilder) {
         })
         .unwrap();
     let vec = writer.finalize().unwrap();
+    let read_options = ReadOptions::with_password(Some("password"));
 
     b.iter(|| {
         let mut reader = Archive::read_header(vec.as_slice()).unwrap();
         for item in reader.entries().skip_solid() {
             io::copy(
-                &mut item
-                    .unwrap()
-                    .reader(ReadOptions::with_password(Some("password")))
-                    .unwrap(),
+                &mut item.unwrap().reader(&read_options).unwrap(),
                 &mut io::sink(),
             )
             .unwrap();
@@ -71,6 +68,7 @@ fn bench_read_archive_from_slice(b: &mut Bencher, mut options: WriteOptionsBuild
         })
         .unwrap();
     let vec = writer.finalize().unwrap();
+    let read_options = ReadOptions::with_password(Some("password"));
 
     b.iter(|| {
         let mut reader = Archive::read_header_from_slice(vec.as_slice()).unwrap();
@@ -78,13 +76,7 @@ fn bench_read_archive_from_slice(b: &mut Bencher, mut options: WriteOptionsBuild
             match item.unwrap() {
                 ReadEntry::Solid(_) => (),
                 ReadEntry::Normal(item) => {
-                    io::copy(
-                        &mut item
-                            .reader(ReadOptions::with_password(Some("password")))
-                            .unwrap(),
-                        &mut io::sink(),
-                    )
-                    .unwrap();
+                    io::copy(&mut item.reader(&read_options).unwrap(), &mut io::sink()).unwrap();
                 }
             }
         }
