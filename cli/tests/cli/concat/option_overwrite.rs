@@ -1,6 +1,8 @@
-use crate::utils::{EmbedExt, TestResources, setup};
+use crate::utils::{EmbedExt, TestResources, already_exists_message, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
-use std::fs;
+use pna::Archive;
+use predicates::prelude::*;
+use std::{fs, io::Cursor};
 
 /// Precondition: Output file already exists.
 /// Action: Run concat with --overwrite flag.
@@ -18,7 +20,7 @@ fn concat_with_overwrite_succeeds() {
     cmd.args([
         "concat",
         "--overwrite",
-        "-f",
+        "--output",
         "concat_overwrite_yes/output.pna",
         "-f",
         "concat_overwrite_yes/zstd.pna",
@@ -26,9 +28,9 @@ fn concat_with_overwrite_succeeds() {
     .assert()
     .success();
 
-    // Verify output file was overwritten (should be a valid PNA now)
     let content = fs::read("concat_overwrite_yes/output.pna").unwrap();
-    assert_ne!(content, b"dummy content");
+    let mut archive = Archive::read_header(Cursor::new(content)).unwrap();
+    assert!(archive.entries().next().unwrap().is_ok());
 }
 
 /// Precondition: Output file already exists.
@@ -45,11 +47,17 @@ fn concat_without_overwrite_fails() {
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "concat",
-        "-f",
+        "--output",
         "concat_overwrite_no/output.pna",
         "-f",
         "concat_overwrite_no/zstd.pna",
     ])
     .assert()
-    .failure();
+    .failure()
+    .stderr(predicate::str::contains(already_exists_message()));
+
+    assert_eq!(
+        fs::read("concat_overwrite_no/output.pna").unwrap(),
+        b"existing content"
+    );
 }
