@@ -539,42 +539,18 @@ fn extract_preserves_directory_permission() {
 #[cfg(unix)]
 fn extract_encrypted_gcm_without_keep_permission_drops_setuid() {
     setup();
-    TestResources::extract_in("raw/", "extract_gcm_setuid/in/").unwrap();
-
-    set_permissions_or_skip!("extract_gcm_setuid/in/raw/text.txt", 0o4755);
-
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        "-f",
+    fs::create_dir_all("extract_gcm_setuid").unwrap();
+    archive::create_encrypted_archive_with_permissions_and_mode(
         "extract_gcm_setuid/archive.pna",
-        "--overwrite",
-        "extract_gcm_setuid/in/",
-        "--keep-permission",
-        "--aes",
-        "gcm",
-        "--password",
+        &[archive::FileEntryDef {
+            path: "raw/text.txt",
+            content: b"content",
+            permission: 0o4755,
+        }],
         "password",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-
-    let mut found = false;
-    archive::for_each_entry_with_password(
-        "extract_gcm_setuid/archive.pna",
-        Some("password"),
-        |entry| {
-            if entry.header().path().as_str().ends_with("raw/text.txt") {
-                found = true;
-                let mode = entry.metadata().permission_mode().unwrap();
-                assert_eq!(mode.get() & 0o7777, 0o4755);
-            }
-        },
+        pna::CipherMode::GCM,
     )
     .unwrap();
-    assert!(found, "raw/text.txt entry not found in archive");
 
     crate::utils::pna_cmd_with_umask(0o022)
         .arg("--quiet")
@@ -586,8 +562,6 @@ fn extract_encrypted_gcm_without_keep_permission_drops_setuid() {
         .arg("extract_gcm_setuid/out/")
         .arg("--password")
         .arg("password")
-        .arg("--strip-components")
-        .arg("2")
         .assert()
         .success();
 
