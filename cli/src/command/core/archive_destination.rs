@@ -333,7 +333,7 @@ mod tests {
     }
 
     #[test]
-    fn replace_and_in_place_remain_transactional_until_publish() {
+    fn replace_and_in_place_preserve_the_original_when_validation_fails() {
         for (name, replace) in [("replace", true), ("in_place", false)] {
             let path = test_dir(name).join("archive.pna");
             fs::write(&path, b"original").unwrap();
