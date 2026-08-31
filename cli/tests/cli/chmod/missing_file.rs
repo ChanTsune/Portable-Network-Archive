@@ -33,6 +33,7 @@ fn fail_with_missing_file() {
         "--quiet",
         "experimental",
         "chmod",
+        "--overwrite",
         "-f",
         "chmod_missing/archive.pna",
         "600",

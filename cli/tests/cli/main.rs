@@ -30,6 +30,8 @@ mod multipart;
 mod nodump;
 mod restore_acl;
 mod restore_acl_0_19_1;
+#[cfg(not(target_family = "wasm"))]
+mod rewrite_stdio;
 mod solid_mode;
 mod sort;
 mod split;

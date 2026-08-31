@@ -42,6 +42,7 @@ fn xattr_set_restore() {
     cmd.args([
         "xattr",
         "set",
+        "--overwrite",
         "-f",
         "xattr_set_restore/xattr_set_restore.pna",
         "--restore",
@@ -59,6 +60,7 @@ fn xattr_set_restore() {
         "--quiet",
         "xattr",
         "set",
+        "--overwrite",
         "-f",
         "xattr_set_restore/xattr_set_restore.pna",
         "--restore-from-stdin",

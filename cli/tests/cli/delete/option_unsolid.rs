@@ -32,6 +32,7 @@ fn delete_with_unsolid() {
         "pna",
         "--quiet",
         "delete",
+        "--overwrite",
         "--unsolid",
         "-f",
         "delete_with_unsolid/delete_with_unsolid.pna",

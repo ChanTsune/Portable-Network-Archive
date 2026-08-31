@@ -26,10 +26,17 @@ fn xattr_get_name_match_encoding() {
     .unwrap();
 
     // Sort entries for stablize entries order.
-    cli::Cli::try_parse_from(["pna", "--quiet", "sort", "-f", "xattr_get_opts/archive.pna"])
-        .unwrap()
-        .execute()
-        .unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "sort",
+        "-f",
+        "xattr_get_opts/archive.pna",
+        "--overwrite",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
 
     cli::Cli::try_parse_from([
         "pna",
@@ -38,6 +45,7 @@ fn xattr_get_name_match_encoding() {
         "set",
         "-f",
         "xattr_get_opts/archive.pna",
+        "--overwrite",
         "--name",
         "user.name",
         "--value",
@@ -55,6 +63,7 @@ fn xattr_get_name_match_encoding() {
         "set",
         "-f",
         "xattr_get_opts/archive.pna",
+        "--overwrite",
         "--name",
         "user.value",
         "--value",

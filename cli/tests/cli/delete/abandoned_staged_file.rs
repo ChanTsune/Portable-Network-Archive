@@ -34,6 +34,7 @@ fn delete_leaves_no_staged_file_when_a_pattern_is_missing() {
         .args([
             "--quiet",
             "delete",
+            "--overwrite",
             "-f",
             "delete_staged_cleanup/archive.pna",
             "delete_staged_cleanup/in/raw/not_found.txt",

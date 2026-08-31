@@ -53,6 +53,7 @@ fn migrate_converts_fprm_to_owner_facet() {
         "pna",
         "--quiet",
         "migrate",
+        "--overwrite",
         "-f",
         LEGACY_FIXTURE,
         "--output",

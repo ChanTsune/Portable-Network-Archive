@@ -28,6 +28,7 @@ fn delete_with_exclude() {
         "pna",
         "--quiet",
         "delete",
+        "--overwrite",
         "-f",
         "delete_output_exclude/delete_output_exclude.pna",
         "**.pna",
