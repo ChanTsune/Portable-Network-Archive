@@ -75,7 +75,7 @@ jobs:
           persist-credentials: false
       - name: Test in NetBSD
         id: test
-        uses: vmactions/NetBSD-vm@6334c835de4c04a59fe59f0f8f071e02a2f0bab3 # v1.4.7
+        uses: vmactions/NetBSD-vm@07366ff288a2661e3998b69c5d48eda270050635 # v1.4.8
         with:
           envs: "RUST_BACKTRACE PNA_TEST_REQUIRE"
           copyback: false
