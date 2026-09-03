@@ -26,6 +26,7 @@ fn delete_leaves_no_staged_file_when_a_pattern_is_missing() {
         ])
         .assert()
         .success();
+    let original = fs::read("delete_staged_cleanup/archive.pna").unwrap();
 
     cargo_bin_cmd!("pna")
         .env("TMPDIR", &temp_dir)
@@ -41,6 +42,12 @@ fn delete_leaves_no_staged_file_when_a_pattern_is_missing() {
         ])
         .assert()
         .failure();
+
+    assert_eq!(
+        fs::read("delete_staged_cleanup/archive.pna").unwrap(),
+        original,
+        "selector validation must finish before the staged archive is committed"
+    );
 
     let left = fs::read_dir(&temp_dir)
         .unwrap()
