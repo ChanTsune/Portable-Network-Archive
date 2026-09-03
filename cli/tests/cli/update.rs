@@ -32,4 +32,6 @@ mod option_recursive;
 mod option_sync;
 mod option_unsolid;
 mod path_transform;
+#[cfg(not(target_family = "wasm"))]
+mod stdio;
 mod symlink_entry;

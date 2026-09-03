@@ -45,6 +45,7 @@ fn update_with_newer_ctime_than() {
         "--quiet",
         "experimental",
         "update",
+        "--overwrite",
         "--file",
         "update_newer_ctime_than/test.pna",
         file_to_update,
