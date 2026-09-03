@@ -416,17 +416,25 @@ impl ItemSource {
     }
 }
 
-/// Validates that stdin is not used as a source more than once.
-///
-/// Returns an error if multiple `@-` or `@` sources are found,
-/// since stdin can only be read once.
-pub(crate) fn validate_no_duplicate_stdin(sources: &[ItemSource]) -> anyhow::Result<()> {
-    let stdin_count = sources
+/// Rejects argument combinations in which standard input would have to be read twice:
+/// once as the archive being operated on, and once per `@-` archive source.
+pub(crate) fn ensure_single_stdin_consumer(
+    archive_from_stdin: bool,
+    sources: &[ItemSource],
+) -> anyhow::Result<()> {
+    let included_stdin_sources = sources
         .iter()
-        .filter(|s| matches!(s, ItemSource::Archive(ArchiveSource::Stdin)))
+        .filter(|source| matches!(source, ItemSource::Archive(ArchiveSource::Stdin)))
         .count();
-    if stdin_count > 1 {
-        anyhow::bail!("stdin (@- or @) can only be specified once as an archive source");
+    if archive_from_stdin && included_stdin_sources > 0 {
+        anyhow::bail!(
+            "standard input cannot be used for both archive input and archive source (@ or @-); specify the archive with --file"
+        );
+    }
+    if included_stdin_sources > 1 {
+        anyhow::bail!(
+            "standard input cannot be used for both archive source (@ or @-) and archive source (@ or @-); replace one standard-input consumer with a file-backed input"
+        );
     }
     Ok(())
 }
@@ -2872,28 +2880,37 @@ mod tests {
         }
 
         #[test]
-        fn validate_no_duplicate_stdin_ok() {
-            let sources = vec![
-                ItemSource::Filesystem(PathBuf::from("file")),
-                ItemSource::Archive(ArchiveSource::Stdin),
-                ItemSource::Archive(ArchiveSource::File(PathBuf::from("archive.pna"))),
-            ];
-            assert!(validate_no_duplicate_stdin(&sources).is_ok());
+        fn stdin_arbitration_accepts_a_single_consumer() {
+            assert!(ensure_single_stdin_consumer(false, &[]).is_ok());
+            assert!(ensure_single_stdin_consumer(true, &[]).is_ok());
+            assert!(
+                ensure_single_stdin_consumer(false, &[ItemSource::Archive(ArchiveSource::Stdin)])
+                    .is_ok()
+            );
         }
 
         #[test]
-        fn validate_no_duplicate_stdin_error() {
-            let sources = vec![
-                ItemSource::Archive(ArchiveSource::Stdin),
-                ItemSource::Archive(ArchiveSource::Stdin),
-            ];
-            assert!(validate_no_duplicate_stdin(&sources).is_err());
+        fn stdin_arbitration_names_collision_and_resolution() {
+            let error =
+                ensure_single_stdin_consumer(true, &[ItemSource::Archive(ArchiveSource::Stdin)])
+                    .unwrap_err();
+            assert_eq!(
+                error.to_string(),
+                "standard input cannot be used for both archive input and archive source (@ or @-); specify the archive with --file"
+            );
         }
 
         #[test]
-        fn validate_no_duplicate_stdin_empty() {
-            let sources: Vec<ItemSource> = vec![];
-            assert!(validate_no_duplicate_stdin(&sources).is_ok());
+        fn stdin_arbitration_reports_duplicate_archive_stdin() {
+            let sources = [
+                ItemSource::Archive(ArchiveSource::Stdin),
+                ItemSource::Archive(ArchiveSource::Stdin),
+            ];
+            let error = ensure_single_stdin_consumer(false, &sources).unwrap_err();
+            assert_eq!(
+                error.to_string(),
+                "standard input cannot be used for both archive source (@ or @-) and archive source (@ or @-); replace one standard-input consumer with a file-backed input"
+            );
         }
     }
 
