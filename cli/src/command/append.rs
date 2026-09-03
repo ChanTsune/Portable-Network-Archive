@@ -392,7 +392,7 @@ impl Command for AppendCommand {
 #[hooq::hooq(anyhow)]
 fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    let archive_path = args.archive.file;
+    let archive_path = args.archive.require_file()?;
     if !archive_path.exists() {
         anyhow::bail!("{} is not exists", archive_path.display());
     }
