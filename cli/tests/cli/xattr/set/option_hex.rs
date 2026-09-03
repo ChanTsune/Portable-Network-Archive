@@ -15,6 +15,7 @@ fn xattr_set_hex() {
         "--quiet",
         "xattr",
         "set",
+        "--overwrite",
         "-f",
         "xattr_set_hex/zstd.pna",
         "--name",

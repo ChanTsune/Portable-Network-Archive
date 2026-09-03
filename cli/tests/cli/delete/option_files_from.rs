@@ -37,6 +37,7 @@ fn delete_with_files_from() {
         "pna",
         "--quiet",
         "delete",
+        "--overwrite",
         "-f",
         "delete_files_from/delete_files_from.pna",
         "--files-from",

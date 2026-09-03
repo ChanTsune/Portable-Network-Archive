@@ -67,6 +67,7 @@ fn list_with_exclude_vcs() {
         "sort",
         "-f",
         "list_with_exclude_vcs/list_with_exclude_vcs.pna",
+        "--overwrite",
     ])
     .assert()
     .success();
@@ -165,6 +166,7 @@ fn list_without_exclude_vcs() {
         "sort",
         "-f",
         "list_without_exclude_vcs/list_without_exclude_vcs.pna",
+        "--overwrite",
     ])
     .assert()
     .success();

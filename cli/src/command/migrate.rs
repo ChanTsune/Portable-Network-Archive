@@ -1,19 +1,19 @@
 use crate::{
-    cli::{ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategyArgs},
+    cli::{ArchiveFileArgs, ArchiveOutputArgs, PasswordArgs, SolidEntriesTransformStrategyArgs},
     command::{
         Command, ask_password,
         core::{
             Umask,
-            archive_destination::ArchiveDestination,
+            archive_destination::resolve_transform_destination,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
     ext::*,
     utils::GlobPatterns,
 };
-use clap::{Parser, ValueHint};
+use clap::Parser;
 use pna::{NormalEntry, RawChunk, prelude::*};
-use std::{borrow::Cow, io, path::PathBuf};
+use std::{borrow::Cow, io};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) struct MigrateCommand {
@@ -23,8 +23,8 @@ pub(crate) struct MigrateCommand {
     password: PasswordArgs,
     #[command(flatten)]
     archive: ArchiveFileArgs,
-    #[arg(long, help = "Output file path", value_hint = ValueHint::AnyPath)]
-    output: PathBuf,
+    #[command(flatten)]
+    output: ArchiveOutputArgs,
 }
 
 impl Command for MigrateCommand {
@@ -38,9 +38,8 @@ impl Command for MigrateCommand {
 fn migrate_metadata(args: MigrateCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let source = args.archive.source();
-    // Preserve migrate's existing required-output replacement contract while
-    // its argument shape remains unchanged.
-    let destination = ArchiveDestination::Replace(args.output);
+    let destination =
+        resolve_transform_destination(&source, args.output.output, args.output.overwrite)?;
     execute_archive_transform(
         source,
         destination,

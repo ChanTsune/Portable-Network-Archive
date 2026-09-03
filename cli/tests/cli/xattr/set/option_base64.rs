@@ -15,6 +15,7 @@ fn xattr_set_base64() {
         "--quiet",
         "xattr",
         "set",
+        "--overwrite",
         "-f",
         "xattr_set_base64/zstd.pna",
         "--name",

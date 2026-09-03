@@ -31,6 +31,7 @@ fn chown_user_and_group() {
         "--quiet",
         "experimental",
         "chown",
+        "--overwrite",
         "-f",
         "chown_user_and_group.pna",
         "new_user:new_group",

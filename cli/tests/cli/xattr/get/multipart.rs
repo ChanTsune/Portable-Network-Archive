@@ -33,6 +33,7 @@ fn xattr_get_from_multipart_archive() {
         "set",
         "-f",
         "xattr_multipart_get/archive.pna",
+        "--overwrite",
         "--name",
         "user.test",
         "--value",

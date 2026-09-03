@@ -1,14 +1,17 @@
 use crate::{
-    cli::{ArchiveFileArgs, FileOperands, PasswordArgs, SolidEntriesTransformStrategyArgs},
+    cli::{
+        ArchiveFileArgs, ArchiveOutputArgs, FileOperands, PasswordArgs,
+        SolidEntriesTransformStrategyArgs,
+    },
     command::{
         Command, ask_password,
         core::{
-            ArchiveSource, EntryVisitor, Umask,
-            archive_destination::ArchiveDestination,
+            EntryVisitor, Umask,
+            archive_destination::resolve_transform_destination,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
-    utils::{GlobPatterns, PathPartExt},
+    utils::GlobPatterns,
 };
 use base64::Engine;
 use bstr::{ByteSlice, io::BufReadExt};
@@ -94,6 +97,8 @@ impl Command for GetXattrCommand {
 pub(crate) struct SetXattrCommand {
     #[command(flatten)]
     archive: ArchiveFileArgs,
+    #[command(flatten)]
+    output: ArchiveOutputArgs,
     #[command(flatten)]
     files: FileOperands,
     #[arg(short, long, help = "Name of extended attribute")]
@@ -282,10 +287,11 @@ fn archive_set_xattr(args: SetXattrCommand, umask: Umask) -> anyhow::Result<()> 
         }
     };
 
-    let archive = args.archive.require_file()?;
-    let destination = ArchiveDestination::InPlace(archive.remove_part());
+    let source = args.archive.source();
+    let destination =
+        resolve_transform_destination(&source, args.output.output, args.output.overwrite)?;
     execute_archive_transform(
-        ArchiveSource::File(archive),
+        source,
         destination,
         umask,
         password.as_deref(),
