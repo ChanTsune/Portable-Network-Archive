@@ -3,7 +3,7 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            SplitArchiveReader, Umask, collect_split_archives,
+            EntryVisitor, Umask,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
@@ -204,46 +204,53 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
         return Ok(());
     }
     let files = args.files.files;
-    let mut globs = GlobPatterns::new(files.iter().map(|p| p.as_str()))?;
-    let encoding = args.encoding;
-    let dump_option = DumpOption::new(args.dump, args.name.as_deref(), args.regex_match.as_deref())
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let mut dump = XattrDump {
+        globs: GlobPatterns::new(files.iter().map(|p| p.as_str()))?,
+        encoding: args.encoding,
+        dump_option: DumpOption::new(args.dump, args.name.as_deref(), args.regex_match.as_deref())
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+    };
 
-    let mut source =
-        SplitArchiveReader::new(collect_split_archives(args.archive.require_file()?)?)?;
     let read_options = ReadOptions::with_password(password.as_deref());
-
-    source.for_each_entry(
-        &read_options,
-        #[hooq::skip_all]
-        |entry| {
-            let entry = entry?;
-            let name = entry.name();
-            if globs.matches_any(name) {
-                println!("# file: {name}");
-                for attr in entry
-                    .metadata()
-                    .xattrs()
-                    .iter()
-                    .filter(|a| dump_option.is_match(a.name()))
-                {
-                    if dump_option.dump {
-                        println!(
-                            "{}={}",
-                            attr.name(),
-                            DisplayValue::new(attr.value(), encoding)
-                        );
-                    } else {
-                        println!("{}", attr.name());
-                    }
-                }
-                println!();
-            }
-            Ok(())
-        },
-    )?;
-    globs.ensure_all_matched()?;
+    args.archive
+        .source()
+        .open()?
+        .for_each_entry(&read_options, &mut dump)?;
+    dump.globs.ensure_all_matched()?;
     Ok(())
+}
+
+struct XattrDump<'g, 'n> {
+    globs: GlobPatterns<'g>,
+    encoding: Option<Encoding>,
+    dump_option: DumpOption<'n>,
+}
+
+impl EntryVisitor for XattrDump<'_, '_> {
+    fn visit(&mut self, entry: NormalEntry<Cow<'_, [u8]>>) -> io::Result<()> {
+        let name = entry.name();
+        if self.globs.matches_any(name) {
+            println!("# file: {name}");
+            for attr in entry
+                .metadata()
+                .xattrs()
+                .iter()
+                .filter(|attr| self.dump_option.is_match(attr.name()))
+            {
+                if self.dump_option.dump {
+                    println!(
+                        "{}={}",
+                        attr.name(),
+                        DisplayValue::new(attr.value(), self.encoding)
+                    );
+                } else {
+                    println!("{}", attr.name());
+                }
+            }
+            println!();
+        }
+        Ok(())
+    }
 }
 
 #[hooq::hooq(anyhow)]
