@@ -23,4 +23,5 @@ fn fail_without_overwrite() {
     .execute();
 
     assert!(result.is_err());
+    assert_eq!(fs::read(archive).unwrap(), b"exist");
 }
