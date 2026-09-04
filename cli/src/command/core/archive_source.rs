@@ -1,5 +1,4 @@
-use std::borrow::Cow;
-use std::{fs, io, path::PathBuf};
+use std::{borrow::Cow, fs, io, path::PathBuf};
 
 use pna::{NormalEntry, ReadEntry, ReadOptions};
 
@@ -16,21 +15,15 @@ impl ArchiveSource {
         }
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn dispatch<T>(
-        self,
-        file: impl FnOnce(SplitArchiveReader) -> anyhow::Result<T>,
-        stdin: impl FnOnce(io::StdinLock<'_>) -> anyhow::Result<T>,
-    ) -> anyhow::Result<T> {
+    pub(crate) fn open(self) -> anyhow::Result<OpenArchiveSource> {
         match self {
             Self::File(path) => {
                 let source = SplitArchiveReader::new(super::collect_split_archives(path)?)?;
-                file(source)
+                Ok(source.into())
             }
-            Self::Stdin => {
-                let handle = io::stdin();
-                stdin(handle.lock())
-            }
+            Self::Stdin => Ok(OpenArchiveSource(Repr::Stdin(
+                io::BufReader::with_capacity(READ_BUFFER_SIZE, io::stdin().lock()),
+            ))),
         }
     }
 }
@@ -61,6 +54,121 @@ pub(crate) struct SplitArchiveReader {
     files: Vec<fs::File>,
 }
 
+const READ_BUFFER_SIZE: usize = 64 * 1024;
+
+/// An archive input opened for reading. The representation is private so every consumer
+/// goes through the entry, transform, or [`consume`](Self::consume) methods instead of
+/// branching on where the bytes come from.
+pub(crate) struct OpenArchiveSource(Repr);
+
+enum Repr {
+    File(SplitArchiveReader),
+    Stdin(io::BufReader<io::StdinLock<'static>>),
+}
+
+impl From<SplitArchiveReader> for OpenArchiveSource {
+    fn from(reader: SplitArchiveReader) -> Self {
+        Self(Repr::File(reader))
+    }
+}
+
+/// Continuation run with the opened source. The reader's concrete type is only known once
+/// the source is opened, so the read path is expressed as a generic method and monomorphizes
+/// per source instead of dispatching on every read.
+pub(crate) trait SourceConsumer {
+    type Output;
+
+    /// The archive parts as sequential readers.
+    fn readers<R: io::Read, I: Iterator<Item = R>>(self, readers: I) -> Self::Output;
+
+    /// The archive parts as memory-mapped bytes. The default streams the mapped bytes
+    /// through [`readers`](Self::readers) (`&[u8]` implements `Read`), so only consumers
+    /// with a slice-native fast path override it.
+    #[cfg(feature = "memmap")]
+    fn bytes<'d>(self, parts: impl Iterator<Item = &'d [u8]> + Send) -> Self::Output
+    where
+        Self: Sized,
+    {
+        self.readers(parts)
+    }
+}
+
+/// Receives each entry of an archive. Entry data is borrowed from a memory map or owned by
+/// a read buffer depending on the source; both arrive as `Cow`, so one visitor serves every
+/// source.
+pub(crate) trait EntryVisitor {
+    fn visit(&mut self, entry: NormalEntry<Cow<'_, [u8]>>) -> io::Result<()>;
+}
+
+impl<V: EntryVisitor + ?Sized> EntryVisitor for &mut V {
+    fn visit(&mut self, entry: NormalEntry<Cow<'_, [u8]>>) -> io::Result<()> {
+        (**self).visit(entry)
+    }
+}
+
+/// Like [`EntryVisitor`], but sees solid blocks as a whole instead of their members.
+pub(crate) trait ReadEntryVisitor {
+    fn visit(&mut self, entry: ReadEntry<Cow<'_, [u8]>>) -> io::Result<()>;
+}
+
+impl<V: ReadEntryVisitor + ?Sized> ReadEntryVisitor for &mut V {
+    fn visit(&mut self, entry: ReadEntry<Cow<'_, [u8]>>) -> io::Result<()> {
+        (**self).visit(entry)
+    }
+}
+
+impl OpenArchiveSource {
+    pub(crate) fn for_each_entry(
+        self,
+        read_options: &ReadOptions,
+        mut visitor: impl EntryVisitor,
+    ) -> io::Result<()> {
+        match self.0 {
+            Repr::File(mut source) => {
+                source.for_each_entry(read_options, |entry| visitor.visit(entry?))
+            }
+            Repr::Stdin(stdin) => super::run_process_archive_readers(
+                [stdin],
+                read_options,
+                |entry| visitor.visit(entry?.into()),
+                false,
+            ),
+        }
+    }
+
+    pub(crate) fn for_each_read_entry(
+        self,
+        mut visitor: impl ReadEntryVisitor,
+        allow_concatenated_archives: bool,
+    ) -> io::Result<()> {
+        match self.0 {
+            Repr::File(mut source) => source
+                .for_each_read_entry(|entry| visitor.visit(entry?), allow_concatenated_archives),
+            Repr::Stdin(stdin) => super::run_read_entries_readers(
+                [stdin],
+                |entry| visitor.visit(entry?.into()),
+                allow_concatenated_archives,
+            ),
+        }
+    }
+
+    /// Hands the archive parts to `consumer`, as memory-mapped bytes when this build maps
+    /// file sources and as buffered readers otherwise.
+    pub(crate) fn consume<C: SourceConsumer>(self, consumer: C) -> C::Output {
+        match self.0 {
+            #[cfg(feature = "memmap")]
+            Repr::File(source) => consumer.bytes(source.bytes()),
+            #[cfg(not(feature = "memmap"))]
+            Repr::File(source) => consumer.readers(
+                source
+                    .into_readers()
+                    .map(|file| io::BufReader::with_capacity(READ_BUFFER_SIZE, file)),
+            ),
+            Repr::Stdin(stdin) => consumer.readers(std::iter::once(stdin)),
+        }
+    }
+}
+
 impl SplitArchiveReader {
     pub(crate) fn new(files: Vec<fs::File>) -> io::Result<Self> {
         #[cfg(feature = "memmap")]
@@ -75,6 +183,16 @@ impl SplitArchiveReader {
         {
             Ok(Self { files })
         }
+    }
+
+    #[cfg(not(feature = "memmap"))]
+    pub(crate) fn into_readers(self) -> impl Iterator<Item = fs::File> {
+        self.files.into_iter()
+    }
+
+    #[cfg(feature = "memmap")]
+    pub(crate) fn bytes(&self) -> impl Iterator<Item = &[u8]> {
+        self.mmaps.iter().map(|mmap| mmap.as_ref())
     }
 
     #[cfg(not(feature = "memmap"))]
@@ -202,12 +320,27 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn stdin_source_dispatches_to_generic_reader() {
-        let selected = ArchiveSource::Stdin
-            .dispatch(|_| Ok("filesystem"), |_| Ok("reader"))
-            .unwrap();
+    /// Reports which access path [`OpenArchiveSource::consume`] hands a consumer.
+    struct SourceKind;
 
-        assert_eq!(selected, "reader");
+    impl SourceConsumer for SourceKind {
+        type Output = &'static str;
+
+        fn readers<R: io::Read, I: Iterator<Item = R>>(self, _: I) -> &'static str {
+            "readers"
+        }
+
+        #[cfg(feature = "memmap")]
+        fn bytes<'d>(self, _: impl Iterator<Item = &'d [u8]> + Send) -> &'static str {
+            "bytes"
+        }
+    }
+
+    #[test]
+    fn stdin_source_opens_the_generic_reader() {
+        assert_eq!(
+            ArchiveSource::Stdin.open().unwrap().consume(SourceKind),
+            "readers"
+        );
     }
 }
