@@ -4,6 +4,7 @@ mod multipart;
 mod option_base64;
 mod option_hex;
 mod option_keep_solid;
+mod option_output;
 mod option_password;
 mod option_remove;
 mod option_restore;

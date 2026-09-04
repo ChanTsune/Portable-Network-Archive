@@ -117,6 +117,8 @@ pub(crate) struct SetAclCommand {
         help = "Restore a permission backup created by `pna acl get *` or similar from standard input"
     )]
     restore_from_stdin: bool,
+    #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
+    output: Option<PathBuf>,
     #[command(flatten)]
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
@@ -359,7 +361,8 @@ fn archive_set_acl(args: SetAclCommand, umask: Umask) -> anyhow::Result<()> {
 
     execute_archive_transform(
         &args.archive.file,
-        args.archive.file.remove_part(),
+        args.output
+            .unwrap_or_else(|| args.archive.file.remove_part()),
         umask,
         password.as_deref(),
         args.transform_strategy.strategy(),

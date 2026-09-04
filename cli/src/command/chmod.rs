@@ -19,7 +19,7 @@ use nom::{
     multi::{many0, many1, separated_list1},
 };
 use pna::{DataKind, NormalEntry};
-use std::{borrow::Cow, io, ops::BitOr, str::FromStr};
+use std::{borrow::Cow, io, ops::BitOr, path::PathBuf, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ChmodCommand {
@@ -29,6 +29,8 @@ pub(crate) struct ChmodCommand {
     mode: Mode,
     #[arg(value_hint = ValueHint::AnyPath)]
     files: Vec<String>,
+    #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
+    output: Option<PathBuf>,
     #[command(flatten)]
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
@@ -49,9 +51,12 @@ fn archive_chmod(args: ChmodCommand, umask: Umask) -> anyhow::Result<()> {
         return Ok(());
     }
     let globs = GlobPatterns::new(args.files.iter().map(|p| p.as_str()))?;
+    let output_path = args
+        .output
+        .unwrap_or_else(|| args.archive.file.remove_part());
     execute_archive_transform(
         &args.archive.file,
-        args.archive.file.remove_part(),
+        output_path,
         umask,
         password.as_deref(),
         args.transform_strategy.strategy(),

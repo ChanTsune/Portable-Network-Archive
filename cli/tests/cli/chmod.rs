@@ -3,6 +3,7 @@ mod keep_solid;
 mod missing_file;
 mod multipart;
 mod numeric;
+mod option_output;
 mod password;
 mod password_file;
 mod unsolid;
