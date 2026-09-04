@@ -37,7 +37,7 @@ pub(crate) struct DeleteCommand {
     files_from: Option<PathBuf>,
     #[arg(
         long,
-        requires = "unstable",
+        requires_all = ["unstable", "file"],
         help_heading = "Unstable Options",
         help = "Read deleting files from stdin"
     )]
