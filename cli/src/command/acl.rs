@@ -4,7 +4,7 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            SplitArchiveReader, Umask, collect_split_archives,
+            EntryVisitor, Umask,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
@@ -295,47 +295,52 @@ fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
         return Ok(());
     }
     let files = args.files.files;
-    let mut globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
-    let platforms = args.platform.into_iter().collect::<HashSet<_>>();
-    let numeric_owner = args.numeric;
+    let mut dump = AclDump {
+        globs: GlobPatterns::new(files.iter().map(|it| it.as_str()))?,
+        platforms: args.platform.into_iter().collect(),
+        numeric_owner: args.numeric,
+    };
 
-    let mut source =
-        SplitArchiveReader::new(collect_split_archives(args.archive.require_file()?)?)?;
     let read_options = ReadOptions::with_password(password.as_deref());
-
-    source.for_each_entry(
-        &read_options,
-        #[hooq::skip_all]
-        |entry| {
-            let entry = entry?;
-            let name = entry.name();
-            if globs.matches_any(name) {
-                let ownership = crate::ext::ResolvedOwnership::from_metadata(entry.metadata());
-                println!("# file: {name}");
-                if ownership.is_empty() {
-                    println!("# owner: ");
-                    println!("# group: ");
-                } else {
-                    println!("# owner: {}", ownership.owner_display(numeric_owner));
-                    println!("# group: {}", ownership.group_display(numeric_owner));
-                }
-                for (platform, acl) in entry
-                    .acl()?
-                    .into_iter()
-                    .filter(|(p, _)| platforms.is_empty() || platforms.contains(p))
-                {
-                    println!("# platform: {platform}");
-                    for ace in acl {
-                        println!("{ace}");
-                    }
-                }
-                println!();
-            }
-            Ok(())
-        },
-    )?;
-    globs.ensure_all_matched()?;
+    args.archive
+        .source()
+        .open()?
+        .for_each_entry(&read_options, &mut dump)?;
+    dump.globs.ensure_all_matched()?;
     Ok(())
+}
+
+struct AclDump<'g> {
+    globs: GlobPatterns<'g>,
+    platforms: HashSet<AcePlatform>,
+    numeric_owner: bool,
+}
+
+impl EntryVisitor for AclDump<'_> {
+    fn visit(&mut self, entry: NormalEntry<Cow<'_, [u8]>>) -> io::Result<()> {
+        let name = entry.name();
+        if self.globs.matches_any(name) {
+            let ownership = crate::ext::ResolvedOwnership::from_metadata(entry.metadata());
+            println!("# file: {name}");
+            if ownership.is_empty() {
+                println!("# owner: ");
+                println!("# group: ");
+            } else {
+                println!("# owner: {}", ownership.owner_display(self.numeric_owner));
+                println!("# group: {}", ownership.group_display(self.numeric_owner));
+            }
+            for (platform, acl) in entry.acl()?.into_iter().filter(|(platform, _)| {
+                self.platforms.is_empty() || self.platforms.contains(platform)
+            }) {
+                println!("# platform: {platform}");
+                for ace in acl {
+                    println!("{ace}");
+                }
+            }
+            println!();
+        }
+        Ok(())
+    }
 }
 
 #[hooq::hooq(anyhow)]

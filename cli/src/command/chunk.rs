@@ -1,10 +1,10 @@
 use crate::{
     cli::{ArchiveFileArgs, value::ChunkType},
-    command::Command,
+    command::{Command, core::ArchiveSource},
 };
 use clap::Parser;
 use pna::prelude::*;
-use std::{collections::HashSet, fs};
+use std::{collections::HashSet, fs, io};
 use tabled::{builder::Builder as TableBuilder, settings::Style as TableStyle};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
@@ -63,7 +63,16 @@ impl Command for ListCommand {
 
 #[hooq::hooq(anyhow)]
 fn list_archive_chunks(args: ListCommand) -> anyhow::Result<()> {
-    let archive = fs::File::open(args.archive.require_file()?)?;
+    match args.archive.source() {
+        ArchiveSource::File(path) => list_archive_chunks_from_reader(&args, fs::File::open(path)?),
+        ArchiveSource::Stdin => list_archive_chunks_from_reader(&args, io::stdin().lock()),
+    }
+}
+
+fn list_archive_chunks_from_reader(
+    args: &ListCommand,
+    archive: impl io::Read,
+) -> anyhow::Result<()> {
     let mut builder = TableBuilder::new();
     if args.header {
         builder.push_record(

@@ -4,9 +4,8 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            PathFilter, ProcessAction, SplitArchiveReader, TimeFilterResolver, TimeFilters,
-            collect_split_archives, read_paths, run_read_entries_readers,
-            run_read_entries_readers_stoppable,
+            PathFilter, ProcessAction, ReadEntryVisitor, TimeFilterResolver, TimeFilters,
+            read_paths, run_read_entries_readers, run_read_entries_readers_stoppable,
         },
     },
     ext::*,
@@ -530,7 +529,7 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
         time_filters,
         line_ending: LineEnding::default(),
     };
-    let archive = args.archive.require_file()?;
+    let source = args.archive.source();
     let files = args.files.files;
     let files_globs =
         BsdGlobMatcher::new(files.iter().map(|it| it.as_str())).with_no_recursive(!args.recursive);
@@ -549,22 +548,33 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
 
-    let mut source = SplitArchiveReader::new(collect_split_archives(&archive)?)?;
-    let password = password.as_deref();
-    let read_options = ReadOptions::with_password(password);
-    let mut entries = Vec::new();
-    let collect_opts = CollectOptions::from_list_options(&options);
-    source.for_each_read_entry(
-        #[hooq::skip_all]
-        |entry| {
-        match entry? {
-            ReadEntry::Solid(solid) if options.solid => {
-                for entry in solid.entries(&read_options)? {
-                    entries.push(TableRow::from_entry(
+    let mut rows = TableRows {
+        read_options: ReadOptions::with_password(password.as_deref()),
+        solid: options.solid,
+        collect: CollectOptions::from_list_options(&options),
+        entries: Vec::new(),
+    };
+    source.open()?.for_each_read_entry(&mut rows, false)?;
+    print_entries(rows.entries, files_globs, filter, options)
+}
+
+struct TableRows {
+    read_options: ReadOptions,
+    solid: bool,
+    collect: CollectOptions,
+    entries: Vec<TableRow>,
+}
+
+impl ReadEntryVisitor for TableRows {
+    fn visit(&mut self, entry: ReadEntry<Cow<'_, [u8]>>) -> io::Result<()> {
+        match entry {
+            ReadEntry::Solid(solid) if self.solid => {
+                for entry in solid.entries(&self.read_options)? {
+                    self.entries.push(TableRow::from_entry(
                         &entry?,
-                        &read_options,
+                        &self.read_options,
                         Some(solid.header()),
-                        collect_opts,
+                        self.collect,
                     )?)
                 }
             }
@@ -573,15 +583,15 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
                     "This archive contain solid mode entry. if you need to show it use --solid option."
                 );
             }
-            ReadEntry::Normal(item) => {
-                entries.push(TableRow::from_entry(&item, &read_options, None, collect_opts)?)
-            }
+            ReadEntry::Normal(item) => self.entries.push(TableRow::from_entry(
+                &item,
+                &self.read_options,
+                None,
+                self.collect,
+            )?),
         }
-            Ok(())
-        },
-        false,
-    )?;
-    print_entries(entries, files_globs, filter, options)
+        Ok(())
+    }
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]

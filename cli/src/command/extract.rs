@@ -10,9 +10,9 @@ use crate::{
         core::{
             AclStrategy, FflagsStrategy, KeepOptions, MacMetadataStrategy, ModeStrategy,
             OwnerOptions, OwnerStrategy, PathFilter, PathTransformers, PathnameEditor,
-            PermissionStrategyResolver, ProcessAction, SafeWriter, TimeFilterResolver, TimeFilters,
-            TimestampStrategy, TimestampStrategyResolver, Umask, XattrStrategy,
-            collect_split_archives,
+            PermissionStrategyResolver, ProcessAction, SafeWriter, SourceConsumer,
+            TimeFilterResolver, TimeFilters, TimestampStrategy, TimestampStrategyResolver, Umask,
+            XattrStrategy,
             path_lock::OrderedPathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, run_process_archive_readers, run_process_archive_readers_stoppable,
@@ -402,11 +402,8 @@ impl Command for ExtractCommand {
 fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password).with_context(|| "reading password")?;
     let start = Instant::now();
-    let archive = args.archive.require_file()?;
-    log::info!("Extract archive {}", PathWithCwd::new(&archive));
-
-    let archives = collect_split_archives(&archive)
-        .with_context(|| format!("opening archive '{}'", PathWithCwd::new(&archive)))?;
+    let source = args.archive.source();
+    log::info!("Extract archive {source}");
 
     let mut exclude = args.exclude;
     if let Some(p) = args.exclude_from {
@@ -505,39 +502,14 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         absolute_paths: false,
         warned_lead_slash: Arc::new(AtomicBool::new(false)),
     };
-    #[cfg(not(feature = "memmap"))]
-    run_extract_archive_reader(
-        archives
-            .into_iter()
-            .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
-        files,
-        || password.as_deref(),
-        output_options,
-        true,
-        false,
-        false,
-    )
-    .with_context(|| format!("extracting entries from '{}'", PathWithCwd::new(&archive)))?;
-
-    #[cfg(feature = "memmap")]
-    let mmaps = archives
-        .into_iter()
-        .map(utils::mmap::Mmap::try_from)
-        .collect::<io::Result<Vec<_>>>()
-        .with_context(|| format!("memory-mapping archive '{}'", PathWithCwd::new(&archive)))?;
-    #[cfg(feature = "memmap")]
-    let archives = mmaps.iter().map(|m| m.as_ref());
-
-    #[cfg(feature = "memmap")]
-    run_extract_archive(
-        archives,
-        files,
-        || password.as_deref(),
-        output_options,
-        true,
-        false,
-    )
-    .with_context(|| format!("extracting entries from '{}'", PathWithCwd::new(&archive)))?;
+    source
+        .open()
+        .with_context(|| "opening archive input")?
+        .consume(ExtractEntries {
+            files,
+            password: password.as_deref(),
+            output_options,
+        })?;
     log::info!(
         "Successfully extracted an archive in {}",
         DurationDisplay(start.elapsed())
@@ -591,6 +563,44 @@ pub(crate) struct OutputOption<'a> {
     pub(crate) verbose: bool,
     pub(crate) absolute_paths: bool,
     pub(crate) warned_lead_slash: Arc<AtomicBool>,
+}
+
+/// Extracts the opened source, taking the slice-native path when the archive is
+/// memory-mapped and the streaming path otherwise.
+struct ExtractEntries<'a> {
+    files: Vec<String>,
+    password: Option<&'a [u8]>,
+    output_options: OutputOption<'a>,
+}
+
+impl SourceConsumer for ExtractEntries<'_> {
+    type Output = anyhow::Result<()>;
+
+    fn readers<R: io::Read, I: Iterator<Item = R>>(self, readers: I) -> anyhow::Result<()> {
+        let password = self.password;
+        run_extract_archive_reader(
+            readers,
+            self.files,
+            || password,
+            self.output_options,
+            true,
+            false,
+            false,
+        )
+    }
+
+    #[cfg(feature = "memmap")]
+    fn bytes<'d>(self, parts: impl Iterator<Item = &'d [u8]> + Send) -> anyhow::Result<()> {
+        let password = self.password;
+        run_extract_archive(
+            parts,
+            self.files,
+            || password,
+            self.output_options,
+            true,
+            false,
+        )
+    }
 }
 
 pub(crate) fn run_extract_archive_reader<'a, 'p, Provider>(
