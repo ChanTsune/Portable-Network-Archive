@@ -15,7 +15,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13 # v7.0.0
-      - uses: ./.github/actions/label_by_message
+      - uses: $/.github/actions/label_by_message
         with:
           pr_number: ${{ github.event.pull_request.number }}
           message_contains: ':boom:'
