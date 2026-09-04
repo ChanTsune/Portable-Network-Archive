@@ -114,6 +114,7 @@ pub(crate) struct SetAclCommand {
     restore: Option<PathBuf>,
     #[arg(
         long,
+        requires = "file",
         help = "Restore a permission backup created by `pna acl get *` or similar from standard input"
     )]
     restore_from_stdin: bool,

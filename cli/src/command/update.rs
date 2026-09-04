@@ -307,7 +307,7 @@ pub(crate) struct UpdateCommand {
     files_from: Option<PathBuf>,
     #[arg(
         long,
-        requires = "unstable",
+        requires_all = ["unstable", "file"],
         help_heading = "Unstable Options",
         help = "Read archiving files from stdin"
     )]
