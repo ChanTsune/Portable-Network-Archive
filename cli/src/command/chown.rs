@@ -14,7 +14,7 @@ use crate::{
 };
 use clap::{ArgAction, Parser, ValueHint, builder::ArgPredicate};
 use pna::NormalEntry;
-use std::{borrow::Cow, io, ops::Not, str::FromStr};
+use std::{borrow::Cow, io, ops::Not, path::PathBuf, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ChownCommand {
@@ -36,6 +36,8 @@ pub(crate) struct ChownCommand {
     no_owner_lookup: (),
     #[arg(value_hint = ValueHint::AnyPath)]
     files: Vec<String>,
+    #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
+    output: Option<PathBuf>,
     #[command(flatten)]
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
@@ -60,9 +62,12 @@ fn archive_chown(args: ChownCommand, umask: Umask) -> anyhow::Result<()> {
     let owner = args
         .owner
         .lookup_platform_owner(args.numeric_owner, args.owner_lookup)?;
+    let output_path = args
+        .output
+        .unwrap_or_else(|| args.archive.file.remove_part());
     execute_archive_transform(
         &args.archive.file,
-        args.archive.file.remove_part(),
+        output_path,
         umask,
         password.as_deref(),
         args.transform_strategy.strategy(),
