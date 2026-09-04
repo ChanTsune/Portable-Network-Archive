@@ -26,6 +26,7 @@ impl Command for ExperimentalCommand {
             ExperimentalCommands::Chown(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Chmod(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Acl(cmd) => cmd.execute(ctx),
+            ExperimentalCommands::Fflag(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Chunk(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Diff(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Verify(cmd) => cmd.execute(ctx),
@@ -46,6 +47,8 @@ pub(crate) enum ExperimentalCommands {
     Chmod(command::chmod::ChmodCommand),
     #[command(about = "Manipulate ACLs of entries")]
     Acl(command::acl::AclCommand),
+    #[command(about = "Manipulate file flags of entries")]
+    Fflag(command::fflag::FflagCommand),
     #[command(about = "Chunk level operation")]
     Chunk(command::chunk::ChunkCommand),
     #[command(about = "Compare archive entries with filesystem")]
