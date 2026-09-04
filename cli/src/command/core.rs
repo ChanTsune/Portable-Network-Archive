@@ -1721,8 +1721,6 @@ where
     )
 }
 
-// Kept available in memmap builds for non-file sources introduced by the stdio stack.
-#[cfg_attr(feature = "memmap", allow(dead_code))]
 fn run_transform_entries_readers<'d, 'p, W, Provider, F, Transform>(
     writer: W,
     archives: impl IntoIterator<Item = impl Read>,

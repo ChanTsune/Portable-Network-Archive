@@ -65,7 +65,13 @@ fn acl_set_restore() {
 
     // Strip all metadata.
     cargo_bin_cmd!("pna")
-        .args(["--quiet", "strip", "-f", "acl_set_restore/mixed_acl.pna"])
+        .args([
+            "--quiet",
+            "strip",
+            "-f",
+            "acl_set_restore/mixed_acl.pna",
+            "--overwrite",
+        ])
         .assert()
         .success();
 
@@ -191,6 +197,7 @@ fn acl_set_restore_compat() {
             "strip",
             "-f",
             "acl_set_restore_compat/mixed_acl.pna",
+            "--overwrite",
         ])
         .assert()
         .success();

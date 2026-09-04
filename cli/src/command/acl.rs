@@ -4,7 +4,8 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            EntryVisitor, Umask,
+            ArchiveSource, EntryVisitor, Umask,
+            archive_destination::ArchiveDestination,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
@@ -365,9 +366,10 @@ fn archive_set_acl(args: SetAclCommand, umask: Umask) -> anyhow::Result<()> {
     };
 
     let archive = args.archive.require_file()?;
+    let destination = ArchiveDestination::InPlace(archive.remove_part());
     execute_archive_transform(
-        &archive,
-        archive.remove_part(),
+        ArchiveSource::File(archive),
+        destination,
         umask,
         password.as_deref(),
         args.transform_strategy.strategy(),
