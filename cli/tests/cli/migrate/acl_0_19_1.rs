@@ -20,6 +20,7 @@ fn assert_migrated_acl(platform: &str, acl_entries: &[&str]) {
     let source = format!("0.19.1/{platform}_acl.pna");
     let migrated = format!("migrate_{platform}_acl/migrated.pna");
     TestResources::extract_in(&source, ".").unwrap();
+    let _ = std::fs::remove_file(&migrated);
 
     cli::Cli::try_parse_from([
         "pna", "--quiet", "migrate", "-f", &source, "--output", &migrated,

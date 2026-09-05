@@ -26,6 +26,7 @@ struct Captured {
 fn migrate_converts_fprm_to_owner_facet() {
     setup();
     TestResources::extract_in("0.33.0/zstd_keep_all.pna", "migrate_fprm_0_33_0/").unwrap();
+    let _ = std::fs::remove_file("migrate_fprm_0_33_0/migrated.pna");
 
     let mut pre: BTreeMap<String, Captured> = BTreeMap::new();
     archive::for_each_entry(LEGACY_FIXTURE, |entry| {

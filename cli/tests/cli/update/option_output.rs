@@ -1,7 +1,7 @@
 use crate::utils::{archive, setup};
 use clap::Parser;
 use portable_network_archive::cli;
-use std::{fs, io::prelude::*, time};
+use std::{collections::HashSet, fs, io::prelude::*, time};
 
 const DURATION_24_HOURS: time::Duration = time::Duration::from_secs(24 * 60 * 60);
 
@@ -161,4 +161,87 @@ fn update_with_output() {
         b"old-b",
         "output archive should keep unmodified file content"
     );
+}
+
+fn create_overwrite_fixture(dir: &str) {
+    fs::create_dir_all(format!("{dir}/in")).unwrap();
+    fs::write(format!("{dir}/in/file.txt"), b"data").unwrap();
+    fs::write(format!("{dir}/in/new.txt"), b"new").unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        &format!("{dir}/archive.pna"),
+        "--overwrite",
+        &format!("{dir}/in/"),
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+}
+
+/// Precondition: An archive and a pre-existing output file exist.
+/// Action: Run `pna experimental update` with `--output` pointing at the existing file.
+/// Expectation: The command fails without touching either file.
+#[test]
+fn update_output_without_overwrite_refuses_to_clobber() {
+    setup();
+    create_overwrite_fixture("update_overwrite");
+    fs::write("update_overwrite/out.pna", b"sentinel").unwrap();
+
+    let error = cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "experimental",
+        "update",
+        "-f",
+        "update_overwrite/archive.pna",
+        "--output",
+        "update_overwrite/out.pna",
+        "update_overwrite/in/new.txt",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap_err();
+
+    assert!(format!("{error:?}").contains("already exists"));
+    assert_eq!(fs::read("update_overwrite/out.pna").unwrap(), b"sentinel");
+}
+
+/// Precondition: An archive and a pre-existing output file exist.
+/// Action: Run the same update with `--overwrite`.
+/// Expectation: The output is replaced; the original is untouched.
+#[test]
+fn update_output_with_overwrite_replaces() {
+    setup();
+    create_overwrite_fixture("update_overwrite_ok");
+    fs::write("update_overwrite_ok/out.pna", b"sentinel").unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "experimental",
+        "update",
+        "-f",
+        "update_overwrite_ok/archive.pna",
+        "--output",
+        "update_overwrite_ok/out.pna",
+        "--overwrite",
+        "update_overwrite_ok/in/new.txt",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    assert_ne!(
+        fs::read("update_overwrite_ok/out.pna").unwrap(),
+        b"sentinel"
+    );
+    let mut seen = HashSet::new();
+    archive::for_each_entry("update_overwrite_ok/archive.pna", |entry| {
+        seen.insert(entry.header().path().to_string());
+    })
+    .unwrap();
+    assert!(!seen.is_empty(), "original archive must be untouched");
 }

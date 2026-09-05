@@ -1339,7 +1339,7 @@ where
     };
 
     if *safe_writes {
-        let mut safe_writer = SafeWriter::new(&path)?;
+        let mut safe_writer = SafeWriter::new(&path, true)?;
         {
             let mut writer = io::BufWriter::with_capacity(64 * 1024, safe_writer.as_file_mut());
             let mut reader = item.reader(read_options)?;
