@@ -1,6 +1,7 @@
 mod file_operands;
 mod keep_solid;
 mod missing_file;
+mod option_output;
 mod unsolid;
 
 use crate::utils::{EmbedExt, TestResources, archive, setup};

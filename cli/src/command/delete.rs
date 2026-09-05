@@ -3,13 +3,13 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            PathFilter, Umask, read_paths, read_paths_stdin,
+            PathFilter, Umask, read_paths, read_paths_stdin, resolve_rewrite_output,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
-    utils::{GlobPatterns, PathPartExt, VCS_FILES},
+    utils::{GlobPatterns, VCS_FILES},
 };
-use clap::{ArgGroup, Parser, ValueHint};
+use clap::{ArgAction, ArgGroup, Parser, ValueHint};
 use pna::NormalEntry;
 use std::{borrow::Cow, io, path::PathBuf};
 
@@ -26,6 +26,20 @@ use std::{borrow::Cow, io, path::PathBuf};
 pub(crate) struct DeleteCommand {
     #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
     output: Option<PathBuf>,
+    #[arg(
+        long,
+        conflicts_with = "no_overwrite",
+        requires = "output",
+        help = "Overwrite output file"
+    )]
+    overwrite: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not overwrite output file. This is the inverse option of --overwrite",
+        requires = "output"
+    )]
+    no_overwrite: (),
     #[arg(
         long,
         value_name = "FILE",
@@ -122,12 +136,10 @@ fn delete_file_from_archive(args: DeleteCommand, umask: Umask) -> anyhow::Result
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
 
-    let output_path = args
-        .output
-        .unwrap_or_else(|| args.archive.file.remove_part());
+    let destination = resolve_rewrite_output(&args.archive.file, args.output, args.overwrite)?;
     execute_archive_transform(
         &args.archive.file,
-        output_path,
+        destination,
         umask,
         password.as_deref(),
         args.transform_strategy.strategy(),

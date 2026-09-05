@@ -3,12 +3,12 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            Umask,
+            Umask, resolve_rewrite_output,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
     utils::{
-        GlobPatterns, PathPartExt,
+        GlobPatterns,
         fs::{Group, User},
     },
 };
@@ -38,6 +38,20 @@ pub(crate) struct ChownCommand {
     files: Vec<String>,
     #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
     output: Option<PathBuf>,
+    #[arg(
+        long,
+        conflicts_with = "no_overwrite",
+        requires = "output",
+        help = "Overwrite output file"
+    )]
+    overwrite: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not overwrite output file. This is the inverse option of --overwrite",
+        requires = "output"
+    )]
+    no_overwrite: (),
     #[command(flatten)]
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
@@ -62,12 +76,10 @@ fn archive_chown(args: ChownCommand, umask: Umask) -> anyhow::Result<()> {
     let owner = args
         .owner
         .lookup_platform_owner(args.numeric_owner, args.owner_lookup)?;
-    let output_path = args
-        .output
-        .unwrap_or_else(|| args.archive.file.remove_part());
+    let destination = resolve_rewrite_output(&args.archive.file, args.output, args.overwrite)?;
     execute_archive_transform(
         &args.archive.file,
-        output_path,
+        destination,
         umask,
         password.as_deref(),
         args.transform_strategy.strategy(),

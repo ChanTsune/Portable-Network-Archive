@@ -4,4 +4,5 @@ mod by_mtime;
 mod by_name;
 mod by_name_desc;
 mod multiple_keys;
+mod option_output;
 mod order_combination;

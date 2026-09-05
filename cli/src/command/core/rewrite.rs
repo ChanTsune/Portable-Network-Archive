@@ -1,14 +1,10 @@
 use super::{
-    SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid, TransformStrategyUnSolid, Umask,
-    collect_split_archives,
+    RewriteDestination, SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
+    TransformStrategyUnSolid, Umask, collect_split_archives,
 };
 use crate::{cli::SolidEntriesTransformStrategy, utils::GlobPatterns};
 use pna::NormalEntry;
-use std::{
-    borrow::Cow,
-    io,
-    path::{Path, PathBuf},
-};
+use std::{borrow::Cow, io, path::Path};
 
 /// The per-entry step of a command that rewrites an archive.
 ///
@@ -24,18 +20,21 @@ pub(crate) trait EntryTransform {
     fn patterns(&self) -> Option<&GlobPatterns<'_>>;
 }
 
-/// Rewrites `archive` into `output` through `transform`, one entry at a time.
+/// Rewrites `archive` into `destination` through `transform`, one entry at a time.
+///
+/// A destination resolved without `--overwrite` refuses at commit time to replace
+/// an existing file instead of renaming over it.
 #[hooq::hooq(anyhow)]
 pub(crate) fn execute_archive_transform(
     archive: &Path,
-    output: PathBuf,
+    destination: RewriteDestination,
     umask: Umask,
     password: Option<&[u8]>,
     strategy: SolidEntriesTransformStrategy,
     mut transform: impl EntryTransform,
 ) -> anyhow::Result<()> {
     let mut source = SplitArchiveReader::new(collect_split_archives(archive)?)?;
-    let mut staged = StagedArchive::new(output, umask)?;
+    let mut staged = StagedArchive::new(destination.path, umask, destination.overwrite)?;
     match strategy {
         SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
             staged.as_file_mut(),
@@ -65,7 +64,7 @@ pub(crate) fn execute_archive_transform(
 mod tests {
     use super::*;
     use pna::{Archive, FileEntryBuilder};
-    use std::fs;
+    use std::{fs, path::PathBuf};
 
     /// Drops every entry so a committed rewrite is distinguishable from the original bytes.
     struct DropAll<'s>(GlobPatterns<'s>);
@@ -117,7 +116,10 @@ mod tests {
     fn rewrite(archive: &Path, pattern: &str) -> anyhow::Result<()> {
         execute_archive_transform(
             archive,
-            archive.to_path_buf(),
+            RewriteDestination {
+                path: archive.to_path_buf(),
+                overwrite: true,
+            },
             Umask::new(0o022),
             None,
             SolidEntriesTransformStrategy::UnSolid,

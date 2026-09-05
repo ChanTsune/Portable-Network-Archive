@@ -3,14 +3,14 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            Umask,
+            Umask, resolve_rewrite_output,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
     ext::*,
     utils::GlobPatterns,
 };
-use clap::{Parser, ValueHint};
+use clap::{ArgAction, Parser, ValueHint};
 use pna::{NormalEntry, RawChunk, prelude::*};
 use std::{borrow::Cow, io, path::PathBuf};
 
@@ -24,6 +24,20 @@ pub(crate) struct MigrateCommand {
     archive: ArchiveFileArgs,
     #[arg(long, help = "Output file path", value_hint = ValueHint::AnyPath)]
     output: PathBuf,
+    #[arg(
+        long,
+        conflicts_with = "no_overwrite",
+        requires = "output",
+        help = "Overwrite output file"
+    )]
+    overwrite: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not overwrite output file. This is the inverse option of --overwrite",
+        requires = "output"
+    )]
+    no_overwrite: (),
 }
 
 impl Command for MigrateCommand {
@@ -36,9 +50,11 @@ impl Command for MigrateCommand {
 #[hooq::hooq(anyhow)]
 fn migrate_metadata(args: MigrateCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
+    let destination =
+        resolve_rewrite_output(&args.archive.file, Some(args.output), args.overwrite)?;
     execute_archive_transform(
         &args.archive.file,
-        args.output,
+        destination,
         umask,
         password.as_deref(),
         args.transform_strategy.strategy(),
