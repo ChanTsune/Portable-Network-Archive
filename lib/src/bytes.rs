@@ -41,12 +41,7 @@ pub fn read_chunk(bytes: &[u8], max_data_len: u32) -> io::Result<(RawChunk<&[u8]
         .split_first_chunk::<{ mem::size_of::<u32>() }>()
         .ok_or(io::ErrorKind::UnexpectedEof)?;
     let length = u32::from_be_bytes(*length);
-    if length > max_data_len {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("chunk data length {length} exceeds limit {max_data_len}"),
-        ));
-    }
+    crate::format::check_chunk_length_limit(length, max_data_len)?;
 
     let (ty, bytes) = bytes
         .split_first_chunk::<{ mem::size_of::<ChunkType>() }>()
