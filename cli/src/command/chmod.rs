@@ -3,14 +3,14 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            Umask,
+            Umask, resolve_rewrite_output,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
-    utils::{GlobPatterns, PathPartExt},
+    utils::GlobPatterns,
 };
 use bitflags::bitflags;
-use clap::{Parser, ValueHint};
+use clap::{ArgAction, Parser, ValueHint};
 use nom::{
     Parser as _,
     branch::alt,
@@ -31,6 +31,20 @@ pub(crate) struct ChmodCommand {
     files: Vec<String>,
     #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
     output: Option<PathBuf>,
+    #[arg(
+        long,
+        conflicts_with = "no_overwrite",
+        requires = "output",
+        help = "Overwrite output file"
+    )]
+    overwrite: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not overwrite output file. This is the inverse option of --overwrite",
+        requires = "output"
+    )]
+    no_overwrite: (),
     #[command(flatten)]
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
@@ -51,12 +65,10 @@ fn archive_chmod(args: ChmodCommand, umask: Umask) -> anyhow::Result<()> {
         return Ok(());
     }
     let globs = GlobPatterns::new(args.files.iter().map(|p| p.as_str()))?;
-    let output_path = args
-        .output
-        .unwrap_or_else(|| args.archive.file.remove_part());
+    let destination = resolve_rewrite_output(&args.archive.file, args.output, args.overwrite)?;
     execute_archive_transform(
         &args.archive.file,
-        output_path,
+        destination,
         umask,
         password.as_deref(),
         args.transform_strategy.strategy(),

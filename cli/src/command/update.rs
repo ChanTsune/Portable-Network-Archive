@@ -16,10 +16,10 @@ use crate::{
             create_entry, entry_option,
             iter::ReorderByIndex,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
-            read_paths, read_paths_stdin,
+            read_paths, read_paths_stdin, resolve_rewrite_output,
         },
     },
-    utils::{PathPartExt, VCS_FILES, fs::HardlinkResolver},
+    utils::{VCS_FILES, fs::HardlinkResolver},
 };
 use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
 use indexmap::IndexMap;
@@ -55,6 +55,20 @@ use std::{
 pub(crate) struct UpdateCommand {
     #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
     output: Option<PathBuf>,
+    #[arg(
+        long,
+        conflicts_with = "no_overwrite",
+        requires = "output",
+        help = "Overwrite output file"
+    )]
+    overwrite: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not overwrite output file. This is the inverse option of --overwrite",
+        requires = "output"
+    )]
+    no_overwrite: (),
     #[arg(
         long,
         requires = "unstable",
@@ -518,8 +532,8 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
     let mut resolver = HardlinkResolver::new(collect_options.follow_links);
     let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
 
-    let output_path = args.output.unwrap_or_else(|| archive_path.remove_part());
-    let mut staged = StagedArchive::new(output_path, umask)?;
+    let destination = resolve_rewrite_output(archive_path, args.output, args.overwrite)?;
+    let mut staged = StagedArchive::new(destination.path, umask, destination.overwrite)?;
     let mut out_archive = Archive::write_header(staged.as_file_mut())?;
 
     let mut source = SplitArchiveReader::new(archives)?;

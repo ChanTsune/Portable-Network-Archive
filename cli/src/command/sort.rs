@@ -2,11 +2,13 @@ use crate::{
     cli::{ArchiveFileArgs, PasswordArgs},
     command::{
         Command, ask_password,
-        core::{SplitArchiveReader, StagedArchive, Umask, collect_split_archives},
+        core::{
+            SplitArchiveReader, StagedArchive, Umask, collect_split_archives,
+            resolve_rewrite_output,
+        },
     },
-    utils::PathPartExt,
 };
-use clap::{Parser, ValueHint};
+use clap::{ArgAction, Parser, ValueHint};
 use pna::{Archive, NormalEntry, ReadOptions};
 use std::{
     fmt::{self, Display, Formatter},
@@ -125,6 +127,20 @@ pub(crate) struct SortCommand {
     #[arg(long, help = "Output archive file path", value_hint = ValueHint::FilePath)]
     output: Option<PathBuf>,
     #[arg(
+        long,
+        conflicts_with = "no_overwrite",
+        requires = "output",
+        help = "Overwrite output file"
+    )]
+    overwrite: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not overwrite output file. This is the inverse option of --overwrite",
+        requires = "output"
+    )]
+    no_overwrite: (),
+    #[arg(
         long = "by",
         value_name = "KEY",
         num_args = 1..,
@@ -177,10 +193,8 @@ fn sort_archive(args: SortCommand, umask: Umask) -> anyhow::Result<()> {
         std::cmp::Ordering::Equal
     });
 
-    let output = args
-        .output
-        .unwrap_or_else(|| args.archive.file.remove_part());
-    let mut staged = StagedArchive::new(output, umask)?;
+    let destination = resolve_rewrite_output(&args.archive.file, args.output, args.overwrite)?;
+    let mut staged = StagedArchive::new(destination.path, umask, destination.overwrite)?;
     let mut archive = Archive::write_header(staged.as_file_mut())?;
     for entry in entries {
         archive.add_entry(entry)?;

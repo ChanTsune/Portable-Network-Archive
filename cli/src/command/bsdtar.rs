@@ -1531,7 +1531,7 @@ fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
 
     let archives = collect_split_archives(&archive_path)?;
 
-    let mut staged = StagedArchive::new(archive_path.remove_part(), umask)?;
+    let mut staged = StagedArchive::new(archive_path.remove_part(), umask, true)?;
     let mut out_archive = Archive::write_header(staged.as_file_mut())?;
 
     let mut source = SplitArchiveReader::new(archives)?;
