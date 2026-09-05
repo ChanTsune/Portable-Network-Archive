@@ -132,3 +132,25 @@ pub(crate) fn file_create(path: impl AsRef<Path>, overwrite: bool) -> io::Result
         fs::File::create_new(path)
     }
 }
+
+/// Atomically renames `src` onto `dst`, failing when anything already occupies `dst`.
+///
+/// Unlike [`fs::rename`], which silently replaces an existing file on Unix, the
+/// filesystem itself refuses the link when the destination name is taken, so no
+/// check-then-act race exists. A dangling symlink is never replaced either.
+pub(crate) fn rename_no_overwrite(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
+    let (src, dst) = (src.as_ref(), dst.as_ref());
+    if let Err(error) = fs::hard_link(src, dst) {
+        // The link itself is the atomic guard; this lookup only selects the message.
+        let message = if fs::symlink_metadata(dst).is_ok() {
+            format!(
+                "{} already exists (use --overwrite to replace it)",
+                dst.display()
+            )
+        } else {
+            format!("failed to publish {}: {error}", dst.display())
+        };
+        return Err(io::Error::new(error.kind(), message));
+    }
+    fs::remove_file(src)
+}

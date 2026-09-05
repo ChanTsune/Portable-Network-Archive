@@ -16,9 +16,12 @@ impl StagedArchive {
     ///
     /// On unix, the commit gives the archive the permission bits of the regular file it
     /// replaces, or what `umask` leaves of `0666` when there is no such file.
+    ///
+    /// When `overwrite` is false, [`commit()`](Self::commit) atomically refuses to
+    /// replace an existing destination instead of renaming over it.
     #[inline]
     #[cfg_attr(not(unix), allow(unused_variables))]
-    pub(crate) fn new(output: PathBuf, umask: Umask) -> io::Result<Self> {
+    pub(crate) fn new(output: PathBuf, umask: Umask, overwrite: bool) -> io::Result<Self> {
         if let Some(parent) = output.parent() {
             fs::create_dir_all(parent)?;
         }
@@ -35,7 +38,7 @@ impl StagedArchive {
             }
         };
         Ok(Self {
-            writer: SafeWriter::new(output)?,
+            writer: SafeWriter::new(output, overwrite)?,
             #[cfg(unix)]
             mode,
         })
@@ -92,7 +95,7 @@ mod tests {
         let output = dir.join("archive.pna");
         fs::write(&output, b"original").unwrap();
 
-        let staged = StagedArchive::new(output, Umask::new(0o022)).unwrap();
+        let staged = StagedArchive::new(output, Umask::new(0o022), true).unwrap();
 
         assert_eq!(entries_beside(&dir, "archive.pna").len(), 1);
         drop(staged);
@@ -104,7 +107,7 @@ mod tests {
         let output = dir.join("archive.pna");
         fs::write(&output, b"original").unwrap();
 
-        let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022)).unwrap();
+        let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022), true).unwrap();
         staged.as_file_mut().write_all(b"rewritten").unwrap();
         drop(staged);
 
@@ -118,7 +121,7 @@ mod tests {
         let output = dir.join("archive.pna");
         fs::write(&output, b"original").unwrap();
 
-        let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022)).unwrap();
+        let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022), true).unwrap();
         staged.as_file_mut().write_all(b"rewritten").unwrap();
         staged.commit().unwrap();
 
@@ -141,7 +144,7 @@ mod tests {
         fs::write(&output, b"original").unwrap();
         fs::set_permissions(&output, fs::Permissions::from_mode(0o666)).unwrap();
 
-        let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022)).unwrap();
+        let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022), true).unwrap();
         staged.as_file_mut().write_all(b"rewritten").unwrap();
         staged.commit().unwrap();
 
@@ -157,7 +160,7 @@ mod tests {
         fs::write(&output, b"original").unwrap();
         fs::set_permissions(&output, fs::Permissions::from_mode(0o4755)).unwrap();
 
-        let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022)).unwrap();
+        let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022), true).unwrap();
         staged.as_file_mut().write_all(b"rewritten").unwrap();
         staged.commit().unwrap();
 
@@ -170,7 +173,7 @@ mod tests {
         let dir = test_dir("new_mode");
         let output = dir.join("archive.pna");
 
-        let mut staged = StagedArchive::new(output.clone(), Umask::new(0o007)).unwrap();
+        let mut staged = StagedArchive::new(output.clone(), Umask::new(0o007), true).unwrap();
         staged.as_file_mut().write_all(b"written").unwrap();
         staged.commit().unwrap();
 
@@ -186,7 +189,7 @@ mod tests {
         fs::create_dir(&output).unwrap();
         fs::set_permissions(&output, fs::Permissions::from_mode(0o755)).unwrap();
 
-        let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022)).unwrap();
+        let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022), true).unwrap();
         staged.as_file_mut().write_all(b"written").unwrap();
         staged.commit().unwrap();
 
@@ -205,7 +208,7 @@ mod tests {
         fs::set_permissions(&target, fs::Permissions::from_mode(0o600)).unwrap();
         std::os::unix::fs::symlink(&target, &output).unwrap();
 
-        let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022)).unwrap();
+        let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022), true).unwrap();
         staged.as_file_mut().write_all(b"written").unwrap();
         staged.commit().unwrap();
 
@@ -221,7 +224,7 @@ mod tests {
         let dir = test_dir("unreadable_mode");
         let output = dir.join("a".repeat(300));
 
-        assert!(StagedArchive::new(output, Umask::new(0o022)).is_err());
+        assert!(StagedArchive::new(output, Umask::new(0o022), true).is_err());
         assert!(fs::read_dir(&dir).unwrap().next().is_none());
     }
 
@@ -230,10 +233,37 @@ mod tests {
         let dir = test_dir("missing_parent");
         let output = dir.join("nested").join("archive.pna");
 
-        let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022)).unwrap();
+        let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022), true).unwrap();
         staged.as_file_mut().write_all(b"written").unwrap();
         staged.commit().unwrap();
 
         assert_eq!(fs::read(&output).unwrap(), b"written");
+    }
+
+    #[test]
+    fn noclobber_commit_refuses_an_existing_archive() {
+        let dir = test_dir("noclobber");
+        let output = dir.join("archive.pna");
+        fs::write(&output, b"original").unwrap();
+        let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022), false).unwrap();
+        staged.as_file_mut().write_all(b"replacement").unwrap();
+        let error = staged.commit().unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+        assert_eq!(fs::read(&output).unwrap(), b"original");
+        assert!(entries_beside(&dir, "archive.pna").is_empty());
+    }
+
+    #[test]
+    fn noclobber_commit_publishes_when_the_archive_is_absent() {
+        let dir = test_dir("noclobber_absent");
+        let output = dir.join("archive.pna");
+        let _ = fs::remove_file(&output);
+        let mut staged = StagedArchive::new(output.clone(), Umask::new(0o022), false).unwrap();
+        staged.as_file_mut().write_all(b"written").unwrap();
+        staged.commit().unwrap();
+
+        assert_eq!(fs::read(&output).unwrap(), b"written");
+        assert!(entries_beside(&dir, "archive.pna").is_empty());
     }
 }

@@ -3,15 +3,15 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            SplitArchiveReader, Umask, collect_split_archives,
+            SplitArchiveReader, Umask, collect_split_archives, resolve_rewrite_output,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
-    utils::{GlobPatterns, PathPartExt},
+    utils::GlobPatterns,
 };
 use base64::Engine;
 use bstr::{ByteSlice, io::BufReadExt};
-use clap::{ArgGroup, Parser, ValueEnum, ValueHint};
+use clap::{ArgAction, ArgGroup, Parser, ValueEnum, ValueHint};
 use indexmap::IndexMap;
 use pna::{NormalEntry, ReadOptions};
 use regex::Regex;
@@ -120,6 +120,20 @@ pub(crate) struct SetXattrCommand {
     restore_from_stdin: bool,
     #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
     output: Option<PathBuf>,
+    #[arg(
+        long,
+        conflicts_with = "no_overwrite",
+        requires = "output",
+        help = "Overwrite output file"
+    )]
+    overwrite: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not overwrite output file. This is the inverse option of --overwrite",
+        requires = "output"
+    )]
+    no_overwrite: (),
     #[command(flatten)]
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
@@ -273,10 +287,10 @@ fn archive_set_xattr(args: SetXattrCommand, umask: Umask) -> anyhow::Result<()> 
         }
     };
 
+    let destination = resolve_rewrite_output(&args.archive.file, args.output, args.overwrite)?;
     execute_archive_transform(
         &args.archive.file,
-        args.output
-            .unwrap_or_else(|| args.archive.file.remove_part()),
+        destination,
         umask,
         password.as_deref(),
         args.transform_strategy.strategy(),

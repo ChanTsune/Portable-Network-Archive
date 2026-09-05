@@ -364,6 +364,49 @@ pub(crate) enum ArchiveSource {
     Stdin,
 }
 
+/// Resolved `--output` of a rewrite subcommand.
+///
+/// `None` keeps the historical in-place behavior and always replaces the input.
+/// An explicit `--output` without `--overwrite` is refused at commit time when
+/// occupied, so `--output` naming the input itself still requires `--overwrite`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct RewriteDestination {
+    pub(crate) path: PathBuf,
+    /// Whether the destination may replace an existing entry.
+    pub(crate) overwrite: bool,
+}
+
+/// Resolves `--output`/`--overwrite` into a [`RewriteDestination`].
+///
+/// The existence check only fails fast; the commit enforces the guard.
+/// `symlink_metadata` (not `exists()`) is used so a dangling symlink is also
+/// refused and unexpected I/O errors propagate.
+pub(crate) fn resolve_rewrite_output(
+    archive: &Path,
+    output: Option<PathBuf>,
+    overwrite: bool,
+) -> anyhow::Result<RewriteDestination> {
+    match output {
+        Some(path) => {
+            if !overwrite {
+                match fs::symlink_metadata(&path) {
+                    Ok(_) => anyhow::bail!(
+                        "{} already exists (use --overwrite to replace it)",
+                        path.display()
+                    ),
+                    Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                    Err(e) => return Err(e.into()),
+                }
+            }
+            Ok(RewriteDestination { path, overwrite })
+        }
+        None => Ok(RewriteDestination {
+            path: archive.remove_part(),
+            overwrite: true,
+        }),
+    }
+}
+
 impl fmt::Display for ArchiveSource {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -2807,6 +2850,59 @@ mod tests {
 
     mod item_source_parse {
         use super::*;
+
+        #[test]
+        #[cfg(not(target_family = "wasm"))]
+        fn rewrite_destination_resolves_the_contract_matrix() {
+            let dir = std::env::temp_dir().join("pna_rewrite_destination_test");
+            let _ = fs::remove_dir_all(&dir);
+            fs::create_dir_all(&dir).unwrap();
+            let existing = dir.join("existing.pna");
+            fs::write(&existing, b"sentinel").unwrap();
+            let missing = dir.join("missing.pna");
+            let _ = fs::remove_file(&missing);
+            let archive = dir.join("input.pna");
+
+            // Omitted output always rewrites in place, regardless of --overwrite.
+            for overwrite in [false, true] {
+                let destination = resolve_rewrite_output(&archive, None, overwrite).unwrap();
+                assert_eq!(
+                    destination,
+                    RewriteDestination {
+                        path: archive.clone(),
+                        overwrite: true,
+                    }
+                );
+            }
+
+            // Explicit output without --overwrite arms the commit-time guard,
+            // and refuses an existing destination up front.
+            let destination =
+                resolve_rewrite_output(&archive, Some(missing.clone()), false).unwrap();
+            assert_eq!(
+                destination,
+                RewriteDestination {
+                    path: missing.clone(),
+                    overwrite: false,
+                }
+            );
+            let error =
+                resolve_rewrite_output(&archive, Some(existing.clone()), false).unwrap_err();
+            assert!(error.to_string().contains("already exists"));
+
+            // Explicit output with --overwrite replaces unconditionally.
+            let destination =
+                resolve_rewrite_output(&archive, Some(existing.clone()), true).unwrap();
+            assert_eq!(
+                destination,
+                RewriteDestination {
+                    path: existing.clone(),
+                    overwrite: true,
+                }
+            );
+
+            let _ = fs::remove_dir_all(&dir);
+        }
 
         #[test]
         fn at_alone_is_stdin() {
