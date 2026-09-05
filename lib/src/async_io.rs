@@ -56,12 +56,7 @@ pub async fn read_chunk<R: AsyncRead + Unpin + ?Sized>(
     let mut length = [0u8; mem::size_of::<u32>()];
     reader.read_exact(&mut length).await?;
     let length = u32::from_be_bytes(length);
-    if length > max_data_len {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("chunk data length {length} exceeds limit {max_data_len}"),
-        ));
-    }
+    crate::format::check_chunk_length_limit(length, max_data_len)?;
 
     let mut ty = [0u8; mem::size_of::<ChunkType>()];
     reader.read_exact(&mut ty).await?;
