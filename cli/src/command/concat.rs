@@ -25,6 +25,12 @@ pub(crate) struct ConcatCommand {
     no_overwrite: (),
     #[arg(short, long, required = true, help = "Archive files to concatenate", value_hint = ValueHint::FilePath)]
     files: Vec<PathBuf>,
+    #[arg(
+        long,
+        help = "Output archive file path",
+        value_hint = ValueHint::FilePath
+    )]
+    output: Option<PathBuf>,
 }
 
 impl Command for ConcatCommand {
@@ -36,8 +42,18 @@ impl Command for ConcatCommand {
 
 #[hooq::hooq(anyhow)]
 fn concat_entry(args: ConcatCommand) -> anyhow::Result<()> {
-    let mut archives = args.files;
-    let archive = archives.remove(0);
+    let (archive, archives) = match args.output {
+        Some(output) => (output, args.files),
+        None => {
+            let mut files = args.files;
+            let archive = files.remove(0);
+            log::warn!(
+                "using the first input '{}' as the output destination is deprecated; specify the destination explicitly with --output",
+                archive.display()
+            );
+            (archive, files)
+        }
+    };
     for item in &archives {
         if !utils::fs::is_pna(item)? {
             anyhow::bail!("{} is not a pna file", item.display());
