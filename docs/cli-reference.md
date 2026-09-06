@@ -989,6 +989,7 @@ Concat archives
 
   Default value: `false`
 * `-f`, `--files <FILES>` — Archive files to concatenate
+* `--output <OUTPUT>` — Output archive file path
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
