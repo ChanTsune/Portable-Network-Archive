@@ -1,6 +1,8 @@
+#![cfg(not(target_family = "wasm"))]
 use crate::utils::{EmbedExt, TestResources, archive, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::prelude::*;
+use std::path::Path;
 
 /// Precondition: An archive with multiple entries exists.
 /// Action: Run `xattr set` without `--output` (no `--quiet`, so warnings stay visible).
@@ -28,7 +30,9 @@ fn xattr_set_without_output_warns_but_rewrites_in_place() {
         .stderr(predicate::str::contains(
             "omitting `--output` is deprecated and will write to standard output instead of rewriting",
         ))
-        .stderr(predicate::str::contains("xattr_set_warn/zstd.pna"));
+        .stderr(predicate::str::contains(
+            Path::new("xattr_set_warn/zstd.pna").display().to_string(),
+        ));
 
     assert_eq!(
         archive::xattrs_by_entry("xattr_set_warn/zstd.pna", None),

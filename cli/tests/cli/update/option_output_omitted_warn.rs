@@ -1,9 +1,10 @@
+#![cfg(not(target_family = "wasm"))]
 use crate::utils::{archive, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use clap::Parser;
 use portable_network_archive::cli;
 use predicates::prelude::*;
-use std::{fs, io::prelude::*, time};
+use std::{fs, io::prelude::*, path::Path, time};
 
 /// Precondition: An archive is created from a source tree, then one source
 /// file is modified with a newer mtime.
@@ -56,7 +57,9 @@ fn update_without_output_warns_but_rewrites_in_place() {
             "omitting `--output` is deprecated and will write to standard output instead of rewriting",
         ))
         .stderr(predicate::str::contains(
-            "update_omitted_output_warn/archive.pna",
+            Path::new("update_omitted_output_warn/archive.pna")
+                .display()
+                .to_string(),
         ));
 
     let mut updated_contents = Vec::new();

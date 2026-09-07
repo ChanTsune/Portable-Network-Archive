@@ -1,3 +1,4 @@
+#![cfg(not(target_family = "wasm"))]
 use crate::utils::{archive, archive::FileEntryDef, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::prelude::*;
