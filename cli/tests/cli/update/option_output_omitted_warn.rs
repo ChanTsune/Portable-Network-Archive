@@ -57,7 +57,8 @@ fn update_without_output_warns_but_rewrites_in_place() {
             "omitting `--output` is deprecated and will write to standard output instead of rewriting",
         ))
         .stderr(predicate::str::contains(
-            Path::new("update_omitted_output_warn/archive.pna")
+            Path::new("update_omitted_output_warn")
+                .join("archive.pna")
                 .display()
                 .to_string(),
         ));

@@ -31,7 +31,7 @@ fn xattr_set_without_output_warns_but_rewrites_in_place() {
             "omitting `--output` is deprecated and will write to standard output instead of rewriting",
         ))
         .stderr(predicate::str::contains(
-            Path::new("xattr_set_warn/zstd.pna").display().to_string(),
+            Path::new("xattr_set_warn").join("zstd.pna").display().to_string(),
         ));
 
     assert_eq!(
