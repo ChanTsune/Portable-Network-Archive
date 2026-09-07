@@ -44,6 +44,24 @@ use std::{
 };
 pub(crate) use time_filter::{TimeFilter, TimeFilters, TimeRange};
 
+/// Resolves the output of a rewrite subcommand during the `--output` grace period.
+///
+/// Behavior is unchanged: an omitted `--output` still rewrites `inplace`.
+/// Emits one deprecation warning so the future flip to standard output
+/// does not land silently. Pass `--output` explicitly to silence it.
+pub(crate) fn resolve_in_place_output(output: Option<PathBuf>, inplace: PathBuf) -> PathBuf {
+    match output {
+        Some(path) => path,
+        None => {
+            log::warn!(
+                "omitting `--output` is deprecated and will write to standard output instead of rewriting '{}' in place in a future release; specify `--output` explicitly",
+                inplace.display()
+            );
+            inplace
+        }
+    }
+}
+
 /// Detected format of an @archive source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(not(unix), allow(dead_code))]
