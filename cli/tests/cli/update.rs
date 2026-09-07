@@ -28,6 +28,7 @@ mod option_older_mtime;
 #[cfg(not(target_family = "wasm"))]
 mod option_older_mtime_than;
 mod option_output;
+mod option_output_omitted_warn;
 mod option_recursive;
 mod option_sync;
 mod option_unsolid;

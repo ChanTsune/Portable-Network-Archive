@@ -16,7 +16,7 @@ use crate::{
             create_entry, entry_option,
             iter::ReorderByIndex,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
-            read_paths, read_paths_stdin,
+            read_paths, read_paths_stdin, resolve_in_place_output,
         },
     },
     utils::{PathPartExt, VCS_FILES, fs::HardlinkResolver},
@@ -518,7 +518,7 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
     let mut resolver = HardlinkResolver::new(collect_options.follow_links);
     let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
 
-    let output_path = args.output.unwrap_or_else(|| archive_path.remove_part());
+    let output_path = resolve_in_place_output(args.output, archive_path.remove_part());
     let mut staged = StagedArchive::new(output_path, umask)?;
     let mut out_archive = Archive::write_header(staged.as_file_mut())?;
 

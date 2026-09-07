@@ -6,7 +6,7 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            Umask,
+            Umask, resolve_in_place_output,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
@@ -73,7 +73,7 @@ impl Command for StripCommand {
 fn strip_metadata(args: StripCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let archive = args.archive.file;
-    let output_path = args.output.unwrap_or_else(|| archive.remove_part());
+    let output_path = resolve_in_place_output(args.output, archive.remove_part());
     let globs = if args.files.files.is_empty() {
         None
     } else {
