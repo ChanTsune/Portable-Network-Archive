@@ -2,7 +2,10 @@ use crate::{
     cli::{ArchiveFileArgs, PasswordArgs},
     command::{
         Command, ask_password,
-        core::{SplitArchiveReader, StagedArchive, Umask, collect_split_archives},
+        core::{
+            SplitArchiveReader, StagedArchive, Umask, collect_split_archives,
+            resolve_in_place_output,
+        },
     },
     utils::PathPartExt,
 };
@@ -177,9 +180,7 @@ fn sort_archive(args: SortCommand, umask: Umask) -> anyhow::Result<()> {
         std::cmp::Ordering::Equal
     });
 
-    let output = args
-        .output
-        .unwrap_or_else(|| args.archive.file.remove_part());
+    let output = resolve_in_place_output(args.output, args.archive.file.remove_part());
     let mut staged = StagedArchive::new(output, umask)?;
     let mut archive = Archive::write_header(staged.as_file_mut())?;
     for entry in entries {

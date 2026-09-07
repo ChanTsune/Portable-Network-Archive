@@ -3,7 +3,7 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            PathFilter, Umask, read_paths, read_paths_stdin,
+            PathFilter, Umask, read_paths, read_paths_stdin, resolve_in_place_output,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
@@ -122,9 +122,7 @@ fn delete_file_from_archive(args: DeleteCommand, umask: Umask) -> anyhow::Result
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
 
-    let output_path = args
-        .output
-        .unwrap_or_else(|| args.archive.file.remove_part());
+    let output_path = resolve_in_place_output(args.output, args.archive.file.remove_part());
     execute_archive_transform(
         &args.archive.file,
         output_path,
