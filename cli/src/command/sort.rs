@@ -129,8 +129,7 @@ pub(crate) struct SortCommand {
     #[arg(
         long,
         conflicts_with = "no_overwrite",
-        requires = "output",
-        help = "Overwrite output file"
+        help = "Overwrite the output file (rewrite in place when --output is omitted)"
     )]
     overwrite: bool,
     #[arg(
