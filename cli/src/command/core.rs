@@ -378,6 +378,10 @@ pub(crate) struct RewriteDestination {
 
 /// Resolves `--output`/`--overwrite` into a [`RewriteDestination`].
 ///
+/// An omitted `--output` without `--overwrite` keeps the historical in-place
+/// behavior but emits a deprecation warning (a future release will write to
+/// standard output instead); passing `--overwrite` selects in-place
+/// explicitly and stays silent.
 /// The existence check only fails fast; the commit enforces the guard.
 /// `symlink_metadata` (not `exists()`) is used so a dangling symlink is also
 /// refused and unexpected I/O errors propagate.
@@ -400,10 +404,19 @@ pub(crate) fn resolve_rewrite_output(
             }
             Ok(RewriteDestination { path, overwrite })
         }
-        None => Ok(RewriteDestination {
-            path: archive.remove_part(),
-            overwrite: true,
-        }),
+        None => {
+            let path = archive.remove_part();
+            if !overwrite {
+                log::warn!(
+                    "omitting `--output` is deprecated and will write to standard output instead of rewriting '{}' in place in a future release; specify `--output` explicitly, or pass `--overwrite` to keep rewriting in place",
+                    path.display()
+                );
+            }
+            Ok(RewriteDestination {
+                path,
+                overwrite: true,
+            })
+        }
     }
 }
 
