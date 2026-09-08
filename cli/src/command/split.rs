@@ -1,7 +1,7 @@
 use crate::{
     cli::ArchiveFileArgs,
     command::{Command, core::write_split_archive},
-    utils::PathWithCwd,
+    utils::{PathPartExt, PathWithCwd},
 };
 use anyhow::{Context, ensure};
 use bytesize::ByteSize;
@@ -48,6 +48,23 @@ fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
         "The value for --max-size must be at least {MIN_SPLIT_PART_BYTES} bytes ({}).",
         ByteSize::b(MIN_SPLIT_PART_BYTES as u64)
     );
+    let base_out_file_name = if let Some(out_dir) = args.out_dir {
+        fs::create_dir_all(&out_dir)?;
+        Cow::Owned(out_dir.join(archive_path.file_name().unwrap_or_default()))
+    } else {
+        Cow::Borrowed(archive_path.as_path())
+    };
+    if archive_path.remove_part() != archive_path.as_path() {
+        let same_path = base_out_file_name.as_ref() == archive_path.as_path();
+        let same_file =
+            same_file::is_same_file(&base_out_file_name, &archive_path).unwrap_or(false);
+        if same_path || same_file {
+            anyhow::bail!(
+                "splitting `{}` in place would overwrite the input; specify --out-dir",
+                PathWithCwd::new(&archive_path)
+            );
+        }
+    }
     let read_file = fs::File::open(&archive_path)?;
     #[cfg(not(feature = "memmap"))]
     let mut read_archive = Archive::read_header(read_file)?;
@@ -60,12 +77,6 @@ fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
     #[cfg(feature = "memmap")]
     let entries = read_archive.raw_entries_slice();
 
-    let base_out_file_name = if let Some(out_dir) = args.out_dir {
-        fs::create_dir_all(&out_dir)?;
-        Cow::Owned(out_dir.join(archive_path.file_name().unwrap_or_default()))
-    } else {
-        Cow::Borrowed(archive_path.as_path())
-    };
     write_split_archive(&base_out_file_name, entries, max_file_size, args.overwrite).with_context(
         || {
             format!(
