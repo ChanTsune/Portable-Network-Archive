@@ -23,5 +23,5 @@ lz4_flex = "0.14"
 portable-network-archive = { path = "../cli", default-features = false }
 tar = "0.4"
 time = "0.3.47"
-zstd = "0.13"
+zstd = "0.14"
 zip = "8.6.0"
