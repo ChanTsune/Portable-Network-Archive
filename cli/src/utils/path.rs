@@ -49,6 +49,13 @@ fn with_part_n<P: AsRef<Path>>(p: P, n: usize) -> PathBuf {
 #[inline]
 fn remove_part_n<P: AsRef<Path>>(path: P) -> PathBuf {
     #[inline]
+    fn is_part_n(ext: &std::ffi::OsStr) -> bool {
+        match ext.as_encoded_bytes().strip_prefix(b"part") {
+            Some(rest) => !rest.is_empty() && rest.iter().all(|b| b.is_ascii_digit()),
+            None => false,
+        }
+    }
+    #[inline]
     fn inner(path: &Path) -> PathBuf {
         let Some(file_name) = path.file_name() else {
             return PathBuf::from(path);
@@ -56,12 +63,12 @@ fn remove_part_n<P: AsRef<Path>>(path: P) -> PathBuf {
         let parent = path.parent();
         let file_name = PathBuf::from(file_name);
         let removed = if let Some(extension) = file_name.extension() {
-            if extension.to_string_lossy().starts_with("part") {
+            if is_part_n(extension) {
                 PathBuf::from(file_name.file_stem().unwrap())
             } else {
                 let stem = PathBuf::from(file_name.file_stem().unwrap());
                 if let Some(may) = stem.extension() {
-                    if may.to_string_lossy().starts_with("part") {
+                    if is_part_n(may) {
                         stem.with_extension(extension)
                     } else {
                         file_name
@@ -158,5 +165,23 @@ mod tests {
 
         assert_eq!(remove_part_n("foo.part1"), Path::new("foo"));
         assert_eq!(remove_part_n("dir/foo.part1"), Path::new("dir/foo"));
+    }
+
+    #[test]
+    fn remove_part_keeps_non_part_like_names() {
+        // `part` prefix without trailing digits is not a split part
+        assert_eq!(remove_part_n("foo.part"), Path::new("foo.part"));
+        assert_eq!(remove_part_n("foo.partial"), Path::new("foo.partial"));
+        assert_eq!(remove_part_n("foo.parts"), Path::new("foo.parts"));
+        assert_eq!(remove_part_n("foo.part1a"), Path::new("foo.part1a"));
+        assert_eq!(remove_part_n("foo.part.pna"), Path::new("foo.part.pna"));
+        assert_eq!(
+            remove_part_n("foo.partial.pna"),
+            Path::new("foo.partial.pna")
+        );
+        assert_eq!(
+            remove_part_n("dir/foo.partial.pna"),
+            Path::new("dir/foo.partial.pna")
+        );
     }
 }
