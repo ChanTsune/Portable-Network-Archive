@@ -3,7 +3,10 @@ use crate::command::core::run_across_archive_bytes;
 #[cfg(not(feature = "memmap"))]
 use crate::command::core::run_across_archive_readers;
 use crate::{
-    command::{Command, core::collect_split_archives},
+    command::{
+        Command,
+        core::{StagedArchive, Umask, collect_split_archives},
+    },
     utils::{self, PathWithCwd},
 };
 use anyhow::Context;
@@ -35,13 +38,13 @@ pub(crate) struct ConcatCommand {
 
 impl Command for ConcatCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
-        concat_entry(self)
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
+        concat_entry(self, ctx.umask())
     }
 }
 
 #[hooq::hooq(anyhow)]
-fn concat_entry(args: ConcatCommand) -> anyhow::Result<()> {
+fn concat_entry(args: ConcatCommand, umask: Umask) -> anyhow::Result<()> {
     let (archive, archives) = match args.output {
         Some(output) => (output, args.files),
         None => {
@@ -59,9 +62,12 @@ fn concat_entry(args: ConcatCommand) -> anyhow::Result<()> {
             anyhow::bail!("{} is not a pna file", item.display());
         }
     }
-    let file = utils::fs::file_create(&archive, args.overwrite)
+    if !args.overwrite && std::fs::symlink_metadata(&archive).is_ok() {
+        anyhow::bail!("{} already exists", PathWithCwd::new(&archive));
+    }
+    let mut staged = StagedArchive::new(archive.clone(), umask, args.overwrite)
         .with_context(|| format!("failed to create `{}`", PathWithCwd::new(&archive)))?;
-    let mut archive = Archive::write_header(file)?;
+    let mut archive = Archive::write_header(staged.as_file_mut())?;
 
     for item in &archives {
         let archives = collect_split_archives(item)?;
@@ -100,5 +106,6 @@ fn concat_entry(args: ConcatCommand) -> anyhow::Result<()> {
         }
     }
     archive.finalize()?;
+    staged.commit()?;
     Ok(())
 }

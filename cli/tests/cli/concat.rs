@@ -2,6 +2,8 @@
 mod option_output;
 #[cfg(not(target_family = "wasm"))]
 mod option_overwrite;
+#[cfg(not(target_family = "wasm"))]
+mod same_output;
 
 use crate::utils::{EmbedExt, TestResources, diff::assert_dirs_equal, setup};
 use clap::Parser;
