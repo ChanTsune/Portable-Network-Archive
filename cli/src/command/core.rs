@@ -2288,7 +2288,7 @@ mod tests {
         let source_options = WriteOptions::builder()
             .encryption(pna::Encryption::AES)
             .cipher_mode(pna::CipherMode::GCM)
-            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
             .password(Some("password"))
             .build();
         let mut source =
@@ -2334,7 +2334,7 @@ mod tests {
             .compression(pna::Compression::ZSTANDARD)
             .encryption(pna::Encryption::AES)
             .cipher_mode(pna::CipherMode::GCM)
-            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
             .password(Some("password"))
             .build();
         let mut source =
@@ -2345,7 +2345,7 @@ mod tests {
             .compression(pna::Compression::NO)
             .encryption(pna::Encryption::CAMELLIA)
             .cipher_mode(pna::CipherMode::CTR)
-            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
             .password(Some("password"))
             .build();
         let mut cache = ReencryptOptionsCache::new();
@@ -2381,7 +2381,7 @@ mod tests {
         let camellia_options = WriteOptions::builder()
             .encryption(pna::Encryption::CAMELLIA)
             .cipher_mode(pna::CipherMode::GCM)
-            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
             .password(Some("password"))
             .build();
         let mut aes_source =
@@ -2424,7 +2424,7 @@ mod tests {
         let source_options = WriteOptions::builder()
             .encryption(pna::Encryption::AES)
             .cipher_mode(pna::CipherMode::GCM)
-            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
             .password(Some("password"))
             .build();
         let mut source =
@@ -2434,7 +2434,7 @@ mod tests {
         let create_options = WriteOptions::builder()
             .encryption(pna::Encryption::AES)
             .cipher_mode(pna::CipherMode::GCM)
-            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(2)))
+            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1001)))
             .password(Some("password"))
             .build();
         let mut cache = ReencryptOptionsCache::new();
@@ -2452,15 +2452,15 @@ mod tests {
         archive.add_entry(renamed).unwrap();
         let bytes = archive.finalize().unwrap();
         let text = String::from_utf8_lossy(&bytes);
-        assert!(text.contains("$pbkdf2-sha256$i=2"), "{text}");
-        assert!(!text.contains("$pbkdf2-sha256$i=1"), "{text}");
+        assert!(text.contains("$pbkdf2-sha256$i=1001"), "{text}");
+        assert!(!text.contains("$pbkdf2-sha256$i=1000"), "{text}");
     }
 
     fn gcm_write_options() -> WriteOptions {
         WriteOptions::builder()
             .encryption(pna::Encryption::AES)
             .cipher_mode(pna::CipherMode::GCM)
-            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
             .password(Some("password"))
             .build()
     }

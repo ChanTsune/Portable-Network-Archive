@@ -1482,7 +1482,7 @@ mod tests {
             let mut builder = WriteOptions::builder();
             builder
                 .encryption(Encryption::AES)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"));
             builder.segment_size(size);
             let err = builder.try_build().unwrap_err();
@@ -1496,7 +1496,7 @@ mod tests {
             let mut builder = WriteOptions::builder();
             builder
                 .encryption(Encryption::AES)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"));
             builder.segment_size(size);
             let options = builder.try_build().unwrap();

@@ -549,13 +549,13 @@ mod tests {
     #[test]
     fn stream_chunk_split_across_parts_remains_decryptable() {
         let (parts, next) = part_collector();
-        let max = MIN_SPLIT_PART_BYTES + 64;
+        let max = MIN_SPLIT_PART_BYTES + 128;
         let mut archive = Archive::write_split_header(max, next).unwrap();
         let options = WriteOptions::builder()
             .compression(Compression::NO)
             .encryption(crate::entry::Encryption::AES)
             .cipher_mode(crate::entry::CipherMode::GCM)
-            .hash_algorithm(crate::entry::HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .hash_algorithm(crate::entry::HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
             .password(Some("password"))
             .segment_size(4)
             .build();
