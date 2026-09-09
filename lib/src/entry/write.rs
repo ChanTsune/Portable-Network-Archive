@@ -66,7 +66,7 @@ pub(crate) fn derive_key_material(
     hash_algorithm: HashAlgorithm,
     password: &[u8],
 ) -> io::Result<DerivedKeyMaterial> {
-    let salt = random::salt_string();
+    let salt = random::salt_string()?;
     let (key, phsf) = hash(cipher_algorithm, hash_algorithm, password, &salt)?;
     Ok(DerivedKeyMaterial { phsf, key })
 }
