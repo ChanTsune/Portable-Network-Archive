@@ -14,7 +14,7 @@ rust-version = "1.88"
 [dependencies]
 aes = "0.9.1"
 aes-gcm = { version = "0.11.0", default-features = false, features = ["aes", "alloc"] }
-argon2 = { version = "0.5.3", features = ["std"] }
+argon2 = { version = "0.6.0", default-features = false, features = ["alloc", "password-hash"] }
 arrayvec = "0.7.6"
 block-buffer = "0.12.0"
 camellia = "0.2.0"
@@ -29,8 +29,8 @@ futures-io = { version = "0.3.32", optional = true }
 futures-util = { version = "0.3.32", features = ["io"], optional = true }
 hkdf = "0.12.4"
 liblzma = { version = "0.4.6", features = ["static"] }
-password-hash = { version = "0.5.0", default-features = false }
-pbkdf2 = { version = "0.12.2", features = ["simple"] }
+password-hash = { version = "0.6.0", default-features = false, features = ["alloc", "phc"] }
+pbkdf2 = { version = "0.13.0", features = ["phc"] }
 rand = "0.8.6"
 rand_chacha = "0.3.1"
 sha2 = "0.10.9"
@@ -42,9 +42,6 @@ zstd = { version = "0.14.0", default-features = false }
 getrandom = { version = "0.2", features = ["js"] }
 liblzma = { version = "0.4.6", features = ["wasm"] }
 zstd = { version = "0.14.0", features = ["wasm"] }
-
-[target.'cfg(not(target_os = "emscripten"))'.dependencies]
-pbkdf2 = { version = "0.12.2", features = ["simple", "parallel"] }
 
 [dev-dependencies]
 version-sync = "0.9.5"

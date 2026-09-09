@@ -6,7 +6,7 @@ use crate::{
     entry::write::derive_key_material,
     error::UnknownValueError,
 };
-use password_hash::Output;
+use password_hash::phc::Output;
 pub(crate) use private::*;
 use std::{
     collections::HashMap,
