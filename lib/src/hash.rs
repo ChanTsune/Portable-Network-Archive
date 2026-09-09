@@ -93,7 +93,7 @@ mod tests {
 
     #[test]
     fn derive_argon2() {
-        let salt = random::salt_string();
+        let salt = random::salt_string().unwrap();
         let mut ph = argon2_with_salt(
             b"pass",
             argon2::Algorithm::Argon2id,
@@ -113,7 +113,7 @@ mod tests {
 
     #[test]
     fn derive_pbkdf2() {
-        let salt = random::salt_string();
+        let salt = random::salt_string().unwrap();
         let mut ph = pbkdf2_with_salt(
             b"pass",
             pbkdf2::Algorithm::Pbkdf2Sha256,

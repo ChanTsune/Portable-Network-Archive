@@ -1,6 +1,6 @@
 //! Random salt and initialization vector generation.
 
-use password_hash::SaltString;
+use password_hash::{Salt, SaltString};
 use rand::prelude::*;
 use rand_chacha::ChaCha20Rng;
 use std::io;
@@ -16,6 +16,8 @@ pub(crate) fn random_vec(size: usize) -> io::Result<Vec<u8>> {
     Ok(v)
 }
 
-pub(crate) fn salt_string() -> SaltString {
-    SaltString::generate(ChaCha20Rng::from_entropy())
+pub(crate) fn salt_string() -> io::Result<SaltString> {
+    let mut bytes = [0u8; Salt::RECOMMENDED_LENGTH];
+    random_bytes(&mut bytes)?;
+    SaltString::encode_b64(&bytes).map_err(io::Error::other)
 }
