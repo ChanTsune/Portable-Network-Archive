@@ -7,7 +7,11 @@ use anyhow::{Context, ensure};
 use bytesize::ByteSize;
 use clap::{ArgAction, Parser, ValueHint};
 use pna::{Archive, MIN_SPLIT_PART_BYTES};
-use std::{borrow::Cow, fs, path::PathBuf};
+use std::{
+    borrow::Cow,
+    fs,
+    path::{Path, PathBuf},
+};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct SplitCommand {
@@ -48,22 +52,10 @@ fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
         "The value for --max-size must be at least {MIN_SPLIT_PART_BYTES} bytes ({}).",
         ByteSize::b(MIN_SPLIT_PART_BYTES as u64)
     );
-    let base_out_file_name = if let Some(out_dir) = args.out_dir {
-        fs::create_dir_all(&out_dir)?;
-        Cow::Owned(out_dir.join(archive_path.file_name().unwrap_or_default()))
-    } else {
-        Cow::Borrowed(archive_path.as_path())
-    };
-    if archive_path.remove_part() != archive_path.as_path() {
-        let same_path = base_out_file_name.as_ref() == archive_path.as_path();
-        let same_file =
-            same_file::is_same_file(&base_out_file_name, &archive_path).unwrap_or(false);
-        if same_path || same_file {
-            anyhow::bail!(
-                "splitting `{}` in place would overwrite the input; specify --out-dir",
-                PathWithCwd::new(&archive_path)
-            );
-        }
+    let base_out_file_name = resolve_split_base(&archive_path, args.out_dir.as_deref());
+    ensure_not_self_overwrite(&archive_path, &base_out_file_name)?;
+    if let Some(out_dir) = &args.out_dir {
+        fs::create_dir_all(out_dir)?;
     }
     let read_file = fs::File::open(&archive_path)?;
     #[cfg(not(feature = "memmap"))]
@@ -85,4 +77,26 @@ fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
             )
         },
     )
+}
+
+#[inline]
+fn resolve_split_base<'a>(archive_path: &'a Path, out_dir: Option<&'a Path>) -> Cow<'a, Path> {
+    match out_dir {
+        Some(dir) => Cow::Owned(dir.join(archive_path.file_name().unwrap_or_default())),
+        None => Cow::Borrowed(archive_path),
+    }
+}
+
+#[inline]
+fn ensure_not_self_overwrite(input: &Path, out_base: &Path) -> anyhow::Result<()> {
+    if !input.is_split_part() {
+        return Ok(());
+    }
+    if same_file::is_same_file(out_base, input).unwrap_or(false) {
+        anyhow::bail!(
+            "splitting `{}` in place would overwrite the input; specify --out-dir",
+            PathWithCwd::new(input)
+        );
+    }
+    Ok(())
 }
