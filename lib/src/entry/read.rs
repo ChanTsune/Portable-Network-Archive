@@ -15,7 +15,7 @@ use crate::{
 use aes::Aes256;
 use camellia::Camellia256;
 use crypto_common::BlockSizeUser;
-use password_hash::Output;
+use password_hash::phc::Output;
 use std::io::{self, Read};
 
 /// Resolves the cipher key for a PHC string, reusing a previously derived
@@ -30,10 +30,7 @@ fn resolve_key(phsf: &str, password: &[u8], key_cache: Option<&KeyCache>) -> io:
     {
         return Ok(key);
     }
-    let password_hash = derive_password_hash(phsf, password)?;
-    let key = password_hash
-        .hash
-        .ok_or_else(|| io::Error::new(io::ErrorKind::Unsupported, "failed to get hash"))?;
+    let key = derive_password_hash(phsf, password)?;
     if let Some(cache) = key_cache {
         cache.insert(phsf, key);
     }
