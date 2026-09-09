@@ -260,7 +260,7 @@ mod tests {
                 .compression(Compression::NO)
                 .encryption(Encryption::AES)
                 .cipher_mode(CipherMode::CBC)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"))
                 .build(),
         )
@@ -275,7 +275,7 @@ mod tests {
                 .compression(Compression::ZSTANDARD)
                 .encryption(Encryption::AES)
                 .cipher_mode(CipherMode::CTR)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"))
                 .build(),
         )
@@ -290,7 +290,7 @@ mod tests {
                 .compression(Compression::ZSTANDARD)
                 .encryption(Encryption::AES)
                 .cipher_mode(CipherMode::CBC)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"))
                 .build(),
         )
@@ -305,7 +305,7 @@ mod tests {
                 .compression(Compression::ZSTANDARD)
                 .encryption(Encryption::CAMELLIA)
                 .cipher_mode(CipherMode::CTR)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"))
                 .build(),
         )
@@ -320,7 +320,7 @@ mod tests {
                 .compression(Compression::ZSTANDARD)
                 .encryption(Encryption::CAMELLIA)
                 .cipher_mode(CipherMode::CBC)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"))
                 .build(),
         )
@@ -335,7 +335,7 @@ mod tests {
                 .compression(Compression::XZ)
                 .encryption(Encryption::AES)
                 .cipher_mode(CipherMode::CBC)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"))
                 .build(),
         )
@@ -350,7 +350,7 @@ mod tests {
                 .compression(Compression::XZ)
                 .encryption(Encryption::CAMELLIA)
                 .cipher_mode(CipherMode::CBC)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"))
                 .build(),
         )
@@ -493,7 +493,7 @@ mod tests {
     fn read_options_cache_is_reused_across_solid_blocks() {
         let write_options = WriteOptions::builder()
             .encryption(Encryption::AES)
-            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
             .password(Some("password"))
             .try_build()
             .unwrap();
@@ -602,7 +602,7 @@ mod tests {
                 .compression(Compression::NO)
                 .encryption(Encryption::CAMELLIA)
                 .cipher_mode(CipherMode::CBC)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("PASSWORD"))
                 .build(),
         );
@@ -693,7 +693,7 @@ mod tests {
             .compression(Compression::ZSTANDARD)
             .encryption(Encryption::AES)
             .cipher_mode(CipherMode::CTR)
-            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
             .password(Some("password"))
             .build();
         let mut archive = Archive::write_header(Vec::new()).unwrap();
@@ -1010,7 +1010,7 @@ mod tests {
                 .compression(compression)
                 .encryption(encryption)
                 .cipher_mode(CipherMode::GCM)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"));
             builder.segment_size(segment_size);
             builder.build()
@@ -1362,7 +1362,7 @@ mod tests {
                 .compression(Compression::NO)
                 .encryption(Encryption::AES)
                 .cipher_mode(CipherMode::GCM)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some(PASSWORD));
             builder.segment_size(segment_size);
             builder.build()

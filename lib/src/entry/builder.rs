@@ -1069,7 +1069,7 @@ mod tests {
             builder
                 .encryption(encryption)
                 .cipher_mode(CipherMode::GCM)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"));
             builder.segment_size(segment_size);
             builder.build()
