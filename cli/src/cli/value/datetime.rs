@@ -113,10 +113,7 @@ pub(crate) fn system_time_to_unix_timestamp(time: SystemTime) -> Option<(i64, u3
     if subsec >= 0 {
         Some((ts.as_second(), subsec as u32))
     } else {
-        Some((
-            ts.as_second() - 1,
-            (1_000_000_000 + subsec) as u32,
-        ))
+        Some((ts.as_second() - 1, (1_000_000_000 + subsec) as u32))
     }
 }
 
@@ -231,10 +228,7 @@ mod tests {
     #[test]
     fn system_time_to_unix_timestamp_floors_negative_subsecond() {
         // jiff truncates toward zero; we floor so nanos stay in 0..1e9.
-        assert_eq!(
-            system_time_to_unix_timestamp(UNIX_EPOCH),
-            Some((0, 0))
-        );
+        assert_eq!(system_time_to_unix_timestamp(UNIX_EPOCH), Some((0, 0)));
         assert_eq!(
             system_time_to_unix_timestamp(UNIX_EPOCH - std::time::Duration::from_millis(1)),
             Some((-1, 999_000_000))
