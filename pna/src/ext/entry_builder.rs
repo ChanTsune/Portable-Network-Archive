@@ -48,11 +48,7 @@ fn owner_name_bounded(s: &str) -> &str {
     if s.len() <= MAX {
         return s;
     }
-    let mut end = MAX;
-    while !s.is_char_boundary(end) {
-        end -= 1;
-    }
-    &s[..end]
+    &s[..s.floor_char_boundary(MAX)]
 }
 
 #[allow(deprecated)]
