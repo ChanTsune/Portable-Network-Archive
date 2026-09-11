@@ -37,7 +37,7 @@ impl Command for MigrateCommand {
 fn migrate_metadata(args: MigrateCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     execute_archive_transform(
-        &args.archive.file,
+        &args.archive.require_file()?,
         args.output,
         umask,
         password.as_deref(),

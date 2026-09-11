@@ -530,7 +530,7 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
         time_filters,
         line_ending: LineEnding::default(),
     };
-    let archive = args.archive.file;
+    let archive = args.archive.require_file()?;
     let files = args.files.files;
     let files_globs =
         BsdGlobMatcher::new(files.iter().map(|it| it.as_str())).with_no_recursive(!args.recursive);
