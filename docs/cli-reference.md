@@ -475,6 +475,12 @@ Update entries in archive
 ###### **Options:**
 
 * `--output <OUTPUT>` — Output file path
+* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+
+  Default value: `false`
+* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+
+  Default value: `false`
 * `--one-file-system` — Stay in the same file system when collecting files
 
   Default value: `false`
@@ -884,6 +890,12 @@ Delete entry from archive
 ###### **Options:**
 
 * `--output <OUTPUT>` — Output file path
+* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+
+  Default value: `false`
+* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+
+  Default value: `false`
 * `--files-from <FILE>` — Read deleting files from given path
 * `--files-from-stdin` — Read deleting files from stdin
 
@@ -1047,6 +1059,12 @@ Strip entries metadata
 
   Default value: `false`
 * `--output <OUTPUT>` — Output file path
+* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+
+  Default value: `false`
+* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+
+  Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
@@ -1086,6 +1104,12 @@ Sort entries in archive
 
 * `-f`, `--file <ARCHIVE>` — Archive file path
 * `--output <OUTPUT>` — Output archive file path
+* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+
+  Default value: `false`
+* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+
+  Default value: `false`
 * `--by <KEY>` — Sort key in format KEY[:ORDER] (e.g., name, mtime:desc) [keys: name, ctime, mtime, atime] [orders: asc, desc]
 
   Default value: `name`
@@ -1136,6 +1160,12 @@ Upgrade archives created by older PNA versions
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `-f`, `--file <ARCHIVE>` — Archive file path
 * `--output <OUTPUT>` — Output file path
+* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+
+  Default value: `false`
+* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+
+  Default value: `false`
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -1272,6 +1302,12 @@ Set extended attributes of entries
 
   Default value: `false`
 * `--output <OUTPUT>` — Output file path
+* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+
+  Default value: `false`
+* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+
+  Default value: `false`
 * `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
@@ -1781,6 +1817,12 @@ Update entries in archive (stabilized, use `pna update` command instead. this co
 ###### **Options:**
 
 * `--output <OUTPUT>` — Output file path
+* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+
+  Default value: `false`
+* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+
+  Default value: `false`
 * `--one-file-system` — Stay in the same file system when collecting files
 
   Default value: `false`
@@ -1954,6 +1996,12 @@ Change owner
 
   Default value: `false`
 * `--output <OUTPUT>` — Output file path
+* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+
+  Default value: `false`
+* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+
+  Default value: `false`
 * `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
@@ -2003,6 +2051,12 @@ Change mode
 
 * `-f`, `--file <ARCHIVE>` — Archive file path
 * `--output <OUTPUT>` — Output file path
+* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+
+  Default value: `false`
+* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+
+  Default value: `false`
 * `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
@@ -2146,6 +2200,12 @@ Set acl of entries
 
   Default value: `false`
 * `--output <OUTPUT>` — Output file path
+* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+
+  Default value: `false`
+* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+
+  Default value: `false`
 * `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
