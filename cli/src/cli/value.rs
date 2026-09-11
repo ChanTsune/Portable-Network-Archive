@@ -21,7 +21,7 @@ pub(crate) use chunk_type::ChunkType;
 pub(crate) use color_choice::ColorChoice;
 pub(crate) use compression_level::{DeflateLevel, XzLevel, ZstdLevel};
 pub use datetime::DateTime;
-pub(crate) use datetime::DateTimeError;
+pub(crate) use datetime::{DateTimeError, system_time_to_unix_timestamp};
 pub(crate) use log_level::LogLevel;
 pub(crate) use missing_time_policy::MissingTimePolicy;
 pub(crate) use name_id_pair::NameIdPair;

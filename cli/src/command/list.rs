@@ -1,6 +1,9 @@
 use crate::{
     chunk,
-    cli::{ArchiveFileArgs, ColorChoice, DateTime, FileOperands, MissingTimePolicy, PasswordArgs},
+    cli::{
+        ArchiveFileArgs, ColorChoice, DateTime, FileOperands, MissingTimePolicy, PasswordArgs,
+        system_time_to_unix_timestamp,
+    },
     command::{
         Command, ask_password,
         core::{
@@ -1120,22 +1123,6 @@ const UNREPRESENTABLE_TIME_PLACEHOLDER: &str = "-- -- ----";
 fn system_time_to_local_opt(tz: &TimeZone, time: SystemTime) -> Option<Zoned> {
     let (sec, nsec) = system_time_to_unix_timestamp(time)?;
     unix_timestamp_to_local_opt(tz, sec, nsec)
-}
-
-#[inline]
-fn system_time_to_unix_timestamp(time: SystemTime) -> Option<(i64, u32)> {
-    match time.duration_since(SystemTime::UNIX_EPOCH) {
-        Ok(d) => Some((i64::try_from(d.as_secs()).ok()?, d.subsec_nanos())),
-        Err(e) => {
-            let d = e.duration();
-            let secs = i64::try_from(d.as_secs()).ok()?;
-            let (carry, nsec) = match d.subsec_nanos() {
-                0 => (0, 0),
-                n => (1, 1_000_000_000 - n),
-            };
-            Some((-secs - carry, nsec))
-        }
-    }
 }
 
 #[inline]
