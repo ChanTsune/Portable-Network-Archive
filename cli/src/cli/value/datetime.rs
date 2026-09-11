@@ -136,15 +136,16 @@ impl Display for DateTime {
 /// branch instead.
 #[inline]
 fn has_timezone_marker(s: &str) -> bool {
-    if s.ends_with('Z') || s.contains('[') {
+    let bytes = s.as_bytes();
+    if s.ends_with('Z') || memchr::memchr(b'[', bytes).is_some() {
         return true;
     }
-    let Some(t_pos) = s.find('T') else {
+    let Some(t_pos) = memchr::memchr(b'T', bytes) else {
         return false;
     };
     // Within the time portion, only digits, `:`, and `.` are valid; any `+`
     // or `-` therefore signals a UTC offset.
-    s[t_pos + 1..].bytes().any(|b| b == b'+' || b == b'-')
+    memchr::memchr2(b'+', b'-', &bytes[t_pos + 1..]).is_some()
 }
 
 #[inline]
@@ -226,6 +227,17 @@ mod tests {
     fn test_datetime_parse_invalid() {
         let invalid_dt = "invalid-datetime";
         assert!(DateTime::from_str(invalid_dt).is_err());
+    }
+
+    #[test]
+    fn has_timezone_marker_detects_offsets_and_suffixes() {
+        assert!(has_timezone_marker("2024-03-20T12:34:56Z"));
+        assert!(has_timezone_marker("2024-03-20T12:34:56+09:00"));
+        assert!(has_timezone_marker("2024-03-20T12:34:56-05:00"));
+        assert!(has_timezone_marker("2024-03-20T12:34:56[Asia/Tokyo]"));
+        assert!(!has_timezone_marker("2024-03-20T12:34:56"));
+        assert!(!has_timezone_marker("2024-04-01"));
+        assert!(!has_timezone_marker("invalid-datetime"));
     }
 
     #[test]
