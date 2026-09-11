@@ -97,6 +97,26 @@ fn epoch_to_system_time(seconds: i64, nanoseconds: u32) -> Option<SystemTime> {
     floor.checked_add(subsec)
 }
 
+/// Converts `SystemTime` to floored `(seconds, subsec_nanos)` such that the
+/// instant equals `UNIX_EPOCH + seconds * 1s + nanos * 1ns` with `nanos < 1e9`.
+///
+/// Single source of truth for this conversion (previously duplicated in
+/// `command::list`). Delegates borrow handling to `jiff` instead of manual
+/// `duration_since` arithmetic. Returns `None` when outside jiff's
+/// representable window (`Timestamp::MIN..=MAX`).
+#[inline]
+pub(crate) fn system_time_to_unix_timestamp(time: SystemTime) -> Option<(i64, u32)> {
+    let ts = jiff::Timestamp::try_from(time).ok()?;
+    // jiff uses truncated seconds + signed subsec (e.g. -1ms => sec 0, subsec
+    // -1_000_000). Floor to non-negative nanos for `Timestamp::new` round-trip.
+    let subsec = ts.subsec_nanosecond();
+    if subsec >= 0 {
+        Some((ts.as_second(), subsec as u32))
+    } else {
+        Some((ts.as_second() - 1, (1_000_000_000 + subsec) as u32))
+    }
+}
+
 impl Display for DateTime {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -204,6 +224,20 @@ impl FromStr for DateTime {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn system_time_to_unix_timestamp_floors_negative_subsecond() {
+        // jiff truncates toward zero; we floor so nanos stay in 0..1e9.
+        assert_eq!(system_time_to_unix_timestamp(UNIX_EPOCH), Some((0, 0)));
+        assert_eq!(
+            system_time_to_unix_timestamp(UNIX_EPOCH - std::time::Duration::from_millis(1)),
+            Some((-1, 999_000_000))
+        );
+        assert_eq!(
+            system_time_to_unix_timestamp(UNIX_EPOCH - std::time::Duration::from_secs(1)),
+            Some((-1, 0))
+        );
+    }
 
     #[test]
     fn test_datetime_parse_valid() {
