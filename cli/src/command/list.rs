@@ -1146,23 +1146,17 @@ fn unix_timestamp_to_local_opt(tz: &TimeZone, sec: i64, nsec: u32) -> Option<Zon
 }
 
 #[inline]
-fn hide_control_chars<'a>(s: &'a str) -> impl Display + 'a {
+fn hide_control_chars(s: &str) -> impl Display + '_ {
     use core::fmt::Write;
-    struct HideControl<'s>(&'s str);
-
-    impl Display for HideControl<'_> {
-        #[inline]
-        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-            self.0.chars().try_for_each(|c| {
-                if c.is_control() {
-                    f.write_char('?')
-                } else {
-                    f.write_char(c)
-                }
-            })
-        }
-    }
-    HideControl(s)
+    fmt::from_fn(|f| {
+        s.chars().try_for_each(|c| {
+            if c.is_control() {
+                f.write_char('?')
+            } else {
+                f.write_char(c)
+            }
+        })
+    })
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
