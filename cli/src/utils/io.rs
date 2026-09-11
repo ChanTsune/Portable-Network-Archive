@@ -37,8 +37,8 @@ pub(crate) fn read_to_nul<R: io::BufRead>(reader: R) -> io::Result<Vec<String>> 
     let mut out = Vec::new();
     for part in io::BufRead::split(reader, b'\0') {
         let part = part?;
-        let s = String::from_utf8(part)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let s =
+            String::from_utf8(part).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         out.push(s);
     }
     Ok(out)
