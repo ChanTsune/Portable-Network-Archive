@@ -1,14 +1,10 @@
 use super::{
-    SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid, TransformStrategyUnSolid, Umask,
-    collect_split_archives,
+    ArchiveSource, TransformStrategyKeepSolid, TransformStrategyUnSolid, Umask,
+    archive_destination::{ArchiveDestination, SinkConsumer},
 };
 use crate::{cli::SolidEntriesTransformStrategy, utils::GlobPatterns};
 use pna::NormalEntry;
-use std::{
-    borrow::Cow,
-    io,
-    path::{Path, PathBuf},
-};
+use std::{borrow::Cow, io};
 
 /// The per-entry step of a command that rewrites an archive.
 ///
@@ -24,40 +20,59 @@ pub(crate) trait EntryTransform {
     fn patterns(&self) -> Option<&GlobPatterns<'_>>;
 }
 
-/// Rewrites `archive` into `output` through `transform`, one entry at a time.
-#[hooq::hooq(anyhow)]
+/// Rewrites `source` into `destination` through `transform`, one entry at a time, and
+/// publishes the destination only once the rewrite and the selector validation have succeeded.
 pub(crate) fn execute_archive_transform(
-    archive: &Path,
-    output: PathBuf,
+    source: ArchiveSource,
+    destination: ArchiveDestination,
     umask: Umask,
     password: Option<&[u8]>,
     strategy: SolidEntriesTransformStrategy,
-    mut transform: impl EntryTransform,
+    transform: impl EntryTransform,
 ) -> anyhow::Result<()> {
-    let mut source = SplitArchiveReader::new(collect_split_archives(archive)?)?;
-    let mut staged = StagedArchive::new(output, umask)?;
-    match strategy {
-        SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
-            staged.as_file_mut(),
+    destination.open_with(
+        umask,
+        RewriteEntries {
+            source,
             password,
-            #[hooq::skip_all]
-            |entry| transform.transform(entry?),
-            TransformStrategyUnSolid,
-        ),
-        SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
-            staged.as_file_mut(),
-            password,
-            #[hooq::skip_all]
-            |entry| transform.transform(entry?),
-            TransformStrategyKeepSolid,
-        ),
-    }?;
-    drop(source);
-    if let Some(patterns) = transform.patterns() {
-        patterns.ensure_all_matched()?;
+            strategy,
+            transform,
+        },
+    )
+}
+
+struct RewriteEntries<'p, T> {
+    source: ArchiveSource,
+    password: Option<&'p [u8]>,
+    strategy: SolidEntriesTransformStrategy,
+    transform: T,
+}
+
+impl<T: EntryTransform> SinkConsumer for RewriteEntries<'_, T> {
+    type Output = ();
+
+    fn consume<W: io::Write>(mut self, mut writer: W) -> anyhow::Result<()> {
+        let source = self.source.open()?;
+        match self.strategy {
+            SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
+                &mut writer,
+                self.password,
+                &mut self.transform,
+                TransformStrategyUnSolid,
+            ),
+            SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
+                &mut writer,
+                self.password,
+                &mut self.transform,
+                TransformStrategyKeepSolid,
+            ),
+        }?;
+        // A selector that matched nothing aborts here, before open_with publishes.
+        if let Some(patterns) = self.transform.patterns() {
+            patterns.ensure_all_matched()?;
+        }
+        Ok(())
     }
-    staged.commit()?;
-    Ok(())
 }
 
 #[cfg(test)]
@@ -65,7 +80,10 @@ pub(crate) fn execute_archive_transform(
 mod tests {
     use super::*;
     use pna::{Archive, FileEntryBuilder};
-    use std::fs;
+    use std::{
+        fs,
+        path::{Path, PathBuf},
+    };
 
     /// Drops every entry so a committed rewrite is distinguishable from the original bytes.
     struct DropAll<'s>(GlobPatterns<'s>);
@@ -116,8 +134,8 @@ mod tests {
 
     fn rewrite(archive: &Path, pattern: &str) -> anyhow::Result<()> {
         execute_archive_transform(
-            archive,
-            archive.to_path_buf(),
+            ArchiveSource::File(archive.to_path_buf()),
+            ArchiveDestination::InPlace(archive.to_path_buf()),
             Umask::new(0o022),
             None,
             SolidEntriesTransformStrategy::UnSolid,

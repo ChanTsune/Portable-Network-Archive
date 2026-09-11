@@ -4,6 +4,7 @@ use crate::{
         Command, ask_password,
         core::{
             Umask,
+            archive_destination::ArchiveDestination,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
@@ -36,9 +37,13 @@ impl Command for MigrateCommand {
 #[hooq::hooq(anyhow)]
 fn migrate_metadata(args: MigrateCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
+    let source = args.archive.source();
+    // Preserve migrate's existing required-output replacement contract while
+    // its argument shape remains unchanged.
+    let destination = ArchiveDestination::Replace(args.output);
     execute_archive_transform(
-        &args.archive.require_file()?,
-        args.output,
+        source,
+        destination,
         umask,
         password.as_deref(),
         args.transform_strategy.strategy(),
