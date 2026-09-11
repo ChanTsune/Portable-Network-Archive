@@ -10,7 +10,7 @@ use crate::{
             KeepOptions, MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
             PermissionStrategyResolver, TimeFilterResolver, TimeFilters, TimestampStrategyResolver,
             Umask, XattrStrategy,
-            archive_destination::{SinkConsumer, resolve_create_destination},
+            archive_destination::{ArchiveDestination, SinkConsumer, resolve_create_destination},
             collect_items_from_paths, drain_entry_results, entry_option,
             iter::ReorderByIndex,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
@@ -432,10 +432,7 @@ fn create_archive(args: CreateCommand, umask: Umask) -> anyhow::Result<()> {
             ByteSize::b(MIN_SPLIT_PART_BYTES as u64)
         );
     }
-    let destination = max_file_size
-        .is_none()
-        .then(|| resolve_create_destination(args.archive.file.clone(), args.overwrite))
-        .transpose()?;
+    let output = resolve_create_output(args.archive.file.clone(), args.overwrite, max_file_size)?;
     let password = ask_password(args.password)?;
     let start = Instant::now();
     let mut files = args.files.files;
@@ -532,39 +529,66 @@ fn create_archive(args: CreateCommand, umask: Umask) -> anyhow::Result<()> {
         solid: args.solid,
         pathname_editor,
     };
-    if let Some(size) = max_file_size {
-        let archive = args.archive.require_file()?;
-        log::info!("Create an archive: {}", archive.display());
-        create_archive_with_split(
-            &archive,
-            creation_context,
-            target_items,
-            size,
-            args.overwrite,
-            &filter,
-            &time_filters,
-            password,
-            false,
-        )?;
-    } else {
-        let destination = destination.expect("ordinary create always resolves a destination");
-        log::info!("Create an archive: {destination}");
-        let entries = spawn_created_entries(
-            creation_context,
-            target_items,
-            &filter,
-            &time_filters,
-            password,
-            false,
-            false,
-        );
-        destination.open_with(umask, entries)?;
+    match output {
+        CreateOutput::Split {
+            archive,
+            max_file_size,
+        } => {
+            log::info!("Create an archive: {}", archive.display());
+            create_archive_with_split(
+                &archive,
+                creation_context,
+                target_items,
+                max_file_size,
+                args.overwrite,
+                &filter,
+                &time_filters,
+                password,
+                false,
+            )?;
+        }
+        CreateOutput::Single(destination) => {
+            log::info!("Create an archive: {destination}");
+            let entries = spawn_created_entries(
+                creation_context,
+                target_items,
+                &filter,
+                &time_filters,
+                password,
+                false,
+                false,
+            );
+            destination.open_with(umask, entries)?;
+        }
     }
     log::info!(
         "Successfully created an archive in {}",
         DurationDisplay(start.elapsed())
     );
     Ok(())
+}
+
+enum CreateOutput {
+    Single(ArchiveDestination),
+    Split {
+        archive: PathBuf,
+        max_file_size: usize,
+    },
+}
+
+fn resolve_create_output(
+    file: Option<PathBuf>,
+    overwrite: bool,
+    max_file_size: Option<usize>,
+) -> anyhow::Result<CreateOutput> {
+    match (file, max_file_size) {
+        (Some(archive), Some(max_file_size)) => Ok(CreateOutput::Split {
+            archive,
+            max_file_size,
+        }),
+        (None, Some(_)) => anyhow::bail!("--split requires --file PATH"),
+        (file, None) => resolve_create_destination(file, overwrite).map(CreateOutput::Single),
+    }
 }
 
 pub(crate) struct CreationContext {
