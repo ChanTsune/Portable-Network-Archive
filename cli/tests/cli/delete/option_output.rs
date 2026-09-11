@@ -30,6 +30,7 @@ fn delete_output() {
         "pna",
         "--quiet",
         "delete",
+        "--overwrite",
         "-f",
         "delete_output/delete_output.pna",
         "**/raw/text.txt",

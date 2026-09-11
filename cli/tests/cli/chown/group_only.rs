@@ -31,6 +31,7 @@ fn chown_group_only() {
         "--quiet",
         "experimental",
         "chown",
+        "--overwrite",
         "-f",
         "chown_group_only.pna",
         ":new_group",

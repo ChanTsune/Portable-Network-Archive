@@ -22,7 +22,14 @@ fn assert_migrated_acl(platform: &str, acl_entries: &[&str]) {
     TestResources::extract_in(&source, ".").unwrap();
 
     cli::Cli::try_parse_from([
-        "pna", "--quiet", "migrate", "-f", &source, "--output", &migrated,
+        "pna",
+        "--quiet",
+        "migrate",
+        "--overwrite",
+        "-f",
+        &source,
+        "--output",
+        &migrated,
     ])
     .unwrap()
     .execute()

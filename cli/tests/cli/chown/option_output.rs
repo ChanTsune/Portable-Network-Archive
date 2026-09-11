@@ -26,6 +26,7 @@ fn chown_output() {
         "chown",
         "-f",
         "chown_output.pna",
+        "--overwrite",
         "--output",
         "chown_output_out.pna",
         "new_user",

@@ -50,6 +50,7 @@ fn chown_no_owner_lookup_numeric() {
         "--quiet",
         "experimental",
         "chown",
+        "--overwrite",
         "-f",
         "chown_no_owner_lookup_numeric/numeric_owner.pna",
         "1000:2000",

@@ -17,6 +17,7 @@ fn xattr_set_output() {
         "set",
         "-f",
         "xattr_set_output/zstd.pna",
+        "--overwrite",
         "--output",
         "xattr_set_output/out.pna",
         "--name",

@@ -26,6 +26,7 @@ fn chmod_output() {
         "chmod",
         "-f",
         "chmod_output.pna",
+        "--overwrite",
         "--output",
         "chmod_output_out.pna",
         "--",
