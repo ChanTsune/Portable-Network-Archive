@@ -1,4 +1,3 @@
-use crate::ext::BufReadExt;
 use std::io;
 
 pub(crate) fn is_pna<R: io::Read>(mut reader: R) -> io::Result<bool> {
@@ -11,27 +10,38 @@ pub(crate) fn is_pna<R: io::Read>(mut reader: R) -> io::Result<bool> {
 
 #[inline]
 pub(crate) fn read_to_lines<R: io::BufRead>(reader: R) -> io::Result<Vec<String>> {
-    reader
-        .split_lines()
-        .filter(|line| !line.as_ref().is_ok_and(|s| s.is_empty()))
-        .collect()
+    use bstr::{ByteSlice as _, io::BufReadExt as _};
+    let mut out = Vec::new();
+    for line in reader.byte_lines() {
+        let line = line?;
+        // `byte_lines` splits on `\n` (stripping a trailing `\r` for CRLF).
+        // Split further on lone `\r` to preserve the legacy CR handling.
+        for part in line.split_str("\r") {
+            if part.is_empty() {
+                continue;
+            }
+            let s = std::str::from_utf8(part)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+            if !s.is_empty() {
+                out.push(s.to_owned());
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// Reads a reader and splits its contents on null characters ('\0'), returning a Vec<String>.
 /// The null characters are stripped from the output (similar to how `lines()` strips newlines).
 #[inline]
 pub(crate) fn read_to_nul<R: io::BufRead>(reader: R) -> io::Result<Vec<String>> {
-    reader
-        .delimit_by_str("\0")
-        .map(|r| {
-            r.map(|mut s| {
-                if let Some(stripped) = s.strip_suffix('\0') {
-                    s.truncate(stripped.len());
-                };
-                s
-            })
-        })
-        .collect()
+    let mut out = Vec::new();
+    for part in io::BufRead::split(reader, b'\0') {
+        let part = part?;
+        let s = String::from_utf8(part)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        out.push(s);
+    }
+    Ok(out)
 }
 
 /// Treats an `io::Result` as success when a predicate over the error returns true.
@@ -140,6 +150,20 @@ mod tests {
         let input = b"\n\r\n";
         let got = read_to_lines(io::BufReader::new(&input[..])).unwrap();
         assert!(got.is_empty());
+    }
+
+    #[test]
+    fn read_to_lines_rejects_invalid_utf8() {
+        let input = b"valid\n\xff\xfe\n";
+        let err = read_to_lines(io::BufReader::new(&input[..])).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn read_to_nul_rejects_invalid_utf8() {
+        let input = b"valid\0\xff\xfe\0";
+        let err = read_to_nul(io::BufReader::new(&input[..])).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
     }
 
     /// A reader that returns data in fixed-size chunks to simulate
