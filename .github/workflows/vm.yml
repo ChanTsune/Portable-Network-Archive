@@ -45,7 +45,7 @@ jobs:
           persist-credentials: false
       - name: Test in Solaris
         id: test
-        uses: vmactions/solaris-vm@96d8d976f9e67d82ec6c7e8ce9c1060731f9e21c # v1.3.9
+        uses: vmactions/solaris-vm@a11f407d3720a3717673d4194f19ee63b284977e # v1.4.0
         with:
           envs: "RUST_BACKTRACE PNA_TEST_REQUIRE"
           copyback: false
