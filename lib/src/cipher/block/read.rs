@@ -44,6 +44,11 @@ where
             eof: false,
         })
     }
+
+    #[inline]
+    pub(crate) fn into_inner(self) -> R {
+        self.r
+    }
 }
 
 impl<R, C, P> Read for CbcBlockCipherDecryptReader<R, C, P>

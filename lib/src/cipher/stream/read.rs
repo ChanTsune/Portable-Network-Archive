@@ -27,6 +27,11 @@ where
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
         })
     }
+
+    #[inline]
+    pub(crate) fn into_inner(self) -> R {
+        self.r
+    }
 }
 
 impl<R, T> Read for StreamCipherReader<R, T>

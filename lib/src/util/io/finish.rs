@@ -1,4 +1,4 @@
-//! Trait for extracting the inner writer from layered I/O types.
+//! Trait for finishing layered I/O types and extracting their inner value.
 
 use std::io;
 
