@@ -1,11 +1,13 @@
-use crate::utils::{archive, archive::FileEntryDef, setup};
+use crate::utils::{EmbedExt, TestResources, archive, archive::FileEntryDef, setup};
 use clap::Parser;
-#[allow(deprecated)]
-use pna::Permission;
-use pna::{Archive, EntryName, FileEntryBuilder, Metadata};
 use portable_network_archive::cli;
-use std::fs::File;
-use std::io::Write;
+
+/// A file entry from the 0.33.0 `zstd_keep_permission` fixture, which
+/// carries only legacy `fPRM` (no owner facets): `uid=501
+/// uname="kaihatsutarou" gid=20 gname="staff"`, mode `0o100644` unmasked
+/// (`0o644` once read back through `PermissionMode`).
+const LEGACY_FIXTURE_ENTRY: &str = "raw/text.txt";
+const LEGACY_FIXTURE: &str = "0.33.0/zstd_keep_permission.pna";
 
 /// Precondition: An archive contains entries with permission metadata.
 /// Action: Run `pna experimental chown` with `user` (no colon) to change only the user.
@@ -90,22 +92,8 @@ fn chown_user_only() {
 #[allow(deprecated)]
 fn chown_user_only_drops_legacy_fprm() {
     setup();
-    let path = "chown_legacy_fprm.pna";
-    {
-        let mut archive = Archive::write_header(File::create(path).unwrap()).unwrap();
-        let mut builder =
-            FileEntryBuilder::new(EntryName::from_utf8_preserve_root("target.txt")).unwrap();
-        builder.metadata(Metadata::new().with_permission(Some(Permission::new(
-            1000,
-            "user".to_string(),
-            1000,
-            "group".to_string(),
-            0o644,
-        ))));
-        builder.write_all(b"target").unwrap();
-        archive.add_entry(builder.build().unwrap()).unwrap();
-        archive.finalize().unwrap();
-    }
+    TestResources::extract_in(LEGACY_FIXTURE, "chown_legacy_fprm/").unwrap();
+    let path = format!("chown_legacy_fprm/{LEGACY_FIXTURE}");
 
     cli::Cli::try_parse_from([
         "pna",
@@ -113,26 +101,90 @@ fn chown_user_only_drops_legacy_fprm() {
         "experimental",
         "chown",
         "-f",
-        path,
+        path.as_str(),
         "new_user",
-        "target.txt",
+        LEGACY_FIXTURE_ENTRY,
         "--no-owner-lookup",
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    archive::for_each_entry(path, |entry| {
-        let metadata = entry.metadata();
-        assert!(
-            metadata.permission().is_none(),
-            "legacy fPRM must be removed after chown"
-        );
-        assert_eq!(metadata.owner_user_name().unwrap().as_str(), "new_user");
-        assert_eq!(metadata.owner_uid().unwrap().get(), u64::MAX);
-        assert_eq!(metadata.owner_group_name().unwrap().as_str(), "group");
-        assert_eq!(metadata.owner_gid().unwrap().get(), 1000);
-        assert_eq!(metadata.permission_mode().unwrap().get(), 0o644);
+    let mut found = false;
+    archive::for_each_entry(&path, |entry| {
+        if entry.header().path().as_str() == LEGACY_FIXTURE_ENTRY {
+            found = true;
+            let metadata = entry.metadata();
+            assert!(
+                metadata.permission().is_none(),
+                "legacy fPRM must be removed after chown"
+            );
+            assert_eq!(metadata.owner_user_name().unwrap().as_str(), "new_user");
+            assert_eq!(metadata.owner_uid().unwrap().get(), u64::MAX);
+            // The group side wasn't targeted, so it's rescued from the
+            // fixture's legacy fPRM ("staff"/20) rather than left absent.
+            assert_eq!(metadata.owner_group_name().unwrap().as_str(), "staff");
+            assert_eq!(metadata.owner_gid().unwrap().get(), 20);
+            assert_eq!(metadata.permission_mode().unwrap().get(), 0o644);
+        }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
+}
+
+/// Precondition: An archive entry carries legacy fPRM metadata and no owner
+/// facets. Action: Run `pna experimental chown --numeric-owner` with a
+/// numeric `uid:gid` spec (no names). Expectation: uid/gid take the
+/// requested numeric values, and the owner *names* come back absent rather
+/// than resurrected from the still-present legacy fPRM — the case the
+/// all-or-nothing rescue rule exists for: a per-facet merge would instead
+/// see `owner_user_name`/`owner_group_name` as merely "unset" and refill
+/// them from `fPRM`'s `uname`/`gname`.
+#[test]
+#[allow(deprecated)]
+fn chown_numeric_owner_drops_legacy_fprm_names() {
+    setup();
+    TestResources::extract_in(LEGACY_FIXTURE, "chown_numeric_owner_legacy_fprm/").unwrap();
+    let path = format!("chown_numeric_owner_legacy_fprm/{LEGACY_FIXTURE}");
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "experimental",
+        "chown",
+        "-f",
+        path.as_str(),
+        "1000:2000",
+        LEGACY_FIXTURE_ENTRY,
+        "--numeric-owner",
+        "--no-owner-lookup",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let mut found = false;
+    archive::for_each_entry(&path, |entry| {
+        if entry.header().path().as_str() == LEGACY_FIXTURE_ENTRY {
+            found = true;
+            let metadata = entry.metadata();
+            assert!(
+                metadata.permission().is_none(),
+                "legacy fPRM must be removed after chown"
+            );
+            assert_eq!(metadata.owner_uid().unwrap().get(), 1000);
+            assert_eq!(metadata.owner_gid().unwrap().get(), 2000);
+            assert!(
+                metadata.owner_user_name().is_none(),
+                "numeric-only chown must not resurrect the legacy fPRM uname"
+            );
+            assert!(
+                metadata.owner_group_name().is_none(),
+                "numeric-only chown must not resurrect the legacy fPRM gname"
+            );
+            assert_eq!(metadata.permission_mode().unwrap().get(), 0o644);
+        }
+    })
+    .unwrap();
+    assert!(found, "target entry not found in archive");
 }
