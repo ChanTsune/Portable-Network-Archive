@@ -29,7 +29,7 @@ use rayon::prelude::*;
 use serde::Serialize;
 use std::{
     borrow::Cow,
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeMap, HashMap},
     fmt::{self, Display, Formatter},
     io::{self, prelude::*},
     path::PathBuf,
@@ -1507,16 +1507,59 @@ fn delimited_entries_to(
     Ok(())
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-struct TreeEntry<'s> {
-    name: &'s str,
-    kind: DataKind,
+#[derive(Default)]
+struct FileTree<'s> {
+    kind: Option<DataKind>,
+    children: BTreeMap<&'s str, FileTree<'s>>,
 }
 
-impl<'s> TreeEntry<'s> {
+impl<'s> FileTree<'s> {
     #[inline]
-    const fn new(name: &'s str, kind: DataKind) -> Self {
-        Self { name, kind }
+    fn insert(&mut self, path: &'s str, kind: DataKind) {
+        let mut parts = path.split('/').filter(|p| !p.is_empty());
+        let Some(first) = parts.next() else { return };
+        let mut node = self.children.entry(first).or_default();
+        for part in parts {
+            node = node.children.entry(part).or_default();
+        }
+        node.kind = Some(kind);
+    }
+}
+
+struct TreeLabel<'a> {
+    name: &'a str,
+    kind: DataKind,
+    classify: bool,
+    hide_control_chars: bool,
+}
+
+impl TreeLabel<'_> {
+    #[inline]
+    fn root() -> Self {
+        Self {
+            name: ".",
+            kind: DataKind::FILE,
+            classify: false,
+            hide_control_chars: false,
+        }
+    }
+}
+
+impl Display for TreeLabel<'_> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        use core::fmt::Write as _;
+        if self.hide_control_chars {
+            Display::fmt(&hide_control_chars(self.name), f)?;
+        } else {
+            f.write_str(self.name)?;
+        }
+        match self.kind {
+            DataKind::DIRECTORY if self.classify => f.write_char('/')?,
+            DataKind::SYMBOLIC_LINK if self.classify => f.write_char('@')?,
+            _ => {}
+        }
+        Ok(())
     }
 }
 
@@ -1525,84 +1568,39 @@ fn tree_entries_to(
     options: &ListOptions,
     mut out: impl Write,
 ) -> io::Result<()> {
-    let entries = entries.iter().map(|it| match &it.entry_type {
-        EntryType::File(name) => (name.as_str(), DataKind::FILE),
-        EntryType::Directory(name) => (name.as_str(), DataKind::DIRECTORY),
-        EntryType::SymbolicLink(name, _) => (name.as_str(), DataKind::SYMBOLIC_LINK),
-        EntryType::HardLink(name, _) => (name.as_str(), DataKind::HARD_LINK),
-        EntryType::Unknown(name, kind) => (name.as_str(), *kind),
-    });
-    let map = build_tree_map(entries);
-    let tree = build_term_tree(&map, Cow::Borrowed(""), None, DataKind::DIRECTORY, options);
+    let mut files = FileTree::default();
+    for it in &entries {
+        let (name, kind) = match &it.entry_type {
+            EntryType::File(name) => (name.as_str(), DataKind::FILE),
+            EntryType::Directory(name) => (name.as_str(), DataKind::DIRECTORY),
+            EntryType::SymbolicLink(name, _) => (name.as_str(), DataKind::SYMBOLIC_LINK),
+            EntryType::HardLink(name, _) => (name.as_str(), DataKind::HARD_LINK),
+            EntryType::Unknown(name, kind) => (name.as_str(), *kind),
+        };
+        files.insert(name, kind);
+    }
+    let mut tree = termtree::Tree::new(TreeLabel::root());
+    append_tree_children(&mut tree, &files, options);
     writeln!(out, "{tree}")
 }
 
-fn build_tree_map<'s>(
-    paths: impl IntoIterator<Item = (&'s str, DataKind)>,
-) -> HashMap<&'s str, BTreeSet<TreeEntry<'s>>> {
-    let mut tree: HashMap<_, BTreeSet<_>> = HashMap::new();
-
-    for (path, kind) in paths {
-        let indices = path
-            .char_indices()
-            .filter(|(_, c)| *c == '/')
-            .map(|(idx, _)| (idx, DataKind::DIRECTORY))
-            .chain([(path.len(), kind)]);
-        let mut start = 0;
-        for (end, k) in indices {
-            let key = &path[..start];
-            let value = &path[start..end];
-            let value = value.strip_prefix('/').unwrap_or(value);
-            tree.entry(key)
-                .or_default()
-                .insert(TreeEntry::new(value, k));
-            start = end;
-        }
-    }
-    tree
-}
-
-fn build_term_tree<'a>(
-    tree: &HashMap<&'a str, BTreeSet<TreeEntry<'a>>>,
-    root: Cow<'a, str>,
-    name: Option<&'a str>,
-    kind: DataKind,
+fn append_tree_children<'a, 's>(
+    parent: &mut termtree::Tree<TreeLabel<'a>>,
+    node: &'a FileTree<'s>,
     options: &ListOptions,
-) -> termtree::Tree<Cow<'a, str>> {
-    let label = match name {
-        None => Cow::Borrowed("."),
-        Some(n) => format_name(n, kind, options),
-    };
-    let mut node = termtree::Tree::new(label);
-    if let Some(children) = tree.get(root.as_ref()) {
-        for entry in children {
-            let child_root = if root.is_empty() {
-                Cow::Borrowed(entry.name)
-            } else {
-                Cow::Owned(format!("{}/{}", root, entry.name))
-            };
-            node.push(build_term_tree(
-                tree,
-                child_root,
-                Some(entry.name),
-                entry.kind,
-                options,
-            ));
-        }
-    }
-    node
-}
-
-fn format_name<'a>(name: &'a str, kind: DataKind, options: &ListOptions) -> Cow<'a, str> {
-    let name = match kind {
-        DataKind::DIRECTORY if options.classify => Cow::Owned(format!("{name}/")),
-        DataKind::SYMBOLIC_LINK if options.classify => Cow::Owned(format!("{name}@")),
-        _ => Cow::Borrowed(name),
-    };
-    if options.hide_control_chars {
-        Cow::Owned(hide_control_chars(&name).to_string())
-    } else {
-        name
+) where
+    's: 'a,
+{
+    for (name, child) in &node.children {
+        let kind = child.kind.unwrap_or(DataKind::DIRECTORY);
+        let mut term = termtree::Tree::new(TreeLabel {
+            name,
+            kind,
+            classify: options.classify,
+            hide_control_chars: options.hide_control_chars,
+        });
+        append_tree_children(&mut term, child, options);
+        parent.push(term);
     }
 }
 
