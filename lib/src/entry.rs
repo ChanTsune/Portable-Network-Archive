@@ -2236,7 +2236,7 @@ mod tests {
         }
         assert_eq!(read_count, 16, "fixture must have 16 entries");
         assert!(
-            !out.windows(4).any(|w| w == b"fPRM"),
+            !out.array_windows().any(|w: &[u8; 4]| w == b"fPRM"),
             "the rewritten archive must carry no fPRM chunk"
         );
 
