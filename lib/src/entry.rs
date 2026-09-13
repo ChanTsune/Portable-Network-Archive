@@ -1151,7 +1151,7 @@ impl<T> NormalEntry<T> {
     /// # }
     /// ```
     #[deprecated(
-        since = "TBD",
+        since = "0.39.0",
         note = "use `NormalEntry::try_with_name`, which refuses renames that would make encrypted data undecryptable instead of panicking"
     )]
     #[inline]
