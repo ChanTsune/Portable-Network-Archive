@@ -1162,11 +1162,15 @@ impl<T> NormalEntry<T> {
     ///
     /// # fn main() -> io::Result<()> {
     /// let entry = DirEntryBuilder::new("original/path".into()).build()?;
-    /// let renamed = entry.with_name("new/path".into());
+    /// let renamed = entry.try_with_name("new/path".into()).unwrap();
     /// assert_eq!(renamed.header().path().as_str(), "new/path");
     /// # Ok(())
     /// # }
     /// ```
+    #[deprecated(
+        since = "TBD",
+        note = "use `NormalEntry::try_with_name`, which refuses renames that would make encrypted data undecryptable instead of panicking"
+    )]
     #[inline]
     pub fn with_name(self, name: EntryName) -> Self {
         self.try_with_name(name)
@@ -1179,8 +1183,7 @@ impl<T> NormalEntry<T> {
     /// [`CipherMode::GCM`] derives its stream key from the `FHED` bytes, so a
     /// renamed entry can no longer be decrypted; this method returns an error
     /// instead of producing one. Cipher modes this build does not implement are
-    /// refused as well, since their key derivation may bind the header too. See
-    /// [`NormalEntry::with_name`] for the panicking variant.
+    /// refused as well, since their key derivation may bind the header too.
     ///
     /// # Errors
     ///
@@ -1881,7 +1884,7 @@ mod tests {
     fn normal_entry_with_name_updates_path() {
         let entry = DirEntryBuilder::new("original".into()).build().unwrap();
         let _ = entry.header().path(); // Force cache population
-        let renamed = entry.with_name("new".into());
+        let renamed = entry.try_with_name("new".into()).unwrap();
         assert_eq!(renamed.header().path().as_str(), "new");
         assert_eq!(renamed.name().as_str(), "new");
     }
@@ -1901,13 +1904,14 @@ mod tests {
         ]);
         let entry: NormalEntry<&[u8]> = raw.try_into().unwrap();
 
-        let renamed = entry.with_name("renamed".into());
+        let renamed = entry.try_with_name("renamed".into()).unwrap();
 
         assert_eq!(renamed.header().path().as_str(), "renamed");
     }
 
     #[test]
     #[should_panic(expected = "renaming this entry would make its data undecryptable")]
+    #[allow(deprecated)]
     fn with_name_panics_on_gcm_encrypted_entry() {
         let options = WriteOptions::builder()
             .encryption(Encryption::AES)
@@ -1988,7 +1992,7 @@ mod tests {
         builder.write_all(b"secret payload").unwrap();
         let entry = builder.build().unwrap();
 
-        let renamed = entry.with_name("dir/renamed".into());
+        let renamed = entry.try_with_name("dir/renamed".into()).unwrap();
         let mut reader = renamed
             .reader(ReadOptions::with_password(Some("password")))
             .unwrap();
