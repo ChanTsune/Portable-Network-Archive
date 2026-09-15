@@ -31,6 +31,7 @@ fn strip_keep_solid_only_named_entries() {
         "pna",
         "--quiet",
         "strip",
+        "--overwrite",
         "--keep-solid",
         "-f",
         path,

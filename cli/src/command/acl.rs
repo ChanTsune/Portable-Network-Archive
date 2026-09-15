@@ -4,12 +4,13 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            EntryVisitor, Umask, resolve_rewrite_output,
+            ArchiveSource, EntryVisitor, Umask,
+            archive_destination::ArchiveDestination,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
     ext::{Acls, NormalEntryExt},
-    utils::GlobPatterns,
+    utils::{GlobPatterns, PathPartExt},
 };
 use clap::{ArgAction, ArgGroup, Parser, ValueHint};
 use nom::{
@@ -380,9 +381,12 @@ fn archive_set_acl(args: SetAclCommand, umask: Umask) -> anyhow::Result<()> {
     };
 
     let archive = args.archive.require_file()?;
-    let destination = resolve_rewrite_output(&archive, args.output, args.overwrite)?;
+    let destination = match args.output {
+        Some(output) => ArchiveDestination::Replace(output),
+        None => ArchiveDestination::InPlace(archive.remove_part()),
+    };
     execute_archive_transform(
-        &archive,
+        ArchiveSource::File(archive),
         destination,
         umask,
         password.as_deref(),

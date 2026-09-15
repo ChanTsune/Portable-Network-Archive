@@ -3,11 +3,13 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            PathFilter, Umask, read_paths, read_paths_stdin, resolve_rewrite_output,
+            ArchiveSource, PathFilter, Umask,
+            archive_destination::ArchiveDestination,
+            read_paths, read_paths_stdin,
             rewrite::{EntryTransform, execute_archive_transform},
         },
     },
-    utils::{GlobPatterns, VCS_FILES},
+    utils::{GlobPatterns, PathPartExt, VCS_FILES},
 };
 use clap::{ArgAction, ArgGroup, Parser, ValueHint};
 use pna::NormalEntry;
@@ -136,9 +138,12 @@ fn delete_file_from_archive(args: DeleteCommand, umask: Umask) -> anyhow::Result
     );
 
     let archive = args.archive.require_file()?;
-    let destination = resolve_rewrite_output(&archive, args.output, args.overwrite)?;
+    let destination = match args.output {
+        Some(output) => ArchiveDestination::Replace(output),
+        None => ArchiveDestination::InPlace(archive.remove_part()),
+    };
     execute_archive_transform(
-        &archive,
+        ArchiveSource::File(archive),
         destination,
         umask,
         password.as_deref(),
