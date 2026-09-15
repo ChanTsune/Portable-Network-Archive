@@ -53,7 +53,7 @@ fn verify_archive(args: VerifyCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let password = password.as_deref();
     let read_options = ReadOptions::with_password(password);
-    let archives = collect_split_archives(&args.archive.file)?;
+    let archives = collect_split_archives(args.archive.require_file()?)?;
     let mut report = VerifyReport::default();
     let mut solid_blocks = 0usize;
     let mut resyncing = false;
