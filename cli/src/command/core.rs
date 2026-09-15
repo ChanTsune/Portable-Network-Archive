@@ -1,3 +1,4 @@
+pub(crate) mod archive_destination;
 mod archive_source;
 mod ignore;
 pub(crate) mod iter;
