@@ -50,6 +50,7 @@ fn chown_no_owner_lookup() {
         "--quiet",
         "experimental",
         "chown",
+        "--overwrite",
         "-f",
         "chown_no_owner_lookup/no_owner_lookup.pna",
         "test_user:test_group",

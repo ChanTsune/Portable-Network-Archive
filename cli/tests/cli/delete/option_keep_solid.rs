@@ -32,6 +32,7 @@ fn delete_with_keep_solid() {
         "pna",
         "--quiet",
         "delete",
+        "--overwrite",
         "-f",
         "delete_with_keep_solid/delete_with_keep_solid.pna",
         "--keep-solid",

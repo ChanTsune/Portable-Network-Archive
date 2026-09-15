@@ -87,7 +87,20 @@ impl CreateNewArchive {
         let file = fs::OpenOptions::new()
             .write(true)
             .create_new(true)
-            .open(&path)?;
+            .open(&path)
+            .map_err(|error| {
+                if error.kind() == io::ErrorKind::AlreadyExists {
+                    io::Error::new(
+                        error.kind(),
+                        format!(
+                            "{} already exists (use --overwrite to replace it)",
+                            path.display()
+                        ),
+                    )
+                } else {
+                    error
+                }
+            })?;
         Ok(Self {
             path,
             file,
@@ -335,7 +348,7 @@ mod tests {
     }
 
     #[test]
-    fn replace_and_in_place_remain_transactional_until_publish() {
+    fn replace_and_in_place_preserve_the_original_when_validation_fails() {
         for (name, replace) in [("replace", true), ("in_place", false)] {
             let path = test_dir(name).join("archive.pna");
             fs::write(&path, b"original").unwrap();
