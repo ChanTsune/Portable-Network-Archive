@@ -35,6 +35,8 @@ mod restore_acl_0_19_1;
 mod solid_mode;
 mod sort;
 mod split;
+#[cfg(not(target_family = "wasm"))]
+mod stdio_arbitration;
 mod strip;
 mod update;
 #[cfg(not(target_family = "wasm"))]
