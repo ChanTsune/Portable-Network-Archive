@@ -113,6 +113,9 @@ harness = false
 name = "split"
 harness = false
 
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/{ name }-{ version }/{ name }-{ target }{ archive-suffix }"
+
 [package.metadata.release]
 pre-release-replacements = [
     { file = "src/lib.rs", search = "https://docs.rs/portable-network-archive/[0-9]+\\.[0-9]+\\.[0-9]+", replace = "https://docs.rs/portable-network-archive/{{version}}" },
