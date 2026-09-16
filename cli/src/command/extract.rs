@@ -617,6 +617,11 @@ where
     let mut link_entries = Vec::new();
     let mut dir_metadata = Vec::new();
 
+    // On single-threaded targets (e.g. non-threaded WASM), spawned jobs cannot
+    // run until the reader closure returns, so queueing every entry would
+    // retain the whole archive in memory. Run sequentially instead.
+    let sequential = rayon::current_num_threads() <= 1;
+
     let (tx, rx) = std::sync::mpsc::channel();
     rayon::in_place_scope_fifo(|s| -> anyhow::Result<()> {
         if fast_read && !globs.is_empty() {
@@ -665,17 +670,24 @@ where
                     }
                     let path = build_output_path(args.out_dir.as_deref(), name.as_path());
                     let ticket = args.ordered_path_locks.register(&path);
-                    let tx = tx.clone();
-                    let args = args.clone();
                     let all_matched = globs.all_matched();
-                    s.spawn_fifo(move |_| {
+                    if sequential {
                         let _guard = ticket.wait_for_turn();
-                        tx.send(
-                            extract_file_entry(item, &name, read_options, &args)
-                                .with_context(|| format!("extracting {}", item_path)),
-                        )
-                        .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
-                    });
+                        extract_file_entry(item, &name, read_options, &args).map_err(|e| {
+                            io::Error::new(e.kind(), format!("extracting {}: {e}", item_path))
+                        })?;
+                    } else {
+                        let tx = tx.clone();
+                        let args = args.clone();
+                        s.spawn_fifo(move |_| {
+                            let _guard = ticket.wait_for_turn();
+                            tx.send(
+                                extract_file_entry(item, &name, read_options, &args)
+                                    .with_context(|| format!("extracting {}", item_path)),
+                            )
+                            .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
+                        });
+                    }
                     if all_matched {
                         return Ok(ProcessAction::Stop);
                     }
@@ -719,16 +731,23 @@ where
                     let path = build_output_path(args.out_dir.as_deref(), name.as_path());
                     let ticket = args.ordered_path_locks.register(&path);
                     let item_path = item.name().to_string();
-                    let tx = tx.clone();
-                    let args = args.clone();
-                    s.spawn_fifo(move |_| {
+                    if sequential {
                         let _guard = ticket.wait_for_turn();
-                        tx.send(
-                            extract_file_entry(item, &name, read_options, &args)
-                                .with_context(|| format!("extracting {}", item_path)),
-                        )
-                        .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
-                    });
+                        extract_file_entry(item, &name, read_options, &args).map_err(|e| {
+                            io::Error::new(e.kind(), format!("extracting {}: {e}", name))
+                        })?;
+                    } else {
+                        let tx = tx.clone();
+                        let args = args.clone();
+                        s.spawn_fifo(move |_| {
+                            let _guard = ticket.wait_for_turn();
+                            tx.send(
+                                extract_file_entry(item, &name, read_options, &args)
+                                    .with_context(|| format!("extracting {}", item_path)),
+                            )
+                            .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
+                        });
+                    }
                     Ok(())
                 },
                 allow_concatenated_archives,
@@ -738,8 +757,10 @@ where
         drop(tx);
         Ok(())
     })?;
-    for result in rx {
-        result?;
+    if !sequential {
+        for result in rx {
+            result?;
+        }
     }
 
     for (name, item) in link_entries {
