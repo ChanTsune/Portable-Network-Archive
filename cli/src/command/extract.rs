@@ -617,137 +617,8 @@ where
     let mut link_entries = Vec::new();
     let mut dir_metadata = Vec::new();
 
-    #[cfg(not(target_family = "wasm"))]
-    {
-        let (tx, rx) = std::sync::mpsc::channel();
-        rayon::in_place_scope_fifo(|s| -> anyhow::Result<()> {
-            if fast_read && !globs.is_empty() {
-                run_process_archive_readers_stoppable(
-                    reader,
-                    read_options,
-                    |entry| {
-                        let item = entry.map_err(|e| {
-                            io::Error::new(e.kind(), format!("reading archive entry: {e}"))
-                        })?;
-                        let item_path = item.name().to_string();
-                        let name =
-                            match filter_entry_fast_read(&item, &item_path, &mut globs, &args) {
-                                FastReadFilterAction::Skip(action) => return Ok(action),
-                                FastReadFilterAction::Accept(name) => name,
-                            };
-                        if args.verbose {
-                            eprintln!("x {}", name);
-                        }
-                        if args.to_stdout {
-                            extract_entry_to_stdout(&item, read_options)?;
-                            if globs.all_matched() {
-                                return Ok(ProcessAction::Stop);
-                            }
-                            return Ok(ProcessAction::Continue);
-                        }
-                        if matches!(
-                            item.header().data_kind(),
-                            DataKind::SYMBOLIC_LINK | DataKind::HARD_LINK
-                        ) {
-                            link_entries.push((name, item));
-                            if globs.all_matched() {
-                                return Ok(ProcessAction::Stop);
-                            }
-                            return Ok(ProcessAction::Continue);
-                        }
-                        if item.header().data_kind() == DataKind::DIRECTORY {
-                            if extract_directory_structure(&item, &name, &args).map_err(|e| {
-                                io::Error::new(e.kind(), format!("extracting {}: {e}", item.name()))
-                            })? {
-                                dir_metadata.push((name, item));
-                            }
-                            if globs.all_matched() {
-                                return Ok(ProcessAction::Stop);
-                            }
-                            return Ok(ProcessAction::Continue);
-                        }
-                        let path = build_output_path(args.out_dir.as_deref(), name.as_path());
-                        let ticket = args.ordered_path_locks.register(&path);
-                        let tx = tx.clone();
-                        let args = args.clone();
-                        let all_matched = globs.all_matched();
-                        s.spawn_fifo(move |_| {
-                            let _guard = ticket.wait_for_turn();
-                            tx.send(
-                                extract_file_entry(item, &name, read_options, &args)
-                                    .with_context(|| format!("extracting {}", item_path)),
-                            )
-                            .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
-                        });
-                        if all_matched {
-                            return Ok(ProcessAction::Stop);
-                        }
-                        Ok(ProcessAction::Continue)
-                    },
-                    allow_concatenated_archives,
-                )
-                .with_context(|| "streaming archive entries")?;
-            } else {
-                run_process_archive_readers(
-                    reader,
-                    read_options,
-                    |entry| {
-                        let item = entry.map_err(|e| {
-                            io::Error::new(e.kind(), format!("reading archive entry: {e}"))
-                        })?;
-                        let Some(name) = filter_entry(&item, &mut globs, &args) else {
-                            return Ok(());
-                        };
-                        if args.verbose {
-                            eprintln!("x {}", name);
-                        }
-                        if args.to_stdout {
-                            return extract_entry_to_stdout(&item, read_options);
-                        }
-                        if matches!(
-                            item.header().data_kind(),
-                            DataKind::SYMBOLIC_LINK | DataKind::HARD_LINK
-                        ) {
-                            link_entries.push((name, item));
-                            return Ok(());
-                        }
-                        if item.header().data_kind() == DataKind::DIRECTORY {
-                            if extract_directory_structure(&item, &name, &args).map_err(|e| {
-                                io::Error::new(e.kind(), format!("extracting {}: {e}", item.name()))
-                            })? {
-                                dir_metadata.push((name, item));
-                            }
-                            return Ok(());
-                        }
-                        let path = build_output_path(args.out_dir.as_deref(), name.as_path());
-                        let ticket = args.ordered_path_locks.register(&path);
-                        let item_path = item.name().to_string();
-                        let tx = tx.clone();
-                        let args = args.clone();
-                        s.spawn_fifo(move |_| {
-                            let _guard = ticket.wait_for_turn();
-                            tx.send(
-                                extract_file_entry(item, &name, read_options, &args)
-                                    .with_context(|| format!("extracting {}", item_path)),
-                            )
-                            .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
-                        });
-                        Ok(())
-                    },
-                    allow_concatenated_archives,
-                )
-                .with_context(|| "streaming archive entries")?;
-            }
-            drop(tx);
-            Ok(())
-        })?;
-        for result in rx {
-            result?;
-        }
-    }
-
-    #[cfg(target_family = "wasm")]
-    {
+    let (tx, rx) = std::sync::mpsc::channel();
+    rayon::in_place_scope_fifo(|s| -> anyhow::Result<()> {
         if fast_read && !globs.is_empty() {
             run_process_archive_readers_stoppable(
                 reader,
@@ -792,10 +663,20 @@ where
                         }
                         return Ok(ProcessAction::Continue);
                     }
-                    extract_file_entry(item, &name, read_options, &args).map_err(|e| {
-                        io::Error::new(e.kind(), format!("extracting {}: {e}", item_path))
-                    })?;
-                    if globs.all_matched() {
+                    let path = build_output_path(args.out_dir.as_deref(), name.as_path());
+                    let ticket = args.ordered_path_locks.register(&path);
+                    let tx = tx.clone();
+                    let args = args.clone();
+                    let all_matched = globs.all_matched();
+                    s.spawn_fifo(move |_| {
+                        let _guard = ticket.wait_for_turn();
+                        tx.send(
+                            extract_file_entry(item, &name, read_options, &args)
+                                .with_context(|| format!("extracting {}", item_path)),
+                        )
+                        .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
+                    });
+                    if all_matched {
                         return Ok(ProcessAction::Stop);
                     }
                     Ok(ProcessAction::Continue)
@@ -835,15 +716,30 @@ where
                         }
                         return Ok(());
                     }
-                    extract_file_entry(item, &name, read_options, &args).map_err(|e| {
-                        io::Error::new(e.kind(), format!("extracting {}: {e}", name))
-                    })?;
+                    let path = build_output_path(args.out_dir.as_deref(), name.as_path());
+                    let ticket = args.ordered_path_locks.register(&path);
+                    let item_path = item.name().to_string();
+                    let tx = tx.clone();
+                    let args = args.clone();
+                    s.spawn_fifo(move |_| {
+                        let _guard = ticket.wait_for_turn();
+                        tx.send(
+                            extract_file_entry(item, &name, read_options, &args)
+                                .with_context(|| format!("extracting {}", item_path)),
+                        )
+                        .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
+                    });
                     Ok(())
                 },
                 allow_concatenated_archives,
             )
             .with_context(|| "streaming archive entries")?;
         }
+        drop(tx);
+        Ok(())
+    })?;
+    for result in rx {
+        result?;
     }
 
     for (name, item) in link_entries {
