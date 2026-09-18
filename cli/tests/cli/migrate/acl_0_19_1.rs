@@ -23,7 +23,14 @@ fn assert_migrated_acl(platform: &str, acl_entries: &[&str]) {
     let _ = std::fs::remove_file(&migrated);
 
     cli::Cli::try_parse_from([
-        "pna", "--quiet", "migrate", "-f", &source, "--output", &migrated,
+        "pna",
+        "--quiet",
+        "migrate",
+        "--overwrite",
+        "-f",
+        &source,
+        "--output",
+        &migrated,
     ])
     .unwrap()
     .execute()

@@ -68,6 +68,7 @@ fn migrate_preserves_ownership_from_legacy_fprm_source() {
         "pna",
         "--quiet",
         "migrate",
+        "--overwrite",
         "-f",
         LEGACY_FIXTURE,
         "--output",

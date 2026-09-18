@@ -19,10 +19,17 @@ fn sort_by_name() {
     archive.add_entry(entry_a.build().unwrap()).unwrap();
     archive.finalize().unwrap();
 
-    cli::Cli::try_parse_from(["pna", "--quiet", "sort", "-f", "sort_by_name/unsorted.pna"])
-        .unwrap()
-        .execute()
-        .unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "sort",
+        "--overwrite",
+        "-f",
+        "sort_by_name/unsorted.pna",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
 
     let mut names = Vec::new();
     for_each_entry("sort_by_name/unsorted.pna", |e| {
