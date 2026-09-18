@@ -975,7 +975,7 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
         ),
     };
     if let Some(file) = archive_file {
-        create_archive_file(
+        drop(create_archive_file(
             || utils::fs::file_create(&file, !args.no_overwrite),
             creation_context,
             target_items,
@@ -984,9 +984,9 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
             password,
             args.verbose,
             args.ignore_zeros,
-        )
+        )?);
     } else {
-        create_archive_file(
+        drop(create_archive_file(
             || Ok(io::stdout().lock()),
             creation_context,
             target_items,
@@ -995,8 +995,9 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
             password,
             args.verbose,
             args.ignore_zeros,
-        )
+        )?);
     }
+    Ok(())
 }
 
 #[hooq::hooq(anyhow)]

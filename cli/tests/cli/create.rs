@@ -35,6 +35,8 @@ mod option_strip_components;
 mod option_substitution;
 mod option_transform;
 mod sanitize_parent_components;
+#[cfg(not(target_family = "wasm"))]
+mod stdio;
 mod symlink;
 mod symlink_metadata;
 mod user_group;
