@@ -11,6 +11,7 @@ fn list_encrypted() {
 
     let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
+        .env("TZ", "UTC")
         .args([
             "list",
             "-l",
@@ -44,6 +45,7 @@ fn list_encrypted_solid() {
 
     let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
+        .env("TZ", "UTC")
         .args([
             "list",
             "-l",
@@ -78,6 +80,7 @@ fn list_format_table() {
 
     let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
+        .env("TZ", "UTC")
         .args([
             "list",
             "--format",
@@ -118,6 +121,7 @@ fn list_format_table_with_filter() {
 
     let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
+        .env("TZ", "UTC")
         .args([
             "list",
             "--format",
@@ -146,6 +150,7 @@ fn list_format_table_with_directory_filter() {
 
     let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
+        .env("TZ", "UTC")
         .args([
             "list",
             "--format",
@@ -175,6 +180,7 @@ fn list_format_table_solid() {
 
     let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
+        .env("TZ", "UTC")
         .args([
             "list",
             "--format",
