@@ -146,7 +146,7 @@ jobs:
           ${{ matrix.install_dist.run }} || cargo install --locked --version 0.32.0 cargo-dist
       - name: Install dist from crates.io
         if: ${{ contains(matrix.targets, 'riscv64gc-unknown-linux-gnu') }}
-        uses: baptiste0928/cargo-install@f204293d9709061b7bc1756fec3ec4e2cd57dec0 # v3.4.0
+        uses: baptiste0928/cargo-install@8195d4f734a149db85385bb4102b42efcd373759 # v3.5.0
         with:
           crate: cargo-dist
           version: "0.32.0"
