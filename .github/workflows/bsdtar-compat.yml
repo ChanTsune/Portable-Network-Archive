@@ -17,6 +17,8 @@ on:
       - 'Cargo.toml'
       - '.github/workflows/bsdtar-compat.yml'
       - '.github/scripts/jsonify-bsdtar-output.py'
+      - '.github/scripts/bsdtar-xfail-baseline.json'
+      - '.github/scripts/test_jsonify_bsdtar_output.py'
   pull_request:
     branches: ["*"]
     paths:
@@ -32,6 +34,8 @@ on:
       - 'Cargo.toml'
       - '.github/workflows/bsdtar-compat.yml'
       - '.github/scripts/jsonify-bsdtar-output.py'
+      - '.github/scripts/bsdtar-xfail-baseline.json'
+      - '.github/scripts/test_jsonify_bsdtar_output.py'
 
 env:
   LIBARCHIVE_REF: v3.8.5
@@ -152,8 +156,8 @@ jobs:
 
       - name: Run bsdtar_test with bsdtar
         id: bsdtar_test
-        continue-on-error: true
         run: |
+          set -euo pipefail
           WORKSPACE="$GITHUB_WORKSPACE"
           if [ "$MATRIX_NAME" = "windows" ]; then
             WORKSPACE="$(cygpath -u "$WORKSPACE")"
@@ -511,7 +515,7 @@ jobs:
 
       - name: Parse test results
         if: always() && steps.bsdtar_test.outcome != 'skipped'
-        run: python3 pna/.github/scripts/jsonify-bsdtar-output.py bsdtar_test_output.txt > bsdtar_test_result.json
+        run: python3 pna/.github/scripts/jsonify-bsdtar-output.py --platform "$MATRIX_NAME" bsdtar_test_output.txt > bsdtar_test_result.json
 
       - name: Generate summary
         if: always()
@@ -541,6 +545,7 @@ jobs:
           PASSED=$(jq '.summary.passed' bsdtar_test_result.json)
           FAILED=$(jq '.summary.failed' bsdtar_test_result.json)
           SKIPS=$(jq '.summary.skipped' bsdtar_test_result.json)
+          SKIP_REPORTS=$(jq '.summary.skip_reports // 0' bsdtar_test_result.json)
           ASSERT_FAIL=$(jq '.summary.assertions_failed' bsdtar_test_result.json)
 
           echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
@@ -548,6 +553,7 @@ jobs:
           echo "| Tests passed | **${PASSED}** / ${TOTAL} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Tests failed | ${FAILED} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Tests skipped | ${SKIPS} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Skip reports | ${SKIP_REPORTS} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Tests excluded (owner/group metadata) | ${EXCLUDED_TEST_COUNT} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Assertions failed | ${ASSERT_FAIL} |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
