@@ -38,6 +38,7 @@ fn chown_user_only() {
         "--quiet",
         "experimental",
         "chown",
+        "--overwrite",
         "-f",
         "chown_user_only.pna",
         "new_user",
@@ -100,6 +101,7 @@ fn chown_user_only_on_legacy_fprm_entry_preserves_group() {
         "--quiet",
         "experimental",
         "chown",
+        "--overwrite",
         "-f",
         path.as_str(),
         "new_user",
@@ -153,6 +155,7 @@ fn chown_numeric_owner_drops_legacy_fprm_names() {
         LEGACY_FIXTURE_ENTRY,
         "--numeric-owner",
         "--no-owner-lookup",
+        "--overwrite",
     ])
     .unwrap()
     .execute()
