@@ -247,6 +247,14 @@ jobs:
           cache-workspaces: "pna -> target"
           cache-save-if: ${{ github.ref_name == github.event.repository.default_branch }}
 
+      - name: Restore libarchive build
+        id: libarchive_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: libarchive
+          key: "libarchive-${{ env.LIBARCHIVE_REF }}-${{ matrix.name }}-${{ runner.arch }}"
+        background: true
+
       - name: Build pna
         if: ${{ matrix.name != 'windows' }}
         run: |
@@ -262,12 +270,7 @@ jobs:
           cargo build --locked --release --all-features -p portable-network-archive
         working-directory: pna
 
-      - name: Restore libarchive build
-        id: libarchive_cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: libarchive
-          key: "libarchive-${{ env.LIBARCHIVE_REF }}-${{ matrix.name }}-${{ runner.arch }}"
+      - wait: libarchive_cache
 
       - name: Clone libarchive
         if: ${{ steps.libarchive_cache.outputs.cache-hit != 'true' }}
