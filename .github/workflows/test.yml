@@ -72,20 +72,21 @@ jobs:
         uses: ./.github/actions/setup-rust
         with:
           channel: ${{ matrix.rust }}
-      - name: Install cargo-hack from crates.io
-        uses: baptiste0928/cargo-install@8195d4f734a149db85385bb4102b42efcd373759 # v3.5.0
-        with:
-          crate: cargo-hack
-          cache-key: ${{ matrix.os }}
-      - name: Restore rust build cache
-        id: restore-rust-build-cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            target/*
-            !target/tmp
-          key: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}-${{ hashFiles('**/Cargo.lock') }}"
-          restore-keys: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}"
+      - parallel:
+          - name: Install cargo-hack from crates.io
+            uses: baptiste0928/cargo-install@8195d4f734a149db85385bb4102b42efcd373759 # v3.5.0
+            with:
+              crate: cargo-hack
+              cache-key: ${{ matrix.os }}
+          - name: Restore rust build cache
+            id: restore-rust-build-cache
+            uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+            with:
+              path: |
+                target/*
+                !target/tmp
+              key: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}-${{ hashFiles('**/Cargo.lock') }}"
+              restore-keys: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}"
       - name: run test
         run: |
           cargo hack test --locked --release --feature-powerset --exclude-features wasm --exclude portable-network-archive-fuzz --exclude xtask -- --test-threads=1
@@ -200,20 +201,21 @@ jobs:
         uses: ./.github/actions/setup-rust
         with:
           channel: ${{ matrix.rust }}
-      - name: Install cargo-hack from crates.io
-        uses: baptiste0928/cargo-install@8195d4f734a149db85385bb4102b42efcd373759 # v3.5.0
-        with:
-          crate: cargo-hack
-          cache-key: ${{ matrix.os }}
-      - name: Restore rust build cache
-        id: restore-rust-build-cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            target/*
-            !target/tmp
-          key: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}-${{ hashFiles('**/Cargo.lock') }}"
-          restore-keys: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}"
+      - parallel:
+          - name: Install cargo-hack from crates.io
+            uses: baptiste0928/cargo-install@8195d4f734a149db85385bb4102b42efcd373759 # v3.5.0
+            with:
+              crate: cargo-hack
+              cache-key: ${{ matrix.os }}
+          - name: Restore rust build cache
+            id: restore-rust-build-cache
+            uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+            with:
+              path: |
+                target/*
+                !target/tmp
+              key: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}-${{ hashFiles('**/Cargo.lock') }}"
+              restore-keys: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}"
       - name: run test
         run: |
           cargo hack test --locked --release --feature-powerset --exclude-features wasm -p "$CRATE" -- --test-threads=1
