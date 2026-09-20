@@ -28,8 +28,8 @@ on:
 permissions:
   contents: read # checkout
 jobs:
-  rust_check_format:
-    name: Check format
+  rust_check:
+    name: Check format and documentation
     runs-on: ubuntu-slim
     timeout-minutes: 60
     steps:
@@ -40,24 +40,13 @@ jobs:
         with:
           components: "rustfmt,rust-docs"
           cache: false
-      - name: run check format
-        run: cargo fmt --check
-        env:
-          RUST_BACKTRACE: 1
-  rust_check_doc:
-    name: Check documentation
-    runs-on: ubuntu-slim
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
-        with:
-          components: "rustfmt,rust-docs"
-          cache: false
-      - name: run check doc
-        run: cargo doc --no-deps -p libpna -p pna
-        env:
-          RUST_BACKTRACE: 1
-          RUSTFLAGS: -Dwarnings
+      - parallel:
+          - name: run check format
+            run: cargo fmt --check
+            env:
+              RUST_BACKTRACE: 1
+          - name: run check doc
+            run: cargo doc --no-deps -p libpna -p pna
+            env:
+              RUST_BACKTRACE: 1
+              RUSTFLAGS: -Dwarnings
