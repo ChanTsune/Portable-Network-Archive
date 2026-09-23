@@ -18,8 +18,9 @@ use regex::Regex;
 use std::{
     borrow::Cow,
     collections::HashMap,
-    fmt::{self, Display, Formatter, Write},
-    fs, io,
+    fmt::{self, Display, Formatter},
+    fs,
+    io::{self, Write},
     path::PathBuf,
     str::FromStr,
 };
@@ -224,6 +225,8 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
 
     let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive.file)?)?;
     let read_options = ReadOptions::with_password(password.as_deref());
+    let stdout = io::stdout();
+    let mut output = stdout.lock();
 
     source.for_each_entry(
         &read_options,
@@ -232,7 +235,7 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
             let entry = entry?;
             let name = entry.name();
             if globs.matches_any(name) {
-                println!("# file: {name}");
+                writeln!(output, "# file: {}", name.as_str())?;
                 for attr in entry
                     .metadata()
                     .xattrs()
@@ -240,20 +243,19 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
                     .filter(|a| dump_option.is_match(a.name()))
                 {
                     if dump_option.dump {
-                        println!(
-                            "{}={}",
-                            attr.name(),
-                            DisplayValue::new(attr.value(), encoding)
-                        );
+                        write!(output, "{}=", attr.name())?;
+                        write_encoded_value(&mut output, attr.value(), encoding)?;
+                        writeln!(output)?;
                     } else {
-                        println!("{}", attr.name());
+                        writeln!(output, "{}", attr.name())?;
                     }
                 }
-                println!();
+                writeln!(output)?;
             }
             Ok(())
         },
     )?;
+    output.flush()?;
     globs.ensure_all_matched()?;
     Ok(())
 }
@@ -498,58 +500,45 @@ impl Value {
     }
 }
 
-struct DisplayValue<'a> {
-    value: &'a [u8],
+#[inline]
+fn effective_encoding(value: &[u8], encoding: Option<Encoding>) -> Encoding {
+    encoding.unwrap_or_else(|| {
+        if std::str::from_utf8(value).is_ok() {
+            Encoding::Text
+        } else {
+            Encoding::Base64
+        }
+    })
+}
+
+fn write_encoded_value<W: Write + ?Sized>(
+    output: &mut W,
+    value: &[u8],
     encoding: Option<Encoding>,
-}
-
-impl<'a> DisplayValue<'a> {
-    #[inline]
-    const fn new(value: &'a [u8], encoding: Option<Encoding>) -> Self {
-        Self { value, encoding }
-    }
-
-    #[inline]
-    fn fmt_auto(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match std::str::from_utf8(self.value) {
-            Ok(_) => self.fmt_text(f),
-            Err(_e) => self.fmt_base64(f),
-        }
-    }
-
-    #[inline]
-    fn fmt_text(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_char('"')?;
-        Display::fmt(
-            &unsafe { String::from_utf8_unchecked(escape_xattr_value_text(self.value)) },
-            f,
-        )?;
-        f.write_char('"')
-    }
-
-    #[inline]
-    fn fmt_hex(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str("0x")?;
-        Display::fmt(&const_hex::display(self.value), f)
-    }
-
-    #[inline]
-    fn fmt_base64(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str("0s")?;
-        f.write_str(&base64::engine::general_purpose::STANDARD.encode(self.value))
+) -> io::Result<()> {
+    match effective_encoding(value, encoding) {
+        Encoding::Text => write_text_value(output, value),
+        Encoding::Hex => write_hex_value(output, value),
+        Encoding::Base64 => write_base64_value(output, value),
     }
 }
 
-impl Display for DisplayValue<'_> {
-    #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match &self.encoding {
-            None => self.fmt_auto(f),
-            Some(Encoding::Text) => self.fmt_text(f),
-            Some(Encoding::Hex) => self.fmt_hex(f),
-            Some(Encoding::Base64) => self.fmt_base64(f),
-        }
-    }
+fn write_text_value<W: Write + ?Sized>(output: &mut W, value: &[u8]) -> io::Result<()> {
+    output.write_all(b"\"")?;
+    output.write_all(&escape_xattr_value_text(value))?;
+    output.write_all(b"\"")
+}
+
+fn write_hex_value<W: Write + ?Sized>(output: &mut W, value: &[u8]) -> io::Result<()> {
+    write!(output, "0x{}", const_hex::display(value))
+}
+
+fn write_base64_value<W: Write + ?Sized>(output: &mut W, value: &[u8]) -> io::Result<()> {
+    write!(
+        output,
+        "0s{}",
+        base64::display::Base64Display::new(value, &base64::engine::general_purpose::STANDARD,)
+    )
 }
 
 fn escape_xattr_value_text(text: &[u8]) -> Vec<u8> {
@@ -607,6 +596,12 @@ fn unescape_xattr_value_text(text: &[u8]) -> Result<Vec<u8>, ValueError> {
 mod tests {
     use super::*;
 
+    fn encode(value: &[u8], encoding: Option<Encoding>) -> Vec<u8> {
+        let mut output = Vec::new();
+        write_encoded_value(&mut output, value, encoding).unwrap();
+        output
+    }
+
     #[test]
     fn parse_dump_for_restore() {
         assert_eq!(
@@ -638,20 +633,27 @@ mod tests {
 
     #[test]
     fn encode_text() {
-        let v = DisplayValue::new(b"abc", Some(Encoding::Text));
-        assert_eq!(format!("{v}"), "\"abc\"");
+        assert_eq!(encode(b"abc", Some(Encoding::Text)), b"\"abc\"");
+    }
+
+    #[test]
+    fn encode_text_preserves_non_utf8_bytes() {
+        let value = [0xff, b'\0', b'\n', b'\r', b'\\', b'"'];
+        let mut expected = vec![b'"'];
+        expected.extend_from_slice(&escape_xattr_value_text(&value));
+        expected.push(b'"');
+
+        assert_eq!(encode(&value, Some(Encoding::Text)), expected);
     }
 
     #[test]
     fn encode_hex() {
-        let v = DisplayValue::new(b"abc", Some(Encoding::Hex));
-        assert_eq!(format!("{v}"), "0x616263");
+        assert_eq!(encode(b"abc", Some(Encoding::Hex)), b"0x616263");
     }
 
     #[test]
     fn encode_base64() {
-        let v = DisplayValue::new(b"abc", Some(Encoding::Base64));
-        assert_eq!(format!("{v}"), "0sYWJj");
+        assert_eq!(encode(b"abc", Some(Encoding::Base64)), b"0sYWJj");
     }
 
     #[test]
@@ -685,9 +687,10 @@ mod tests {
 
     #[test]
     fn escape_unescape() {
+        let value = b"\"\\\n\r\0\xff";
         assert_eq!(
-            b"\"\\\n\r\0".as_slice(),
-            unescape_xattr_value_text(&escape_xattr_value_text(b"\"\\\n\r\0")).unwrap()
+            value.as_slice(),
+            unescape_xattr_value_text(&escape_xattr_value_text(value)).unwrap()
         );
     }
 
