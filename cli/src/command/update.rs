@@ -637,10 +637,9 @@ where
                             is_newer_than_archive(missing_time, &item.metadata, entry.metadata());
                         if need_update {
                             let tx = tx.clone();
-                            let create_options = create_options.clone();
                             s.spawn_fifo(move |_| {
                                 log::debug!("Updating: {}", item.path.display());
-                                tx.send((idx, create_entry(&item, &create_options)))
+                                tx.send((idx, create_entry(&item, create_options)))
                                     .unwrap_or_else(|_| {
                                         unreachable!("receiver is held by scope owner")
                                     });
@@ -671,10 +670,9 @@ where
         // Add entries that were never matched against an archive entry above.
         for (idx, item) in target_files_mapping.into_values().flatten() {
             let tx = tx.clone();
-            let create_options = create_options.clone();
             s.spawn_fifo(move |_| {
                 log::debug!("Adding: {}", item.path.display());
-                tx.send((idx, create_entry(&item, &create_options)))
+                tx.send((idx, create_entry(&item, create_options)))
                     .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
             });
         }
