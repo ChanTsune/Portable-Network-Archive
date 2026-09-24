@@ -593,10 +593,10 @@ where
     W: Write,
     F: FnOnce() -> io::Result<W>,
 {
-    let option = if solid {
-        WriteOptions::store()
+    let (option, solid_write_option) = if solid {
+        (WriteOptions::store(), Some(write_option))
     } else {
-        write_option.clone()
+        (write_option, None)
     };
     let create_options = CreateOptions {
         option,
@@ -614,7 +614,7 @@ where
 
     let file = get_writer()?;
     let buffered = io::BufWriter::with_capacity(64 * 1024, file);
-    if solid {
+    if let Some(write_option) = solid_write_option {
         let mut writer = Archive::write_solid_header(buffered, write_option)?;
         drain_entry_results(rx, |entry| {
             if verbose {
@@ -653,10 +653,10 @@ fn create_archive_with_split(
     password: Option<&[u8]>,
     allow_concatenated_archives: bool,
 ) -> anyhow::Result<()> {
-    let option = if solid {
-        WriteOptions::store()
+    let (option, solid_write_option) = if solid {
+        (WriteOptions::store(), Some(write_option))
     } else {
-        write_option.clone()
+        (write_option, None)
     };
     let create_options = CreateOptions {
         option,
@@ -671,7 +671,7 @@ fn create_archive_with_split(
         password,
         allow_concatenated_archives,
     );
-    if solid {
+    if let Some(write_option) = solid_write_option {
         let mut entries_builder = SolidEntryBuilder::new(write_option)?;
         drain_entry_results(rx, |entry| entries_builder.add_entry(entry))?;
         let entries = entries_builder.build();
