@@ -632,8 +632,12 @@ where
                     let item = entry.map_err(|e| {
                         io::Error::new(e.kind(), format!("reading archive entry: {e}"))
                     })?;
-                    let item_path = item.name().to_string();
-                    let name = match filter_entry_fast_read(&item, &item_path, &mut globs, &args) {
+                    let name = match filter_entry_fast_read(
+                        &item,
+                        item.name().as_str(),
+                        &mut globs,
+                        &args,
+                    ) {
                         FastReadFilterAction::Skip(action) => return Ok(action),
                         FastReadFilterAction::Accept(name) => name,
                     };
@@ -671,6 +675,7 @@ where
                     let path = build_output_path(args.out_dir.as_deref(), name.as_path());
                     let ticket = args.ordered_path_locks.register(&path);
                     let all_matched = globs.all_matched();
+                    let item_path = item.name().to_string();
                     if sequential {
                         let _guard = ticket.wait_for_turn();
                         extract_file_entry(item, &name, read_options, &args).map_err(|e| {
@@ -814,11 +819,11 @@ where
             run_process_archive_bytes_stoppable(archives, read_options, |entry| {
                 let item = entry
                     .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
-                let item_path = item.name().to_string();
-                let name = match filter_entry_fast_read(&item, &item_path, &mut globs, &args) {
-                    FastReadFilterAction::Skip(action) => return Ok(action),
-                    FastReadFilterAction::Accept(name) => name,
-                };
+                let name =
+                    match filter_entry_fast_read(&item, item.name().as_str(), &mut globs, &args) {
+                        FastReadFilterAction::Skip(action) => return Ok(action),
+                        FastReadFilterAction::Accept(name) => name,
+                    };
                 if args.verbose {
                     eprintln!("x {}", name);
                 }
@@ -852,6 +857,7 @@ where
                 }
                 let path = build_output_path(args.out_dir.as_deref(), name.as_path());
                 let ticket = args.ordered_path_locks.register(&path);
+                let item_path = item.name().to_string();
                 let tx = tx.clone();
                 let args = args.clone();
                 let all_matched = globs.all_matched();
