@@ -566,7 +566,10 @@ fn parse_acl_dump(reader: impl io::BufRead) -> io::Result<HashMap<String, Acls>>
         } else if let Some(file) = &current_file {
             let ace =
                 Ace::from_str(&line).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-            let file_entry = result.entry(file.clone()).or_insert_with(Acls::new);
+            let file_entry = match result.get_mut(file) {
+                Some(file_entry) => file_entry,
+                None => result.entry(file.to_owned()).or_insert_with(Acls::new),
+            };
             file_entry
                 .entry(current_platform.clone())
                 .or_default()
