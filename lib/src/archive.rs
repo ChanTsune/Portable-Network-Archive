@@ -16,7 +16,7 @@ use crate::{
 };
 use core::num::NonZeroU32;
 pub use header::*;
-pub use part::*;
+pub use part::{IntoEntries, IntoSliceEntries, NoParts, PartProvider};
 pub use split_parts::{MIN_SPLIT_PART_BYTES, SplitParts};
 use std::io::{self, Write};
 pub use stream::*;
