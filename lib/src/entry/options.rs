@@ -1349,7 +1349,7 @@ impl WriteOptionsBuilder {
 /// empty cache.
 #[derive(Clone, Debug)]
 pub struct ReadOptions {
-    password: Option<Vec<u8>>,
+    password: Option<Arc<[u8]>>,
     key_cache: KeyCache,
 }
 
@@ -1372,7 +1372,7 @@ impl ReadOptions {
     #[inline]
     pub fn with_password<B: AsRef<[u8]>>(password: Option<B>) -> Self {
         Self {
-            password: password.map(|p| p.as_ref().to_vec()),
+            password: password.map(|p| Arc::<[u8]>::from(p.as_ref())),
             key_cache: KeyCache::new(),
         }
     }
@@ -1413,7 +1413,7 @@ impl ReadOptions {
 /// Builder for [`ReadOptions`].
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct ReadOptionsBuilder {
-    password: Option<Vec<u8>>,
+    password: Option<Arc<[u8]>>,
 }
 
 impl From<ReadOptions> for ReadOptionsBuilder {
@@ -1599,6 +1599,27 @@ mod tests {
         let cloned = options.clone();
         cloned.key_cache.insert("phsf-a", test_output(1));
         assert_eq!(options.cached_key_count(), 1);
+    }
+
+    #[test]
+    fn read_options_clones_and_builders_share_password_storage() {
+        let options = ReadOptions::with_password(Some("password"));
+        let cloned = options.clone();
+        assert!(Arc::ptr_eq(
+            options.password.as_ref().unwrap(),
+            cloned.password.as_ref().unwrap(),
+        ));
+
+        let builder = cloned.into_builder();
+        let cloned_builder = builder.clone();
+        let rebuilt = builder.build();
+        let rebuilt_from_clone = cloned_builder.build();
+        let password = options.password.as_ref().unwrap();
+        assert!(Arc::ptr_eq(password, rebuilt.password.as_ref().unwrap()));
+        assert!(Arc::ptr_eq(
+            password,
+            rebuilt_from_clone.password.as_ref().unwrap(),
+        ));
     }
 
     #[test]
