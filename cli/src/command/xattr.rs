@@ -319,6 +319,7 @@ impl SetAttrStrategy<'_> {
     }
 
     #[inline]
+    #[allow(deprecated)]
     fn transform_entry<T>(&mut self, entry: NormalEntry<T>) -> io::Result<NormalEntry<T>> {
         match self {
             SetAttrStrategy::Restore(restore) => {
@@ -343,8 +344,7 @@ impl SetAttrStrategy<'_> {
                             Ok(pna::ExtendedAttribute::new(name, value))
                         })
                         .collect::<io::Result<Vec<_>>>()?;
-                    let metadata = entry.metadata().clone().with_xattrs(xattrs);
-                    Ok(entry.with_metadata(metadata))
+                    Ok(entry.with_xattrs(xattrs))
                 } else {
                     Ok(entry)
                 }
@@ -404,6 +404,7 @@ fn parse_dump(reader: impl io::BufRead) -> io::Result<HashMap<String, Vec<(Strin
 }
 
 #[inline]
+#[allow(deprecated)]
 fn transform_entry<T>(
     entry: NormalEntry<T>,
     name: Option<&pna::XattrName>,
@@ -411,8 +412,7 @@ fn transform_entry<T>(
     remove: Option<&str>,
 ) -> io::Result<NormalEntry<T>> {
     let xattrs = transform_xattr(entry.metadata().xattrs(), name, value, remove)?;
-    let metadata = entry.metadata().clone().with_xattrs(xattrs);
-    Ok(entry.with_metadata(metadata))
+    Ok(entry.with_xattrs(xattrs))
 }
 
 #[inline]
