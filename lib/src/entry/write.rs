@@ -49,6 +49,13 @@ impl CipherContext {
             CipherPayload::GcmStream { header, .. } => header.to_bytes().to_vec(),
         }
     }
+
+    pub(crate) fn write_prefix<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        match &self.payload {
+            CipherPayload::Block { iv, .. } => writer.write_all(iv),
+            CipherPayload::GcmStream { header, .. } => writer.write_all(&header.to_bytes()),
+        }
+    }
 }
 
 pub(crate) struct WriteCipher {

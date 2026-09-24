@@ -522,7 +522,7 @@ fn begin_solid_stream<W: WriteChunk>(
     inner.flush_chunks()?;
     let mut writer = ChunkStreamWriter::new(ChunkType::SDAT, inner, max_chunk_size);
     if let Some(WriteCipher { context: c, .. }) = &context.cipher {
-        writer.write_all(&c.prefix_bytes())?;
+        c.write_prefix(&mut writer)?;
     }
     get_writer(writer, &context)
 }
@@ -829,7 +829,7 @@ where
     let inner = {
         let mut writer = ChunkStreamWriter::new(ChunkType::FDAT, inner, max_chunk_size);
         if let Some(WriteCipher { context: c, .. }) = &context.cipher {
-            writer.write_all(&c.prefix_bytes())?;
+            c.write_prefix(&mut writer)?;
         }
         let writer = get_writer(writer, &context)?;
         let mut writer = f(writer)?;
