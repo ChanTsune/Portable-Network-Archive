@@ -607,9 +607,8 @@ where
 {
     let password = password_provider();
     let read_options = ReadOptions::with_password(password);
-    // Bind as a shared reference so `move` closures below (rayon::spawn_fifo)
-    // can capture a `Copy` reference instead of moving the `ReadOptions` value.
     let read_options = &read_options;
+    let args = &args;
     let patterns = files;
     let mut globs =
         BsdGlobMatcher::new(patterns.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
@@ -633,7 +632,7 @@ where
                         io::Error::new(e.kind(), format!("reading archive entry: {e}"))
                     })?;
                     let item_path = item.name().to_string();
-                    let name = match filter_entry_fast_read(&item, &item_path, &mut globs, &args) {
+                    let name = match filter_entry_fast_read(&item, &item_path, &mut globs, args) {
                         FastReadFilterAction::Skip(action) => return Ok(action),
                         FastReadFilterAction::Accept(name) => name,
                     };
@@ -658,7 +657,7 @@ where
                         return Ok(ProcessAction::Continue);
                     }
                     if item.header().data_kind() == DataKind::DIRECTORY {
-                        if extract_directory_structure(&item, &name, &args).map_err(|e| {
+                        if extract_directory_structure(&item, &name, args).map_err(|e| {
                             io::Error::new(e.kind(), format!("extracting {}: {e}", item.name()))
                         })? {
                             dir_metadata.push((name, item));
@@ -673,16 +672,15 @@ where
                     let all_matched = globs.all_matched();
                     if sequential {
                         let _guard = ticket.wait_for_turn();
-                        extract_file_entry(item, &name, read_options, &args).map_err(|e| {
+                        extract_file_entry(item, &name, read_options, args).map_err(|e| {
                             io::Error::new(e.kind(), format!("extracting {}: {e}", item_path))
                         })?;
                     } else {
                         let tx = tx.clone();
-                        let args = args.clone();
                         s.spawn_fifo(move |_| {
                             let _guard = ticket.wait_for_turn();
                             tx.send(
-                                extract_file_entry(item, &name, read_options, &args)
+                                extract_file_entry(item, &name, read_options, args)
                                     .with_context(|| format!("extracting {}", item_path)),
                             )
                             .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
@@ -704,7 +702,7 @@ where
                     let item = entry.map_err(|e| {
                         io::Error::new(e.kind(), format!("reading archive entry: {e}"))
                     })?;
-                    let Some(name) = filter_entry(&item, &mut globs, &args) else {
+                    let Some(name) = filter_entry(&item, &mut globs, args) else {
                         return Ok(());
                     };
                     if args.verbose {
@@ -721,7 +719,7 @@ where
                         return Ok(());
                     }
                     if item.header().data_kind() == DataKind::DIRECTORY {
-                        if extract_directory_structure(&item, &name, &args).map_err(|e| {
+                        if extract_directory_structure(&item, &name, args).map_err(|e| {
                             io::Error::new(e.kind(), format!("extracting {}: {e}", item.name()))
                         })? {
                             dir_metadata.push((name, item));
@@ -733,16 +731,15 @@ where
                     let item_path = item.name().to_string();
                     if sequential {
                         let _guard = ticket.wait_for_turn();
-                        extract_file_entry(item, &name, read_options, &args).map_err(|e| {
+                        extract_file_entry(item, &name, read_options, args).map_err(|e| {
                             io::Error::new(e.kind(), format!("extracting {}: {e}", name))
                         })?;
                     } else {
                         let tx = tx.clone();
-                        let args = args.clone();
                         s.spawn_fifo(move |_| {
                             let _guard = ticket.wait_for_turn();
                             tx.send(
-                                extract_file_entry(item, &name, read_options, &args)
+                                extract_file_entry(item, &name, read_options, args)
                                     .with_context(|| format!("extracting {}", item_path)),
                             )
                             .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
@@ -764,7 +761,7 @@ where
     }
 
     for (name, item) in link_entries {
-        extract_link_entry(item, &name, read_options, &args)
+        extract_link_entry(item, &name, read_options, args)
             .with_context(|| format!("extracting deferred link {name}"))?;
     }
 
@@ -797,9 +794,8 @@ where
 {
     let password = password_provider();
     let read_options = ReadOptions::with_password(password);
-    // Bind as a shared reference so `move` closures below (rayon::spawn_fifo)
-    // can capture a `Copy` reference instead of moving the `ReadOptions` value.
     let read_options = &read_options;
+    let args = &args;
     let mut globs =
         BsdGlobMatcher::new(files.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
 
@@ -815,7 +811,7 @@ where
                 let item = entry
                     .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
                 let item_path = item.name().to_string();
-                let name = match filter_entry_fast_read(&item, &item_path, &mut globs, &args) {
+                let name = match filter_entry_fast_read(&item, &item_path, &mut globs, args) {
                     FastReadFilterAction::Skip(action) => return Ok(action),
                     FastReadFilterAction::Accept(name) => name,
                 };
@@ -840,7 +836,7 @@ where
                     return Ok(ProcessAction::Continue);
                 }
                 if item.header().data_kind() == DataKind::DIRECTORY {
-                    if extract_directory_structure(&item, &name, &args).map_err(|e| {
+                    if extract_directory_structure(&item, &name, args).map_err(|e| {
                         io::Error::new(e.kind(), format!("extracting {}: {e}", item.name()))
                     })? {
                         dir_metadata.push((name, item.into()));
@@ -853,12 +849,11 @@ where
                 let path = build_output_path(args.out_dir.as_deref(), name.as_path());
                 let ticket = args.ordered_path_locks.register(&path);
                 let tx = tx.clone();
-                let args = args.clone();
                 let all_matched = globs.all_matched();
                 s.spawn_fifo(move |_| {
                     let _guard = ticket.wait_for_turn();
                     tx.send(
-                        extract_file_entry(item, &name, read_options, &args)
+                        extract_file_entry(item, &name, read_options, args)
                             .with_context(|| format!("extracting {}", item_path)),
                     )
                     .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
@@ -874,7 +869,7 @@ where
             run_process_archive_bytes(archives, read_options, |entry| {
                 let item = entry
                     .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
-                let Some(name) = filter_entry(&item, &mut globs, &args) else {
+                let Some(name) = filter_entry(&item, &mut globs, args) else {
                     return Ok(());
                 };
                 if args.verbose {
@@ -891,7 +886,7 @@ where
                     return Ok(());
                 }
                 if item.header().data_kind() == DataKind::DIRECTORY {
-                    if extract_directory_structure(&item, &name, &args).map_err(|e| {
+                    if extract_directory_structure(&item, &name, args).map_err(|e| {
                         io::Error::new(e.kind(), format!("extracting {}: {e}", item.name()))
                     })? {
                         dir_metadata.push((name, item.into()));
@@ -902,11 +897,10 @@ where
                 let ticket = args.ordered_path_locks.register(&path);
                 let item_path = item.name().to_string();
                 let tx = tx.clone();
-                let args = args.clone();
                 s.spawn_fifo(move |_| {
                     let _guard = ticket.wait_for_turn();
                     tx.send(
-                        extract_file_entry(item, &name, read_options, &args)
+                        extract_file_entry(item, &name, read_options, args)
                             .with_context(|| format!("extracting {}", item_path)),
                     )
                     .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
@@ -923,7 +917,7 @@ where
     }
 
     for (name, item) in link_entries {
-        extract_link_entry(item, &name, read_options, &args)
+        extract_link_entry(item, &name, read_options, args)
             .with_context(|| format!("extracting deferred link {name}"))?;
     }
 
