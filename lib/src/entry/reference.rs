@@ -32,6 +32,13 @@ impl EntryReference {
     }
 
     #[inline]
+    fn new_from_utf8_owned(name: String) -> Self {
+        let mut name = Self::new_preserve_root(name);
+        name.sanitize_in_place();
+        name
+    }
+
+    #[inline]
     fn new_from_path(path: &Path) -> Result<Self, EntryReferenceError> {
         let path = str::from_utf8(path.as_os_str().as_encoded_bytes())?;
         Ok(Self::new_from_utf8(path))
@@ -128,7 +135,17 @@ impl EntryReference {
     /// traversals.
     #[inline]
     pub fn sanitize(&self) -> Self {
-        let path = Utf8Path::new(&self.0);
+        Self(Self::sanitize_str(&self.0))
+    }
+
+    #[inline]
+    fn sanitize_in_place(&mut self) {
+        self.0 = Self::sanitize_str(&self.0);
+    }
+
+    #[inline]
+    fn sanitize_str(name: &str) -> String {
+        let path = Utf8Path::new(name);
         let p = path.components().filter_map(|it| match it {
             Utf8Component::Prefix(p) => Some(p.as_str()),
             Utf8Component::RootDir => None,
@@ -136,7 +153,7 @@ impl EntryReference {
             Utf8Component::ParentDir => Some(".."),
             Utf8Component::Normal(n) => Some(n),
         });
-        Self(join_with_capacity(p, "/", path.as_str().len()))
+        join_with_capacity(p, "/", path.as_str().len())
     }
 
     #[inline]
@@ -196,7 +213,7 @@ impl EntryReference {
 impl From<String> for EntryReference {
     #[inline]
     fn from(value: String) -> Self {
-        Self::new_from_utf8(&value)
+        Self::new_from_utf8_owned(value)
     }
 }
 
@@ -498,6 +515,10 @@ mod tests {
     fn basic_string_conversion() {
         // String conversion
         assert_eq!("test.txt", EntryReference::from(String::from("test.txt")));
+        assert_eq!(
+            "../test.txt",
+            EntryReference::from(String::from("../test.txt"))
+        );
         assert_eq!("test.txt", EntryReference::from(&String::from("test.txt")));
 
         // &str conversion

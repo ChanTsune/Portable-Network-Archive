@@ -32,6 +32,13 @@ impl EntryName {
     }
 
     #[inline]
+    fn new_from_utf8_owned(name: String) -> Self {
+        let mut name = Self::new_preserve_root(name);
+        name.sanitize_in_place();
+        name
+    }
+
+    #[inline]
     fn new_from_path(name: &Path) -> Result<Self, EntryNameError> {
         let name = str::from_utf8(name.as_os_str().as_encoded_bytes())?;
         Ok(Self::new_from_utf8(name))
@@ -146,13 +153,23 @@ impl EntryName {
     /// ```
     #[inline]
     pub fn sanitize(&self) -> Self {
-        let path = normalize_utf8path(Utf8Path::new(&self.0));
-        Self(join_with_capacity(
+        Self(Self::sanitize_str(&self.0))
+    }
+
+    #[inline]
+    fn sanitize_in_place(&mut self) {
+        self.0 = Self::sanitize_str(&self.0);
+    }
+
+    #[inline]
+    fn sanitize_str(name: &str) -> String {
+        let path = normalize_utf8path(Utf8Path::new(name));
+        join_with_capacity(
             path.components()
                 .filter(|c| matches!(c, Utf8Component::Normal(_))),
             "/",
             path.as_str().len(),
-        ))
+        )
     }
 
     #[inline]
@@ -212,7 +229,7 @@ impl EntryName {
 impl From<String> for EntryName {
     #[inline]
     fn from(value: String) -> Self {
-        Self::new_from_utf8(&value)
+        Self::new_from_utf8_owned(value)
     }
 }
 
@@ -501,6 +518,7 @@ mod tests {
     fn basic_string_conversion() {
         // String conversion
         assert_eq!("test.txt", EntryName::from(String::from("test.txt")));
+        assert_eq!("test.txt", EntryName::from(String::from("../test.txt")));
         assert_eq!("test.txt", EntryName::from(&String::from("test.txt")));
 
         // &str conversion
