@@ -68,21 +68,18 @@ fn normalize_windows_separators(path: &Path) -> std::borrow::Cow<'_, Path> {
     use std::os::windows::ffi::{OsStrExt, OsStringExt};
     use std::path::PathBuf;
 
-    let wide: Vec<u16> = path.as_os_str().encode_wide().collect();
-    if !wide.iter().any(|&unit| unit == u16::from(b'/')) {
+    let slash = u16::from(b'/');
+    let backslash = u16::from(b'\\');
+    if !path.as_os_str().encode_wide().any(|unit| unit == slash) {
         return Cow::Borrowed(path);
     }
-    let normalized = wide
-        .into_iter()
-        .map(|unit| {
-            if unit == u16::from(b'/') {
-                u16::from(b'\\')
-            } else {
-                unit
-            }
-        })
-        .collect::<Vec<_>>();
-    Cow::Owned(PathBuf::from(OsString::from_wide(&normalized)))
+    let mut wide: Vec<u16> = path.as_os_str().encode_wide().collect();
+    for unit in &mut wide {
+        if *unit == slash {
+            *unit = backslash;
+        }
+    }
+    Cow::Owned(PathBuf::from(OsString::from_wide(&wide)))
 }
 
 /// Removes a path by dispatching based on file type.
