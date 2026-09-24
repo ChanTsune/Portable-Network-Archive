@@ -1,11 +1,14 @@
 use std::{
-    env, fmt,
+    env,
+    ffi::OsStr,
+    fmt,
     path::{Path, PathBuf},
 };
 
 pub(crate) trait PathPartExt {
     fn with_part(&self, n: usize) -> PathBuf;
     fn remove_part(&self) -> PathBuf;
+    fn is_split_part(&self) -> bool;
 }
 
 impl PathPartExt for Path {
@@ -17,6 +20,37 @@ impl PathPartExt for Path {
     #[inline]
     fn remove_part(&self) -> PathBuf {
         remove_part_n(self)
+    }
+
+    #[inline]
+    fn is_split_part(&self) -> bool {
+        is_split_part_path(self)
+    }
+}
+
+/// Whether `path` ends with a split-part suffix `part<N>`.
+///
+/// Matches both `foo.part1` and `foo.part1.pna`. A `part` prefix without
+/// trailing digits (e.g. `foo.partial.pna`) is not a split part.
+#[inline]
+fn is_split_part_path(path: &Path) -> bool {
+    let Some(file_name) = path.file_name().map(Path::new) else {
+        return false;
+    };
+    if matches!(file_name.extension(), Some(ext) if is_part_n(ext)) {
+        return true;
+    }
+    matches!(
+        file_name.file_stem().map(Path::new).and_then(|stem| stem.extension()),
+        Some(ext) if is_part_n(ext)
+    )
+}
+
+#[inline]
+fn is_part_n(ext: &OsStr) -> bool {
+    match ext.as_encoded_bytes().strip_prefix(b"part") {
+        Some(rest) => !rest.is_empty() && rest.iter().all(|b| b.is_ascii_digit()),
+        None => false,
     }
 }
 
@@ -48,13 +82,6 @@ fn with_part_n<P: AsRef<Path>>(p: P, n: usize) -> PathBuf {
 
 #[inline]
 fn remove_part_n<P: AsRef<Path>>(path: P) -> PathBuf {
-    #[inline]
-    fn is_part_n(ext: &std::ffi::OsStr) -> bool {
-        match ext.as_encoded_bytes().strip_prefix(b"part") {
-            Some(rest) => !rest.is_empty() && rest.iter().all(|b| b.is_ascii_digit()),
-            None => false,
-        }
-    }
     #[inline]
     fn inner(path: &Path) -> PathBuf {
         let Some(file_name) = path.file_name() else {
@@ -183,5 +210,15 @@ mod tests {
             remove_part_n("dir/foo.partial.pna"),
             Path::new("dir/foo.partial.pna")
         );
+    }
+
+    #[test]
+    fn is_split_part_detects_part() {
+        assert!(!Path::new("foo.pna").is_split_part());
+        assert!(Path::new("foo.part1.pna").is_split_part());
+        assert!(Path::new("dir/foo.part1.pna").is_split_part());
+        assert!(Path::new("foo.part1").is_split_part());
+        assert!(!Path::new("foo.partial.pna").is_split_part());
+        assert!(!Path::new("foo.part").is_split_part());
     }
 }
