@@ -40,6 +40,7 @@ use std::{
     fmt, fs,
     io::{self, prelude::*},
     path::{Path, PathBuf},
+    sync::Arc,
     time::SystemTime,
 };
 pub(crate) use time_filter::{TimeFilter, TimeFilters, TimeRange};
@@ -354,7 +355,7 @@ pub(crate) enum StoreAs {
     File,
     Dir,
     Symlink(LinkTargetType),
-    Hardlink(PathBuf),
+    Hardlink(Arc<Path>),
 }
 
 /// Source of an archive to include (file path or stdin).
