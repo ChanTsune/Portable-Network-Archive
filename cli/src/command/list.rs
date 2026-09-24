@@ -1309,8 +1309,8 @@ impl fmt::Display for PermissionDisplay {
 struct FileInfo<'a> {
     filename: &'a str,
     permissions: String,
-    owner: String,
-    group: String,
+    owner: &'a str,
+    group: &'a str,
     raw_size: u128,
     size: usize,
     encryption: &'a str,
@@ -1369,8 +1369,8 @@ fn json_line_entries_to(
         .par_iter()
         .map(|it| {
             let permission_mode = it.permission_mode();
-            let owner = it.ownership.uname.clone().unwrap_or_default();
-            let group = it.ownership.gname.clone().unwrap_or_default();
+            let owner = it.ownership.uname.as_deref().unwrap_or("");
+            let group = it.ownership.gname.as_deref().unwrap_or("");
             FileInfo {
                 filename: it.entry_type.name(),
                 permissions: PermissionDisplay::new(
