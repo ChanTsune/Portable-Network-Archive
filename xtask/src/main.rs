@@ -284,7 +284,8 @@ fn convert_entry<R: Read, W: Write>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let header = entry.header();
     let entry_type = header.entry_type();
-    let path = entry.path()?.to_string_lossy().to_string();
+    let path = entry.path()?;
+    let path = path.to_string_lossy();
     let mtime = header.mtime().unwrap_or_else(|e| {
         eprintln!("warning: {path}: failed to read mtime ({e}), defaulting to 0");
         0
@@ -456,7 +457,7 @@ fn convert_zip_entry<R: Read + io::Seek, W: Write>(
     archive: &mut libpna::Archive<W>,
     write_options: &libpna::WriteOptions,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let path = entry.name().to_string();
+    let path = entry.name();
     let mtime = zip_last_modified(entry, &path);
     let entry_name = libpna::EntryName::from_utf8_preserve_root(&path);
 
