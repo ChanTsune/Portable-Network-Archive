@@ -63,7 +63,14 @@ pub(super) fn prepend_data_prefix(
     max_chunk_size: NonZeroU32,
 ) {
     let max_chunk_size = max_chunk_size.get() as usize;
-    data.splice(0..0, prefix.chunks(max_chunk_size).map(<[u8]>::to_vec));
+    if prefix.is_empty() {
+        return;
+    }
+    if prefix.len() <= max_chunk_size {
+        data.insert(0, prefix);
+    } else {
+        data.splice(0..0, prefix.chunks(max_chunk_size).map(<[u8]>::to_vec));
+    }
 }
 
 /// Fields and logic shared by the kind-specific entry builders.
@@ -614,6 +621,36 @@ mod tests {
     use crate::entry::test_support::{entry_bytes, entry_chunks};
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
+
+    #[test]
+    fn prepend_data_prefix_moves_a_fitting_prefix() {
+        let prefix = vec![1, 2, 3];
+        let prefix_ptr = prefix.as_ptr();
+        let mut data = vec![vec![4, 5]];
+
+        prepend_data_prefix(&mut data, prefix, NonZeroU32::new(3).unwrap());
+
+        assert_eq!(data, vec![vec![1, 2, 3], vec![4, 5]]);
+        assert_eq!(data[0].as_ptr(), prefix_ptr);
+    }
+
+    #[test]
+    fn prepend_data_prefix_splits_an_oversized_prefix() {
+        let mut data = vec![vec![5, 6]];
+
+        prepend_data_prefix(&mut data, vec![1, 2, 3, 4, 5], NonZeroU32::new(2).unwrap());
+
+        assert_eq!(data, vec![vec![1, 2], vec![3, 4], vec![5], vec![5, 6]]);
+    }
+
+    #[test]
+    fn prepend_data_prefix_ignores_an_empty_prefix() {
+        let mut data = vec![vec![1]];
+
+        prepend_data_prefix(&mut data, Vec::new(), NonZeroU32::new(1).unwrap());
+
+        assert_eq!(data, vec![vec![1]]);
+    }
 
     /// The cipher-mode byte carries no meaning for an unencrypted entry, but it
     /// is on the wire, and the two builders deliberately disagree on it: the file
