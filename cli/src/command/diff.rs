@@ -470,21 +470,14 @@ fn compare_metadata<T: AsRef<[u8]>>(
     let mut missing =
         |field: CompareField, reason: Uncomparable| uncompared.record_entry(field, reason, path);
     let mut diffs = Vec::new();
-    // Resolving ownership allocates owner name and SID strings that are never
-    // compared here, so only pay for it when an ownership field is enabled.
+    // Only numeric ownership facets are compared here; borrow metadata to avoid
+    // cloning owner names and SIDs that this path never reads.
     #[cfg(unix)]
-    let ownership = if options.enabled(CompareField::Mode, data_kind)
-        || options.enabled(CompareField::Uid, data_kind)
-        || options.enabled(CompareField::Gid, data_kind)
-    {
-        crate::ext::ResolvedOwnership::from_metadata(entry.metadata())
-    } else {
-        crate::ext::ResolvedOwnership::default()
-    };
+    let metadata = entry.metadata();
 
     #[cfg(unix)]
     if options.enabled(CompareField::Mode, data_kind) {
-        match ownership.mode {
+        match metadata.permission_mode().map(|v| v.get()) {
             Some(mode) => {
                 let archive_mode = mode & 0o7777;
                 let fs_mode = (fs_meta.permissions().mode() & 0o7777) as u16;
@@ -512,7 +505,7 @@ fn compare_metadata<T: AsRef<[u8]>>(
 
     #[cfg(unix)]
     if options.enabled(CompareField::Uid, data_kind) {
-        match ownership.uid {
+        match metadata.owner_uid().map(|v| v.get()) {
             Some(uid) if uid != fs_meta.uid() as u64 => diffs.push(DiffKind::UidDiffers),
             Some(_) => {}
             None => missing(CompareField::Uid, Uncomparable::NotRecorded),
@@ -521,7 +514,7 @@ fn compare_metadata<T: AsRef<[u8]>>(
 
     #[cfg(unix)]
     if options.enabled(CompareField::Gid, data_kind) {
-        match ownership.gid {
+        match metadata.owner_gid().map(|v| v.get()) {
             Some(gid) if gid != fs_meta.gid() as u64 => diffs.push(DiffKind::GidDiffers),
             Some(_) => {}
             None => missing(CompareField::Gid, Uncomparable::NotRecorded),
