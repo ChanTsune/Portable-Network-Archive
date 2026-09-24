@@ -330,6 +330,7 @@ impl Display for EntryTypeBsdLongStyleDisplay<'_> {
 #[derive(Copy, Clone, Debug, Default)]
 struct CollectOptions {
     xattrs: bool,
+    xattr_values: bool,
     acl: bool,
     privates: bool,
     fflags: bool,
@@ -348,10 +349,29 @@ impl CollectOptions {
         };
         Self {
             xattrs: opts.show_xattr,
+            xattr_values: opts.show_xattr && matches!(opts.format, Some(Format::JsonL)),
             acl: opts.show_acl,
             privates: opts.show_private,
             fflags: opts.show_fflags,
             link_target,
+        }
+    }
+}
+
+struct XattrInfo {
+    name: String,
+    length: usize,
+    encoded_value: Option<String>,
+}
+
+impl XattrInfo {
+    #[inline]
+    fn from_attribute(attribute: &ExtendedAttribute, encode_value: bool) -> Self {
+        Self {
+            name: attribute.name().to_owned(),
+            length: attribute.value().len(),
+            encoded_value: encode_value
+                .then(|| base64::engine::general_purpose::STANDARD.encode(attribute.value())),
         }
     }
 }
@@ -366,7 +386,7 @@ struct TableRow {
     modified: Option<SystemTime>,
     accessed: Option<SystemTime>,
     entry_type: EntryType,
-    xattrs: Vec<ExtendedAttribute>,
+    xattrs: Vec<XattrInfo>,
     acl: HashMap<chunk::AcePlatform, Vec<chunk::Ace>>,
     privates: Vec<RawChunk>,
     fflags: Vec<String>,
@@ -454,7 +474,12 @@ impl TableRow {
             },
             // Only collect xattrs if needed
             xattrs: if collect.xattrs {
-                entry.metadata().xattrs().to_vec()
+                entry
+                    .metadata()
+                    .xattrs()
+                    .iter()
+                    .map(|x| XattrInfo::from_attribute(x, collect.xattr_values))
+                    .collect()
             } else {
                 Vec::new()
             },
@@ -1020,8 +1045,8 @@ fn detail_list_entries_to(
                 builder.push_record([
                     String::new(),
                     String::new(),
-                    x.name().into(),
-                    x.value().len().to_string(),
+                    x.name.clone(),
+                    x.length.to_string(),
                 ]);
                 xattr_rows.push(builder.count_records());
             }
@@ -1336,7 +1361,7 @@ struct AclEntry {
 #[derive(Serialize, Debug)]
 struct XAttr<'a> {
     key: &'a str,
-    value: String,
+    value: &'a str,
 }
 
 fn json_line_entries_to(
@@ -1392,8 +1417,11 @@ fn json_line_entries_to(
                     it.xattrs
                         .iter()
                         .map(|x| XAttr {
-                            key: x.name(),
-                            value: base64::engine::general_purpose::STANDARD.encode(x.value()),
+                            key: &x.name,
+                            value: x
+                                .encoded_value
+                                .as_deref()
+                                .expect("JSON xattrs must include encoded values"),
                         })
                         .collect()
                 }),
