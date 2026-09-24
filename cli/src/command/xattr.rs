@@ -525,7 +525,7 @@ fn write_encoded_value<W: Write + ?Sized>(
 
 fn write_text_value<W: Write + ?Sized>(output: &mut W, value: &[u8]) -> io::Result<()> {
     output.write_all(b"\"")?;
-    output.write_all(&escape_xattr_value_text(value))?;
+    write_escaped_xattr_value_text(output, value)?;
     output.write_all(b"\"")
 }
 
@@ -541,20 +541,31 @@ fn write_base64_value<W: Write + ?Sized>(output: &mut W, value: &[u8]) -> io::Re
     )
 }
 
-fn escape_xattr_value_text(text: &[u8]) -> Vec<u8> {
-    let mut result = Vec::with_capacity(text.len());
-    text.iter().for_each(|c| match c {
-        b'"' => result.extend_from_slice(b"\\\""),
-        b'\\' => result.extend_from_slice(b"\\\\"),
-        b'\0' | b'\n' | b'\r' => {
-            result.push(b'\\');
-            result.push(b'0' + (*c >> 6));
-            result.push(b'0' + ((*c & 0o70) >> 3));
-            result.push(b'0' + (*c & 0o7));
+fn write_escaped_xattr_value_text<W: Write + ?Sized>(
+    output: &mut W,
+    text: &[u8],
+) -> io::Result<()> {
+    let mut raw_start = 0;
+    for (offset, &byte) in text.iter().enumerate() {
+        let escaped: &[u8] = match byte {
+            b'"' => b"\\\"",
+            b'\\' => b"\\\\",
+            b'\0' => b"\\000",
+            b'\n' => b"\\012",
+            b'\r' => b"\\015",
+            _ => continue,
+        };
+
+        if raw_start < offset {
+            output.write_all(&text[raw_start..offset])?;
         }
-        _ => result.push(*c),
-    });
-    result
+        output.write_all(escaped)?;
+        raw_start = offset + 1;
+    }
+    if raw_start < text.len() {
+        output.write_all(&text[raw_start..])?;
+    }
+    Ok(())
 }
 
 fn unescape_xattr_value_text(text: &[u8]) -> Result<Vec<u8>, ValueError> {
@@ -602,6 +613,22 @@ mod tests {
         output
     }
 
+    #[derive(Default)]
+    struct RecordingWriter {
+        writes: Vec<Vec<u8>>,
+    }
+
+    impl io::Write for RecordingWriter {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            self.writes.push(bytes.to_vec());
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
     #[test]
     fn parse_dump_for_restore() {
         assert_eq!(
@@ -639,11 +666,27 @@ mod tests {
     #[test]
     fn encode_text_preserves_non_utf8_bytes() {
         let value = [0xff, b'\0', b'\n', b'\r', b'\\', b'"'];
-        let mut expected = vec![b'"'];
-        expected.extend_from_slice(&escape_xattr_value_text(&value));
-        expected.push(b'"');
+        assert_eq!(
+            encode(&value, Some(Encoding::Text)),
+            b"\"\xff\\000\\012\\015\\\\\\\"\""
+        );
+    }
 
-        assert_eq!(encode(&value, Some(Encoding::Text)), expected);
+    #[test]
+    fn encode_text_escapes_special_bytes() {
+        let value = "aé\\b\"\n\r\0z";
+        assert_eq!(
+            encode(value.as_bytes(), Some(Encoding::Text)),
+            b"\"a\xC3\xA9\\\\b\\\"\\012\\015\\000z\""
+        );
+    }
+
+    #[test]
+    fn escape_text_streams_escaped_segments() {
+        let mut output = RecordingWriter::default();
+        write_text_value(&mut output, b"a\nb").unwrap();
+        assert!(output.writes.len() > 3);
+        assert_eq!(output.writes.concat(), b"\"a\\012b\"");
     }
 
     #[test]
@@ -681,16 +724,19 @@ mod tests {
 
     #[test]
     fn escape_text() {
-        assert_eq!(b"".as_slice(), escape_xattr_value_text(b""));
-        assert_eq!(b"a\\\\b\\\"".as_slice(), escape_xattr_value_text(b"a\\b\""));
+        let mut escaped = Vec::new();
+        write_escaped_xattr_value_text(&mut escaped, b"a\\b\"").unwrap();
+        assert_eq!(b"a\\\\b\\\"", escaped.as_slice());
     }
 
     #[test]
     fn escape_unescape() {
         let value = b"\"\\\n\r\0\xff";
+        let mut escaped = Vec::new();
+        write_escaped_xattr_value_text(&mut escaped, value).unwrap();
         assert_eq!(
             value.as_slice(),
-            unescape_xattr_value_text(&escape_xattr_value_text(value)).unwrap()
+            unescape_xattr_value_text(&escaped).unwrap()
         );
     }
 
