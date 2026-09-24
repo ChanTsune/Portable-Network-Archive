@@ -21,8 +21,8 @@ use clap::{
 };
 use jiff::{Timestamp, Zoned, tz::TimeZone};
 use pna::{
-    Compression, DataKind, Encryption, EntryContent, ExtendedAttribute, NormalEntry, RawChunk,
-    ReadEntry, ReadOptions, SolidHeader, prelude::*,
+    ChunkType, Compression, DataKind, Encryption, EntryContent, ExtendedAttribute, NormalEntry,
+    RawChunk, ReadEntry, ReadOptions, SolidHeader, prelude::*,
 };
 use rayon::prelude::*;
 use serde::{Serialize, Serializer};
@@ -367,7 +367,7 @@ struct TableRow {
     entry_type: EntryType,
     xattrs: Vec<ExtendedAttribute>,
     acl: HashMap<chunk::AcePlatform, Vec<chunk::Ace>>,
-    privates: Vec<RawChunk>,
+    privates: Vec<(ChunkType, usize)>,
     fflags: Vec<String>,
 }
 
@@ -388,7 +388,6 @@ impl TableRow {
     where
         T: AsRef<[u8]> + Clone,
         RawChunk<T>: Chunk,
-        RawChunk: From<RawChunk<T>>,
     {
         let metadata = entry.metadata();
         // Only parse ACL if needed
@@ -464,7 +463,7 @@ impl TableRow {
                     .extra_chunks()
                     .iter()
                     .filter(|it| it.ty() != chunk::faCe && it.ty() != chunk::faCl)
-                    .map(|it| (*it).clone().into())
+                    .map(|it| (it.ty(), it.data().len()))
                     .collect()
             } else {
                 Vec::new()
@@ -1026,12 +1025,12 @@ fn detail_list_entries_to(
             }
         }
         if options.show_private {
-            for c in &content.privates {
+            for &(ty, length) in &content.privates {
                 builder.push_record([
                     String::new(),
                     String::new(),
-                    format!("chunk:{}", c.ty()),
-                    c.data().len().to_string(),
+                    format!("chunk:{ty}"),
+                    length.to_string(),
                 ]);
             }
         }
