@@ -396,7 +396,11 @@ fn parse_dump(reader: impl io::BufRead) -> io::Result<HashMap<String, Vec<(Strin
                     .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
                 let value = Value::try_from(value)
                     .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-                result.entry(file.clone()).or_default().push((key, value));
+                if let Some(attrs) = result.get_mut(file) {
+                    attrs.push((key, value));
+                } else {
+                    result.insert(file.clone(), vec![(key, value)]);
+                }
             }
         }
     }
