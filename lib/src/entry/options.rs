@@ -465,6 +465,11 @@ impl Password {
     pub(crate) const fn as_bytes(&self) -> &[u8] {
         self.0.as_slice()
     }
+
+    #[inline]
+    fn into_inner(self) -> Vec<u8> {
+        self.0
+    }
 }
 
 impl<T: AsRef<[u8]>> From<T> for Password {
@@ -1113,23 +1118,46 @@ impl Default for WriteOptionsBuilder {
 impl From<WriteOptions> for WriteOptionsBuilder {
     #[inline]
     fn from(value: WriteOptions) -> Self {
-        let (compression, compression_level) = match value.compress {
+        let WriteOptions { compress, cipher } = value;
+        let (compression, compression_level) = match compress {
             Compress::No => (Compression::NO, CompressionLevel::DEFAULT),
             Compress::Deflate(level) => (Compression::DEFLATE, level.into()),
             Compress::ZStandard(level) => (Compression::ZSTANDARD, level.into()),
             Compress::XZ(level) => (Compression::XZ, level.into()),
         };
+
+        // Unencrypted options carry nothing to inherit for these three, so
+        // leave the choice open rather than adopting the values they report
+        // — those are fallbacks, not decisions the caller made.
+        let (encryption, cipher_mode, hash_algorithm, password, segment_size) = match cipher {
+            Some(Cipher {
+                password,
+                hash_algorithm,
+                cipher_algorithm,
+                mode,
+                segment_size,
+                ..
+            }) => (
+                match cipher_algorithm {
+                    CipherAlgorithm::Aes => Encryption::AES,
+                    CipherAlgorithm::Camellia => Encryption::CAMELLIA,
+                },
+                Some(mode),
+                Some(hash_algorithm),
+                Some(password.into_inner()),
+                Some(segment_size.get()),
+            ),
+            None => (Encryption::NO, None, None, None, None),
+        };
+
         Self {
             compression,
             compression_level,
-            encryption: value.encryption(),
-            // Unencrypted options carry nothing to inherit for these three, so
-            // leave the choice open rather than adopting the values they report
-            // — those are fallbacks, not decisions the caller made.
-            cipher_mode: value.cipher().map(|it| it.mode),
-            hash_algorithm: value.cipher().map(|it| it.hash_algorithm),
-            password: value.password().map(|p| p.to_vec()),
-            segment_size: value.cipher().map(|it| it.segment_size.get()),
+            encryption,
+            cipher_mode,
+            hash_algorithm,
+            password,
+            segment_size,
         }
     }
 }
@@ -1566,6 +1594,27 @@ mod tests {
             .unwrap();
         let rebuilt = options.into_builder().try_build().unwrap();
         assert_eq!(rebuilt.cipher_mode(), CipherMode::CTR);
+    }
+
+    #[test]
+    fn into_builder_moves_password_without_copying() {
+        let options = WriteOptions::builder()
+            .encryption(Encryption::AES)
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
+            .password(Some("password"))
+            .try_build()
+            .unwrap();
+        let original_ptr = options
+            .cipher
+            .as_ref()
+            .unwrap()
+            .password
+            .as_bytes()
+            .as_ptr();
+        let builder = options.into_builder();
+        let moved_ptr = builder.password.as_deref().unwrap().as_ptr();
+
+        assert_eq!(moved_ptr, original_ptr);
     }
 
     fn test_output(byte: u8) -> Output {
