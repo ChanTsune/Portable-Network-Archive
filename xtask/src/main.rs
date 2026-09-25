@@ -458,8 +458,8 @@ fn convert_zip_entry<R: Read + io::Seek, W: Write>(
     write_options: &libpna::WriteOptions,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let path = entry.name();
-    let mtime = zip_last_modified(entry, &path);
-    let entry_name = libpna::EntryName::from_utf8_preserve_root(&path);
+    let mtime = zip_last_modified(entry, path);
+    let entry_name = libpna::EntryName::from_utf8_preserve_root(path);
 
     if entry.is_dir() {
         let mut builder = libpna::DirEntryBuilder::new(entry_name);
