@@ -99,11 +99,9 @@ impl<'s> BsdGlobMatcher<'s> {
 
     fn pattern_matches_path(&self, idx: usize, path: &str) -> bool {
         if self.no_recursive {
-            self.patterns[idx].match_inclusion(path)
+            self.patterns[idx].match_inclusion_exact(path)
         } else {
             self.patterns[idx].match_inclusion(path)
-                || (!has_glob_meta(self.raw_patterns[idx])
-                    && prefix_match(self.raw_patterns[idx], path))
         }
     }
 
@@ -158,16 +156,6 @@ impl<'s> BsdGlobMatcher<'s> {
         }
         Ok(())
     }
-}
-
-#[inline]
-fn has_glob_meta(pattern: &str) -> bool {
-    pattern.contains(['*', '?', '[', '{'])
-}
-
-#[inline]
-fn prefix_match(pattern: &str, path: &str) -> bool {
-    archive_pathmatch(pattern, path, PathMatch::NO_ANCHOR_END)
 }
 
 /// BSD tar command like globs.
@@ -230,6 +218,11 @@ impl<'a> BsdGlobPattern<'a> {
     #[inline]
     pub fn match_inclusion(&self, s: &str) -> bool {
         archive_pathmatch(self.pattern, s, PathMatch::NO_ANCHOR_END)
+    }
+
+    #[inline]
+    pub fn match_inclusion_exact(&self, s: &str) -> bool {
+        archive_pathmatch(self.pattern, s, PathMatch::empty())
     }
 }
 
@@ -1216,15 +1209,35 @@ mod tests {
     }
 
     #[test]
-    fn prefix_match_normalizes_leading_current_dir() {
-        assert!(prefix_match("./tmp/foo/baz", "tmp/foo/baz/bar"));
-        assert!(prefix_match("./tmp/foo/baz/", "tmp/foo/baz/bar"));
-        assert!(prefix_match("tmp/foo/baz", "./tmp/foo/baz/bar"));
+    fn inclusion_prefix_match_normalizes_leading_current_dir() {
+        assert!(BsdGlobPattern::new("./tmp/foo/baz").match_inclusion("tmp/foo/baz/bar"));
+        assert!(BsdGlobPattern::new("./tmp/foo/baz/").match_inclusion("tmp/foo/baz/bar"));
+        assert!(BsdGlobPattern::new("tmp/foo/baz").match_inclusion("./tmp/foo/baz/bar"));
     }
 
     #[test]
-    fn prefix_match_remains_start_anchored() {
-        assert!(!prefix_match("./tmp/foo/bar", "/tmp/foo/bar/baz"));
-        assert!(!prefix_match("tmp/foo/bar", "a/tmp/foo/bar/baz"));
+    fn inclusion_prefix_match_remains_start_anchored() {
+        assert!(!BsdGlobPattern::new("./tmp/foo/bar").match_inclusion("/tmp/foo/bar/baz"));
+        assert!(!BsdGlobPattern::new("tmp/foo/bar").match_inclusion("a/tmp/foo/bar/baz"));
+    }
+
+    #[test]
+    fn matcher_recursive_expands_directory_prefix() {
+        let mut m = BsdGlobMatcher::new(["raw/images"]);
+        assert!(m.matches("raw/images/icon.png"));
+    }
+
+    #[test]
+    fn matcher_no_recursive_matches_exact_only() {
+        let mut m = BsdGlobMatcher::new(["raw/images"]).with_no_recursive(true);
+        assert!(!m.matches("raw/images/icon.png"));
+        let mut m = BsdGlobMatcher::new(["raw/images"]).with_no_recursive(true);
+        assert!(m.matches("raw/images"));
+    }
+
+    #[test]
+    fn matcher_no_recursive_glob_still_works() {
+        let mut m = BsdGlobMatcher::new(["raw/images/*.png"]).with_no_recursive(true);
+        assert!(m.matches("raw/images/icon.png"));
     }
 }
