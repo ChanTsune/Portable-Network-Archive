@@ -12,7 +12,6 @@ use crate::{
     ext::*,
     utils::{BsdGlobMatcher, VCS_FILES},
 };
-use base64::Engine;
 use clap::{
     ArgAction, ArgGroup, Parser, ValueEnum, ValueHint,
     builder::{
@@ -26,7 +25,7 @@ use pna::{
     ReadEntry, ReadOptions, SolidHeader, prelude::*,
 };
 use rayon::prelude::*;
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap},
@@ -1333,10 +1332,28 @@ struct AclEntry {
     entries: Vec<String>,
 }
 
+#[derive(Debug)]
+struct Base64Value<'a> {
+    value: &'a [u8],
+}
+
+impl Serialize for Base64Value<'_> {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.collect_str(&base64::display::Base64Display::new(
+            self.value,
+            &base64::engine::general_purpose::STANDARD,
+        ))
+    }
+}
+
 #[derive(Serialize, Debug)]
 struct XAttr<'a> {
     key: &'a str,
-    value: String,
+    value: Base64Value<'a>,
 }
 
 fn json_line_entries_to(
@@ -1393,7 +1410,7 @@ fn json_line_entries_to(
                         .iter()
                         .map(|x| XAttr {
                             key: x.name(),
-                            value: base64::engine::general_purpose::STANDARD.encode(x.value()),
+                            value: Base64Value { value: x.value() },
                         })
                         .collect()
                 }),
@@ -1712,5 +1729,33 @@ mod tests {
     #[test]
     fn line_ending_default_is_lf() {
         assert_eq!(LineEnding::default(), LineEnding::Lf);
+    }
+
+    #[test]
+    fn xattr_json_serializes_empty_value() {
+        let xattr = XAttr {
+            key: "user.empty",
+            value: Base64Value { value: b"" },
+        };
+
+        assert_eq!(
+            serde_json::to_string(&xattr).unwrap(),
+            r#"{"key":"user.empty","value":""}"#
+        );
+    }
+
+    #[test]
+    fn xattr_json_serializes_arbitrary_bytes_with_stable_fields() {
+        let xattr = XAttr {
+            key: r#"user."quoted"\path"#,
+            value: Base64Value {
+                value: &[0, 1, 2, 0xff],
+            },
+        };
+
+        assert_eq!(
+            serde_json::to_string(&xattr).unwrap(),
+            r#"{"key":"user.\"quoted\"\\path","value":"AAEC/w=="}"#
+        );
     }
 }
