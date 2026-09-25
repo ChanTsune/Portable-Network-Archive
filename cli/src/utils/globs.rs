@@ -229,7 +229,7 @@ impl<'a> BsdGlobPattern<'a> {
 
     #[inline]
     pub fn match_inclusion(&self, s: &str) -> bool {
-        archive_pathmatch(self.pattern, s, PathMatch::NO_ANCHOR_START)
+        archive_pathmatch(self.pattern, s, PathMatch::NO_ANCHOR_END)
     }
 }
 
@@ -360,15 +360,7 @@ fn archive_pathmatch(mut p: &str, mut s: &str, mut flags: PathMatch) -> bool {
 
     /* If start is unanchored, try to match start of each path element. */
     if flags.contains(PathMatch::NO_ANCHOR_START) {
-        if s.starts_with('/') && !p.starts_with('/') {
-            // A relative pattern must not match an absolute path solely by
-            // dropping the leading '/'. Start searching after the first real
-            // path component instead, so "tmp/foo" does not match "/tmp/foo"
-            // but still matches "/a/tmp/foo".
-            let rooted = pm_slashskip(s);
-            let Some((_, _s)) = rooted.split_once('/') else {
-                return false;
-            };
+        if let Some(_s) = s.strip_prefix('/') {
             s = _s;
         }
         loop {
@@ -432,7 +424,10 @@ fn pm(mut p: &str, mut s: &str, flags: PathMatch) -> bool {
                  */
                 if let Some((l, r)) = split_once_unescaped(&p[1..]) {
                     /* We found [...], try to match it. */
-                    if s.chars().next().is_some_and(|c| !pm_list(l, c, flags)) {
+                    let Some(sc) = s.chars().next() else {
+                        return false;
+                    };
+                    if !pm_list(l, sc, flags) {
                         return false;
                     }
                     p = r;
@@ -449,7 +444,7 @@ fn pm(mut p: &str, mut s: &str, flags: PathMatch) -> bool {
             '\\' => {
                 /* Trailing '\\' matches itself. */
                 if p.len() == 1 {
-                    if s.chars().next().is_some_and(|c| c != '\\') {
+                    if !s.starts_with('\\') {
                         return false;
                     }
                 } else {
@@ -1012,15 +1007,30 @@ mod tests {
             "/a/b/c/d",
             PathMatch::NO_ANCHOR_START
         ));
+        // From tar/test/test_patterns.c Test 3a-3d (bsdtar inclusion level,
+        // Test 3a: Pattern tmp/foo/bar should not match /tmp/foo/bar
         assert!(!archive_pathmatch(
             "tmp/foo/bar",
             "/tmp/foo/bar",
-            PathMatch::NO_ANCHOR_START
+            PathMatch::NO_ANCHOR_END
         ));
+        // Test 3b: Pattern /tmp/foo/baz should not match tmp/foo/baz
+        assert!(!archive_pathmatch(
+            "/tmp/foo/baz",
+            "tmp/foo/baz",
+            PathMatch::NO_ANCHOR_END
+        ));
+        // Test 3c: ./tmp/foo/bar should not match /tmp/foo/bar
         assert!(!archive_pathmatch(
             "./tmp/foo/bar",
             "/tmp/foo/bar",
-            PathMatch::NO_ANCHOR_START
+            PathMatch::NO_ANCHOR_END
+        ));
+        // Test 3d: ./tmp/foo/baz should match tmp/foo/baz
+        assert!(archive_pathmatch(
+            "./tmp/foo/baz",
+            "tmp/foo/baz",
+            PathMatch::NO_ANCHOR_END
         ));
 
         /* Matches not anchored at end. */
