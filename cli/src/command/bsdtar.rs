@@ -4,7 +4,7 @@ use crate::{
         MissingTimePolicy, NameIdPair, PasswordArgs,
     },
     command::{
-        Command,
+        Command, ExitCodeError,
         append::{open_archive_then_seek_to_end, run_append_archive},
         ask_password,
         core::{
@@ -19,7 +19,7 @@ use crate::{
             read_paths, run_across_archive_readers, validate_no_duplicate_stdin,
         },
         create::{CreationContext, create_archive_file},
-        extract::{OutputOption, OverwriteStrategy, run_extract_archive_reader},
+        extract::{Outcome, OutputOption, OverwriteStrategy, run_extract_archive_reader},
         list::{Format, LineEnding, ListOptions, TimeField, TimeFormat},
         update::run_update_archive,
     },
@@ -1123,7 +1123,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
         env::set_current_dir(working_dir)?;
     }
     apply_chroot(args.chroot)?;
-    if let Some(archives) = archives {
+    let outcome = if let Some(archives) = archives {
         run_extract_archive_reader(
             archives
                 .into_iter()
@@ -1134,7 +1134,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
             args.no_recursive,
             args.fast_read,
             args.ignore_zeros,
-        )
+        )?
     } else {
         run_extract_archive_reader(
             std::iter::once_with(|| io::stdin().lock()),
@@ -1144,8 +1144,12 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
             args.no_recursive,
             args.fast_read,
             args.ignore_zeros,
-        )
+        )?
+    };
+    if outcome == Outcome::Warn {
+        return Err(anyhow::Error::from(ExitCodeError::silent(1)));
     }
+    Ok(())
 }
 
 #[hooq::hooq(anyhow)]

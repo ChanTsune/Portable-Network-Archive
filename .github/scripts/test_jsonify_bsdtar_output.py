@@ -234,9 +234,9 @@ class TestParseBsdtarTest(unittest.TestCase):
         expected = mod.load_expected_failures(str(baseline_path))
         self.assertEqual(set(expected.keys()), {"ubuntu", "macos", "windows"})
         # Hand-checked sizes from libarchive v3.8.5 audit
-        self.assertEqual(len(expected["ubuntu"]), 18)
-        self.assertEqual(len(expected["macos"]), 18)
-        self.assertEqual(len(expected["windows"]), 19)
+        self.assertEqual(len(expected["ubuntu"]), 17)
+        self.assertEqual(len(expected["macos"]), 17)
+        self.assertEqual(len(expected["windows"]), 18)
         # Windows deltas must be explicit, not derived at runtime
         self.assertNotIn("test_copy", expected["windows"])
         self.assertIn("test_option_s", expected["windows"])

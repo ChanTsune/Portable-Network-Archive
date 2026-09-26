@@ -242,7 +242,10 @@ pub(crate) fn is_unsafe_link_path(s: &str) -> bool {
 /// The dual check ensures that Windows-style `..` preceded by backslash
 /// separators (e.g., `..\\file`) is detected even on non-Windows hosts where
 /// `std::path::Path` treats backslashes as literal characters.
-fn has_parent_dir_component(s: &str) -> bool {
+///
+/// Shared by extraction filtering so entry names and link targets use the
+/// same traversal definition.
+pub(crate) fn has_parent_dir_component(s: &str) -> bool {
     Path::new(s)
         .components()
         .any(|c| matches!(c, Component::ParentDir))

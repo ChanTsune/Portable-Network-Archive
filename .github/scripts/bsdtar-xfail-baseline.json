@@ -16,7 +16,6 @@
     "test_option_xz",
     "test_option_z",
     "test_option_zstd",
-    "test_patterns",
     "test_version"
   ],
   "ubuntu": [
@@ -36,7 +35,6 @@
     "test_option_xz",
     "test_option_z",
     "test_option_zstd",
-    "test_patterns",
     "test_version"
   ],
   "windows": [
@@ -57,7 +55,6 @@
     "test_option_xz",
     "test_option_z",
     "test_option_zstd",
-    "test_patterns",
     "test_version"
   ]
 }
