@@ -433,7 +433,7 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
     let transform_strategy = args.transform_strategy.strategy();
     let sync = args.sync;
     let password = ask_password(args.password)?;
-    let archive_path = &args.archive.file;
+    let archive_path = args.archive.require_file()?;
     if !archive_path.exists() {
         anyhow::bail!("{} is not exists", archive_path.display());
     }
@@ -494,7 +494,7 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
         ),
     };
 
-    let archives = collect_split_archives(&args.archive.file)?;
+    let archives = collect_split_archives(&archive_path)?;
 
     let mut files = args.files.files;
     if args.files_from_stdin {
@@ -531,7 +531,7 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
     let mut resolver = HardlinkResolver::new(collect_options.follow_links);
     let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
 
-    let destination = resolve_rewrite_output(archive_path, args.output, args.overwrite)?;
+    let destination = resolve_rewrite_output(&archive_path, args.output, args.overwrite)?;
     let mut staged = StagedArchive::new(destination.path, umask, destination.overwrite)?;
     let mut out_archive = Archive::write_header(staged.as_file_mut())?;
 
