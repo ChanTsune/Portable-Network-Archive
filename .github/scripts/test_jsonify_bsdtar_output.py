@@ -208,7 +208,7 @@ class TestParseBsdtarTest(unittest.TestCase):
                 {"name": "test_c", "status": "passed"},
             ]
         }
-        expected = {"ubuntu": {"test_a", "test_b"}}
+        expected = {"ubuntu": {"test_a": "reason a", "test_b": "reason b"}}
         comp = mod.compare_expected_failures(
             result, "ubuntu", expected_failures=expected
         )
