@@ -523,9 +523,40 @@ fn write_encoded_value<W: Write + ?Sized>(
     }
 }
 
+const NEEDS_ESCAPE: [bool; 256] = {
+    let mut table = [false; 256];
+    table[b'"' as usize] = true;
+    table[b'\\' as usize] = true;
+    table[b'\0' as usize] = true;
+    table[b'\n' as usize] = true;
+    table[b'\r' as usize] = true;
+    table
+};
+
 fn write_text_value<W: Write + ?Sized>(output: &mut W, value: &[u8]) -> io::Result<()> {
     output.write_all(b"\"")?;
-    output.write_all(&escape_xattr_value_text(value))?;
+    let mut run_start = 0;
+    for (i, &c) in value.iter().enumerate() {
+        if !NEEDS_ESCAPE[c as usize] {
+            continue;
+        }
+        output.write_all(&value[run_start..i])?;
+        match c {
+            b'"' => output.write_all(b"\\\"")?,
+            b'\\' => output.write_all(b"\\\\")?,
+            _ => {
+                let octal = [
+                    b'\\',
+                    b'0' + (c >> 6),
+                    b'0' + ((c & 0o70) >> 3),
+                    b'0' + (c & 0o7),
+                ];
+                output.write_all(&octal)?
+            }
+        }
+        run_start = i + 1;
+    }
+    output.write_all(&value[run_start..])?;
     output.write_all(b"\"")
 }
 
@@ -537,24 +568,8 @@ fn write_base64_value<W: Write + ?Sized>(output: &mut W, value: &[u8]) -> io::Re
     write!(
         output,
         "0s{}",
-        base64::display::Base64Display::new(value, &base64::engine::general_purpose::STANDARD,)
+        base64::display::Base64Display::new(value, &base64::engine::general_purpose::STANDARD)
     )
-}
-
-fn escape_xattr_value_text(text: &[u8]) -> Vec<u8> {
-    let mut result = Vec::with_capacity(text.len());
-    text.iter().for_each(|c| match c {
-        b'"' => result.extend_from_slice(b"\\\""),
-        b'\\' => result.extend_from_slice(b"\\\\"),
-        b'\0' | b'\n' | b'\r' => {
-            result.push(b'\\');
-            result.push(b'0' + (*c >> 6));
-            result.push(b'0' + ((*c & 0o70) >> 3));
-            result.push(b'0' + (*c & 0o7));
-        }
-        _ => result.push(*c),
-    });
-    result
 }
 
 fn unescape_xattr_value_text(text: &[u8]) -> Result<Vec<u8>, ValueError> {
@@ -638,12 +653,31 @@ mod tests {
 
     #[test]
     fn encode_text_preserves_non_utf8_bytes() {
-        let value = [0xff, b'\0', b'\n', b'\r', b'\\', b'"'];
-        let mut expected = vec![b'"'];
-        expected.extend_from_slice(&escape_xattr_value_text(&value));
-        expected.push(b'"');
+        assert_eq!(
+            encode(
+                &[0xff, b'\0', b'\n', b'\r', b'\\', b'"'],
+                Some(Encoding::Text)
+            ),
+            b"\"\xff\\000\\012\\015\\\\\\\"\""
+        );
+    }
 
-        assert_eq!(encode(&value, Some(Encoding::Text)), expected);
+    #[test]
+    fn encode_text_preserves_multibyte_utf8() {
+        assert_eq!(
+            encode("café".as_bytes(), Some(Encoding::Text)),
+            b"\"caf\xc3\xa9\""
+        );
+    }
+
+    #[test]
+    fn encode_text_round_trips_through_value_parser() {
+        let value = b"\"\\\n\r\0\xff";
+        let encoded = encode(value, Some(Encoding::Text));
+        assert_eq!(
+            Value::try_from(encoded.as_slice()).unwrap(),
+            Value(value.to_vec())
+        );
     }
 
     #[test]
@@ -677,21 +711,6 @@ mod tests {
     fn decode_base64() {
         assert_eq!(Value(b"abc".into()), Value::from_str("0sYWJj").unwrap());
         assert_eq!(Value(b"".into()), Value::from_str("0s").unwrap());
-    }
-
-    #[test]
-    fn escape_text() {
-        assert_eq!(b"".as_slice(), escape_xattr_value_text(b""));
-        assert_eq!(b"a\\\\b\\\"".as_slice(), escape_xattr_value_text(b"a\\b\""));
-    }
-
-    #[test]
-    fn escape_unescape() {
-        let value = b"\"\\\n\r\0\xff";
-        assert_eq!(
-            value.as_slice(),
-            unescape_xattr_value_text(&escape_xattr_value_text(value)).unwrap()
-        );
     }
 
     #[test]
