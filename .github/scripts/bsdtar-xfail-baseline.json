@@ -1,60 +1,216 @@
 {
   "macos": [
-    "test_copy",
-    "test_crlf_mtree",
-    "test_option_C_mtree",
-    "test_option_C_upper",
-    "test_option_a",
-    "test_option_b",
-    "test_option_b64encode",
-    "test_option_ignore_zeros_mode_c",
-    "test_option_j",
-    "test_option_lz4",
-    "test_option_lzma",
-    "test_option_r",
-    "test_option_uuencode",
-    "test_option_xz",
-    "test_option_z",
-    "test_option_zstd",
-    "test_version"
+    {
+      "test_name": "test_copy",
+      "reason": "--format=ustar is accepted but ignored, so names longer than the 100-byte ustar name field are archived instead of skipped; the ustar sub-case verifies them against a 100-character limit."
+    },
+    {
+      "test_name": "test_crlf_mtree",
+      "reason": "Asserts raw ustar header bytes at 512-byte offsets (p0 + 512, p0 + 1024); pnatar emits PNA, so the layout can never match."
+    },
+    {
+      "test_name": "test_option_C_mtree",
+      "reason": "Asserts raw ustar header bytes at 512-byte offsets (p0 + 512, p0 + 1024); pnatar emits PNA, so the layout can never match."
+    },
+    {
+      "test_name": "test_option_C_upper",
+      "reason": "-C/--cd is declared as Option<PathBuf>, so clap rejects a repeated -C; bsdtar applies each -C to the operands that follow it."
+    },
+    {
+      "test_name": "test_option_a",
+      "reason": "Requires -a to dispatch on the output suffix and emit compress(1)/zip containers; pnatar always emits PNA."
+    },
+    {
+      "test_name": "test_option_b",
+      "reason": "Asserts exact ustar archive sizes produced by the blocking factor; pnatar emits PNA, which has no ustar blocking."
+    },
+    {
+      "test_name": "test_option_b64encode",
+      "reason": "--b64encode and -Z are not implemented, so the base64 wrapper cannot be applied to the output stream."
+    },
+    {
+      "test_name": "test_option_ignore_zeros_mode_c",
+      "reason": "The @-source path is resolved after -C has already chdir'd, so `@ab-cat.tar -C in c` looks for in/ab-cat.tar; bsdtar resolves each operand against the directory in effect where it appears."
+    },
+    {
+      "test_name": "test_option_j",
+      "reason": "-j is not implemented, and the test additionally requires a bzip2 stream signature on the output."
+    },
+    {
+      "test_name": "test_option_lz4",
+      "reason": "--lz4 is not implemented, and the test additionally requires an lz4 stream signature on the output."
+    },
+    {
+      "test_name": "test_option_lzma",
+      "reason": "--lzma is not implemented, and the test additionally requires an lzma stream signature on the output."
+    },
+    {
+      "test_name": "test_option_r",
+      "reason": "Asserts raw ustar header bytes at 512-byte offsets plus end-of-archive markers; pnatar emits PNA."
+    },
+    {
+      "test_name": "test_option_uuencode",
+      "reason": "--uuencode and -Z are not implemented, so the uuencode wrapper cannot be applied to the output stream."
+    },
+    {
+      "test_name": "test_option_xz",
+      "reason": "The test requires an xz stream signature on the output; pnatar emits PNA."
+    },
+    {
+      "test_name": "test_option_z",
+      "reason": "-z is not implemented, and the test additionally requires a gzip stream signature on the output."
+    },
+    {
+      "test_name": "test_option_zstd",
+      "reason": "The test requires a zstd stream signature on the output; pnatar emits PNA."
+    },
+    {
+      "test_name": "test_version",
+      "reason": "assertVersion() requires `bsdtar <version> - libarchive <version> ...`; --version prints `bsdtar <version> - portable-network-archive <version>`."
+    }
   ],
   "ubuntu": [
-    "test_copy",
-    "test_crlf_mtree",
-    "test_option_C_mtree",
-    "test_option_C_upper",
-    "test_option_a",
-    "test_option_b",
-    "test_option_b64encode",
-    "test_option_ignore_zeros_mode_c",
-    "test_option_j",
-    "test_option_lz4",
-    "test_option_lzma",
-    "test_option_r",
-    "test_option_uuencode",
-    "test_option_xz",
-    "test_option_z",
-    "test_option_zstd",
-    "test_version"
+    {
+      "test_name": "test_copy",
+      "reason": "--format=ustar is accepted but ignored, so names longer than the 100-byte ustar name field are archived instead of skipped; the ustar sub-case verifies them against a 100-character limit."
+    },
+    {
+      "test_name": "test_crlf_mtree",
+      "reason": "Asserts raw ustar header bytes at 512-byte offsets (p0 + 512, p0 + 1024); pnatar emits PNA, so the layout can never match."
+    },
+    {
+      "test_name": "test_option_C_mtree",
+      "reason": "Asserts raw ustar header bytes at 512-byte offsets (p0 + 512, p0 + 1024); pnatar emits PNA, so the layout can never match."
+    },
+    {
+      "test_name": "test_option_C_upper",
+      "reason": "-C/--cd is declared as Option<PathBuf>, so clap rejects a repeated -C; bsdtar applies each -C to the operands that follow it."
+    },
+    {
+      "test_name": "test_option_a",
+      "reason": "Requires -a to dispatch on the output suffix and emit compress(1)/zip containers; pnatar always emits PNA."
+    },
+    {
+      "test_name": "test_option_b",
+      "reason": "Asserts exact ustar archive sizes produced by the blocking factor; pnatar emits PNA, which has no ustar blocking."
+    },
+    {
+      "test_name": "test_option_b64encode",
+      "reason": "--b64encode and -Z are not implemented, so the base64 wrapper cannot be applied to the output stream."
+    },
+    {
+      "test_name": "test_option_ignore_zeros_mode_c",
+      "reason": "The @-source path is resolved after -C has already chdir'd, so `@ab-cat.tar -C in c` looks for in/ab-cat.tar; bsdtar resolves each operand against the directory in effect where it appears."
+    },
+    {
+      "test_name": "test_option_j",
+      "reason": "-j is not implemented, and the test additionally requires a bzip2 stream signature on the output."
+    },
+    {
+      "test_name": "test_option_lz4",
+      "reason": "--lz4 is not implemented, and the test additionally requires an lz4 stream signature on the output."
+    },
+    {
+      "test_name": "test_option_lzma",
+      "reason": "--lzma is not implemented, and the test additionally requires an lzma stream signature on the output."
+    },
+    {
+      "test_name": "test_option_r",
+      "reason": "Asserts raw ustar header bytes at 512-byte offsets plus end-of-archive markers; pnatar emits PNA."
+    },
+    {
+      "test_name": "test_option_uuencode",
+      "reason": "--uuencode and -Z are not implemented, so the uuencode wrapper cannot be applied to the output stream."
+    },
+    {
+      "test_name": "test_option_xz",
+      "reason": "The test requires an xz stream signature on the output; pnatar emits PNA."
+    },
+    {
+      "test_name": "test_option_z",
+      "reason": "-z is not implemented, and the test additionally requires a gzip stream signature on the output."
+    },
+    {
+      "test_name": "test_option_zstd",
+      "reason": "The test requires a zstd stream signature on the output; pnatar emits PNA."
+    },
+    {
+      "test_name": "test_version",
+      "reason": "assertVersion() requires `bsdtar <version> - libarchive <version> ...`; --version prints `bsdtar <version> - portable-network-archive <version>`."
+    }
   ],
   "windows": [
-    "test_crlf_mtree",
-    "test_empty_mtree",
-    "test_list_item",
-    "test_option_C_mtree",
-    "test_option_C_upper",
-    "test_option_a",
-    "test_option_b",
-    "test_option_b64encode",
-    "test_option_j",
-    "test_option_lz4",
-    "test_option_lzma",
-    "test_option_r",
-    "test_option_s",
-    "test_option_uuencode",
-    "test_option_xz",
-    "test_option_z",
-    "test_option_zstd",
-    "test_version"
+    {
+      "test_name": "test_crlf_mtree",
+      "reason": "Asserts raw ustar header bytes at 512-byte offsets (p0 + 512, p0 + 1024); pnatar emits PNA, so the layout can never match."
+    },
+    {
+      "test_name": "test_empty_mtree",
+      "reason": "mtree2 has an explicit compiler_error! for non-Unix targets, so mtree manifests are unsupported on Windows."
+    },
+    {
+      "test_name": "test_list_item",
+      "reason": "bsdtar formats the day of month with %d on Windows (its strftime has no %e) and %e elsewhere; the verbose listing always uses %e."
+    },
+    {
+      "test_name": "test_option_C_mtree",
+      "reason": "Asserts raw ustar header bytes at 512-byte offsets (p0 + 512, p0 + 1024); pnatar emits PNA, so the layout can never match."
+    },
+    {
+      "test_name": "test_option_C_upper",
+      "reason": "-C/--cd is declared as Option<PathBuf>, so clap rejects a repeated -C; bsdtar applies each -C to the operands that follow it."
+    },
+    {
+      "test_name": "test_option_a",
+      "reason": "Requires -a to dispatch on the output suffix and emit compress(1)/zip containers; pnatar always emits PNA."
+    },
+    {
+      "test_name": "test_option_b",
+      "reason": "Asserts exact ustar archive sizes produced by the blocking factor; pnatar emits PNA, which has no ustar blocking."
+    },
+    {
+      "test_name": "test_option_b64encode",
+      "reason": "--b64encode and -Z are not implemented, so the base64 wrapper cannot be applied to the output stream."
+    },
+    {
+      "test_name": "test_option_j",
+      "reason": "-j is not implemented, and the test additionally requires a bzip2 stream signature on the output."
+    },
+    {
+      "test_name": "test_option_lz4",
+      "reason": "--lz4 is not implemented, and the test additionally requires an lz4 stream signature on the output."
+    },
+    {
+      "test_name": "test_option_lzma",
+      "reason": "--lzma is not implemented, and the test additionally requires an lzma stream signature on the output."
+    },
+    {
+      "test_name": "test_option_r",
+      "reason": "Asserts raw ustar header bytes at 512-byte offsets plus end-of-archive markers; pnatar emits PNA."
+    },
+    {
+      "test_name": "test_option_s",
+      "reason": "systemf() runs commands through cmd.exe, so the pnatar.cmd shim lets cmd reinterpret shell metacharacters in -s patterns; the -s regex also lacks the \\< / \\> word-boundary assertions."
+    },
+    {
+      "test_name": "test_option_uuencode",
+      "reason": "--uuencode and -Z are not implemented, so the uuencode wrapper cannot be applied to the output stream."
+    },
+    {
+      "test_name": "test_option_xz",
+      "reason": "The test requires an xz stream signature on the output; pnatar emits PNA."
+    },
+    {
+      "test_name": "test_option_z",
+      "reason": "-z is not implemented, and the test additionally requires a gzip stream signature on the output."
+    },
+    {
+      "test_name": "test_option_zstd",
+      "reason": "The test requires a zstd stream signature on the output; pnatar emits PNA."
+    },
+    {
+      "test_name": "test_version",
+      "reason": "assertVersion() requires `bsdtar <version> - libarchive <version> ...`; --version prints `bsdtar <version> - portable-network-archive <version>`."
+    }
   ]
 }

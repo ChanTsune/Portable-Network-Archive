@@ -16,10 +16,12 @@ DEFAULT_BASELINE = Path(__file__).with_name("bsdtar-xfail-baseline.json")
 # Baseline source of truth is bsdtar-xfail-baseline.json (libarchive v3.8.5).
 # This file is the parser + checker only; update the JSON when bumping
 # libarchive or fixing pna compatibility. See JSON file for per-OS lists.
+# Each list entry is {test_name, reason}; `reason` documents why the test is
+# expected to fail and is not used for comparison.
 
 
 def load_expected_failures(baseline_path=None):
-    """Load {platform: set(names)} from the XFAIL baseline JSON."""
+    """Load {platform: {test_name: reason}} from the XFAIL baseline JSON."""
     path = Path(baseline_path) if baseline_path else DEFAULT_BASELINE
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -27,7 +29,10 @@ def load_expected_failures(baseline_path=None):
         raise SystemExit(f"Error: baseline not found: {path}")
     except json.JSONDecodeError as e:
         raise SystemExit(f"Error: invalid baseline JSON {path}: {e}")
-    return {platform: set(names) for platform, names in data.items()}
+    return {
+        platform: {entry["test_name"]: entry["reason"] for entry in entries}
+        for platform, entries in data.items()
+    }
 
 
 def parse_bsdtar_test_output(lines):
