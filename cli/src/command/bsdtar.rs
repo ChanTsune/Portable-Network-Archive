@@ -885,8 +885,8 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: MissingTimePolicy::Include,
-        missing_mtime: MissingTimePolicy::Include,
+        missing_ctime: MissingTimePolicy::default(),
+        missing_mtime: MissingTimePolicy::default(),
     }
     .resolve()?;
     if let Some(working_dir) = args.working_dir {
@@ -1033,8 +1033,8 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: MissingTimePolicy::Include,
-        missing_mtime: MissingTimePolicy::Include,
+        missing_ctime: MissingTimePolicy::default(),
+        missing_mtime: MissingTimePolicy::default(),
     }
     .resolve()?;
     let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
@@ -1164,8 +1164,8 @@ fn run_list_archive(args: BsdtarCommand) -> anyhow::Result<()> {
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: MissingTimePolicy::Include,
-        missing_mtime: MissingTimePolicy::Include,
+        missing_ctime: MissingTimePolicy::default(),
+        missing_mtime: MissingTimePolicy::default(),
     }
     .resolve()?;
 
@@ -1331,8 +1331,8 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: MissingTimePolicy::Include,
-        missing_mtime: MissingTimePolicy::Include,
+        missing_ctime: MissingTimePolicy::default(),
+        missing_mtime: MissingTimePolicy::default(),
     }
     .resolve()?;
     if let Some(working_dir) = args.working_dir {
@@ -1515,8 +1515,8 @@ fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: MissingTimePolicy::Include,
-        missing_mtime: MissingTimePolicy::Include,
+        missing_ctime: MissingTimePolicy::default(),
+        missing_mtime: MissingTimePolicy::default(),
     }
     .resolve()?;
     let collect_options = CollectOptions {
@@ -1545,7 +1545,7 @@ fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
         &create_options,
         target_items,
         false,
-        MissingTimePolicy::Include,
+        MissingTimePolicy::default(),
         &mut out_archive,
         TransformStrategyUnSolid,
         args.verbose,

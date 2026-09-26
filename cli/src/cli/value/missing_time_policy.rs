@@ -12,6 +12,13 @@ pub(crate) enum MissingTimePolicy {
     Assume(SystemTime),
 }
 
+impl Default for MissingTimePolicy {
+    /// Assume the Unix epoch for entries missing a timestamp.
+    fn default() -> Self {
+        Self::Assume(UNIX_EPOCH)
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum MissingTimePolicyError {
     #[error(transparent)]
