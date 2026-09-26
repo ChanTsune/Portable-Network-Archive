@@ -46,7 +46,6 @@ pub(crate) use time_filter::{TimeFilter, TimeFilters, TimeRange};
 
 /// Detected format of an @archive source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(not(unix), allow(dead_code))]
 pub(crate) enum SourceFormat {
     /// PNA archive format (detected by magic bytes)
     Pna,
@@ -58,7 +57,6 @@ pub(crate) enum SourceFormat {
 ///
 /// Returns `SourceFormat::Pna` if the data starts with PNA magic bytes,
 /// otherwise returns `SourceFormat::Mtree`.
-#[cfg_attr(not(unix), allow(dead_code))]
 pub(crate) fn detect_format<R: io::BufRead>(reader: &mut R) -> io::Result<SourceFormat> {
     let buf = reader.fill_buf()?;
 
@@ -1967,7 +1965,6 @@ pub(crate) fn transform_archive_entries<R: io::Read>(
 /// This function auto-detects the format of the source:
 /// - PNA archive: Copies entries with optional transformation
 /// - mtree manifest: Reads files from filesystem with metadata overrides (Unix only)
-#[cfg(unix)]
 pub(crate) fn read_archive_source(
     source: &ArchiveSource,
     create_options: &CreateOptions,
@@ -1997,9 +1994,15 @@ pub(crate) fn read_archive_source(
                 password,
                 allow_concatenated_archives,
             ),
+            #[cfg(unix)]
             SourceFormat::Mtree => {
                 mtree::transform_mtree_entries(reader, create_options, filter, time_filters)
             }
+            #[cfg(not(unix))]
+            SourceFormat::Mtree => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "mtree manifests are not supported on this platform",
+            )),
         }
         .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", source_name, e)))
     }
@@ -2030,48 +2033,6 @@ pub(crate) fn read_archive_source(
                 password,
                 allow_concatenated_archives,
             )
-        }
-    }
-}
-
-/// Reads entries from an archive source (file or stdin) and transforms them.
-///
-/// On non-Unix platforms, only PNA format is supported. mtree format is not available.
-#[cfg(not(unix))]
-pub(crate) fn read_archive_source(
-    source: &ArchiveSource,
-    create_options: &CreateOptions,
-    filter: &PathFilter<'_>,
-    time_filters: &TimeFilters,
-    password: Option<&[u8]>,
-    allow_concatenated_archives: bool,
-) -> io::Result<Vec<io::Result<Option<NormalEntry>>>> {
-    match source {
-        ArchiveSource::File(path) => {
-            let file = fs::File::open(path)
-                .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", path.display(), e)))?;
-            let reader = io::BufReader::with_capacity(64 * 1024, file);
-            transform_archive_entries(
-                reader,
-                create_options,
-                filter,
-                time_filters,
-                password,
-                allow_concatenated_archives,
-            )
-            .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", path.display(), e)))
-        }
-        ArchiveSource::Stdin => {
-            let reader = io::BufReader::new(io::stdin().lock());
-            transform_archive_entries(
-                reader,
-                create_options,
-                filter,
-                time_filters,
-                password,
-                allow_concatenated_archives,
-            )
-            .map_err(|e| io::Error::new(e.kind(), format!("<stdin>: {}", e)))
         }
     }
 }
