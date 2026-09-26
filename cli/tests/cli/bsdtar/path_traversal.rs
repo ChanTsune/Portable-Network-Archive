@@ -157,7 +157,7 @@ fn bsdtar_extract_blocks_symlink_with_parent_dir_target() {
             out_dir.to_str().unwrap(),
         ])
         .assert()
-        .success();
+        .failure();
 
     assert!(
         out_dir.join("b/file.txt").exists(),
@@ -349,7 +349,7 @@ fn bsdtar_extract_blocks_hardlink_with_parent_dir_target() {
             out_dir.to_str().unwrap(),
         ])
         .assert()
-        .success();
+        .failure();
 
     assert!(
         out_dir.join("a/file.txt").exists(),
@@ -394,7 +394,7 @@ fn bsdtar_extract_rejects_hardlink_with_dotdot_by_default() {
             out_dir.to_str().unwrap(),
         ])
         .assert()
-        .success();
+        .failure();
 
     assert!(
         out_dir.join("a/file.txt").exists(),
@@ -722,7 +722,7 @@ fn bsdtar_extract_rejects_entry_with_dotdot() {
             out_dir.to_str().unwrap(),
         ])
         .assert()
-        .success();
+        .failure();
 
     assert!(
         !out_dir.join("b/file.txt").exists(),
@@ -772,7 +772,8 @@ fn bsdtar_extract_allows_entry_with_dotdot_with_absolute_paths() {
 
 /// Precondition: Archive contains a symlink whose target uses Windows-style backslash parent traversal
 /// Action: Extract with bsdtar -x and --no-allow-unsafe-links
-/// Expectation: Symlink is not created (blocked by cross-platform unsafe link detection)
+/// Expectation: Symlink is not created (blocked by cross-platform unsafe link detection),
+/// and extraction exits non-zero like bsdtar does on ARCHIVE_WARN
 #[test]
 fn bsdtar_extract_blocks_symlink_with_windows_style_parent_dir_target() {
     setup();
@@ -804,7 +805,7 @@ fn bsdtar_extract_blocks_symlink_with_windows_style_parent_dir_target() {
             out_dir.to_str().unwrap(),
         ])
         .assert()
-        .success();
+        .failure();
 
     assert!(
         out_dir.join("b/file.txt").exists(),
@@ -818,7 +819,8 @@ fn bsdtar_extract_blocks_symlink_with_windows_style_parent_dir_target() {
 
 /// Precondition: Archive contains a hardlink whose target uses Windows-style backslash parent traversal
 /// Action: Extract with bsdtar -x and --no-allow-unsafe-links
-/// Expectation: Hardlink is not created (blocked by cross-platform unsafe link detection)
+/// Expectation: Hardlink is not created (blocked by cross-platform unsafe link detection),
+/// and extraction exits non-zero like bsdtar does on ARCHIVE_WARN
 #[test]
 fn bsdtar_extract_blocks_hardlink_with_windows_style_parent_dir_target() {
     setup();
@@ -850,7 +852,7 @@ fn bsdtar_extract_blocks_hardlink_with_windows_style_parent_dir_target() {
             out_dir.to_str().unwrap(),
         ])
         .assert()
-        .success();
+        .failure();
 
     assert!(
         out_dir.join("a/file.txt").exists(),

@@ -6,13 +6,14 @@ use crate::utils::fs::lchown;
 use crate::{
     cli::{ArchiveFileArgs, DateTime, FileOperands, MissingTimePolicy, PasswordArgs},
     command::{
-        Command, ask_password,
+        Command, ExitCodeError, ask_password,
         core::{
             AclStrategy, FflagsStrategy, KeepOptions, MacMetadataStrategy, ModeStrategy,
             OwnerOptions, OwnerStrategy, PathFilter, PathTransformers, PathnameEditor,
             PermissionStrategyResolver, ProcessAction, SafeWriter, TimeFilterResolver, TimeFilters,
             TimestampStrategy, TimestampStrategyResolver, Umask, XattrStrategy,
             collect_split_archives,
+            path::has_parent_dir_component,
             path_lock::OrderedPathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, run_process_archive_readers, run_process_archive_readers_stoppable,
@@ -506,7 +507,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         warned_lead_slash: Arc::new(AtomicBool::new(false)),
     };
     #[cfg(not(feature = "memmap"))]
-    run_extract_archive_reader(
+    let outcome = run_extract_archive_reader(
         archives
             .into_iter()
             .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
@@ -529,7 +530,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let archives = mmaps.iter().map(|m| m.as_ref());
 
     #[cfg(feature = "memmap")]
-    run_extract_archive(
+    let outcome = run_extract_archive(
         archives,
         files,
         || password.as_deref(),
@@ -542,6 +543,9 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         "Successfully extracted an archive in {}",
         DurationDisplay(start.elapsed())
     );
+    if outcome == Outcome::Warn {
+        return Err(anyhow::Error::from(ExitCodeError::silent(1)));
+    }
     Ok(())
 }
 
@@ -601,7 +605,7 @@ pub(crate) fn run_extract_archive_reader<'a, 'p, Provider>(
     no_recursive: bool,
     fast_read: bool,
     allow_concatenated_archives: bool,
-) -> anyhow::Result<()>
+) -> anyhow::Result<Outcome>
 where
     Provider: FnMut() -> Option<&'p [u8]> + Send,
 {
@@ -615,6 +619,7 @@ where
 
     let mut link_entries = Vec::new();
     let mut dir_metadata = Vec::new();
+    let mut security_skips = SecuritySkips::default();
 
     // On single-threaded targets (e.g. non-threaded WASM), spawned jobs cannot
     // run until the reader closure returns, so queueing every entry would
@@ -634,6 +639,10 @@ where
                     let item_path = item.name().to_string();
                     let name = match filter_entry_fast_read(&item, &item_path, &mut globs, args) {
                         FastReadFilterAction::Skip(action) => return Ok(action),
+                        FastReadFilterAction::SecuritySkip(action) => {
+                            security_skips.record(item_path.as_str());
+                            return Ok(action);
+                        }
                         FastReadFilterAction::Accept(name) => name,
                     };
                     if args.verbose {
@@ -702,8 +711,13 @@ where
                     let item = entry.map_err(|e| {
                         io::Error::new(e.kind(), format!("reading archive entry: {e}"))
                     })?;
-                    let Some(name) = filter_entry(&item, &mut globs, args) else {
-                        return Ok(());
+                    let name = match filter_entry(&item, &mut globs, args) {
+                        FilterResult::Skipped => return Ok(()),
+                        FilterResult::SecuritySkipped => {
+                            security_skips.record(item.name().as_str());
+                            return Ok(());
+                        }
+                        FilterResult::Accept(name) => name,
                     };
                     if args.verbose {
                         eprintln!("x {}", name);
@@ -761,8 +775,11 @@ where
     }
 
     for (name, item) in link_entries {
-        extract_link_entry(item, &name, read_options, args)
+        let result = extract_link_entry(item, &name, read_options, args)
             .with_context(|| format!("extracting deferred link {name}"))?;
+        if result == ExtractResult::SecuritySkipped {
+            security_skips.record(name.as_str());
+        }
     }
 
     // Apply deferred directory metadata (deepest paths first, so child metadata
@@ -776,7 +793,12 @@ where
     }
 
     globs.ensure_all_matched()?;
-    Ok(())
+    if security_skips.is_empty() {
+        Ok::<Outcome, anyhow::Error>(Outcome::Success)
+    } else {
+        security_skips.report();
+        Ok::<Outcome, anyhow::Error>(Outcome::Warn)
+    }
 }
 
 #[cfg(feature = "memmap")]
@@ -788,7 +810,7 @@ pub(crate) fn run_extract_archive<'a, 'd, 'p, Provider>(
     args: OutputOption<'a>,
     no_recursive: bool,
     fast_read: bool,
-) -> anyhow::Result<()>
+) -> anyhow::Result<Outcome>
 where
     Provider: FnMut() -> Option<&'p [u8]> + Send,
 {
@@ -801,6 +823,7 @@ where
 
     let mut link_entries: Vec<(EntryName, NormalEntry<Vec<u8>>)> = Vec::new();
     let mut dir_metadata: Vec<(EntryName, NormalEntry<Vec<u8>>)> = Vec::new();
+    let mut security_skips = SecuritySkips::default();
 
     let (tx, rx) = std::sync::mpsc::channel();
 
@@ -813,6 +836,10 @@ where
                 let item_path = item.name().to_string();
                 let name = match filter_entry_fast_read(&item, &item_path, &mut globs, args) {
                     FastReadFilterAction::Skip(action) => return Ok(action),
+                    FastReadFilterAction::SecuritySkip(action) => {
+                        security_skips.record(item_path.as_str());
+                        return Ok(action);
+                    }
                     FastReadFilterAction::Accept(name) => name,
                 };
                 if args.verbose {
@@ -869,8 +896,13 @@ where
             run_process_archive_bytes(archives, read_options, |entry| {
                 let item = entry
                     .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
-                let Some(name) = filter_entry(&item, &mut globs, args) else {
-                    return Ok(());
+                let name = match filter_entry(&item, &mut globs, args) {
+                    FilterResult::Skipped => return Ok(()),
+                    FilterResult::SecuritySkipped => {
+                        security_skips.record(item.name().as_str());
+                        return Ok(());
+                    }
+                    FilterResult::Accept(name) => name,
                 };
                 if args.verbose {
                     eprintln!("x {}", name);
@@ -917,8 +949,11 @@ where
     }
 
     for (name, item) in link_entries {
-        extract_link_entry(item, &name, read_options, args)
+        let result = extract_link_entry(item, &name, read_options, args)
             .with_context(|| format!("extracting deferred link {name}"))?;
+        if result == ExtractResult::SecuritySkipped {
+            security_skips.record(name.as_str());
+        }
     }
 
     // Apply deferred directory metadata (deepest paths first, so child metadata
@@ -932,7 +967,12 @@ where
     }
 
     globs.ensure_all_matched()?;
-    Ok(())
+    if security_skips.is_empty() {
+        Ok::<Outcome, anyhow::Error>(Outcome::Success)
+    } else {
+        security_skips.report();
+        Ok::<Outcome, anyhow::Error>(Outcome::Warn)
+    }
 }
 
 #[inline]
@@ -952,33 +992,124 @@ fn filter_entry<T: AsRef<[u8]>>(
     item: &NormalEntry<T>,
     globs: &mut BsdGlobMatcher<'_>,
     args: &OutputOption<'_>,
-) -> Option<EntryName>
+) -> FilterResult
 where
     pna::RawChunk<T>: Chunk,
 {
     let item_name = item.name();
     if !globs.is_empty() && !globs.matches(item_name) {
         log::debug!("Skip: {item_name}");
-        return None;
+        return FilterResult::Skipped;
     }
     if args.filter.excluded(item_name) {
         log::debug!("Skip: {item_name}");
-        return None;
+        return FilterResult::Skipped;
     }
     if !entry_matches_time_filters(item, &args.time_filters) {
         log::debug!("Skip: {item_name}");
-        return None;
+        return FilterResult::Skipped;
     }
-    let name = args.pathname_editor.edit_entry_name(item_name.as_path());
-    if name.is_none() {
+    let Some(name) = args.pathname_editor.edit_entry_name(item_name.as_path()) else {
+        // Distinguish security-related skips (path traversal) from benign skips
+        // (path became empty after sanitization, e.g. "." entries).
+        if has_parent_dir_component(item_name.as_str()) {
+            log::warn!("Skipping entry with unsafe path: {item_name}");
+            return FilterResult::SecuritySkipped;
+        }
         log::debug!("Skip: {item_name}");
+        return FilterResult::Skipped;
+    };
+    FilterResult::Accept(name)
+}
+
+/// Entries skipped for path-security reasons during a single extraction.
+///
+/// The reader callback runs single-threaded (parallelism is only introduced
+/// via explicitly spawned jobs that never touch this), and the deferred link
+/// loop runs after the rayon scope joins, so no synchronization is needed.
+///
+/// The summary is printed with `eprintln!` rather than `log::warn!` so it
+/// stays visible even when the log level is `error` (as used by the
+/// bsdtar-compat wrapper, where these skips fail conformance tests if silent).
+#[derive(Debug, Default)]
+struct SecuritySkips {
+    /// Total number of skipped entries.
+    count: usize,
+    /// Example paths, bounded to avoid unbounded memory on hostile archives.
+    samples: Vec<String>,
+}
+
+impl SecuritySkips {
+    /// Maximum number of skipped paths shown in the summary line.
+    const MAX_SAMPLES: usize = 5;
+
+    fn record(&mut self, path: &str) {
+        self.count += 1;
+        if self.samples.len() < Self::MAX_SAMPLES {
+            self.samples.push(path.to_owned());
+        }
     }
-    name
+
+    fn is_empty(&self) -> bool {
+        self.count == 0
+    }
+
+    /// Prints a one-line summary to stderr. Always visible (never log-gated).
+    fn report(&self) {
+        debug_assert!(!self.is_empty());
+        let mut line = format!(
+            "pna: warning: skipped {} {} due to path security violations: ",
+            self.count,
+            if self.count == 1 { "entry" } else { "entries" },
+        );
+        for (i, sample) in self.samples.iter().enumerate() {
+            if i > 0 {
+                line.push_str(", ");
+            }
+            line.push('"');
+            line.push_str(sample);
+            line.push('"');
+        }
+        if self.count > self.samples.len() {
+            line.push_str(&format!(", and {} more", self.count - self.samples.len()));
+        }
+        eprintln!("{line}");
+    }
+}
+
+/// Outcome of an extraction operation, tracking whether security warnings occurred.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum Outcome {
+    #[default]
+    Success,
+    Warn,
+}
+
+/// Result of filtering an entry before extraction.
+enum FilterResult {
+    /// Entry accepted for extraction.
+    Accept(EntryName),
+    /// Entry skipped by user-specified filters (glob, exclude, time).
+    Skipped,
+    /// Entry skipped due to path security violation (traversal, empty after strip).
+    SecuritySkipped,
+}
+
+/// Result of extracting a single entry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ExtractResult {
+    /// Entry successfully extracted.
+    Extracted,
+    /// Entry skipped by overwrite strategy (keep-newer, keep-older).
+    Skipped,
+    /// Entry skipped due to unsafe link target.
+    SecuritySkipped,
 }
 
 enum FastReadFilterAction {
     Accept(EntryName),
     Skip(ProcessAction),
+    SecuritySkip(ProcessAction),
 }
 
 fn filter_entry_fast_read<T: AsRef<[u8]>>(
@@ -1007,6 +1138,10 @@ where
         };
     }
     let Some(name) = args.pathname_editor.edit_entry_name(item.name().as_path()) else {
+        if has_parent_dir_component(item.name().as_str()) {
+            log::warn!("Skipping entry with unsafe path: {item_path}");
+            return FastReadFilterAction::SecuritySkip(ProcessAction::Continue);
+        }
         log::debug!("Skip: {item_path}");
         return FastReadFilterAction::Skip(ProcessAction::Continue);
     };
@@ -1297,7 +1432,7 @@ pub(crate) fn extract_link_entry<'a, T>(
         warned_lead_slash,
         ..
     }: &OutputOption<'a>,
-) -> io::Result<()>
+) -> io::Result<ExtractResult>
 where
     T: AsRef<[u8]>,
     pna::RawChunk<T>: Chunk,
@@ -1311,7 +1446,7 @@ where
         *absolute_paths,
     )?
     else {
-        return Ok(());
+        return Ok(ExtractResult::Skipped);
     };
 
     match item.content(read_options)? {
@@ -1321,7 +1456,7 @@ where
                 log::warn!(
                     "Skipped extracting a symbolic link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
                 );
-                return Ok(());
+                return Ok(ExtractResult::SecuritySkipped);
             }
             if *safe_writes || remove_existing {
                 utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
@@ -1333,11 +1468,21 @@ where
             let Some((original, had_root)) =
                 pathname_editor.edit_hardlink(Path::new(stored.as_str()))
             else {
-                log::warn!(
-                    "Skipped extracting a hard link that pointed at a file which was skipped.: {}",
+                // A target that became empty after stripping (e.g. too short
+                // for --strip-components) is benign; only real traversal is
+                // a security skip. Mirrors the distinction in `filter_entry`.
+                if has_parent_dir_component(stored.as_str()) {
+                    log::warn!(
+                        "Skipped extracting a hard link that pointed at a file which was skipped.: {}",
+                        stored
+                    );
+                    return Ok(ExtractResult::SecuritySkipped);
+                }
+                log::debug!(
+                    "Skipped extracting a hard link whose target was stripped away: {}",
                     stored
                 );
-                return Ok(());
+                return Ok(ExtractResult::Skipped);
             };
             if had_root && !warned_lead_slash.swap(true, Ordering::Relaxed) {
                 eprintln!("bsdtar: Removing leading '/' from member names");
@@ -1346,7 +1491,7 @@ where
                 log::warn!(
                     "Skipped extracting a hard link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
                 );
-                return Ok(());
+                return Ok(ExtractResult::SecuritySkipped);
             }
             let original = if let Some(out_dir) = out_dir {
                 Cow::from(out_dir.join(original))
@@ -1363,7 +1508,7 @@ where
 
     restore_metadata(&item, &path, keep_options)?;
     log::debug!("end: {}", path.display());
-    Ok(())
+    Ok(ExtractResult::Extracted)
 }
 
 #[inline]
