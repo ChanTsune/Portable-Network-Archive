@@ -274,7 +274,7 @@ pub(crate) struct ExtractCommand {
         long,
         requires_all = ["unstable", "time-filter"],
         help_heading = "Unstable Options",
-        help = "Behavior for entries missing a timestamp needed by the time filters (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]"
+        help = "Behavior for entries missing a timestamp needed by the time filters (unstable). Values: include, exclude, now, epoch, or a datetime. [default: epoch]"
     )]
     missing_time: Option<MissingTimePolicy>,
     #[arg(
@@ -444,8 +444,8 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: args.missing_time.unwrap_or(MissingTimePolicy::Include),
-        missing_mtime: args.missing_time.unwrap_or(MissingTimePolicy::Include),
+        missing_ctime: args.missing_time.unwrap_or_default(),
+        missing_mtime: args.missing_time.unwrap_or_default(),
     }
     .resolve()?;
     let overwrite_strategy = OverwriteStrategy::from_flags(

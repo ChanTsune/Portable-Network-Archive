@@ -165,7 +165,7 @@ pub(crate) struct ListCommand {
         long,
         requires_all = ["unstable", "time-filter"],
         help_heading = "Unstable Options",
-        help = "Behavior for entries missing a timestamp needed by the time filters (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]"
+        help = "Behavior for entries missing a timestamp needed by the time filters (unstable). Values: include, exclude, now, epoch, or a datetime. [default: epoch]"
     )]
     missing_time: Option<MissingTimePolicy>,
     #[arg(
@@ -499,8 +499,8 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: args.missing_time.unwrap_or(MissingTimePolicy::Include),
-        missing_mtime: args.missing_time.unwrap_or(MissingTimePolicy::Include),
+        missing_ctime: args.missing_time.unwrap_or_default(),
+        missing_mtime: args.missing_time.unwrap_or_default(),
     }
     .resolve()?;
 
