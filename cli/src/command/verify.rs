@@ -19,7 +19,7 @@ pub(crate) struct VerifyCommand {
     #[arg(
         long,
         help = "Verify chunk structure and CRC32 only, without decoding entry data",
-        long_help = "Verify chunk structure and CRC32 only. No entry data is decoded, so neither the entries contained in a solid block nor corruption that leaves a chunk's CRC32 intact are checked. Every entry whose chunks are intact is counted as ok, and no password is required."
+        long_help = "Verify only chunk structure and CRC32. No entry data is decoded, so neither the entries contained in a solid block nor corruption that leaves a chunk's CRC32 intact are checked. Every entry whose chunks are intact is counted as ok, and no password is required."
     )]
     fast: bool,
     #[command(flatten)]

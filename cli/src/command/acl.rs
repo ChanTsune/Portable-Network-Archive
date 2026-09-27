@@ -97,7 +97,7 @@ pub(crate) struct SetAclCommand {
     #[arg(
         short = 'x',
         long,
-        help = "Remove the ACL entries specified there from the access or default ACL of the specified files."
+        help = "Remove the ACL entries specified there from the access or default ACLs of the specified files."
     )]
     remove: Option<AclEntries>,
     #[arg(
@@ -108,7 +108,7 @@ pub(crate) struct SetAclCommand {
     platform: AcePlatform,
     #[arg(
         long,
-        help = "Restore a permission backup created by `pna acl get *` or similar from a file. All permissions of a complete directory subtree are restored using this mechanism",
+        help = "Restore from a file a permission backup created by `pna acl get *` or similar. All permissions of a complete directory subtree are restored using this mechanism",
         value_hint = ValueHint::FilePath
     )]
     restore: Option<PathBuf>,

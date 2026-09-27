@@ -1094,7 +1094,7 @@ fn bsdtar_extract_with_p_restores_xattr() {
     );
 }
 
-/// Precondition: Archive contains file with 0o755, running as non-root.
+/// Precondition: Archive contains file with 0o755, and the test runs as non-root.
 /// Action: Extract with --no-same-permissions flag.
 /// Expectation: Permissions are masked (umask applied, special bits cleared).
 #[test]
@@ -1202,7 +1202,7 @@ fn bsdtar_extract_with_p_preserves_special_bits() {
     );
 }
 
-/// Precondition: Archive contains file with 0o755, running as root.
+/// Precondition: Archive contains file with 0o755; the test runs as root.
 /// Action: Extract WITHOUT -p flag (root default behavior).
 /// Expectation: Permissions are PRESERVED exactly (root defaults to Preserve mode).
 #[test]
@@ -1253,7 +1253,7 @@ fn bsdtar_extract_root_default_preserves_permissions() {
     );
 }
 
-/// Precondition: Archive contains file with 0o755, running as root.
+/// Precondition: Archive contains file with 0o755; the test runs as root.
 /// Action: Extract with --no-same-permissions flag.
 /// Expectation: Permissions are MASKED (--no-same-permissions overrides root default).
 #[test]

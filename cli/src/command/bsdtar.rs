@@ -182,7 +182,7 @@ pub(crate) struct BsdtarCommand {
         visible_alias = "unlink",
         requires_all = ["extract", "unstable"],
         help_heading = "Unstable Options",
-        help = "Unlink files before creating them; also removes intervening directory symlinks (extract mode only)"
+        help = "(extract mode only) Unlink files before creating them; also removes intervening directory symlinks."
     )]
     unlink_first: bool,
     #[arg(
@@ -230,7 +230,7 @@ pub(crate) struct BsdtarCommand {
         visible_alias = "preserve-permissions",
         requires = "unstable",
         help_heading = "Unstable Options",
-        help = "Restore file permissions (mode, ACLs, xattrs, fflags, mac-metadata, but NOT ownership) (extract only)"
+        help = "Restore file permissions (mode, ACLs, xattrs, fflags, mac-metadata, but NOT ownership; extract only)"
     )]
     same_permissions: bool,
     #[arg(
@@ -581,13 +581,13 @@ pub(crate) struct BsdtarCommand {
     to_stdout: bool,
     #[arg(
         long,
-        help = "Allow extracting symbolic links and hard links that contain root or parent paths (default)",
+        help = "Allow extracting symbolic or hard links containing root or parent paths (default)",
         default_value_t = true
     )]
     allow_unsafe_links: bool,
     #[arg(
         long,
-        help = "Do not allow extracting symbolic links and hard links that contain root or parent paths"
+        help = "Do not allow extracting symbolic links or hard links if either contains root or parent paths"
     )]
     no_allow_unsafe_links: bool,
     #[arg(
