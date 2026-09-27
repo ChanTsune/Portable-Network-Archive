@@ -1254,9 +1254,8 @@ mod tests {
             assert_eq!(out, REPRESENTATIVE);
         }
 
-        /// Copying re-serializes the parsed header, so the entry stays
-        /// decryptable only while that reproduces the header bytes the stream key
-        /// was derived from.
+        /// Copying re-serializes the parsed header, so the entry stays decryptable only while this
+        /// re-serialization reproduces the header bytes the stream key was derived from.
         #[test]
         fn copied_entry_remains_decryptable() {
             let options = gcm_options(Encryption::AES, Compression::NO, 4);

@@ -2,8 +2,8 @@ use crate::utils::{EmbedExt, TestResources, archive, archive::FileEntryDef, setu
 use clap::Parser;
 use portable_network_archive::cli;
 
-/// A file entry from the 0.33.0 `zstd_keep_permission` fixture, which
-/// carries only legacy `fPRM` (no owner facets): `uid=501
+/// A file entry carrying only legacy `fPRM` (no owner facets) from
+/// the 0.33.0 `zstd_keep_permission` fixture: `uid=501
 /// uname="kaihatsutarou" gid=20 gname="staff"`, mode `0o100644` unmasked
 /// (`0o644` once read back through `PermissionMode`).
 const LEGACY_FIXTURE_ENTRY: &str = "raw/text.txt";

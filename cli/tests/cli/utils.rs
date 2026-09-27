@@ -73,8 +73,8 @@ pub fn setup() {
     std::env::set_current_dir(env!("CARGO_TARGET_TMPDIR")).expect("Failed to set current dir");
 }
 
-/// Environment variable listing capabilities (comma-separated) whose absence
-/// is a failure rather than a skip. CI sets it per job so that a precondition
+/// Environment variable listing capabilities (comma-separated); a listed
+/// capability's absence is a failure rather than a skip. CI sets it per job so that a precondition
 /// which should hold on that runner cannot silently turn a test green.
 pub const REQUIRE_ENV: &str = "PNA_TEST_REQUIRE";
 

@@ -210,8 +210,8 @@ pub struct OpaqueEntryBuilder {
 pub type EntryBuilder = OpaqueEntryBuilder;
 
 impl OpaqueEntryBuilder {
-    /// Creates a builder for an entry of the given kind that stores its
-    /// data without compression or encryption.
+    /// Creates a builder for an entry whose data is stored without compression
+    /// or encryption.
     ///
     /// The entry data is written via the [`Write`] trait as an opaque byte
     /// stream; its interpretation is left to the application. Prefer the

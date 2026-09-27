@@ -321,8 +321,8 @@ fn bsdtar_mtree_symlink_entry() {
     );
 }
 
-/// Precondition: An mtree manifest specifies type=link entries WITHOUT a link= directive,
-/// backed by real filesystem symlinks.
+/// Precondition: An mtree manifest specifies type=link entries WITHOUT a link= directive;
+/// the entries are backed by real filesystem symlinks.
 /// Action: Create archive from the mtree manifest.
 /// Expectation: No symlink entry carries fLTP metadata. The mtree format does
 /// not represent link target type, and `pna compat bsdtar` is for bsdtar

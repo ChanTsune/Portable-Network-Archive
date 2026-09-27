@@ -2342,8 +2342,8 @@ mod tests {
         }
     }
 
-    /// Deliberately runs with an algorithm, a mode and a compression the source
-    /// does not use: all three must come from the source entry, or a rename
+    /// Deliberately runs with an algorithm, a mode, and a compression, none of
+    /// which the source uses: all three must come from the source entry, or a rename
     /// silently re-encodes it under whatever this run happens to be writing.
     #[test]
     fn gcm_reencrypt_takes_the_cipher_and_compression_from_the_source_entry() {

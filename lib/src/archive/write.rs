@@ -30,7 +30,7 @@ pub(crate) type InternalDataWriter<W> = CompressionWriter<CipherWriter<W>>;
 /// Internal Writer type alias.
 pub(crate) type InternalArchiveDataWriter<W> = InternalDataWriter<ChunkStreamWriter<W>>;
 
-/// Writer for an entry payload, compressed and encrypted according to the given options.
+/// Writer for an entry payload that is compressed and encrypted according to the given options.
 pub struct EntryDataWriter<W: WriteChunk>(InternalArchiveDataWriter<W>);
 
 impl<W: WriteChunk> Write for EntryDataWriter<W> {
@@ -1417,11 +1417,10 @@ mod tests {
         }
     }
 
-    /// `write_stream_entry` flushes the compression/cipher/`ChunkStreamWriter`
-    /// stack after each streamed entry, which descends to
-    /// `ChunkStreamWriter::flush` -> `WriteChunk::flush_chunks` on the
-    /// archive's writer. Exercised via `Archive::write_file`, before
-    /// `finalize` is even called.
+    /// `write_stream_entry` flushes the compression/cipher/`ChunkStreamWriter` stack after each
+    /// streamed entry; the stack descends to `ChunkStreamWriter::flush` ->
+    /// `WriteChunk::flush_chunks` on the archive's writer. Exercised via
+    /// `Archive::write_file`, before `finalize` is even called.
     #[test]
     fn write_file_propagates_flush_to_inner_writer() {
         let flushes = Rc::new(Cell::new(0));

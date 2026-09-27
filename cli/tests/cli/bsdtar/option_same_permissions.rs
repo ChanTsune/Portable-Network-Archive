@@ -763,7 +763,8 @@ fn bsdtar_extract_no_same_permissions_alone() {
 // Behavioral Verification Tests
 // =============================================================================
 
-/// Precondition: Archive contains file with executable permission (0o755), running as non-root.
+/// Precondition: Archive contains file with executable permission (0o755), and the test runs as
+/// non-root.
 /// Action: Extract WITHOUT -p flag (default behavior for non-root).
 /// Expectation: Extracted file has mode masked by umask.
 #[test]

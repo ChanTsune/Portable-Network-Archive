@@ -1742,9 +1742,9 @@ where
 
 /// Restore POSIX/Windows ACLs on a filesystem path when ACL preservation is enabled.
 ///
-/// When `acl_strategy` is `AclStrategy::Always`, selects the ACL entries that match the current
-/// platform if present, otherwise uses the first available platform-tagged ACL set, and applies
-/// them to `path`. Empty ACL lists are ignored.
+/// When `acl_strategy` is `AclStrategy::Always`, selects the ACL entries matching the current
+/// platform when such entries are present; otherwise uses the first available platform-tagged
+/// ACL set, and applies them to `path`. Empty ACL lists are ignored.
 ///
 /// On platforms without ACL support, this emits a warning and returns successfully.
 /// On supported platforms, if the target filesystem does not support ACLs (e.g., FAT32),

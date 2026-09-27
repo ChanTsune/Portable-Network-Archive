@@ -470,8 +470,8 @@ fn compare_metadata<T: AsRef<[u8]>>(
     let mut missing =
         |field: CompareField, reason: Uncomparable| uncompared.record_entry(field, reason, path);
     let mut diffs = Vec::new();
-    // Only numeric ownership facets are compared here; borrow metadata to avoid
-    // cloning owner names and SIDs that this path never reads.
+    // Only numeric ownership facets are compared here; borrow metadata to avoid cloning
+    // owner names and SIDs because this path never reads them.
     #[cfg(unix)]
     let metadata = entry.metadata();
 

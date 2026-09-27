@@ -228,9 +228,9 @@ fn sanitize_preserve_curdir_reference(reference: EntryReference) -> EntryReferen
 
 /// Returns `true` if the path is unsafe as a link reference.
 ///
-/// A link is unsafe if it contains an absolute path component (root separator,
-/// drive letter, or Windows API prefix) or a parent directory (`..`) component
-/// under either host or Windows path semantics.
+/// A link is unsafe if, under either host or Windows path semantics, it
+/// contains an absolute path component (root separator, drive letter, or Windows API prefix)
+/// or a parent directory (`..`) component.
 pub(crate) fn is_unsafe_link_path(s: &str) -> bool {
     let (rewritten, had_root) = strip_absolute_path_bsdtar(s);
     had_root || has_parent_dir_component(rewritten)

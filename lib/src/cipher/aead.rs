@@ -2,8 +2,8 @@
 //!
 //! Binding the entry header into the stream key means an entry cannot be moved
 //! or renamed without re-encrypting it. The key confirmation exists so that a
-//! decoder can tell a wrong password from tampered data before it processes a
-//! segment, which a GCM tag alone cannot distinguish.
+//! decoder can tell a wrong password from tampered data before it processes a segment, a
+//! distinction which a GCM tag alone cannot make.
 
 use crate::{ChunkType, error::AeadError};
 use hkdf::Hkdf;

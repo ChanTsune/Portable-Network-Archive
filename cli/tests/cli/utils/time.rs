@@ -36,7 +36,7 @@ pub fn birth_time_recorded(path: &str) -> bool {
 /// re-creating the same name within roughly 15 seconds of deleting it restores
 /// the original creation time (file-system tunneling), so retrying in place
 /// would observe the same birth time forever. The winning attempt is renamed
-/// onto `path`, which preserves its creation time on both NTFS and Unix; the
+/// onto `path`, a rename which preserves its creation time on both NTFS and Unix; the
 /// birth time is read back afterwards because tunneling applies to the
 /// destination name too when `path` already existed.
 #[track_caller]
