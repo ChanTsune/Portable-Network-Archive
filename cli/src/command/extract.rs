@@ -1615,14 +1615,13 @@ fn restore_path_timestamps(
     Ok(())
 }
 
-/// Restores entry metadata (timestamps for non-file entries, ownership, permissions, extended attributes, ACLs, and macOS metadata) according to the provided keep options.
+/// Restores entry metadata according to the provided keep options.
 ///
 /// - Timestamps are restored for non-file entries (symlinks, directories, hardlinks) via path-based API;
 ///   regular files are handled earlier by `restore_timestamps()` with an open file handle
 /// - Ownership is restored via `lchown` when `owner_strategy` is `Preserve` (does not follow symlinks)
 /// - Mode bits are restored when `mode_strategy` is `Preserve`, but skipped for symlinks since
 ///   `chmod()` follows symlinks and would corrupt the target's permissions
-/// - These are independent: `--keep-permission --no-same-owner` restores mode but not ownership
 fn restore_metadata<T>(
     item: &NormalEntry<T>,
     path: &Path,
