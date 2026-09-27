@@ -97,6 +97,7 @@ impl<R: Read> Archive<R> {
     /// Returns an iterator over raw entries in the archive.
     ///
     /// # Examples
+    ///
     /// ```no_run
     /// # use std::io;
     /// use libpna::Archive;
@@ -168,6 +169,7 @@ impl<R> Archive<R> {
     /// Returns an iterator over the entries in the archive.
     ///
     /// # Examples
+    ///
     /// ```no_run
     /// use libpna::{Archive, ReadEntry};
     /// use std::fs;
@@ -299,6 +301,7 @@ impl<'r, R> Entries<'r, R> {
     /// Returns an iterator that extracts solid entries from the archive and returns them as normal entries.
     ///
     /// # Examples
+    ///
     /// ```no_run
     /// use libpna::{Archive, ReadEntry, ReadOptions};
     /// use std::fs;
@@ -436,12 +439,15 @@ impl<R: Read + Seek> Archive<R> {
     /// Seeks the cursor to the start of the end-of-archive marker.
     ///
     /// # Errors
+    ///
     /// Returns an error if seeking fails, a chunk type is invalid, or the
     /// archive ends before the trailing CRC of a chunk. Chunk data and CRC
     /// values are not validated while seeking.
     ///
     /// # Examples
+    ///
     /// For appending entry to the existing archive.
+    ///
     /// ```no_run
     /// # use std::fs::File;
     /// # use std::io;

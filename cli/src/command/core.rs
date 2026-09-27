@@ -595,10 +595,12 @@ pub(crate) fn spawn_entry_results(
 /// where archive entries should be inserted.
 ///
 /// # Order Guarantee
+///
 /// - Between arguments: strictly preserved
 /// - Within a single filesystem argument: walkdir traversal order
 ///
 /// # Hardlink Detection
+///
 /// A single `HardlinkResolver` is shared across all filesystem paths,
 /// enabling cross-path hardlink detection.
 pub(crate) fn collect_items_from_sources(
@@ -631,6 +633,7 @@ pub(crate) fn collect_items_from_sources(
 /// [`HardlinkResolver::incomplete_links`].
 ///
 /// # Order Preservation
+///
 /// Items are collected in the order paths are provided. Each path's items
 /// appear in traversal order. This enables predictable archive ordering
 /// matching CLI argument order.
@@ -714,6 +717,7 @@ fn normalize_non_follow_root_path<'a>(path: &'a Path, options: &CollectOptions<'
 /// Returns a vector of [`CollectedEntry`] on success.
 ///
 /// # Errors
+///
 /// Propagates I/O errors encountered during traversal. Broken symlinks are
 /// tolerated and returned as `StoreAs::Symlink` instead of an error. Returns
 /// `io::ErrorKind::Unsupported` for entries with unsupported types. Other walk

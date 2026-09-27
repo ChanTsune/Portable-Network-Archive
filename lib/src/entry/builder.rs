@@ -301,6 +301,7 @@ impl OpaqueEntryBuilder {
     /// Returns an error if initialization fails.
     ///
     /// # Examples
+    ///
     /// ```
     /// use libpna::{SymlinkEntryBuilder, EntryName, EntryReference};
     ///
@@ -324,6 +325,7 @@ impl OpaqueEntryBuilder {
     /// Returns an error if initialization fails.
     ///
     /// # Examples
+    ///
     /// ```
     /// use libpna::{HardLinkEntryBuilder, EntryName, EntryReference};
     ///

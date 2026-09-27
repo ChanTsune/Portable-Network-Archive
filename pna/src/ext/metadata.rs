@@ -84,6 +84,7 @@ impl MetadataTimeExt for Metadata {
     /// Sets the created time.
     ///
     /// # Examples
+    ///
     /// ```
     /// use pna::{Metadata, prelude::*};
     /// use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -109,6 +110,7 @@ impl MetadataTimeExt for Metadata {
     /// Sets the modified time.
     ///
     /// # Examples
+    ///
     /// ```
     /// use pna::{Metadata, prelude::*};
     /// use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -134,6 +136,7 @@ impl MetadataTimeExt for Metadata {
     /// Sets the accessed time.
     ///
     /// # Examples
+    ///
     /// ```
     /// use pna::{Metadata, prelude::*};
     /// use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -166,6 +169,7 @@ pub trait MetadataFsExt: private::Sealed {
     /// are preserved as owner facets as well.
     ///
     /// # Errors
+    ///
     /// See the implementing type's documentation for when this can fail.
     fn from_metadata(metadata: &fs::Metadata) -> io::Result<Self>
     where
@@ -193,6 +197,7 @@ impl MetadataFsExt for Metadata {
     /// ```
     ///
     /// # Errors
+    ///
     /// Currently never returns an error.
     #[inline]
     fn from_metadata(metadata: &fs::Metadata) -> io::Result<Self>
@@ -234,6 +239,7 @@ impl MetadataPathExt for Metadata {
     ///
     /// Metadata::from_path("path/to/file");
     /// ```
+    ///
     /// # Errors
     ///
     /// Returns an error if [`std::fs::metadata`] returns an error.
@@ -255,6 +261,7 @@ impl MetadataPathExt for Metadata {
     ///
     /// Metadata::from_symlink_path("path/to/file");
     /// ```
+    ///
     /// # Errors
     ///
     /// Returns an error if [`std::fs::symlink_metadata`] returns an error.

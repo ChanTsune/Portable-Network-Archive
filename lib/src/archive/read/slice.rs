@@ -81,6 +81,7 @@ impl<'d> Archive<&'d [u8]> {
     /// Returns an iterator over the entries in the archive.
     ///
     /// # Examples
+    ///
     /// ```no_run
     /// use libpna::{Archive, ReadEntry};
     /// use std::fs;

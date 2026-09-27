@@ -114,6 +114,7 @@ impl<W: Write> Archive<W> {
     /// Returns an error if an I/O error occurs while splitting to the next archive.
     ///
     /// # Examples
+    ///
     /// ```no_run
     /// # use libpna::{Archive, FileEntryBuilder, WriteOptions};
     /// # use std::fs::File;
@@ -253,6 +254,7 @@ where
     /// and must be discarded without further use.
     ///
     /// # Examples
+    ///
     /// ```no_run
     /// use libpna::{Archive, Metadata, WriteOptions};
     /// # use std::error::Error;
@@ -468,10 +470,13 @@ impl<W: WriteChunk> Archive<W> {
     /// This end marker should always be recorded at the end of the file unless there is a special reason to do so.
     ///
     /// # Errors
+    ///
     /// Returns an error if writing the end-of-archive marker fails.
     ///
     /// # Examples
+    ///
     /// Creates an empty archive.
+    ///
     /// ```no_run
     /// # use std::io;
     /// # use std::fs::File;
@@ -652,6 +657,7 @@ impl<W: WriteChunk> SolidArchive<W> {
     /// entry and must be discarded without further use.
     ///
     /// # Examples
+    ///
     /// ```no_run
     /// use libpna::{Archive, Metadata, WriteOptions};
     /// # use std::error::Error;
@@ -758,10 +764,13 @@ impl<W: WriteChunk> SolidArchive<W> {
     /// This end marker should always be recorded at the end of the file unless there is a special reason to do so.
     ///
     /// # Errors
+    ///
     /// Returns an error if writing the end-of-archive marker fails.
     ///
     /// # Examples
+    ///
     /// Creates an empty archive.
+    ///
     /// ```no_run
     /// use libpna::{Archive, WriteOptions};
     /// use std::fs::File;

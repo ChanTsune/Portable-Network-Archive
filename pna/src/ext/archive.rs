@@ -55,6 +55,7 @@ impl ArchiveFsExt for Archive<fs::File> {
     /// Returns an `Archive<fs::File>` ready for writing entries.
     ///
     /// # Examples
+    ///
     /// ```no_run
     /// # use std::io;
     /// use pna::Archive;
@@ -84,6 +85,7 @@ impl ArchiveFsExt for Archive<fs::File> {
     /// Returns an `Archive<fs::File>` ready for reading entries.
     ///
     /// # Examples
+    ///
     /// ```no_run
     /// # use std::io;
     /// use pna::Archive;
@@ -111,6 +113,7 @@ impl ArchiveFsExt for Archive<fs::File> {
     /// [`Archive::seek_to_end`], so that new entries can be appended safely.
     ///
     /// # Examples
+    ///
     /// ```no_run
     /// # use std::io;
     /// use pna::Archive;
