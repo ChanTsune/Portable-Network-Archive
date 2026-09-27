@@ -79,8 +79,8 @@ pub(crate) struct ResolvedOwnership {
     pub(crate) gid: Option<u64>,
     pub(crate) uname: Option<String>,
     pub(crate) gname: Option<String>,
-    /// `0o7777`-masked permission bits (`fMOd`) — never the raw `st_mode`
-    /// a legacy `fPRM` chunk stored, which also carries file-type bits.
+    /// `0o7777`-masked permission bits (`fMOd`), never the raw `st_mode`
+    /// stored in a legacy `fPRM` chunk, which also carries file-type bits.
     pub(crate) mode: Option<u16>,
     pub(crate) user_sid: Option<String>,
     pub(crate) group_sid: Option<String>,
