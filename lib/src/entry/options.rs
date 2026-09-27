@@ -412,11 +412,14 @@ impl<T: Into<i64>> From<T> for CompressionLevel {
 impl FromStr for CompressionLevel {
     type Err = core::num::ParseIntError;
 
-    /// Parses a string `s` to return a value of this type.
+    /// Parses a string into a [`CompressionLevel`].
     ///
-    /// If parsing succeeds, return the value inside [`Ok`], otherwise
-    /// when the string is ill-formatted return an error specific to the
-    /// inside [`Err`]. The error type is specific to the implementation of the trait.
+    /// Accepts `"min"`, `"max"`, and `"default"` case-insensitively, or an integer level.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`core::num::ParseIntError`] if `s` is neither a recognized
+    /// name nor a valid integer.
     ///
     /// # Examples
     ///

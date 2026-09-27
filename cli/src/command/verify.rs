@@ -38,7 +38,8 @@ struct VerifyReport {
     ok: usize,
     failed: usize,
     skipped: usize,
-    /// Gates the note that a wrong password cannot be told from corruption.
+    /// Whether any failure involved unauthenticated encryption, where a wrong
+    /// password is indistinguishable from corruption.
     unauthenticated_failure: bool,
 }
 
