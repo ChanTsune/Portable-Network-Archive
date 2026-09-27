@@ -64,7 +64,7 @@
 //! PNA supports multiple compression algorithms and encryption options:
 //!
 //! ```no_run
-//! use libpna::{WriteOptions, Compression, Encryption, CipherMode, HashAlgorithm};
+//! use libpna::{CipherMode, Compression, Encryption, HashAlgorithm, WriteOptions};
 //!
 //! // Compressed entry (Zstandard)
 //! let compressed = WriteOptions::builder()

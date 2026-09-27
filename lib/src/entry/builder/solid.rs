@@ -243,8 +243,8 @@ impl SolidEntryBuilder {
     ///
     /// ```rust
     /// # use std::io::{self, Write};
-    /// use std::num::NonZeroU32;
     /// use libpna::{FileEntryBuilder, SolidEntryBuilder, WriteOptions};
+    /// use std::num::NonZeroU32;
     ///
     /// # fn main() -> io::Result<()> {
     /// let mut solid_builder = SolidEntryBuilder::new(WriteOptions::store())?;
