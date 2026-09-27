@@ -987,6 +987,7 @@ impl TryFrom<u8> for DataKind {
 /// # Examples
 ///
 /// Store without compression or encryption:
+///
 /// ```rust
 /// use libpna::WriteOptions;
 ///
@@ -994,6 +995,7 @@ impl TryFrom<u8> for DataKind {
 /// ```
 ///
 /// Compress only (no encryption):
+///
 /// ```rust
 /// use libpna::{WriteOptions, Compression, CompressionLevel};
 ///
@@ -1004,6 +1006,7 @@ impl TryFrom<u8> for DataKind {
 /// ```
 ///
 /// Encrypt only (no compression):
+///
 /// ```rust
 /// use libpna::{WriteOptions, Encryption, CipherMode, HashAlgorithm};
 ///
@@ -1016,6 +1019,7 @@ impl TryFrom<u8> for DataKind {
 /// ```
 ///
 /// Both compression and encryption (recommended for sensitive data):
+///
 /// ```rust
 /// use libpna::{WriteOptions, Compression, Encryption, CipherMode, HashAlgorithm};
 ///
@@ -1076,6 +1080,7 @@ impl WriteOptions {
     /// Converts [`WriteOptions`] into a [`WriteOptionsBuilder`].
     ///
     /// # Examples
+    ///
     /// ```rust
     /// use libpna::WriteOptions;
     ///
@@ -1187,6 +1192,7 @@ impl WriteOptionsBuilder {
     /// Accepts both UTF-8 strings and arbitrary byte slices.
     ///
     /// # Examples
+    ///
     /// ```rust
     /// use libpna::WriteOptions;
     ///
@@ -1313,6 +1319,7 @@ impl WriteOptionsBuilder {
     /// the fallible variant).
     ///
     /// **Always provide a password when enabling encryption.** The following code will panic:
+    ///
     /// ```no_run
     /// use libpna::{WriteOptions, Encryption};
     ///
@@ -1322,6 +1329,7 @@ impl WriteOptionsBuilder {
     /// ```
     ///
     /// **Correct usage:**
+    ///
     /// ```rust
     /// use libpna::{WriteOptions, Encryption};
     ///
@@ -1359,6 +1367,7 @@ impl ReadOptions {
     /// Accepts both UTF-8 strings and arbitrary byte slices.
     ///
     /// # Examples
+    ///
     /// ```rust
     /// use libpna::ReadOptions;
     ///
@@ -1380,6 +1389,7 @@ impl ReadOptions {
     /// Returns a builder for [`ReadOptions`].
     ///
     /// # Examples
+    ///
     /// ```rust
     /// use libpna::ReadOptions;
     ///
@@ -1393,6 +1403,7 @@ impl ReadOptions {
     /// Converts [`ReadOptions`] into a [`ReadOptionsBuilder`].
     ///
     /// # Examples
+    ///
     /// ```rust
     /// use libpna::ReadOptions;
     ///

@@ -295,6 +295,7 @@ impl RawChunk {
     /// Creates a new [`RawChunk`] from the given [`ChunkType`] and bytes.
     ///
     /// # Examples
+    ///
     /// ```rust
     /// use libpna::{ChunkType, RawChunk, prelude::*};
     ///

@@ -45,6 +45,7 @@ impl EntryReference {
     /// [U+FFFD]: core::char::REPLACEMENT_CHARACTER
     ///
     /// # Examples
+    ///
     /// ```
     /// use libpna::EntryReference;
     ///

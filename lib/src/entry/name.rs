@@ -45,7 +45,9 @@ impl EntryName {
     ///
     /// [U+FFFD]: core::char::REPLACEMENT_CHARACTER
     /// [`Component::Normal`]: std::path::Component::Normal
+    ///
     /// # Examples
+    ///
     /// ```rust
     /// use libpna::EntryName;
     ///

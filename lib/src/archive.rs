@@ -39,7 +39,9 @@ fn write_archive_framing<W: Write>(writer: &mut W, header: &ArchiveHeader) -> io
 /// - Chunk-based storage
 ///
 /// # Examples
+///
 /// Creates a new PNA file and adds an entry to it.
+///
 /// ```no_run
 /// # use libpna::{Archive, FileEntryBuilder, WriteOptions};
 /// # use std::fs::File;
@@ -59,6 +61,7 @@ fn write_archive_framing<W: Write>(writer: &mut W, header: &ArchiveHeader) -> io
 /// ```
 ///
 /// Reads the entries of a PNA file.
+///
 /// ```no_run
 /// # use libpna::{Archive, ReadOptions};
 /// # use std::fs::File;
@@ -115,7 +118,6 @@ impl<T> Archive<T> {
     /// entries added via [`add_entry()`](Archive::add_entry) use their own chunk
     /// size configured through
     /// [`FileEntryBuilder::max_chunk_size()`](crate::FileEntryBuilder::max_chunk_size).
-    ///
     #[inline]
     pub fn set_max_chunk_size(&mut self, size: NonZeroU32) {
         self.max_chunk_size = Some(size);
@@ -149,6 +151,7 @@ impl<T> Archive<T> {
     /// # fn main() -> io::Result<()> {
     /// let archive = Archive::write_header(Vec::new())?;
     /// let writer = archive.finalize()?; // Preferred: archive is properly closed
+    ///     
     /// # Ok(())
     /// # }
     /// ```
@@ -163,6 +166,7 @@ impl<T> Archive<T> {
     /// let file = std::io::Cursor::new(include_bytes!("../../resources/test/empty.pna").to_vec());
     /// let archive = Archive::read_header(file)?;
     /// let _reader = archive.into_inner(); // Safe for readers
+    ///     
     /// # Ok(())
     /// # }
     /// ```
@@ -180,7 +184,9 @@ impl<T> Archive<T> {
 /// across all entries.
 ///
 /// # Examples
+///
 /// Creates a new solid mode PNA file and adds an entry to it.
+///
 /// ```no_run
 /// use libpna::{Archive, FileEntryBuilder, WriteOptions};
 /// use std::fs::File;

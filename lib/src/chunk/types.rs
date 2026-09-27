@@ -260,7 +260,9 @@ impl ChunkType {
     /// Creates a custom [`ChunkType`] without validation.
     ///
     /// # Display behavior
+    ///
     /// If bytes are invalid UTF-8, they are rendered as lowercase hex bytes.
+    ///
     /// ```rust
     /// # use libpna::ChunkType;
     ///
@@ -269,8 +271,10 @@ impl ChunkType {
     /// ```
     ///
     /// # Safety
+    ///
     /// Callers must ensure the value consists only of ASCII alphabetic
     /// characters ('a'..'z' and 'A'..'Z').
+    ///
     /// ```rust
     /// # use libpna::ChunkType;
     ///

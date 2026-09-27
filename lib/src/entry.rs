@@ -1097,6 +1097,7 @@ impl<T> NormalEntry<T> {
     /// Applies metadata to the entry.
     ///
     /// # Examples
+    ///
     /// ```rust
     /// # use std::io;
     /// use libpna::{DirEntryBuilder, Metadata};
@@ -1139,6 +1140,7 @@ impl<T> NormalEntry<T> {
     /// [`NormalEntry::try_with_name`] for the fallible variant.
     ///
     /// # Examples
+    ///
     /// ```rust
     /// # use std::io;
     /// use libpna::DirEntryBuilder;
@@ -1176,6 +1178,7 @@ impl<T> NormalEntry<T> {
     /// ask whether the rename is possible beforehand.
     ///
     /// # Examples
+    ///
     /// ```rust
     /// # use std::io;
     /// use libpna::DirEntryBuilder;
@@ -1208,6 +1211,7 @@ impl<T: Clone> NormalEntry<T> {
     /// Applies extra chunks to the entry.
     ///
     /// # Examples
+    ///
     /// ```rust
     /// # use std::io;
     /// use libpna::{ChunkType, DirEntryBuilder, RawChunk};
@@ -1413,6 +1417,7 @@ impl EntryPart<&[u8]> {
     /// Splits this [`EntryPart`] into two parts if its length exceeds the given value.
     ///
     /// # Errors
+    ///
     /// If it can't split into smaller than the given value,
     /// it returns an error containing the original value.
     #[inline]
