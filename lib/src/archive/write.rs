@@ -211,7 +211,8 @@ impl<W: Write, F: FnMut(u32) -> io::Result<W>> Archive<SplitParts<W, F>> {
     ///
     /// # fn main() -> io::Result<()> {
     /// let option = WriteOptions::builder().build();
-    /// let mut archive = Archive::write_solid_split_header(4096, |_part_number| Ok(Vec::new()), option)?;
+    /// let mut archive =
+    ///     Archive::write_solid_split_header(4096, |_part_number| Ok(Vec::new()), option)?;
     /// archive.write_file("example.txt".into(), Metadata::new(), |writer| {
     ///     std::io::Write::write_all(writer, b"text")
     /// })?;

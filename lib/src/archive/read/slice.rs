@@ -206,10 +206,7 @@ impl<'a, 'r> Entries<'a, 'r> {
     /// let file = fs::read("foo.pna")?;
     /// let mut archive = Archive::read_header_from_slice(&file[..])?;
     /// let options = ReadOptions::with_password(Some(b"password"));
-    /// for entry in archive
-    ///     .entries_slice()
-    ///     .extract_solid_entries(&options)
-    /// {
+    /// for entry in archive.entries_slice().extract_solid_entries(&options) {
     ///     let mut reader = entry?.reader(ReadOptions::builder().build());
     ///     // process the entry
     /// }

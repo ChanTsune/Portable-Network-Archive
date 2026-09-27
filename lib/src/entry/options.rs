@@ -732,7 +732,7 @@ impl HashAlgorithm {
     /// # Examples
     ///
     /// ```rust
-    /// use libpna::{WriteOptions, Encryption, HashAlgorithm};
+    /// use libpna::{Encryption, HashAlgorithm, WriteOptions};
     ///
     /// let opts = WriteOptions::builder()
     ///     .encryption(Encryption::AES)
@@ -755,7 +755,7 @@ impl HashAlgorithm {
     /// # Examples
     ///
     /// ```rust
-    /// use libpna::{WriteOptions, Encryption, HashAlgorithm};
+    /// use libpna::{Encryption, HashAlgorithm, WriteOptions};
     ///
     /// let opts = WriteOptions::builder()
     ///     .encryption(Encryption::AES)
@@ -776,7 +776,7 @@ impl HashAlgorithm {
     /// # Examples
     ///
     /// ```rust
-    /// use libpna::{WriteOptions, Encryption, HashAlgorithm};
+    /// use libpna::{Encryption, HashAlgorithm, WriteOptions};
     ///
     /// let opts = WriteOptions::builder()
     ///     .encryption(Encryption::AES)
@@ -802,15 +802,15 @@ impl HashAlgorithm {
     /// # Examples
     ///
     /// ```rust
-    /// use libpna::{WriteOptions, Encryption, HashAlgorithm};
+    /// use libpna::{Encryption, HashAlgorithm, WriteOptions};
     ///
     /// // Custom Argon2id with higher security parameters
     /// let opts = WriteOptions::builder()
     ///     .encryption(Encryption::AES)
     ///     .hash_algorithm(HashAlgorithm::argon2id_with(
-    ///         Some(4),       // time_cost: 4 iterations
-    ///         Some(65536),   // memory_cost: 64 MiB
-    ///         Some(2),       // parallelism: 2 threads
+    ///         Some(4),     // time_cost: 4 iterations
+    ///         Some(65536), // memory_cost: 64 MiB
+    ///         Some(2),     // parallelism: 2 threads
     ///     ))
     ///     .password(Some("secure_password"))
     ///     .build();
@@ -995,7 +995,7 @@ impl TryFrom<u8> for DataKind {
 ///
 /// Compress only (no encryption):
 /// ```rust
-/// use libpna::{WriteOptions, Compression, CompressionLevel};
+/// use libpna::{Compression, CompressionLevel, WriteOptions};
 ///
 /// let opts = WriteOptions::builder()
 ///     .compression(Compression::ZSTANDARD)
@@ -1005,7 +1005,7 @@ impl TryFrom<u8> for DataKind {
 ///
 /// Encrypt only (no compression):
 /// ```rust
-/// use libpna::{WriteOptions, Encryption, CipherMode, HashAlgorithm};
+/// use libpna::{CipherMode, Encryption, HashAlgorithm, WriteOptions};
 ///
 /// let opts = WriteOptions::builder()
 ///     .encryption(Encryption::AES)
@@ -1017,7 +1017,7 @@ impl TryFrom<u8> for DataKind {
 ///
 /// Both compression and encryption (recommended for sensitive data):
 /// ```rust
-/// use libpna::{WriteOptions, Compression, Encryption, CipherMode, HashAlgorithm};
+/// use libpna::{CipherMode, Compression, Encryption, HashAlgorithm, WriteOptions};
 ///
 /// let opts = WriteOptions::builder()
 ///     .compression(Compression::ZSTANDARD)
@@ -1323,12 +1323,12 @@ impl WriteOptionsBuilder {
     ///
     /// **Correct usage:**
     /// ```rust
-    /// use libpna::{WriteOptions, Encryption};
+    /// use libpna::{Encryption, WriteOptions};
     ///
     /// let opts = WriteOptions::builder()
     ///     .encryption(Encryption::AES)
     ///     .password(Some("secure_password"))
-    ///     .build();  // OK
+    ///     .build(); // OK
     /// ```
     #[inline]
     #[must_use = "building options without using them is wasteful"]

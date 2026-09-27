@@ -302,7 +302,7 @@ impl OpaqueEntryBuilder {
     ///
     /// # Examples
     /// ```
-    /// use libpna::{SymlinkEntryBuilder, EntryName, EntryReference};
+    /// use libpna::{EntryName, EntryReference, SymlinkEntryBuilder};
     ///
     /// let builder = SymlinkEntryBuilder::new(
     ///     EntryName::try_from("path/of/link").unwrap(),
@@ -325,7 +325,7 @@ impl OpaqueEntryBuilder {
     ///
     /// # Examples
     /// ```
-    /// use libpna::{HardLinkEntryBuilder, EntryName, EntryReference};
+    /// use libpna::{EntryName, EntryReference, HardLinkEntryBuilder};
     ///
     /// let builder = HardLinkEntryBuilder::new(
     ///     EntryName::try_from("path/of/link").unwrap(),
@@ -521,12 +521,15 @@ impl OpaqueEntryBuilder {
     ///
     /// ```rust
     /// # use std::io::{self, Write};
+    /// use libpna::{DataKind, OpaqueEntryBuilder, WriteOptions};
     /// use std::num::NonZeroU32;
-    /// use libpna::{OpaqueEntryBuilder, DataKind, WriteOptions};
     ///
     /// # fn main() -> io::Result<()> {
-    /// let mut builder =
-    ///     OpaqueEntryBuilder::new_with_options("data.bin".into(), DataKind::FILE, WriteOptions::store())?;
+    /// let mut builder = OpaqueEntryBuilder::new_with_options(
+    ///     "data.bin".into(),
+    ///     DataKind::FILE,
+    ///     WriteOptions::store(),
+    /// )?;
     /// builder.max_chunk_size(NonZeroU32::new(1024 * 1024).unwrap()); // 1MB chunks
     /// builder.write_all(b"file content")?;
     /// let entry = builder.build()?;
