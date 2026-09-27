@@ -209,6 +209,8 @@ impl From<&String> for EntryReference {
 }
 
 impl From<&str> for EntryReference {
+    /// Creates an [`EntryReference`] from a string slice.
+    ///
     /// # Examples
     ///
     /// ```
@@ -223,6 +225,8 @@ impl From<&str> for EntryReference {
 }
 
 impl From<Cow<'_, str>> for EntryReference {
+    /// Creates an [`EntryReference`] from a copy-on-write string.
+    ///
     /// # Examples
     ///
     /// ```
@@ -283,6 +287,12 @@ impl TryFrom<Cow<'_, OsStr>> for EntryReference {
 impl TryFrom<&Path> for EntryReference {
     type Error = EntryReferenceError;
 
+    /// Creates an [`EntryReference`] from a path.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EntryReferenceError`] if the path cannot be represented as valid UTF-8.
+    ///
     /// # Examples
     ///
     /// ```
@@ -301,6 +311,12 @@ impl TryFrom<&Path> for EntryReference {
 impl TryFrom<PathBuf> for EntryReference {
     type Error = EntryReferenceError;
 
+    /// Creates an [`EntryReference`] from a path.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EntryReferenceError`] if the path cannot be represented as valid UTF-8.
+    ///
     /// # Examples
     ///
     /// ```
@@ -319,6 +335,12 @@ impl TryFrom<PathBuf> for EntryReference {
 impl TryFrom<&PathBuf> for EntryReference {
     type Error = EntryReferenceError;
 
+    /// Creates an [`EntryReference`] from a path.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EntryReferenceError`] if the path cannot be represented as valid UTF-8.
+    ///
     /// # Examples
     ///
     /// ```
@@ -337,6 +359,12 @@ impl TryFrom<&PathBuf> for EntryReference {
 impl TryFrom<Cow<'_, Path>> for EntryReference {
     type Error = EntryReferenceError;
 
+    /// Creates an [`EntryReference`] from a path.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EntryReferenceError`] if the path cannot be represented as valid UTF-8.
+    ///
     /// # Examples
     ///
     /// ```
@@ -389,6 +417,8 @@ impl PartialEq<str> for EntryReference {
 }
 
 impl PartialEq<&str> for EntryReference {
+    /// Compares an [`EntryReference`] with a string slice.
+    ///
     /// # Examples
     ///
     /// ```
@@ -410,6 +440,8 @@ impl PartialEq<EntryReference> for str {
 }
 
 impl PartialEq<EntryReference> for &str {
+    /// Compares a string slice with an [`EntryReference`].
+    ///
     /// # Examples
     ///
     /// ```

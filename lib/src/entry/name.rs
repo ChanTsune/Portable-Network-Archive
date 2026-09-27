@@ -226,6 +226,8 @@ impl From<&String> for EntryName {
 }
 
 impl From<&str> for EntryName {
+    /// Creates an [`EntryName`] from a string slice.
+    ///
     /// # Examples
     ///
     /// ```
@@ -243,6 +245,8 @@ impl From<&str> for EntryName {
 }
 
 impl From<Cow<'_, str>> for EntryName {
+    /// Creates an [`EntryName`] from a copy-on-write string.
+    ///
     /// # Examples
     ///
     /// ```
@@ -303,6 +307,12 @@ impl TryFrom<Cow<'_, OsStr>> for EntryName {
 impl TryFrom<&Path> for EntryName {
     type Error = EntryNameError;
 
+    /// Creates an [`EntryName`] from a path.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EntryNameError`] if the path cannot be represented as valid UTF-8.
+    ///
     /// # Examples
     ///
     /// ```
@@ -321,6 +331,12 @@ impl TryFrom<&Path> for EntryName {
 impl TryFrom<PathBuf> for EntryName {
     type Error = EntryNameError;
 
+    /// Creates an [`EntryName`] from a path.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EntryNameError`] if the path cannot be represented as valid UTF-8.
+    ///
     /// # Examples
     ///
     /// ```
@@ -339,6 +355,12 @@ impl TryFrom<PathBuf> for EntryName {
 impl TryFrom<&PathBuf> for EntryName {
     type Error = EntryNameError;
 
+    /// Creates an [`EntryName`] from a path.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EntryNameError`] if the path cannot be represented as valid UTF-8.
+    ///
     /// # Examples
     ///
     /// ```
@@ -357,6 +379,12 @@ impl TryFrom<&PathBuf> for EntryName {
 impl TryFrom<Cow<'_, Path>> for EntryName {
     type Error = EntryNameError;
 
+    /// Creates an [`EntryName`] from a path.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EntryNameError`] if the path cannot be represented as valid UTF-8.
+    ///
     /// # Examples
     ///
     /// ```
@@ -418,6 +446,8 @@ impl PartialEq<str> for EntryName {
 }
 
 impl PartialEq<&str> for EntryName {
+    /// Compares an [`EntryName`] with a string slice.
+    ///
     /// # Examples
     ///
     /// ```
@@ -439,6 +469,8 @@ impl PartialEq<EntryName> for str {
 }
 
 impl PartialEq<EntryName> for &str {
+    /// Compares a string slice with an [`EntryName`].
+    ///
     /// # Examples
     ///
     /// ```
