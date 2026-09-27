@@ -465,7 +465,8 @@ impl<W: WriteChunk> Archive<W> {
     ///
     /// Marks that the PNA archive contains no more entries.
     /// Normally, a PNA archive reader will continue reading entries in the hope that the entry exists until it encounters this end marker.
-    /// This end marker should always be recorded at the end of the file unless there is a special reason to do so.
+    /// This end marker should always be recorded at the end of the file
+    /// unless there is a special reason not to do so.
     ///
     /// # Errors
     /// Returns an error if writing the end-of-archive marker fails.
@@ -755,7 +756,8 @@ impl<W: WriteChunk> SolidArchive<W> {
     ///
     /// Marks that the PNA archive contains no more entries.
     /// Normally, a PNA archive reader will continue reading entries in the hope that the entry exists until it encounters this end marker.
-    /// This end marker should always be recorded at the end of the file unless there is a special reason to do so.
+    /// This end marker should always be recorded at the end of the file
+    /// unless there is a special reason not to do so.
     ///
     /// # Errors
     /// Returns an error if writing the end-of-archive marker fails.

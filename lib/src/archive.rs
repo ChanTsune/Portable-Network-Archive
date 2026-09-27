@@ -80,7 +80,7 @@ pub struct Archive<T> {
     inner: T,
     header: ArchiveHeader,
     max_chunk_size: Option<NonZeroU32>,
-    // following fields are only use in reader mode
+    // The following fields are only used in reader mode.
     next_archive: bool,
     buf: Vec<RawChunk>,
 }

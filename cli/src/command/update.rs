@@ -363,7 +363,7 @@ pub(crate) struct UpdateCommand {
         value_name = "PATTERN",
         requires = "unstable",
         help_heading = "Unstable Options",
-        help = "Modify file or archive member names according to pattern that like BSD tar -s option"
+        help = "Modify file or archive member names according to a pattern like the BSD tar -s option"
     )]
     substitutions: Option<Vec<SubstitutionRule>>,
     #[arg(
@@ -372,7 +372,7 @@ pub(crate) struct UpdateCommand {
         value_name = "PATTERN",
         requires = "unstable",
         help_heading = "Unstable Options",
-        help = "Modify file or archive member names according to pattern that like GNU tar -transform option"
+        help = "Modify file or archive member names according to a pattern like the GNU tar --transform option"
     )]
     transforms: Option<Vec<TransformRule>>,
     #[command(flatten)]
