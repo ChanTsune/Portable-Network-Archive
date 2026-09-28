@@ -18,8 +18,8 @@ on:
 jobs:
   actionlint:
     name: Run actionlint
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
+    runs-on: ubuntu-slim
+    timeout-minutes: 15
     permissions:
       contents: read # checkout
       checks: write # reviewdog annotations
@@ -29,7 +29,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Run actionlint
-        uses: reviewdog/action-actionlint@2085657ab2c7f48c58edcc767fba576f63bea76b # v1.77.0
+        uses: reviewdog/action-actionlint/dockerless@2085657ab2c7f48c58edcc767fba576f63bea76b # v1.77.0
         with:
           fail_level: error
           filter_mode: nofilter
