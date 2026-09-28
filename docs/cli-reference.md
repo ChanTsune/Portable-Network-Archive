@@ -1543,7 +1543,7 @@ bsdtar-like CLI semantics for PNA archives
 * `--keep-newer-files` — Skip extracting files if a newer version already exists
 
   Default value: `false`
-* `-U`, `--unlink-first` [alias: `unlink`] — Unlink files before creating them; also removes intervening directory symlinks (extract mode only)
+* `-U`, `--unlink-first` [alias: `unlink`] — (extract mode only) Unlink files before creating them; also removes intervening directory symlinks.
 
   Default value: `false`
 * `-k`, `--keep-old-files` — Skip extracting files if they already exist
@@ -1564,7 +1564,7 @@ bsdtar-like CLI semantics for PNA archives
 * `--no-same-permissions` [aliases: `no-preserve-permissions`, `no-permissions`] — Do not store file permissions (mode bits) in the archive
 
   Default value: `false`
-* `-p`, `--same-permissions` [alias: `preserve-permissions`] — Restore file permissions (mode, ACLs, xattrs, fflags, mac-metadata, but NOT ownership) (extract only)
+* `-p`, `--same-permissions` [alias: `preserve-permissions`] — Restore file permissions (mode, ACLs, xattrs, fflags, mac-metadata, but NOT ownership; extract only)
 
   Default value: `false`
 * `--preserve-xattrs` [aliases: `keep-xattr`, `xattrs`] — Preserve extended attributes
@@ -1682,10 +1682,10 @@ bsdtar-like CLI semantics for PNA archives
 * `-O`, `--to-stdout` — Write extracted file data to standard output instead of the file system
 
   Default value: `false`
-* `--allow-unsafe-links` — Allow extracting symbolic links and hard links that contain root or parent paths (default)
+* `--allow-unsafe-links` — Allow extracting symbolic or hard links containing root or parent paths (default)
 
   Default value: `true`
-* `--no-allow-unsafe-links` — Do not allow extracting symbolic links and hard links that contain root or parent paths
+* `--no-allow-unsafe-links` — Do not allow extracting symbolic links or hard links if either contains root or parent paths
 
   Default value: `false`
 * `--chroot` — chroot() to the current directory after processing any --cd options and before extracting any files (requires root privileges)
@@ -2191,11 +2191,11 @@ Set acl of entries
 * `-f`, `--file <ARCHIVE>` — Archive file path
 * `--set <SET>` — Set the ACL on the specified file.
 * `-m`, `--modify <MODIFY>` — Modify the ACL on the specified file. New entries will be added, and existing entries will be modified according to the entries argument.
-* `-x`, `--remove <REMOVE>` — Remove the ACL entries specified there from the access or default ACL of the specified files.
+* `-x`, `--remove <REMOVE>` — Remove the ACL entries specified there from the access or default ACLs of the specified files.
 * `--platform <PLATFORM>` — Target ACL platform
 
   Default value: ``
-* `--restore <RESTORE>` — Restore a permission backup created by `pna acl get *` or similar from a file. All permissions of a complete directory subtree are restored using this mechanism
+* `--restore <RESTORE>` — Restore from a file a permission backup created by `pna acl get *` or similar. All permissions of a complete directory subtree are restored using this mechanism
 * `--restore-from-stdin` — Restore a permission backup created by `pna acl get *` or similar from standard input
 
   Default value: `false`
@@ -2463,7 +2463,7 @@ Note: for entries encrypted in CBC or CTR mode, a wrong password is indistinguis
 ###### **Options:**
 
 * `-f`, `--file <ARCHIVE>` — Archive file path
-* `--fast` — Verify chunk structure and CRC32 only. No entry data is decoded, so neither the entries contained in a solid block nor corruption that leaves a chunk's CRC32 intact are checked. Every entry whose chunks are intact is counted as ok, and no password is required.
+* `--fast` — Verify only chunk structure and CRC32. No entry data is decoded, so neither the entries contained in a solid block nor corruption that leaves a chunk's CRC32 intact are checked. Every entry whose chunks are intact is counted as ok, and no password is required.
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
