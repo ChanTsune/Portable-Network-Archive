@@ -14,6 +14,8 @@ where
     scratch: Vec<u8>,
 }
 
+const WRITE_CHUNK_SIZE: usize = 32 * 1024;
+
 impl<W, T> StreamCipherWriter<W, T>
 where
     W: Write,
@@ -51,9 +53,14 @@ where
         if buf.is_empty() {
             return Ok(0);
         }
-        self.scratch.resize(buf.len(), 0);
-        self.cipher.apply_keystream_b2b(buf, &mut self.scratch);
-        self.w.write_all(&self.scratch)?;
+        for chunk in buf.chunks(WRITE_CHUNK_SIZE) {
+            if self.scratch.len() < chunk.len() {
+                self.scratch.resize(chunk.len(), 0);
+            }
+            let out = &mut self.scratch[..chunk.len()];
+            self.cipher.apply_keystream_b2b(chunk, out);
+            self.w.write_all(out)?;
+        }
         Ok(buf.len())
     }
 
@@ -126,6 +133,43 @@ mod tests {
         fn flush(&mut self) -> io::Result<()> {
             self.inner.flush()
         }
+    }
+
+    #[test]
+    fn output_independent_of_write_boundaries() {
+        let key = [0x42u8; 16];
+        let iv = [0x24u8; 16];
+        // Larger than the internal chunk so the chunk loop is exercised.
+        let plaintext = vec![0xABu8; 100_000];
+
+        let mut cipher = Aes128Ctr64LEWriter::new(Vec::new(), &key, &iv).unwrap();
+        cipher.write_all(&plaintext).unwrap();
+        let at_once = cipher.finish().unwrap();
+
+        let mut cipher = Aes128Ctr64LEWriter::new(Vec::new(), &key, &iv).unwrap();
+        for b in &plaintext {
+            cipher.write_all(std::slice::from_ref(b)).unwrap();
+        }
+        let byte_by_byte = cipher.finish().unwrap();
+
+        assert_eq!(at_once, byte_by_byte);
+    }
+
+    #[test]
+    fn scratch_stays_bounded_by_chunk_size() {
+        let key = [0x42u8; 16];
+        let iv = [0x24u8; 16];
+        let plaintext = vec![0xABu8; 1_048_576];
+
+        let mut cipher = Aes128Ctr64LEWriter::new(Vec::new(), &key, &iv).unwrap();
+        cipher.write_all(&plaintext).unwrap();
+        assert!(
+            cipher.scratch.capacity() <= super::WRITE_CHUNK_SIZE,
+            "scratch capacity {} exceeds chunk bound {}",
+            cipher.scratch.capacity(),
+            super::WRITE_CHUNK_SIZE
+        );
+        cipher.finish().unwrap();
     }
 
     #[test]
