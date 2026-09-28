@@ -262,8 +262,8 @@ Create archive
 * `--null` — Filenames or patterns are separated by null characters, not by newlines
 
   Default value: `false`
-* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option
-* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option
+* `-s <PATTERN>` — Modify file or archive member names according to a pattern like the BSD tar -s option
+* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to a pattern like the GNU tar --transform option
 * `--store` — No compression
 
   Default value: `false`
@@ -415,8 +415,8 @@ Append files to archive
 * `--null` — Filenames or patterns are separated by null characters, not by newlines
 
   Default value: `false`
-* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option
-* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option
+* `-s <PATTERN>` — Modify file or archive member names according to a pattern like the BSD tar -s option
+* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to a pattern like the GNU tar --transform option
 * `--store` — No compression
 
   Default value: `false`
@@ -562,8 +562,8 @@ Update entries in archive
 * `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)
 
   Default value: `false`
-* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option
-* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option
+* `-s <PATTERN>` — Modify file or archive member names according to a pattern like the BSD tar -s option
+* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to a pattern like the GNU tar --transform option
 * `--store` — No compression
 
   Default value: `false`
@@ -723,8 +723,8 @@ Extract files from archive
 
   Default value: `false`
 * `--strip-components <N>` — Remove the specified number of leading path elements. Path names with fewer elements will be silently skipped
-* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option
-* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option
+* `-s <PATTERN>` — Modify file or archive member names according to a pattern like the BSD tar -s option
+* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to a pattern like the GNU tar --transform option
 * `--same-owner` — Try extracting files with the same ownership as exists in the archive (default)
 
   Default value: `true`
@@ -1670,8 +1670,8 @@ bsdtar-like CLI semantics for PNA archives
 * `--older-ctime-than <FILE>` — Only include files and directories older than the specified file. This compares ctime entries.
 * `--older-mtime-than <FILE>` [alias: `older-than`] — Only include files and directories older than the specified file. This compares mtime entries.
 * `-T`, `--files-from <FILE>` — Read archiving files from given path
-* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option
-* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option
+* `-s <PATTERN>` — Modify file or archive member names according to a pattern like the BSD tar -s option
+* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to a pattern like the GNU tar --transform option
 * `--same-owner` — Try extracting files with the same ownership as exists in the archive
 
   Default value: `false`
@@ -1904,8 +1904,8 @@ Update entries in archive (stabilized, use `pna update` command instead. this co
 * `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)
 
   Default value: `false`
-* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option
-* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option
+* `-s <PATTERN>` — Modify file or archive member names according to a pattern like the BSD tar -s option
+* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to a pattern like the GNU tar --transform option
 * `--store` — No compression
 
   Default value: `false`
