@@ -59,7 +59,7 @@ where
             return Ok(0);
         }
         let mut total_written = 0;
-        if !self.remaining.is_empty() && buf_len != 0 {
+        if !self.remaining.is_empty() {
             let l = std::cmp::min(self.remaining.len(), buf_len);
             buf[..l].copy_from_slice(&self.remaining[..l]);
             self.remaining.drain(..l);
