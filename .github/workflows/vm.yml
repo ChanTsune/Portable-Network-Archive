@@ -45,7 +45,7 @@ jobs:
           persist-credentials: false
       - name: Test in Solaris
         id: test
-        uses: vmactions/solaris-vm@a11f407d3720a3717673d4194f19ee63b284977e # v1.4.0
+        uses: vmactions/solaris-vm@87d3c436511cef802cd1637f86f73b1a97715c8c # v1.4.1
         with:
           envs: "RUST_BACKTRACE PNA_TEST_REQUIRE"
           copyback: false
@@ -75,7 +75,7 @@ jobs:
           persist-credentials: false
       - name: Test in NetBSD
         id: test
-        uses: vmactions/NetBSD-vm@20ee93a005c9fc78743e6e05269f4cb023b87413 # v1.5.0
+        uses: vmactions/NetBSD-vm@c8a0d7ddb84619a7a8cc4e652efa7950b3fd9f92 # v1.5.2
         with:
           envs: "RUST_BACKTRACE PNA_TEST_REQUIRE"
           copyback: false
@@ -172,7 +172,7 @@ jobs:
           persist-credentials: false
       - name: Test in OpenBSD
         id: test
-        uses: vmactions/OpenBSD-vm@86cdc08415d9d0865267e686561e276c52d62530 # v1.4.7
+        uses: vmactions/OpenBSD-vm@5f7b2c933b8846a138361d6843c52af4bef5d945 # v1.4.8
         with:
           envs: "RUST_BACKTRACE PNA_TEST_REQUIRE"
           copyback: false
@@ -226,7 +226,7 @@ jobs:
           persist-credentials: false
       - name: Test in OmniOS
         id: test
-        uses: vmactions/omnios-vm@317e4f8069dad8a65e1520808f1a68ef3fd20565 # v1.3.6
+        uses: vmactions/omnios-vm@9576f0b6d15e7696548409baa533bc0a339caf42 # v1.3.7
         with:
           envs: "RUST_BACKTRACE PNA_TEST_REQUIRE"
           copyback: false
