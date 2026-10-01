@@ -289,14 +289,17 @@ where
     AesGcm<C, U12>: KeyInit + AeadInOut + AeadCore<NonceSize = U12>,
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        if let Some(stopped) = &self.fuse {
-            return Err(stopped.to_error());
-        }
-        // Refilling would consume and decrypt a segment that the caller has no
-        // room for, so a zero-length probe would report `Ok(0)` with data still
-        // pending — the same guard `ChainReader` carries.
+        // Checked before the `fuse`: refilling would consume and decrypt a
+        // segment that the caller has no room for, so a zero-length probe
+        // would report `Ok(0)` with data still pending — the same guard
+        // `ChainReader` carries. `Read` also promises `Ok(0)` for an empty
+        // buffer, and `read_vectored` must match a single `read` over the
+        // concatenated buffers, which is empty here.
         if buf.is_empty() {
             return Ok(0);
+        }
+        if let Some(stopped) = &self.fuse {
+            return Err(stopped.to_error());
         }
         if self.pos >= self.plain.len() {
             if self.done {
@@ -782,6 +785,38 @@ mod tests {
         let second = r.read(&mut out).unwrap_err();
         assert_eq!(second.kind(), io::ErrorKind::Other, "{second}");
         assert!(second.to_string().contains("source hiccup"), "{second}");
+    }
+
+    /// The `fuse` must not swallow a zero-length read: `Read` promises `Ok(0)`
+    /// for an empty buffer, and `read_vectored` has to match a single `read`
+    /// over the concatenated (here empty) buffers. A non-empty read still has
+    /// to report that the reader stopped.
+    #[test]
+    fn zero_length_read_after_a_stop_is_ok_zero() {
+        let mut ct = encrypt_all::<Aes256>(b"abcdefgh");
+        ct[0] ^= 0x01;
+        let mut r = GcmDecryptReader::<_, Aes256>::new(Cursor::new(ct), &KEY, &header(SEG));
+        let mut out = [0u8; 8];
+        assert!(matches!(
+            classify(&r.read(&mut out).unwrap_err()),
+            AeadError::AuthenticationFailure
+        ));
+        assert_eq!(r.read(&mut []).unwrap(), 0);
+        assert_eq!(std::io::Read::read_vectored(&mut r, &mut []).unwrap(), 0);
+        let mut a = [0u8; 0];
+        let mut b = [0u8; 0];
+        let mut slices = [
+            std::io::IoSliceMut::new(&mut a),
+            std::io::IoSliceMut::new(&mut b),
+        ];
+        assert_eq!(
+            std::io::Read::read_vectored(&mut r, &mut slices).unwrap(),
+            0
+        );
+        assert!(matches!(
+            classify(&r.read(&mut out).unwrap_err()),
+            AeadError::AuthenticationFailure
+        ));
     }
 
     #[test]
