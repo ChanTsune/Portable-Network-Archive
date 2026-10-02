@@ -186,6 +186,16 @@ impl FromStr for DateTime {
                 Ok(naive) => Self::Naive(naive),
                 Err(_) => Self::Zoned(parse_zoned(s)?),
             }
+        } else if s.contains(' ') {
+            // Space-separated datetime ("2024-04-01 12:34:56"): try the full datetime
+            // first; the Date branch below would silently drop the time part.
+            if let Ok(naive) = JiffDateTime::from_str(s) {
+                Self::Naive(naive)
+            } else if let Ok(date) = JiffDate::from_str(s) {
+                Self::Date(date)
+            } else {
+                Self::Zoned(parse_zoned(s)?)
+            }
         } else if let Ok(date) = JiffDate::from_str(s) {
             // No `T` separator: treat as date-only. We branch on `T` first
             // because jiff's `Date::from_str` and `DateTime::from_str` are
@@ -333,6 +343,20 @@ mod tests {
     fn test_datetime_parse_and_display_date() {
         let datetime = DateTime::from_str("2024-04-01").unwrap();
         assert_eq!(datetime.to_string(), "2024-04-01");
+    }
+
+    #[test]
+    fn test_space_separated_datetime_keeps_time() {
+        assert_eq!(
+            DateTime::from_str("2024-04-01 12:34:56").unwrap(),
+            DateTime::from_str("2024-04-01T12:34:56").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_display_round_trip() {
+        let dt = DateTime::from_str("2024-03-20T12:34:56").unwrap();
+        assert_eq!(DateTime::from_str(&dt.to_string()).unwrap(), dt);
     }
 
     #[test]
