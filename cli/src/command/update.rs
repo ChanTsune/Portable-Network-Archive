@@ -306,7 +306,7 @@ pub(crate) struct UpdateCommand {
         long,
         requires = "unstable",
         help_heading = "Unstable Options",
-        help = "Behavior when a timestamp needed for time filtering or update staleness judgment is missing (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]"
+        help = "Behavior when a timestamp needed for time filtering or update staleness judgment is missing (unstable). Values: include, exclude, now, epoch, or a datetime. [default: epoch]"
     )]
     missing_time: Option<MissingTimePolicy>,
     #[arg(
@@ -469,7 +469,8 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
         fflags_strategy: FflagsStrategy::Never,
         mac_metadata_strategy: MacMetadataStrategy::Never,
     };
-    let missing_time = args.missing_time.unwrap_or(MissingTimePolicy::Include);
+    let missing_ctime = args.missing_time.unwrap_or_default();
+    let missing_mtime = args.missing_time.unwrap_or_default();
     let time_filters = TimeFilterResolver {
         newer_ctime_than: args.newer_ctime_than.as_deref(),
         older_ctime_than: args.older_ctime_than.as_deref(),
@@ -479,8 +480,8 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: missing_time,
-        missing_mtime: missing_time,
+        missing_ctime,
+        missing_mtime,
     }
     .resolve()?;
     let create_options = CreateOptions {
@@ -543,7 +544,7 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
             &create_options,
             target_items,
             sync,
-            missing_time,
+            missing_mtime,
             &mut out_archive,
             TransformStrategyUnSolid,
             false,
@@ -555,7 +556,7 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
             &create_options,
             target_items,
             sync,
-            missing_time,
+            missing_mtime,
             &mut out_archive,
             TransformStrategyKeepSolid,
             false,

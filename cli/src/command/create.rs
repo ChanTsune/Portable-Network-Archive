@@ -467,8 +467,8 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: MissingTimePolicy::Include,
-        missing_mtime: MissingTimePolicy::Include,
+        missing_ctime: MissingTimePolicy::default(),
+        missing_mtime: MissingTimePolicy::default(),
     }
     .resolve()?;
     let collect_options = CollectOptions {
