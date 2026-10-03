@@ -614,7 +614,6 @@ mod tests {
     use super::*;
     use crate::ReadOptions;
     use crate::chunk::Chunk;
-    use crate::entry::RawEntry;
     use crate::entry::private::SealedEntryExt;
     use crate::entry::test_support::{entry_bytes, entry_chunks};
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
@@ -667,7 +666,7 @@ mod tests {
             SymlinkEntryBuilder::new("link_name".into(), "target_dir".into()).unwrap();
         builder.metadata(Metadata::new().with_link_target_type(Some(LinkTargetType::Directory)));
         let entry = builder.build().unwrap();
-        let restored = NormalEntry::try_from(RawEntry(entry_chunks(entry))).unwrap();
+        let restored = NormalEntry::parse_chunks(entry_chunks(entry)).unwrap();
         assert_eq!(
             restored.metadata().link_target_type(),
             Some(LinkTargetType::Directory)
@@ -680,7 +679,7 @@ mod tests {
             HardLinkEntryBuilder::new("dir_hardlink".into(), "target_dir".into()).unwrap();
         builder.metadata(Metadata::new().with_link_target_type(Some(LinkTargetType::Directory)));
         let entry = builder.build().unwrap();
-        let restored = NormalEntry::try_from(RawEntry(entry_chunks(entry))).unwrap();
+        let restored = NormalEntry::parse_chunks(entry_chunks(entry)).unwrap();
         assert_eq!(
             restored.metadata().link_target_type(),
             Some(LinkTargetType::Directory)
@@ -691,7 +690,7 @@ mod tests {
     fn fltp_absent_returns_none() {
         let builder = SymlinkEntryBuilder::new("link_name".into(), "target".into()).unwrap();
         let entry = builder.build().unwrap();
-        let restored = NormalEntry::try_from(RawEntry(entry_chunks(entry))).unwrap();
+        let restored = NormalEntry::parse_chunks(entry_chunks(entry)).unwrap();
         assert_eq!(restored.metadata().link_target_type(), None);
     }
 
@@ -700,7 +699,7 @@ mod tests {
         let mut builder = FileEntryBuilder::new("regular.txt".into()).unwrap();
         builder.metadata(Metadata::new().with_link_target_type(Some(LinkTargetType::File)));
         let entry = builder.build().unwrap();
-        let restored = NormalEntry::try_from(RawEntry(entry_chunks(entry))).unwrap();
+        let restored = NormalEntry::parse_chunks(entry_chunks(entry)).unwrap();
         assert_eq!(
             restored.metadata().link_target_type(),
             Some(LinkTargetType::File)
@@ -713,7 +712,7 @@ mod tests {
         b.write_all(b"content").unwrap();
         b.metadata(Metadata::new().with_modified(Some(Duration::seconds(42))));
         let entry = b.build().unwrap();
-        let restored = NormalEntry::try_from(RawEntry(entry_chunks(entry))).unwrap();
+        let restored = NormalEntry::parse_chunks(entry_chunks(entry)).unwrap();
         assert_eq!(restored.header().data_kind(), DataKind::FILE);
         assert_eq!(restored.metadata().modified(), Some(Duration::seconds(42)));
         assert_eq!(restored.metadata().raw_file_size(), Some(7));
@@ -746,7 +745,7 @@ mod tests {
         let mut b = DirEntryBuilder::new("d/".into());
         b.metadata(Metadata::new().with_permission_mode(Some(PermissionMode::from(0o755))));
         let entry = b.build().unwrap();
-        let restored = NormalEntry::try_from(RawEntry(entry_chunks(entry))).unwrap();
+        let restored = NormalEntry::parse_chunks(entry_chunks(entry)).unwrap();
         assert_eq!(restored.header().data_kind(), DataKind::DIRECTORY);
         assert_eq!(
             restored.metadata().permission_mode(),
@@ -868,7 +867,7 @@ mod tests {
         let mut b = OpaqueEntryBuilder::new("custom".into(), kind).unwrap();
         b.write_all(b"opaque bytes").unwrap();
         let entry = b.build().unwrap();
-        let restored = NormalEntry::try_from(RawEntry(entry_chunks(entry))).unwrap();
+        let restored = NormalEntry::parse_chunks(entry_chunks(entry)).unwrap();
         assert_eq!(restored.header().data_kind(), kind);
         match restored.content(ReadOptions::builder().build()).unwrap() {
             crate::EntryContent::Unknown(k, mut r) => {

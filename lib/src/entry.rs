@@ -483,7 +483,7 @@ fn read_next_normal_entry_from_stream<R: Read>(reader: &mut R) -> Option<io::Res
             Err(e) => return Some(Err(e)),
         }
     }
-    Some(RawEntry(chunks).try_into())
+    Some(NormalEntry::parse_chunks(chunks))
 }
 
 impl<R: Read> Iterator for EntryIterator<R> {
@@ -765,7 +765,28 @@ where
 
     #[inline]
     fn try_from(entry: RawEntry<T>) -> Result<Self, Self::Error> {
-        let mut chunks = entry.0.into_iter();
+        Self::parse_chunks(entry.0)
+    }
+}
+
+impl<T> SolidEntry<T>
+where
+    RawChunk<T>: Chunk,
+{
+    /// Parses a contiguous chunk sequence into a [`SolidEntry`].
+    ///
+    /// `chunks` must start with one solid entry's chunk range: `SHED`
+    /// through `SEND` (inclusive), with the header chunk first.
+    /// Parsing stops at the first `SEND`; any chunks after it are ignored.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the sequence is empty or does not start with a `SHED` chunk,
+    /// if no `SEND` terminator is present, if the entry version is unsupported,
+    /// if an unknown critical chunk type is present, or if any chunk body is malformed.
+    #[inline]
+    pub fn parse_chunks(chunks: impl IntoIterator<Item = RawChunk<T>>) -> io::Result<Self> {
+        let mut chunks = chunks.into_iter();
         let header = if let Some(first_chunk) = chunks.next() {
             if first_chunk.ty != ChunkType::SHED {
                 return Err(io::Error::new(
@@ -797,9 +818,13 @@ where
         let mut extra = vec![];
         let mut data = vec![];
         let mut phsf = None;
+        let mut terminated = false;
         for chunk in chunks {
             match chunk.ty() {
-                ChunkType::SEND => break,
+                ChunkType::SEND => {
+                    terminated = true;
+                    break;
+                }
                 ChunkType::SDAT => data.push(chunk.data),
                 ChunkType::PHSF => {
                     phsf = Some(
@@ -817,6 +842,12 @@ where
                     extra.push(chunk);
                 }
             }
+        }
+        if !terminated {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("unterminated entry: `{}` chunk not found", ChunkType::SEND),
+            ));
         }
         Ok(Self {
             header,
@@ -849,7 +880,28 @@ where
 
     #[inline]
     fn try_from(entry: RawEntry<T>) -> Result<Self, Self::Error> {
-        let mut chunks = entry.0.into_iter();
+        Self::parse_chunks(entry.0)
+    }
+}
+
+impl<T> NormalEntry<T>
+where
+    RawChunk<T>: Chunk,
+{
+    /// Parses a contiguous chunk sequence into a [`NormalEntry`].
+    ///
+    /// `chunks` must start with one entry's chunk range: `FHED`
+    /// through `FEND` (inclusive), with the header chunk first.
+    /// Parsing stops at the first `FEND`; any chunks after it are ignored.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the sequence is empty or does not start with a `FHED` chunk,
+    /// if no `FEND` terminator is present, if the entry version is unsupported,
+    /// if an unknown critical chunk type is present, or if any chunk body is malformed.
+    #[inline]
+    pub fn parse_chunks(chunks: impl IntoIterator<Item = RawChunk<T>>) -> io::Result<Self> {
+        let mut chunks = chunks.into_iter();
         let header = if let Some(first_chunk) = chunks.next() {
             if first_chunk.ty != ChunkType::FHED {
                 return Err(io::Error::new(
@@ -898,9 +950,13 @@ where
         let mut owner_user_sid = None;
         let mut owner_group_sid = None;
         let mut permission_mode = None;
+        let mut terminated = false;
         for chunk in chunks {
             match chunk.ty {
-                ChunkType::FEND => break,
+                ChunkType::FEND => {
+                    terminated = true;
+                    break;
+                }
                 ChunkType::PHSF => {
                     phsf = Some(
                         String::from_utf8(chunk.data().into())
@@ -948,6 +1004,12 @@ where
                     extra.push(chunk);
                 }
             }
+        }
+        if !terminated {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("unterminated entry: `{}` chunk not found", ChunkType::FEND),
+            ));
         }
         let ctime = ctime.map(|s| Duration::from_seconds_nanos(s, ctime_ns.unwrap_or(0)));
         let mtime = mtime.map(|s| Duration::from_seconds_nanos(s, mtime_ns.unwrap_or(0)));
@@ -1608,7 +1670,7 @@ mod tests {
             )];
             all.extend(chunks);
             all.push(RawChunk::from_data(ChunkType::FEND, vec![]));
-            let entry: NormalEntry = RawEntry(all).try_into().unwrap();
+            let entry: NormalEntry = NormalEntry::parse_chunks(all).unwrap();
             entry.metadata().clone()
         }
 
@@ -1934,7 +1996,7 @@ mod tests {
             RawChunk::from_slice(ChunkType::FHED, &header),
             RawChunk::from_slice(ChunkType::FEND, &[]),
         ]);
-        let entry: NormalEntry<&[u8]> = raw.try_into().unwrap();
+        let entry: NormalEntry<&[u8]> = NormalEntry::parse_chunks(raw.0).unwrap();
 
         let renamed = entry.try_with_name("renamed".into()).unwrap();
 
@@ -2087,7 +2149,7 @@ mod tests {
         let fend = RawChunk::from_data(ChunkType::FEND, vec![]);
 
         let raw_entry = RawEntry(vec![fhed, unknown_critical, fend]);
-        let result = NormalEntry::try_from(raw_entry);
+        let result = NormalEntry::parse_chunks(raw_entry.0);
 
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -2106,7 +2168,7 @@ mod tests {
         let send = RawChunk::from_data(ChunkType::SEND, vec![]);
 
         let raw_entry = RawEntry(vec![shed, unknown_critical, send]);
-        let result = SolidEntry::try_from(raw_entry);
+        let result = SolidEntry::parse_chunks(raw_entry.0);
 
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -2120,7 +2182,7 @@ mod tests {
         let send = RawChunk::from_data(ChunkType::SEND, vec![]);
 
         let raw_entry = RawEntry(vec![shed, send]);
-        let result = SolidEntry::try_from(raw_entry);
+        let result = SolidEntry::parse_chunks(raw_entry.0);
 
         assert_eq!(result.unwrap_err().kind(), io::ErrorKind::Unsupported);
     }
@@ -2131,7 +2193,7 @@ mod tests {
         let send = RawChunk::from_data(ChunkType::SEND, vec![]);
 
         let raw_entry = RawEntry(vec![shed, send]);
-        let result = SolidEntry::try_from(raw_entry);
+        let result = SolidEntry::parse_chunks(raw_entry.0);
 
         assert_eq!(result.unwrap_err().kind(), io::ErrorKind::Unsupported);
     }
@@ -2147,7 +2209,7 @@ mod tests {
         let fend = RawChunk::from_data(ChunkType::FEND, vec![]);
 
         let raw_entry = RawEntry(vec![fhed, unknown_ancillary, fend]);
-        let result = NormalEntry::try_from(raw_entry);
+        let result = NormalEntry::parse_chunks(raw_entry.0);
 
         // Ancillary chunks should be accepted and stored in extra
         assert!(result.is_ok());
@@ -2166,7 +2228,7 @@ mod tests {
         let send = RawChunk::from_data(ChunkType::SEND, vec![]);
 
         let raw_entry = RawEntry(vec![shed, unknown_ancillary, send]);
-        let result = SolidEntry::try_from(raw_entry);
+        let result = SolidEntry::parse_chunks(raw_entry.0);
 
         // Ancillary chunks should be accepted and stored in extra
         assert!(result.is_ok());
@@ -2185,12 +2247,49 @@ mod tests {
         );
 
         let raw_entry = RawEntry(vec![shed, send, trailing_critical]);
-        let result = SolidEntry::try_from(raw_entry);
+        let result = SolidEntry::parse_chunks(raw_entry.0);
 
         // Should succeed: SEND terminates parsing, trailing chunks are ignored
         assert!(result.is_ok());
         let entry = result.unwrap();
         assert_eq!(entry.extra.len(), 0);
+    }
+
+    #[test]
+    fn reject_unterminated_normal_entry() {
+        let fhed = RawChunk::from_data(ChunkType::FHED, vec![0, 0, 0, 0, 0, 0]);
+
+        let raw_entry = RawEntry(vec![fhed]);
+        let result = NormalEntry::parse_chunks(raw_entry.0);
+
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn reject_unterminated_solid_entry() {
+        let shed = RawChunk::from_data(ChunkType::SHED, vec![0, 0, 0, 0, 0]);
+
+        let raw_entry = RawEntry(vec![shed]);
+        let result = SolidEntry::parse_chunks(raw_entry.0);
+
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn parse_chunks_accepts_iterator_input() {
+        let fhed = RawChunk::from_data(ChunkType::FHED, vec![0, 0, 0, 0, 0, 0]);
+        let fend = RawChunk::from_data(ChunkType::FEND, vec![]);
+        // `Chain<Once, Once>` is an `IntoIterator` but not an `Into<Vec>`,
+        // so this only compiles with the widened bound.
+        let entry: NormalEntry =
+            NormalEntry::parse_chunks(std::iter::once(fhed).chain(std::iter::once(fend))).unwrap();
+        assert_eq!(entry.extra_chunks().len(), 0);
+
+        let shed = RawChunk::from_data(ChunkType::SHED, vec![0, 0, 0, 0, 0]);
+        let send = RawChunk::from_data(ChunkType::SEND, vec![]);
+        let entry: SolidEntry =
+            SolidEntry::parse_chunks(std::iter::once(shed).chain(std::iter::once(send))).unwrap();
+        assert_eq!(entry.extra_chunks().len(), 0);
     }
 
     fn sample_xattr() -> ExtendedAttribute {
@@ -2206,7 +2305,7 @@ mod tests {
         let mut builder = FileEntryBuilder::new("f".into()).unwrap();
         builder.metadata(Metadata::new().with_xattrs(vec![xattr.clone()]));
         let entry = builder.build().unwrap();
-        let restored = NormalEntry::try_from(RawEntry(entry_chunks(entry))).unwrap();
+        let restored = NormalEntry::parse_chunks(entry_chunks(entry)).unwrap();
         assert_eq!(restored.metadata().xattrs(), &[xattr]);
     }
 
