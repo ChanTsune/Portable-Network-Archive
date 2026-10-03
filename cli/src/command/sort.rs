@@ -161,7 +161,8 @@ impl Command for SortCommand {
 #[hooq::hooq(anyhow)]
 fn sort_archive(args: SortCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    let archives = collect_split_archives(&args.archive.file)?;
+    let archive_path = args.archive.require_file()?;
+    let archives = collect_split_archives(&archive_path)?;
     let mut source = SplitArchiveReader::new(archives)?;
     let read_options = ReadOptions::with_password(password.as_deref());
     let mut entries = Vec::<NormalEntry<_>>::new();
@@ -192,7 +193,7 @@ fn sort_archive(args: SortCommand, umask: Umask) -> anyhow::Result<()> {
         std::cmp::Ordering::Equal
     });
 
-    let destination = resolve_rewrite_output(&args.archive.file, args.output, args.overwrite)?;
+    let destination = resolve_rewrite_output(&archive_path, args.output, args.overwrite)?;
     let mut staged = StagedArchive::new(destination.path, umask, destination.overwrite)?;
     let mut archive = Archive::write_header(staged.as_file_mut())?;
     for entry in entries {
