@@ -323,8 +323,8 @@ impl Default for Metadata {
 /// an archive entry.
 ///
 /// This is purely a decode target for the reader — it exists only so
-/// `TryFrom<RawEntry<T>> for NormalEntry<T>` can fold a legacy `fPRM` chunk
-/// into the owner facets it supplies (see the rationale in that impl). The
+/// `NormalEntry::parse_chunks` can fold a legacy `fPRM` chunk
+/// into the owner facets it supplies (see the rationale in that method). The
 /// only way to construct one is [`Permission::try_from_bytes`], and no
 /// public getter exposes it.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
