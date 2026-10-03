@@ -20,9 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write # OIDC token for the opencode GitHub App
-      contents: read # checkout
-      pull-requests: read # read PR review comments
-      issues: read # read issue comments
+      contents: write # push commits/branches created by opencode
+      pull-requests: write # open and comment on PRs
+      issues: write # comment on issues and PRs
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
