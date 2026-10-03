@@ -29,9 +29,46 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Select model
+        id: select
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        run: |
+          set -euo pipefail
+          curl -sf -H "Authorization: Bearer $OPENCODE_API_KEY" \
+            https://opencode.ai/zen/v1/models \
+            | jq -r '.data[].id' | sort -u > /tmp/available_raw.txt
+          # Normalize to provider/model form (available IDs may omit the "opencode/" prefix)
+          while read -r id; do
+            case "$id" in
+              */*) echo "$id" ;;
+              *)   echo "opencode/$id" ;;
+            esac
+          done < /tmp/available_raw.txt | sort -u > /tmp/available.txt
+
+          MODEL=""
+          while read -r m; do
+            [ -z "$m" ] && continue
+            if grep -Fxq "$m" /tmp/available.txt; then MODEL="$m"; break; fi
+            # also match by bare model name if the priority file omits the provider prefix
+            if grep -Fxq "opencode/$m" /tmp/available.txt; then MODEL="opencode/$m"; break; fi
+          done < .github/opencode-model-priority.txt
+
+          if [ -z "$MODEL" ]; then
+            MODEL=$(grep -E -- '-free$' /tmp/available.txt | head -n1 || true)
+          fi
+
+          if [ -z "$MODEL" ]; then
+            echo "::error::No usable free model found"
+            exit 1
+          fi
+
+          echo "Selected model: $MODEL"
+          echo "model=$MODEL" >> "$GITHUB_OUTPUT"
+
       - name: Run opencode
         uses: anomalyco/opencode/github@a3b97d9090ccf4aa9ac32268486283e3131e36b4 # github-v1.2.25
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         with:
-          model: opencode/muse-spark-1.3-contributor-free
+          model: ${{ steps.select.outputs.model }}

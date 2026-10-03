@@ -1,0 +1,5 @@
+opencode/muse-spark-1.3-contributor-free
+opencode/space-bunny-free
+opencode/fledge-alpha-free
+opencode/nemotron-3-ultra-free
+opencode/mimo-v2.6-flash-free
