@@ -6,8 +6,12 @@ on:
   pull_request_review_comment:
     types: [created]
 
+permissions:
+  contents: read # checkout
+
 jobs:
   opencode:
+    name: opencode
     if: |
       contains(github.event.comment.body, ' /oc') ||
       startsWith(github.event.comment.body, '/oc') ||
@@ -15,18 +19,18 @@ jobs:
       startsWith(github.event.comment.body, '/opencode')
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
-      contents: read
-      pull-requests: read
-      issues: read
+      id-token: write # OIDC token for the opencode GitHub App
+      contents: read # checkout
+      pull-requests: read # read PR review comments
+      issues: read # read issue comments
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Run opencode
-        uses: anomalyco/opencode/github@latest
+        uses: anomalyco/opencode/github@a3b97d9090ccf4aa9ac32268486283e3131e36b4 # github-v1.2.25
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         with:
