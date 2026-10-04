@@ -252,3 +252,74 @@ fn split_fails_with_missing_archive() {
         "split should fail with non-existent archive"
     );
 }
+
+/// Precondition: A split part file exists.
+/// Action: Run `pna split` on the part file without `--out-dir`.
+/// Expectation: The command fails before truncating the input, and the
+/// original part file is left untouched.
+#[test]
+fn split_part_file_without_out_dir_fails_and_keeps_original() {
+    setup();
+
+    let test_dir = "split_same_file/in/";
+    fs::create_dir_all(test_dir).unwrap();
+    for i in 0..5 {
+        let filename = format!("{test_dir}file{i}.txt");
+        let mut file = fs::File::create(&filename).unwrap();
+        file.write_all(&[b'A' + i; 20]).unwrap();
+    }
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "create",
+        "-f",
+        "split_same_file/test.pna",
+        "--overwrite",
+        test_dir,
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "split",
+        "-f",
+        "split_same_file/test.pna",
+        "--overwrite",
+        "--max-size",
+        "150",
+        "--out-dir",
+        "split_same_file/split/",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let part = "split_same_file/split/test.part1.pna";
+    let before = fs::read(part).unwrap();
+    assert!(!before.is_empty(), "precondition: part file must exist");
+
+    let result = cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "split",
+        "-f",
+        part,
+        "--overwrite",
+        "--max-size",
+        "150",
+    ])
+    .unwrap()
+    .execute();
+
+    assert!(
+        result.is_err(),
+        "splitting a part file in place should fail"
+    );
+    assert_eq!(
+        fs::read(part).unwrap(),
+        before,
+        "input part file must be left untouched"
+    );
+}
