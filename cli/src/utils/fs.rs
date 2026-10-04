@@ -41,11 +41,6 @@ pub(crate) fn current_umask() -> u16 {
     }
 }
 
-pub(crate) fn is_pna<P: AsRef<Path>>(path: P) -> io::Result<bool> {
-    let file = fs::File::open(path)?;
-    crate::utils::io::is_pna(file)
-}
-
 #[cfg(any(windows, unix))]
 pub(crate) fn lchown<P: AsRef<Path>>(
     path: P,

@@ -143,6 +143,39 @@ pub fn remove_path_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
     remove_path_with(path.as_ref(), fs::remove_dir_all)
 }
 
+/// Checks whether the file at `path` starts with a PNA signature.
+///
+/// This checks only the leading signature, not archive validity: `Ok(true)`
+/// only means the leading signature matches, not that the file is a complete
+/// or valid archive.
+///
+/// An empty or truncated file is `Ok(false)`: if fewer bytes than the
+/// signature could be read, the file is not a PNA archive.
+///
+/// This opens the file and applies [`libpna::io::is_pna`].
+///
+/// # Examples
+///
+/// ```no_run
+/// # fn main() -> std::io::Result<()> {
+/// if pna::fs::is_pna("archive.pna")? {
+///     println!("is a PNA archive");
+/// }
+/// #     Ok(())
+/// # }
+/// ```
+///
+/// # Errors
+///
+/// Returns an error if the file cannot be opened (e.g.
+/// [`io::ErrorKind::NotFound`] when the path does not exist), or cannot be
+/// read for any reason other than end-of-file (which is reported as
+/// `Ok(false)`).
+#[inline]
+pub fn is_pna<P: AsRef<Path>>(path: P) -> io::Result<bool> {
+    libpna::io::is_pna(&mut fs::File::open(path)?)
+}
+
 /// Removes an entry from the filesystem without descending into directories.
 /// If the given path is a directory, calls [`fs::remove_dir`] (non-recursive);
 /// otherwise calls [`fs::remove_file`]. Use carefully!
@@ -177,18 +210,52 @@ pub fn remove_path<P: AsRef<Path>>(path: P) -> io::Result<()> {
     remove_path_with(path.as_ref(), fs::remove_dir)
 }
 
-#[cfg(all(test, windows))]
+#[cfg(all(test, not(target_family = "wasm")))]
 mod tests {
     use super::*;
+
+    #[test]
+    fn is_pna_detects_archive_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let valid = dir.path().join("valid.pna");
+        let invalid = dir.path().join("invalid.pna");
+        let empty = dir.path().join("empty.pna");
+        let truncated = dir.path().join("truncated.pna");
+        let missing = dir.path().join("missing.pna");
+        std::fs::write(&valid, libpna::PNA_SIGNATURE).unwrap();
+        std::fs::write(&invalid, b"not a pna archive").unwrap();
+        std::fs::write(&empty, b"").unwrap();
+        std::fs::write(
+            &truncated,
+            &libpna::PNA_SIGNATURE[..libpna::PNA_SIGNATURE.len() - 1],
+        )
+        .unwrap();
+
+        assert!(is_pna(&valid).unwrap());
+        assert!(!is_pna(&invalid).unwrap());
+        assert!(!is_pna(&empty).unwrap());
+        assert!(!is_pna(&truncated).unwrap());
+        assert_eq!(
+            is_pna(&missing).unwrap_err().kind(),
+            io::ErrorKind::NotFound
+        );
+    }
+
+    #[cfg(windows)]
     use std::borrow::Cow;
+    #[cfg(windows)]
     use std::ffi::OsString;
+    #[cfg(windows)]
     use std::os::windows::ffi::{OsStrExt, OsStringExt};
+    #[cfg(windows)]
     use std::path::{Path, PathBuf};
 
+    #[cfg(windows)]
     fn wide_units_of(path: &Path) -> Vec<u16> {
         path.as_os_str().encode_wide().collect()
     }
 
+    #[cfg(windows)]
     #[test]
     fn returns_borrowed_when_no_forward_slash() {
         let input = Path::new(r"foo\bar\baz");
@@ -197,6 +264,7 @@ mod tests {
         assert_eq!(result.as_ref(), input);
     }
 
+    #[cfg(windows)]
     #[test]
     fn converts_basic_forward_slash_to_backslash() {
         let result = normalize_windows_separators(Path::new("foo/bar"));
@@ -204,12 +272,14 @@ mod tests {
         assert_eq!(result.as_ref(), Path::new(r"foo\bar"));
     }
 
+    #[cfg(windows)]
     #[test]
     fn preserves_existing_backslashes_in_mixed_input() {
         let result = normalize_windows_separators(Path::new(r"a/b\c/d"));
         assert_eq!(result.as_ref(), Path::new(r"a\b\c\d"));
     }
 
+    #[cfg(windows)]
     #[test]
     fn empty_path_returns_borrowed() {
         let input = Path::new("");
@@ -218,18 +288,21 @@ mod tests {
         assert_eq!(result.as_ref(), input);
     }
 
+    #[cfg(windows)]
     #[test]
     fn single_forward_slash_is_converted() {
         let result = normalize_windows_separators(Path::new("/"));
         assert_eq!(result.as_ref(), Path::new(r"\"));
     }
 
+    #[cfg(windows)]
     #[test]
     fn extended_length_path_with_forward_slashes_is_normalized() {
         let result = normalize_windows_separators(Path::new(r"\\?\C:/foo/bar"));
         assert_eq!(result.as_ref(), Path::new(r"\\?\C:\foo\bar"));
     }
 
+    #[cfg(windows)]
     #[test]
     fn lone_surrogate_is_preserved_while_slash_is_converted() {
         let units: [u16; 3] = [0xD800, u16::from(b'/'), u16::from(b'a')];
@@ -241,6 +314,7 @@ mod tests {
         );
     }
 
+    #[cfg(windows)]
     #[test]
     fn unicode_characters_are_preserved() {
         let result = normalize_windows_separators(Path::new("日本語/フォルダ"));

@@ -7,7 +7,7 @@ use crate::{
         Command,
         core::{StagedArchive, Umask, collect_split_archives},
     },
-    utils::{self, PathWithCwd},
+    utils::PathWithCwd,
 };
 use anyhow::Context;
 use clap::{ArgAction, Parser, ValueHint};
@@ -58,7 +58,7 @@ fn concat_entry(args: ConcatCommand, umask: Umask) -> anyhow::Result<()> {
         }
     };
     for item in &archives {
-        if !utils::fs::is_pna(item)? {
+        if !pna::fs::is_pna(item)? {
             anyhow::bail!("{} is not a pna file", item.display());
         }
     }
@@ -75,7 +75,7 @@ fn concat_entry(args: ConcatCommand, umask: Umask) -> anyhow::Result<()> {
         {
             let mmaps = archives
                 .into_iter()
-                .map(utils::mmap::Mmap::try_from)
+                .map(crate::utils::mmap::Mmap::try_from)
                 .collect::<io::Result<Vec<_>>>()?;
             let archives = mmaps.iter().map(|m| m.as_ref());
             run_across_archive_bytes(
