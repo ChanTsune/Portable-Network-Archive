@@ -20,6 +20,32 @@ pub fn read_signature(bytes: &[u8]) -> io::Result<&[u8]> {
     Ok(rest)
 }
 
+/// Checks whether `bytes` starts with a PNA signature.
+///
+/// Use this for in-memory probing. For streaming readers, see
+/// [`crate::io::is_pna`].
+///
+/// Returns `false` for inputs shorter than the signature (including empty
+/// input). A return value of `true` only means the leading signature matches,
+/// not that the input is a complete or valid archive.
+///
+/// # Examples
+///
+/// ```
+/// assert!(libpna::bytes::is_pna(libpna::PNA_SIGNATURE));
+/// assert!(!libpna::bytes::is_pna(b""));
+/// assert!(!libpna::bytes::is_pna(b"not a pna archive"));
+/// assert!(!libpna::bytes::is_pna(
+///     &libpna::PNA_SIGNATURE[..libpna::PNA_SIGNATURE.len() - 1]
+/// ));
+/// ```
+#[inline]
+pub fn is_pna(bytes: &[u8]) -> bool {
+    bytes
+        .split_first_chunk::<{ PNA_SIGNATURE.len() }>()
+        .is_some_and(|(signature, _)| crate::format::validate_signature(signature).is_ok())
+}
+
 /// Reads and validates one PNA chunk from the beginning of `bytes`.
 ///
 /// Returns the zero-copy chunk and the bytes following it. The input must start
@@ -111,6 +137,30 @@ mod tests {
     use crate::chunk::test_support::{raw_chunk_bytes, valid_chunk_bytes};
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
+
+    #[test]
+    fn is_pna_accepts_signature() {
+        assert!(is_pna(PNA_SIGNATURE));
+        assert!(is_pna(
+            [PNA_SIGNATURE.as_slice(), b"body"].concat().as_slice()
+        ));
+    }
+
+    #[test]
+    fn is_pna_rejects_non_signature() {
+        assert!(!is_pna(b"xxxxxxxx"));
+
+        let mut tampered = *PNA_SIGNATURE;
+        tampered[0] ^= 0xFF;
+        assert!(!is_pna(&tampered));
+
+        for len in 0..PNA_SIGNATURE.len() {
+            assert!(
+                !is_pna(&PNA_SIGNATURE[..len]),
+                "truncation at {len} bytes must be false",
+            );
+        }
+    }
 
     #[test]
     fn read_signature_returns_remaining_bytes() {
