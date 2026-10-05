@@ -62,16 +62,16 @@ fn read_reference(reader: EntryDataReader<'_>) -> io::Result<EntryReference> {
 impl<T: AsRef<[u8]>> NormalEntry<T> {
     /// Decodes this entry's data according to its [`DataKind`].
     ///
-    /// Directories never touch the entry data, so they decode without a
-    /// password even when the entry is encrypted. Link targets are read,
-    /// validated as UTF-8, and restored without sanitization, preserving
-    /// the exact target recorded at write time.
+    /// Directories return [`EntryContent::Directory`] without reading data or
+    /// requiring a password. Link targets are decoded eagerly as UTF-8 without
+    /// sanitization. Files and unknown kinds return streaming readers.
     ///
     /// # Errors
     ///
-    /// Propagates errors from [`NormalEntry::reader`] (e.g. a missing or
-    /// wrong password). Returns [`io::ErrorKind::InvalidData`] if a link
-    /// target is not valid UTF-8.
+    /// Returns an error if [`NormalEntry::reader`] cannot be initialized or a
+    /// link target cannot be read. Returns [`io::ErrorKind::InvalidData`] if a
+    /// link target is not valid UTF-8. Errors while decoding file data or unknown
+    /// kinds are returned by their readers.
     ///
     /// # Examples
     ///

@@ -258,7 +258,7 @@ impl From<RawEntry<Box<[u8]>>> for RawEntry<Vec<u8>> {
     }
 }
 
-/// Reader for Entry data.
+/// A reader over decoded entry data.
 pub struct EntryDataReader<'r>(EntryReader<EncodedDataReader<'r>>);
 
 impl<'r> Read for EntryDataReader<'r> {
@@ -502,9 +502,7 @@ pub(crate) type SolidIntoEntries<T = Vec<u8>> =
 /// A solid mode entry in a PNA archive.
 ///
 /// Solid entries contain multiple files compressed together as a single unit.
-/// This provides better compression ratios but requires sequential access to
-/// the contained files. The entry includes a header, optional password hash,
-/// data chunks, and any extra chunks.
+/// The contained entries are read sequentially.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct SolidEntry<T = Vec<u8>> {
     header: SolidHeader,
@@ -580,11 +578,15 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
         encoded_data_reader(&self.data)
     }
 
-    /// Returns an iterator over the entries in the [`SolidEntry`].
+    /// Returns an iterator over the entries in this solid entry.
+    ///
+    /// The iterator returns errors encountered while decoding or parsing entries.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading from the [`SolidEntry`].
+    /// Returns an error if the decryption or decompression reader cannot be
+    /// initialized, including unsupported methods, a missing or incorrect
+    /// password, or malformed encryption headers.
     ///
     /// # Examples
     ///
@@ -602,8 +604,8 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
     ///             let options = ReadOptions::with_password(Some(b"password"));
     ///             for entry in solid_entry.entries(&options)? {
     ///                 let entry = entry?;
-    ///                 let mut reader = entry.reader(ReadOptions::builder().build());
-    ///                 // process the entry
+    ///                 let mut reader = entry.reader(ReadOptions::builder().build())?;
+    ///                 io::copy(&mut reader, &mut io::sink())?;
     ///             }
     ///         }
     ///         ReadEntry::Normal(_entry) => {
@@ -783,7 +785,7 @@ where
     ///
     /// Returns an error if the sequence is empty or does not start with a `SHED` chunk,
     /// if no `SEND` terminator is present, if the entry version is unsupported,
-    /// if an unknown critical chunk type is present, or if any chunk body is malformed.
+    /// if an unknown critical chunk type is present, or if a chunk body cannot be decoded.
     #[inline]
     pub fn parse_chunks(chunks: impl IntoIterator<Item = RawChunk<T>>) -> io::Result<Self> {
         let mut chunks = chunks.into_iter();
@@ -860,9 +862,8 @@ where
 
 /// A normal entry in a PNA archive.
 ///
-/// Normal entries represent individual files in the archive, allowing for
-/// random access to the file data. Each entry includes a header, optional
-/// password hash, data chunks, metadata, extended attributes, and any extra chunks.
+/// Each entry stores its own data and metadata and can be decoded independently
+/// of other entries.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct NormalEntry<T = Vec<u8>> {
     pub(crate) header: EntryHeader,
@@ -898,7 +899,7 @@ where
     ///
     /// Returns an error if the sequence is empty or does not start with a `FHED` chunk,
     /// if no `FEND` terminator is present, if the entry version is unsupported,
-    /// if an unknown critical chunk type is present, or if any chunk body is malformed.
+    /// if an unknown critical chunk type is present, or if a chunk body cannot be decoded.
     #[inline]
     pub fn parse_chunks(chunks: impl IntoIterator<Item = RawChunk<T>>) -> io::Result<Self> {
         let mut chunks = chunks.into_iter();
@@ -1098,12 +1099,10 @@ impl<T> NormalEntry<T> {
         &self.header
     }
 
-    /// Returns the name of this entry.
+    /// Returns the unsanitized name of this entry.
     ///
-    /// # Warning
-    ///
-    /// The returned name is not sanitized. Using it directly as a filesystem
-    /// path may allow path traversal. Call [`EntryName::sanitize`] before
+    /// Using the name directly as a filesystem path may allow path traversal.
+    /// Call [`EntryName::sanitize`] before
     /// using it as a path.
     #[inline]
     pub fn name(&self) -> &EntryName {
@@ -1156,17 +1155,22 @@ impl<T> NormalEntry<T> {
         &self.extra
     }
 
-    /// Applies metadata to the entry.
+    /// Replaces the metadata of this entry.
+    ///
+    /// The raw and compressed file sizes of the entry are preserved.
     ///
     /// # Examples
     ///
     /// ```rust
     /// # use std::io;
-    /// use libpna::{DirEntryBuilder, Metadata};
+    /// use libpna::{DirEntryBuilder, Duration, Metadata};
     ///
     /// # fn main() -> io::Result<()> {
-    /// let mut entry = DirEntryBuilder::new("dir_entry".into()).build()?;
-    /// entry.with_metadata(Metadata::new());
+    /// let entry = DirEntryBuilder::new("dir_entry".into()).build()?;
+    /// let modified = Duration::seconds(1000);
+    /// let metadata = Metadata::new().with_modified(Some(modified));
+    /// let entry = entry.with_metadata(metadata);
+    /// assert_eq!(entry.metadata().modified(), Some(modified));
     /// # Ok(())
     /// # }
     /// ```
@@ -1224,20 +1228,12 @@ impl<T> NormalEntry<T> {
             .unwrap_or_else(|_| panic!("renaming this entry would make its data undecryptable"))
     }
 
-    /// Returns this entry with a new name, refusing renames that
-    /// would make the entry's data undecryptable.
-    ///
-    /// [`CipherMode::GCM`] derives its stream key from the `FHED` bytes, so a
-    /// renamed entry can no longer be decrypted; this method returns an error
-    /// instead of producing one. Cipher modes this build does not implement are
-    /// refused as well, since their key derivation may bind the header too.
+    /// Returns this entry with a new name.
     ///
     /// # Errors
     ///
-    /// Returns the entry unchanged when it is encrypted in a cipher mode that
-    /// does not [allow a header rewrite](CipherMode::allows_header_rewrite), so
-    /// that a caller can copy it verbatim or re-encrypt it instead of having to
-    /// ask whether the rename is possible beforehand.
+    /// Returns the original entry in `Err` if it is encrypted in a cipher mode
+    /// that does not [allow a header rewrite](CipherMode::allows_header_rewrite).
     ///
     /// # Examples
     ///
@@ -1270,20 +1266,21 @@ impl<T> NormalEntry<T> {
 }
 
 impl<T: Clone> NormalEntry<T> {
-    /// Applies extra chunks to the entry.
+    /// Replaces the extra chunks of this entry.
     ///
     /// # Examples
     ///
     /// ```rust
     /// # use std::io;
-    /// use libpna::{ChunkType, DirEntryBuilder, RawChunk};
+    /// use libpna::{Chunk, ChunkType, DirEntryBuilder, RawChunk};
     ///
     /// # fn main() -> io::Result<()> {
-    /// let mut entry = DirEntryBuilder::new("dir_entry".into()).build()?;
-    /// entry.with_extra_chunks(&[RawChunk::from_data(
+    /// let entry = DirEntryBuilder::new("dir_entry".into()).build()?;
+    /// let entry = entry.with_extra_chunks(&[RawChunk::from_data(
     ///     ChunkType::private(*b"myTy").unwrap(),
     ///     b"some data",
     /// )]);
+    /// assert_eq!(entry.extra_chunks()[0].data(), b"some data");
     /// # Ok(())
     /// # }
     /// ```
@@ -1305,11 +1302,16 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
         encoded_data_reader(&self.data)
     }
 
-    /// Returns the reader of this [`NormalEntry`].
+    /// Returns a reader over the decoded data of this entry.
+    ///
+    /// Decryption and decompression errors encountered after initialization
+    /// are returned by the reader.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading from the reader.
+    /// Returns an error if the decryption or decompression reader cannot be
+    /// initialized, including unsupported methods, a missing or incorrect
+    /// password, or malformed encryption headers.
     ///
     /// # Examples
     ///
