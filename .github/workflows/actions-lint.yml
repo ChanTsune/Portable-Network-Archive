@@ -29,7 +29,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Run actionlint
-        uses: reviewdog/action-actionlint/dockerless@2085657ab2c7f48c58edcc767fba576f63bea76b # v1.77.0
+        uses: reviewdog/action-actionlint/dockerless@13465d022aa41c282f730be17574b5ce692d0186 # v1.78.1
         with:
           fail_level: error
           filter_mode: nofilter
