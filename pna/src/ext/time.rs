@@ -3,12 +3,8 @@ use super::private;
 use libpna::Duration;
 use std::time::SystemTime;
 
-/// Error returned when a [`SystemTime`] is outside the representable range of a
-/// libpna [`Duration`].
-///
-/// Reachable only for inputs more than `i64::MAX` seconds from the Unix epoch.
-/// No constructible filesystem timestamp reaches this; the type exists so the
-/// conversion contract does not lie about representability.
+/// An error converting between [`SystemTime`] and a signed libpna [`Duration`]
+/// when the destination cannot represent the timestamp.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct SystemTimeOutOfRange;
@@ -22,28 +18,18 @@ impl core::fmt::Display for SystemTimeOutOfRange {
 
 impl std::error::Error for SystemTimeOutOfRange {}
 
-/// Forward conversion from [`SystemTime`] to a signed libpna [`Duration`].
-///
-/// There is intentionally no policy-free default method: the caller must pick
-/// the fallible [`try_duration_since_unix_epoch_signed`] or the explicitly
-/// lossy [`saturating_duration_since_unix_epoch_signed`].
-///
-/// [`try_duration_since_unix_epoch_signed`]: SystemTimeDurationExt::try_duration_since_unix_epoch_signed
-/// [`saturating_duration_since_unix_epoch_signed`]: SystemTimeDurationExt::saturating_duration_since_unix_epoch_signed
+/// Conversion from [`SystemTime`] to a signed libpna [`Duration`].
 pub trait SystemTimeDurationExt: private::Sealed {
-    /// Signed duration since the Unix epoch.
-    ///
-    /// Never saturates, never panics.
+    /// Returns the signed duration since the Unix epoch.
     ///
     /// # Errors
     ///
-    /// Returns [`SystemTimeOutOfRange`] iff the value is not representable as a
+    /// Returns [`SystemTimeOutOfRange`] if the value is not representable as a
     /// libpna [`Duration`].
     fn try_duration_since_unix_epoch_signed(&self) -> Result<Duration, SystemTimeOutOfRange>;
 
-    /// Signed duration since the Unix epoch, saturating to [`Duration::MAX`]
-    /// (far future) or [`Duration::MIN`] (far past) when the value is not
-    /// representable. Saturation is the caller's explicit, named choice.
+    /// Returns the signed duration since the Unix epoch, saturating to
+    /// [`Duration::MAX`] or [`Duration::MIN`] if the value is out of range.
     fn saturating_duration_since_unix_epoch_signed(&self) -> Duration;
 }
 
@@ -69,24 +55,24 @@ impl SystemTimeDurationExt for SystemTime {
     }
 }
 
-/// Maps an optional filesystem [`SystemTime`] to `Option<Duration>` for the
-/// infallible builder/setter APIs.
-///
-/// `None` stays `None` (timestamp absent). An unrepresentable `SystemTime`
-/// (more than `i64::MAX` seconds from the epoch) is also mapped to `None`:
-/// that is unreachable for real filesystem timestamps, and the builder/setter
-/// signatures are infallible, so the conscious decision to drop such a value
-/// is documented here once instead of being scattered silently across the
-/// call sites.
+// Maps an optional filesystem [`SystemTime`] to `Option<Duration>` for the
+// infallible builder/setter APIs.
+//
+// `None` stays `None` (timestamp absent). An unrepresentable `SystemTime`
+// (more than `i64::MAX` seconds from the epoch) is also mapped to `None`:
+// that is unreachable for real filesystem timestamps, and the builder/setter
+// signatures are infallible, so the conscious decision to drop such a value
+// is documented here once instead of being scattered silently across the
+// call sites.
 pub(crate) fn opt_system_time_to_duration(t: Option<SystemTime>) -> Option<Duration> {
     t.and_then(|st| st.try_duration_since_unix_epoch_signed().ok())
 }
 
-/// Largest (`into_future`) or smallest representable `SystemTime`, found by
-/// probing. Platform ranges differ (Windows `FILETIME` ≈ years 1601..=30828;
-/// Unix far wider; `wasm` cannot go before the Unix epoch). Falls back to
-/// `UNIX_EPOCH` when the direction is unrepresentable at all (wasm past), so
-/// it never panics.
+// A representable fallback `SystemTime` in the requested direction, found by
+// probing. Platform ranges differ (Windows `FILETIME` ≈ years 1601..=30828;
+// Unix far wider; `wasm` cannot go before the Unix epoch). Falls back to
+// `UNIX_EPOCH` when the direction is unrepresentable at all (wasm past), so
+// it never panics.
 fn platform_clamp_target(into_future: bool) -> SystemTime {
     (0..=62)
         .rev()
@@ -101,11 +87,11 @@ fn platform_clamp_target(into_future: bool) -> SystemTime {
         .unwrap_or(SystemTime::UNIX_EPOCH)
 }
 
-/// Converts a libpna [`Duration`] to a [`SystemTime`].
-///
-/// `None` from the platform's checked arithmetic (the stored duration is
-/// outside the platform's representable `SystemTime` range) becomes
-/// `Err(SystemTimeOutOfRange)`. Never panics.
+// Converts a libpna [`Duration`] to a [`SystemTime`].
+//
+// `None` from the platform's checked arithmetic (the stored duration is
+// outside the platform's representable `SystemTime` range) becomes
+// `Err(SystemTimeOutOfRange)`. Never panics.
 pub(crate) fn duration_to_system_time(d: Duration) -> Result<SystemTime, SystemTimeOutOfRange> {
     let magnitude = d.unsigned_abs();
     let converted = if d.is_negative() {
@@ -116,9 +102,8 @@ pub(crate) fn duration_to_system_time(d: Duration) -> Result<SystemTime, SystemT
     converted.ok_or(SystemTimeOutOfRange)
 }
 
-/// Converts a libpna [`Duration`] to a [`SystemTime`], clamping to the
-/// platform's representable bound instead of failing. Saturation is the
-/// caller's explicit, named choice.
+// Converts a libpna [`Duration`] to a [`SystemTime`], clamping to the
+// platform-dependent fallback instead of failing.
 pub(crate) fn saturating_duration_to_system_time(d: Duration) -> SystemTime {
     duration_to_system_time(d).unwrap_or_else(|_| platform_clamp_target(!d.is_negative()))
 }
