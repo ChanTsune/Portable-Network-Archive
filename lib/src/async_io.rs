@@ -34,8 +34,7 @@ pub async fn read_signature<R: AsyncRead + Unpin + ?Sized>(reader: &mut R) -> io
 /// `Ok(false)` or `Err`, an unspecified number of bytes has been consumed, so
 /// `reader` cannot be reused to probe for another format.
 ///
-/// `Ok(true)` only means the leading signature matches, not that the input
-/// is a complete or valid archive.
+/// A matching signature does not imply that the archive is complete or valid.
 ///
 /// If fewer bytes than the signature could be read, this returns `Ok(false)`.
 ///

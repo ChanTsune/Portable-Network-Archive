@@ -26,8 +26,9 @@ pub fn read_signature(bytes: &[u8]) -> io::Result<&[u8]> {
 /// [`crate::io::is_pna`].
 ///
 /// Returns `false` for inputs shorter than the signature (including empty
-/// input). A return value of `true` only means the leading signature matches,
-/// not that the input is a complete or valid archive.
+/// input).
+///
+/// A matching signature does not imply that the archive is complete or valid.
 ///
 /// # Examples
 ///

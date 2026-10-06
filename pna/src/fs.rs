@@ -145,14 +145,9 @@ pub fn remove_path_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
 
 /// Checks whether the file at `path` starts with a PNA signature.
 ///
-/// This checks only the leading signature, not archive validity: `Ok(true)`
-/// only means the leading signature matches, not that the file is a complete
-/// or valid archive.
+/// Returns `Ok(false)` if the file is shorter than the signature.
 ///
-/// An empty or truncated file is `Ok(false)`: if fewer bytes than the
-/// signature could be read, the file is not a PNA archive.
-///
-/// This opens the file and applies [`libpna::io::is_pna`].
+/// A matching signature does not imply that the archive is complete or valid.
 ///
 /// # Examples
 ///
@@ -167,10 +162,8 @@ pub fn remove_path_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
 ///
 /// # Errors
 ///
-/// Returns an error if the file cannot be opened (e.g.
-/// [`io::ErrorKind::NotFound`] when the path does not exist), or cannot be
-/// read for any reason other than end-of-file (which is reported as
-/// `Ok(false)`).
+/// Returns an error if the file cannot be opened or the signature cannot be
+/// read for a reason other than end-of-file.
 #[inline]
 pub fn is_pna<P: AsRef<Path>>(path: P) -> io::Result<bool> {
     libpna::io::is_pna(&mut fs::File::open(path)?)
