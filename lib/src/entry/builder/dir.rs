@@ -39,14 +39,14 @@ impl DirEntryBuilder {
     /// Sets the metadata of the entry, replacing any previously set metadata.
     ///
     /// The raw file size and compressed size recorded in the given metadata
-    /// are ignored; [`build()`](Self::build) computes them.
+    /// are ignored; the directory has no raw file size and a compressed size of zero.
     #[inline]
     pub fn metadata(&mut self, metadata: Metadata) -> &mut Self {
         self.core.metadata(metadata);
         self
     }
 
-    /// Adds extra chunk to the entry.
+    /// Adds an extra chunk to the entry.
     #[inline]
     pub fn add_extra_chunk<T: Into<RawChunk>>(&mut self, chunk: T) -> &mut Self {
         self.core.add_extra_chunk(chunk);

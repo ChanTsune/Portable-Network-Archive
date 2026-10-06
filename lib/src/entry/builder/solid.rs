@@ -18,9 +18,8 @@ use std::{
 
 /// A writer for adding an entry payload within a [`SolidEntryBuilder`].
 ///
-/// This struct provides a `Write` interface for adding content to an entry that
-/// is being created within a solid entry. It is passed to the closure in
-/// [`SolidEntryBuilder::write_file`] or [`SolidEntryBuilder::write_opaque`].
+/// Passed to the closure in [`SolidEntryBuilder::write_file`] or
+/// [`SolidEntryBuilder::write_opaque`].
 pub struct SolidEntryDataWriter<'a>(
     InternalArchiveDataWriter<&'a mut InternalDataWriter<FlattenWriter>>,
 );
@@ -39,9 +38,7 @@ impl Write for SolidEntryDataWriter<'_> {
 
 /// A builder for creating a [`SolidEntry`].
 ///
-/// This builder is used to construct a solid entry, which can contain multiple
-/// files compressed together as a single unit. This is particularly effective
-/// for achieving high compression ratios with many small, similar files.
+/// Entries are compressed and encrypted together as a single stream.
 ///
 /// # Examples
 ///
@@ -80,7 +77,7 @@ impl SolidEntryBuilder {
     ///
     /// # Errors
     ///
-    /// Returns an error if initialization fails.
+    /// Returns an error if the compression or encryption writer cannot be initialized.
     #[inline]
     pub fn new(option: impl WriteOption) -> io::Result<Self> {
         let header = SolidHeader::new(
@@ -105,7 +102,7 @@ impl SolidEntryBuilder {
         })
     }
 
-    /// Adds an entry to the solid archive.
+    /// Adds an entry to the solid entry.
     ///
     /// # Errors
     ///
@@ -138,14 +135,13 @@ impl SolidEntryBuilder {
         entry.write_in(&mut self.data)
     }
 
-    /// Writes a regular file to the solid entry.
+    /// Writes a regular file entry using data produced by `f`.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while writing the entry,
-    /// or if the closure returns an error. If this method returns an error, the
-    /// builder may contain a partial entry and must be discarded without
-    /// further use.
+    /// Returns an error if the entry cannot be written or the closure returns an error.
+    /// After an error, the builder may contain a partial entry and must be
+    /// discarded without further use.
     ///
     /// # Examples
     ///
@@ -190,7 +186,7 @@ impl SolidEntryBuilder {
         )
     }
 
-    /// Writes an opaque entry payload to the solid entry.
+    /// Writes an opaque entry of `kind` using data produced by `f`.
     ///
     /// The inner entry always uses STORE; compression and encryption are
     /// provided only by the outer solid stream. No validation is performed
@@ -199,10 +195,9 @@ impl SolidEntryBuilder {
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while writing the entry, or if
-    /// the closure returns an error. If this method returns an error, the
-    /// builder may contain a partial entry and must be discarded without
-    /// further use.
+    /// Returns an error if the entry cannot be written or the closure returns an error.
+    /// After an error, the builder may contain a partial entry and must be
+    /// discarded without further use.
     #[inline]
     pub fn write_opaque<F>(
         &mut self,
@@ -229,7 +224,7 @@ impl SolidEntryBuilder {
         )
     }
 
-    /// Adds extra chunk to the solid entry.
+    /// Adds an extra chunk to the solid entry.
     #[inline]
     pub fn add_extra_chunk<T: Into<RawChunk>>(&mut self, chunk: T) {
         self.extra.push(chunk.into());
@@ -237,7 +232,7 @@ impl SolidEntryBuilder {
 
     /// Sets the maximum chunk size for data written to this solid entry.
     ///
-    /// The default is the maximum allowed chunk size (~4GB).
+    /// The default is [`u32::MAX`] bytes.
     ///
     /// # Examples
     ///
@@ -274,7 +269,7 @@ impl SolidEntryBuilder {
     /// This is independent of [`max_chunk_size()`](SolidEntryBuilder::max_chunk_size),
     /// which controls the outer data chunking.
     ///
-    /// The default is the maximum allowed chunk size (~4GB).
+    /// The default is [`u32::MAX`] bytes.
     #[inline]
     pub fn max_file_chunk_size(&mut self, size: NonZeroU32) -> &mut Self {
         self.max_file_chunk_size = Some(size);
@@ -296,11 +291,11 @@ impl SolidEntryBuilder {
         })
     }
 
-    /// Consumes this builder and returns the constructed [`Entry`].
+    /// Consumes this builder and returns the constructed [`SolidEntry`].
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while building entry into buffer.
+    /// Returns an error if the compression or encryption stream cannot be finalized.
     ///
     /// # Examples
     ///

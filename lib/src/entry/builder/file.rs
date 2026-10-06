@@ -60,7 +60,7 @@ impl FileEntryBuilder {
     ///
     /// # Errors
     ///
-    /// Returns an error if initialization fails.
+    /// Returns an error if the compression or encryption writer cannot be initialized.
     #[inline]
     pub fn new_with_options(name: EntryName, option: impl WriteOption) -> io::Result<Self> {
         let header = EntryHeader::for_file(
@@ -91,7 +91,7 @@ impl FileEntryBuilder {
         self
     }
 
-    /// Adds extra chunk to the entry.
+    /// Adds an extra chunk to the entry.
     #[inline]
     pub fn add_extra_chunk<T: Into<RawChunk>>(&mut self, chunk: T) -> &mut Self {
         self.core.add_extra_chunk(chunk);
@@ -100,7 +100,7 @@ impl FileEntryBuilder {
 
     /// Sets the maximum chunk size for data written to this entry.
     ///
-    /// The default is the maximum allowed chunk size (~4GB).
+    /// The default is [`u32::MAX`] bytes.
     #[inline]
     pub fn max_chunk_size(&mut self, size: NonZeroU32) -> &mut Self {
         self.core.set_max_chunk_size(size);
@@ -125,7 +125,7 @@ impl FileEntryBuilder {
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while building entry into buffer.
+    /// Returns an error if the compression or encryption stream cannot be finalized.
     #[inline]
     #[must_use = "building an entry without using it is wasteful"]
     pub fn build(self) -> io::Result<NormalEntry> {

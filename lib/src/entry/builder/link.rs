@@ -57,13 +57,12 @@ impl SymlinkEntryBuilder {
     /// target is compressed and encrypted accordingly.
     ///
     /// When `option.encryption()` is [`Encryption::NO`], the cipher
-    /// mode recorded in the header is [`CipherMode::CBC`] regardless
-    /// of `option.cipher_mode()`, matching the wire representation
-    /// produced by the legacy link constructors.
+    /// mode recorded in the header is [`CipherMode::CBC`].
     ///
     /// # Errors
     ///
-    /// Returns an error if initialization fails.
+    /// Returns an error if the compression or encryption writer cannot be initialized,
+    /// or if the link target cannot be written.
     #[inline]
     pub fn new_with_options(
         name: EntryName,
@@ -90,14 +89,15 @@ impl SymlinkEntryBuilder {
     /// metadata.
     ///
     /// The raw file size and compressed size recorded in the given
-    /// metadata are ignored; [`build()`](Self::build) computes them.
+    /// metadata are ignored; [`build()`](Self::build) computes the compressed
+    /// size and omits the raw file size.
     #[inline]
     pub fn metadata(&mut self, metadata: Metadata) -> &mut Self {
         self.0.core.metadata(metadata);
         self
     }
 
-    /// Adds extra chunk to the entry.
+    /// Adds an extra chunk to the entry.
     #[inline]
     pub fn add_extra_chunk<T: Into<RawChunk>>(&mut self, chunk: T) -> &mut Self {
         self.0.core.add_extra_chunk(chunk);
@@ -109,8 +109,7 @@ impl SymlinkEntryBuilder {
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while building entry
-    /// into buffer.
+    /// Returns an error if the compression or encryption stream cannot be finalized.
     #[inline]
     #[must_use = "building an entry without using it is wasteful"]
     pub fn build(self) -> io::Result<NormalEntry> {
@@ -141,13 +140,12 @@ impl HardLinkEntryBuilder {
     /// target is compressed and encrypted accordingly.
     ///
     /// When `option.encryption()` is [`Encryption::NO`], the cipher
-    /// mode recorded in the header is [`CipherMode::CBC`] regardless
-    /// of `option.cipher_mode()`, matching the wire representation
-    /// produced by the legacy link constructors.
+    /// mode recorded in the header is [`CipherMode::CBC`].
     ///
     /// # Errors
     ///
-    /// Returns an error if initialization fails.
+    /// Returns an error if the compression or encryption writer cannot be initialized,
+    /// or if the link target cannot be written.
     #[inline]
     pub fn new_with_options(
         name: EntryName,
@@ -174,14 +172,15 @@ impl HardLinkEntryBuilder {
     /// metadata.
     ///
     /// The raw file size and compressed size recorded in the given
-    /// metadata are ignored; [`build()`](Self::build) computes them.
+    /// metadata are ignored; [`build()`](Self::build) computes the compressed
+    /// size and omits the raw file size.
     #[inline]
     pub fn metadata(&mut self, metadata: Metadata) -> &mut Self {
         self.0.core.metadata(metadata);
         self
     }
 
-    /// Adds extra chunk to the entry.
+    /// Adds an extra chunk to the entry.
     #[inline]
     pub fn add_extra_chunk<T: Into<RawChunk>>(&mut self, chunk: T) -> &mut Self {
         self.0.core.add_extra_chunk(chunk);
@@ -193,8 +192,7 @@ impl HardLinkEntryBuilder {
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while building entry
-    /// into buffer.
+    /// Returns an error if the compression or encryption stream cannot be finalized.
     #[inline]
     #[must_use = "building an entry without using it is wasteful"]
     pub fn build(self) -> io::Result<NormalEntry> {
