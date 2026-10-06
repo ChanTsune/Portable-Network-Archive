@@ -239,7 +239,8 @@ impl Metadata {
     pub const fn raw_file_size(&self) -> Option<u128> {
         self.raw_file_size
     }
-    /// Returns the compressed size of this entry's data in bytes.
+    /// Returns the size of this entry's stored data in bytes, after compression
+    /// and encryption.
     #[inline]
     pub const fn compressed_size(&self) -> usize {
         self.compressed_size
@@ -297,7 +298,7 @@ impl Metadata {
 
     /// Returns the link target type for this entry, if present.
     ///
-    /// - `None`: fLTP chunk was absent.
+    /// - `None`: target type is absent or unrecognized.
     /// - `Some(Unknown)`: fLTP chunk present but target type undetermined.
     /// - `Some(File)` / `Some(Directory)`: known target type.
     #[inline]
@@ -319,14 +320,14 @@ impl Default for Metadata {
     }
 }
 
-/// Decoded legacy `fPRM` chunk body: owner, group, and permission bits for
-/// an archive entry.
-///
-/// This is purely a decode target for the reader — it exists only so
-/// `NormalEntry::parse_chunks` can fold a legacy `fPRM` chunk
-/// into the owner facets it supplies (see the rationale in that method). The
-/// only way to construct one is [`Permission::try_from_bytes`], and no
-/// public getter exposes it.
+// Decoded legacy `fPRM` chunk body: owner, group, and permission bits for
+// an archive entry.
+//
+// This is purely a decode target for the reader — it exists only so
+// `NormalEntry::parse_chunks` can fold a legacy `fPRM` chunk
+// into the owner facets it supplies (see the rationale in that method). The
+// only way to construct one is `Permission::try_from_bytes`, and no
+// public getter exposes it.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct Permission {
     uid: u64,
@@ -783,7 +784,7 @@ impl From<u16> for PermissionMode {
 /// - `Directory` (2): Target is a directory.
 /// - Values 3–63 are reserved for future public extensions.
 /// - Values 64–255 are reserved for private extensions.
-/// - Both ranges are currently unrecognized and fall back to `None`.
+/// - Unrecognized values are ignored when reading entry metadata.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
 pub enum LinkTargetType {
@@ -1088,12 +1089,12 @@ mod tests {
         );
     }
 
-    /// Raw `fPRM` chunk body: `uid(8) | uname_len(1) | uname | gid(8) |
-    /// gname_len(1) | gname | mode(2)`, all big-endian (mirrors
-    /// `Permission::try_from_bytes`). Asserts both names fit the 1-byte
-    /// length prefix before the `as u8` cast, so a name too long for the
-    /// format fails loudly here instead of silently truncating the length
-    /// byte and producing a malformed chunk.
+    // Raw `fPRM` chunk body: `uid(8) | uname_len(1) | uname | gid(8) |
+    // gname_len(1) | gname | mode(2)`, all big-endian (mirrors
+    // `Permission::try_from_bytes`). Asserts both names fit the 1-byte
+    // length prefix before the `as u8` cast, so a name too long for the
+    // format fails loudly here instead of silently truncating the length
+    // byte and producing a malformed chunk.
     fn fprm_body(uid: u64, uname: &str, gid: u64, gname: &str, mode: u16) -> Vec<u8> {
         assert!(uname.len() <= u8::MAX as usize);
         assert!(gname.len() <= u8::MAX as usize);
@@ -1108,12 +1109,12 @@ mod tests {
         body
     }
 
-    /// A pre-existing archive can carry both a legacy `fPRM` chunk and owner
-    /// facets — third-party writers and archives from 0.34 through 0.37 can
-    /// do this even though libpna itself no longer writes `fPRM`. The
-    /// all-or-nothing fill must leave every facet alone when even one of
-    /// them is already set, so all 7 facets set here must survive untouched
-    /// by the `fPRM` chunk written alongside them.
+    // A pre-existing archive can carry both a legacy `fPRM` chunk and owner
+    // facets — third-party writers and archives from 0.34 through 0.37 can
+    // do this even though libpna itself no longer writes `fPRM`. The
+    // all-or-nothing fill must leave every facet alone when even one of
+    // them is already set, so all 7 facets set here must survive untouched
+    // by the `fPRM` chunk written alongside them.
     #[test]
     fn owner_facets_survive_an_fprm_chunk_written_alongside_them() {
         use crate::entry::{
