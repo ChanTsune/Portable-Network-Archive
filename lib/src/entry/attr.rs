@@ -18,8 +18,7 @@ const XATTR_LENGTH_LIMIT: usize = u32::MAX as usize;
 pub struct XattrName(BoundedString<XATTR_LENGTH_LIMIT>);
 
 impl XattrName {
-    /// Constructs an [`XattrName`], rejecting inputs whose byte length exceeds
-    /// `u32::MAX`.
+    /// Constructs an [`XattrName`].
     ///
     /// # Errors
     ///
@@ -90,8 +89,7 @@ impl FromStr for XattrName {
 pub struct XattrValue(BoundedBytes<XATTR_LENGTH_LIMIT>);
 
 impl XattrValue {
-    /// Constructs an [`XattrValue`], rejecting inputs whose byte length exceeds
-    /// `u32::MAX`.
+    /// Constructs an [`XattrValue`].
     ///
     /// # Errors
     ///
