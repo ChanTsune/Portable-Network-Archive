@@ -37,14 +37,13 @@ impl EntryName {
         Ok(Self::new_from_utf8(name))
     }
 
-    /// Creates an [`EntryName`] from a type implementing [`Into<PathBuf>`].
+    /// Creates a sanitized entry name from a path with lossy UTF-8 conversion.
     ///
     /// Any non-Unicode sequences are replaced with
-    /// [`U+FFFD REPLACEMENT CHARACTER`][U+FFFD] and
-    /// any path components that do not match [`Component::Normal`] are removed.
+    /// [`U+FFFD REPLACEMENT CHARACTER`][U+FFFD].
+    /// The path is normalized and sanitized by [`Self::sanitize`].
     ///
     /// [U+FFFD]: core::char::REPLACEMENT_CHARACTER
-    /// [`Component::Normal`]: std::path::Component::Normal
     ///
     /// # Examples
     ///
@@ -66,9 +65,7 @@ impl EntryName {
         Self::from_path_lossy_preserve_root(p).sanitize()
     }
 
-    /// Creates an [`EntryName`] from a path, preserving absolute path components.
-    ///
-    /// This method is similar to the `From` implementations for path-like types, but preserves absolute path components.
+    /// Creates an [`EntryName`] from `path` without changing its contents.
     ///
     /// # Examples
     ///
@@ -91,9 +88,7 @@ impl EntryName {
         Self(path)
     }
 
-    /// Creates an [`EntryName`] from a path, preserving absolute path components.
-    ///
-    /// This method is similar to the `From` implementations for path-like types, but preserves absolute path components.
+    /// Creates an [`EntryName`] from a path without changing its contents.
     ///
     /// # Errors
     ///
@@ -114,10 +109,10 @@ impl EntryName {
         Ok(Self::from_utf8_preserve_root(path))
     }
 
-    /// Creates an [`EntryName`] from a path with lossy UTF-8 conversion, preserving absolute path components.
+    /// Creates an [`EntryName`] from a path without sanitizing its components.
     ///
-    /// This method is similar to the `From` implementations for path-like types, but preserves absolute path components.
-    /// Invalid UTF-8 sequences are replaced with the Unicode replacement character.
+    /// Any non-UTF-8 sequences are replaced with
+    /// [`U+FFFD REPLACEMENT CHARACTER`](core::char::REPLACEMENT_CHARACTER).
     ///
     /// # Examples
     ///
@@ -133,10 +128,10 @@ impl EntryName {
         Self::new_preserve_root(name.to_string_lossy().into())
     }
 
-    /// Returns a sanitized copy of this entry name that contains only normal components.
+    /// Returns a normalized entry name containing only normal path components.
     ///
-    /// Sanitization discards prefixes, root separators, `.` and `..` segments so the
-    /// resulting entry name is always relative and safe to embed in an archive.
+    /// Resolves `..` against preceding normal components, then removes prefixes,
+    /// root separators, `.` and any remaining `..` components.
     ///
     /// # Examples
     ///
