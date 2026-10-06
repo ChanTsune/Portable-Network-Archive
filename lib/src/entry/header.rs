@@ -77,7 +77,7 @@ impl EntryHeader {
         Self::new(DataKind::HARD_LINK, path)
     }
 
-    /// Creates a new EntryHeader with a different name, resetting the sanitized path cache.
+    // Creates a new EntryHeader with a different name, resetting the sanitized path cache.
     #[inline]
     pub(crate) fn with_name(self, name: EntryName) -> Self {
         Self {
@@ -87,7 +87,7 @@ impl EntryHeader {
         }
     }
 
-    /// Returns the sanitized path of this entry, with path traversal characters removed by [`EntryName::sanitize`].
+    /// Returns the entry name normalized and sanitized by [`EntryName::sanitize`].
     #[inline]
     pub fn path(&self) -> &EntryName {
         self.sanitized_path.get_or_init(|| self.name.sanitize())
@@ -117,9 +117,9 @@ impl EntryHeader {
         self.cipher_mode
     }
 
-    /// Must stay byte-identical to the bytes [`Self::try_from_bytes`] accepted:
-    /// AEAD stream-key derivation is specified over the received `FHED` Data
-    /// field and reads it back through this method.
+    // Must stay byte-identical to the bytes `Self::try_from_bytes` accepted:
+    // AEAD stream-key derivation is specified over the received `FHED` Data
+    // field and reads it back through this method.
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
         let name = self.name.as_bytes();
         let mut data = Vec::with_capacity(6 + name.len());
@@ -262,11 +262,11 @@ impl SolidHeader {
         self.cipher_mode
     }
 
-    /// Converts to [`ChunkType::SHED`](crate::ChunkType::SHED) body bytes.
-    ///
-    /// For a header read from an archive this reproduces the `SHED` Data field
-    /// byte for byte, which [`CipherMode::GCM`] relies on: stream-key
-    /// derivation is specified over that field as received.
+    /// Returns the `SHED` chunk body bytes.
+    //
+    // For a header read from an archive this reproduces the `SHED` Data field
+    // byte for byte, which `CipherMode::GCM` relies on: stream-key
+    // derivation is specified over that field as received.
     #[inline]
     pub const fn to_bytes(&self) -> [u8; 5] {
         [
