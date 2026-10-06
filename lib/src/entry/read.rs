@@ -18,12 +18,12 @@ use crypto_common::BlockSizeUser;
 use password_hash::phc::Output;
 use std::io::{self, Read};
 
-/// Resolves the cipher key for a PHC string, reusing a previously derived
-/// key when the cache holds one.
-///
-/// The KDF runs outside the cache lock: concurrent readers may derive the
-/// same key more than once on first contact, but the result is
-/// deterministic so the race is benign.
+// Resolves the cipher key for a PHC string, reusing a previously derived
+// key when the cache holds one.
+//
+// The KDF runs outside the cache lock: concurrent readers may derive the
+// same key more than once on first contact, but the result is
+// deterministic so the race is benign.
 fn resolve_key(phsf: &str, password: &[u8], key_cache: Option<&KeyCache>) -> io::Result<Output> {
     if let Some(cache) = key_cache
         && let Some(key) = cache.get(phsf)

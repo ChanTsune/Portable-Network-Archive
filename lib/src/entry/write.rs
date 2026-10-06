@@ -32,8 +32,8 @@ pub(crate) enum CipherPayload {
         iv: Vec<u8>,
         key: Output,
     },
-    /// GCM: the per-stream key is derived from the entry header, so it cannot be
-    /// derived before that header is final.
+    // GCM: the per-stream key is derived from the entry header, so it cannot be
+    // derived before that header is final.
     GcmStream {
         header: StreamHeader,
         k_stream: StreamKey,
