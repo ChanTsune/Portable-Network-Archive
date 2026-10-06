@@ -37,10 +37,11 @@ impl EntryReference {
         Ok(Self::new_from_utf8(path))
     }
 
-    /// Creates an [`EntryReference`] from a type implementing [`Into<PathBuf>`].
+    /// Creates a sanitized entry reference from a path with lossy UTF-8 conversion.
     ///
     /// Any non-Unicode sequences are replaced with
     /// [`U+FFFD REPLACEMENT CHARACTER`][U+FFFD].
+    /// Root separators are removed by [`Self::sanitize`].
     ///
     /// [U+FFFD]: core::char::REPLACEMENT_CHARACTER
     ///
@@ -64,8 +65,7 @@ impl EntryReference {
         Self::new_from_utf8(&path.to_string_lossy())
     }
 
-    /// Creates an [`EntryReference`] from a UTF-8 string while preserving absolute
-    /// roots, prefixes, and parent components.
+    /// Creates an [`EntryReference`] from `path` without changing its contents.
     ///
     /// # Examples
     ///
@@ -86,7 +86,7 @@ impl EntryReference {
         Self(path)
     }
 
-    /// Creates an [`EntryReference`] from a path, preserving absolute path components.
+    /// Creates an [`EntryReference`] from a path without changing its contents.
     ///
     /// # Errors
     ///
@@ -106,9 +106,10 @@ impl EntryReference {
         Ok(Self::from_utf8_preserve_root(path))
     }
 
-    /// Creates an [`EntryReference`] from a path with lossy UTF-8 conversion, preserving absolute path components.
+    /// Creates an [`EntryReference`] from a path without sanitizing its components.
     ///
-    /// Any invalid UTF-8 sequences are replaced.
+    /// Any non-UTF-8 sequences are replaced with
+    /// [`U+FFFD REPLACEMENT CHARACTER`](core::char::REPLACEMENT_CHARACTER).
     ///
     /// # Examples
     ///
@@ -124,9 +125,8 @@ impl EntryReference {
 
     /// Returns a sanitized reference with root separators removed.
     ///
-    /// Unlike [`EntryName::sanitize`](crate::entry::EntryName), this preserves prefixes, `.` and `..`
-    /// components because hardlink targets may legitimately contain relative
-    /// traversals.
+    /// Unlike [`EntryName::sanitize`](crate::EntryName::sanitize), this preserves
+    /// prefixes, `.` and `..` components.
     #[inline]
     pub fn sanitize(&self) -> Self {
         let path = Utf8Path::new(&self.0);
