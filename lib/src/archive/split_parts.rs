@@ -23,8 +23,7 @@ pub(crate) const SPLIT_ARCHIVE_OVERHEAD_BYTES: usize = PART_HEADER_BYTES + MIN_C
 /// Minimum accepted value for `max_part_bytes` (framing plus one minimal chunk).
 pub const MIN_SPLIT_PART_BYTES: usize = SPLIT_ARCHIVE_OVERHEAD_BYTES + MIN_CHUNK_BYTES_SIZE;
 
-/// A [`WriteChunk`] sink that spreads chunks across a sequence of PNA parts,
-/// each at most a fixed byte budget long.
+/// A writer that splits archive chunks into parts of a bounded size.
 ///
 /// Every part is self-framed: opening a part writes the PNA signature and an
 /// `AHED` chunk, and switching to the next part writes `ANXT` then `AEND` to
@@ -50,9 +49,8 @@ impl<W: Write, F> SplitParts<W, F> {
 
     /// Consumes this sink and returns the writer of the most recently opened part.
     ///
-    /// Only the last part is reachable this way: each earlier part is closed and
-    /// dropped as its successor opens, so recovering every part means keeping a
-    /// handle to each writer `next_part` hands out.
+    /// Earlier writers are dropped when the next part opens. To retain all
+    /// parts, keep a handle to each writer returned by `next_part`.
     #[inline]
     pub fn into_inner(self) -> W {
         self.current

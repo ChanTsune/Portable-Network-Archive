@@ -24,19 +24,7 @@ fn write_archive_framing<W: Write>(writer: &mut W, header: &ArchiveHeader) -> io
     Ok(())
 }
 
-/// Provides read and write access to a PNA file.
-///
-/// An instance of an [`Archive`] can be read and/or written.
-///
-/// The [`Archive`] struct provides two main modes of operation:
-/// - Read mode: Allows reading entries from an existing PNA file
-/// - Write mode: Enables creating new entries and writing data to the archive
-///
-/// The archive supports various features including:
-/// - Multiple compression algorithms
-/// - Encryption options
-/// - Solid and non-solid modes
-/// - Chunk-based storage
+/// A reader or writer for a PNA archive.
 ///
 /// # Examples
 ///
@@ -103,21 +91,16 @@ impl<T> Archive<T> {
         }
     }
 
-    /// Sets the maximum chunk size limit.
+    /// Sets the maximum chunk data length.
     ///
-    /// When set, this limit affects both reading and writing:
-    /// - **Reading**: Chunks larger than this size will be rejected with an error,
-    ///   protecting against maliciously crafted archives with extremely large chunks.
-    /// - **Writing**: Data written via [`write_file()`](Archive::write_file) or
-    ///   [`write_opaque()`](Archive::write_opaque), and the `SDAT` stream of a
-    ///   solid block opened by
-    ///   [`write_solid_with()`](Archive::write_solid_with), will be split into
-    ///   chunks no larger than this size.
+    /// Reading entries rejects chunk data exceeding `size`. Writing splits data
+    /// from [`Self::write_file`], [`Self::write_opaque`], and the solid stream
+    /// opened by [`Self::write_solid_with`] into chunks with at most `size` data
+    /// bytes.
     ///
-    /// **Note**: This setting only affects the streaming write path. Pre-built
-    /// entries added via [`add_entry()`](Archive::add_entry) use their own chunk
-    /// size configured through
-    /// [`FileEntryBuilder::max_chunk_size()`](crate::FileEntryBuilder::max_chunk_size).
+    /// Pre-built entries added with [`Self::add_entry`] retain their chunk sizes.
+    /// Set those sizes with
+    /// [`FileEntryBuilder::max_chunk_size`](crate::FileEntryBuilder::max_chunk_size).
     #[inline]
     pub fn set_max_chunk_size(&mut self, size: NonZeroU32) {
         self.max_chunk_size = Some(size);
@@ -131,42 +114,21 @@ impl<T> Archive<T> {
         self.next_archive
     }
 
-    /// Consumes the archive and returns the underlying reader or writer.
+    /// Consumes this archive, returning the underlying reader or writer.
     ///
-    /// # Warning
-    ///
-    /// This method does not finalize the archive. If you are writing to an
-    /// archive, call [`Archive::finalize`] first to ensure the end-of-archive
-    /// marker is written. Using `into_inner` on a writer without finalizing
-    /// leaves the archive incomplete.
+    /// This does not write the end-of-archive marker, leaving an archive opened
+    /// for writing incomplete. Use [`Archive::finalize`] to finish writing and
+    /// return the writer.
     ///
     /// # Examples
     ///
-    /// For normal archive completion, prefer [`Archive::finalize`] which writes
-    /// the end-of-archive marker and returns the inner writer:
-    ///
     /// ```
     /// # use libpna::Archive;
     /// # use std::io;
     /// # fn main() -> io::Result<()> {
-    /// let archive = Archive::write_header(Vec::new())?;
-    /// let writer = archive.finalize()?; // Preferred: archive is properly closed
-    ///     
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// Use `into_inner` when you need to abandon an archive or access the
-    /// underlying reader:
-    ///
-    /// ```
-    /// # use libpna::Archive;
-    /// # use std::io;
-    /// # fn main() -> io::Result<()> {
-    /// let file = std::io::Cursor::new(include_bytes!("../../resources/test/empty.pna").to_vec());
-    /// let archive = Archive::read_header(file)?;
-    /// let _reader = archive.into_inner(); // Safe for readers
-    ///     
+    /// let bytes = Archive::write_header(Vec::new())?.finalize()?;
+    /// let archive = Archive::read_header(bytes.as_slice())?;
+    /// let reader = archive.into_inner();
     /// # Ok(())
     /// # }
     /// ```
@@ -177,11 +139,10 @@ impl<T> Archive<T> {
     }
 }
 
-/// Provides write access to solid mode PNA files.
+/// A writer for a PNA archive containing a single [`SolidEntry`](crate::SolidEntry).
 ///
-/// See [`crate::SolidEntry`] for the compression/access tradeoffs of solid
-/// mode. Writing additionally shares a single compression/encryption context
-/// across all entries.
+/// Entries share the compression and encryption specified when the archive is
+/// created.
 ///
 /// # Examples
 ///

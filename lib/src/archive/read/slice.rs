@@ -10,11 +10,11 @@ use std::borrow::Cow;
 use std::io;
 
 impl<'d> Archive<&'d [u8]> {
-    /// Reads the archive header from the provided bytes and returns a new [`Archive`].
+    /// Reads the archive header and creates a reader for its entries.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading the header from the bytes.
+    /// Returns an error if the archive signature or header is invalid or incomplete.
     #[inline]
     pub fn read_header_from_slice(bytes: &'d [u8]) -> io::Result<Self> {
         Self::read_header_from_slice_with_buffer(bytes, Vec::new())
@@ -135,11 +135,14 @@ impl<'d> Archive<&'d [u8]> {
         RawEntries::<'s, 'd>(self)
     }
 
-    /// Reads the next archive from the provided bytes and returns a new [`Archive`].
+    /// Reads the next part of a split archive from `bytes`.
+    ///
+    /// Read entries to the end of the current part before calling this method.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading from the bytes.
+    /// Returns an error if the next part has an invalid or incomplete header, or
+    /// its archive number does not follow this part.
     #[inline]
     pub fn read_next_archive_from_slice(self, bytes: &[u8]) -> io::Result<Archive<&[u8]>> {
         let mut next = Archive::read_header_from_slice_with_buffer(bytes, self.buf)?;
@@ -148,14 +151,16 @@ impl<'d> Archive<&'d [u8]> {
         Ok(next)
     }
 
-    /// Reads the archive that follows this one in the same bytes and returns a new [`Archive`].
+    /// Reads the next part of a split archive from the same byte slice.
     ///
-    /// Use this when the parts of a split archive are concatenated in a single byte
-    /// sequence instead of one sequence per part.
+    /// Read entries to the end of the current part before calling this method.
+    /// Use [`Self::read_next_archive_from_slice`] when each part has a separate
+    /// byte slice.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading from the bytes.
+    /// Returns an error if the next part has an invalid or incomplete header, or
+    /// its archive number does not follow this part.
     #[inline]
     pub fn read_next_archive_in_stream_from_slice(self) -> io::Result<Self> {
         let Self {
@@ -194,7 +199,10 @@ impl<'a, 'r> Entries<'a, 'r> {
         Self { reader }
     }
 
-    /// Returns an iterator that extracts solid entries from the archive and returns them as normal entries.
+    /// Returns an iterator over normal entries, including those in solid entries.
+    ///
+    /// Solid entries are decoded using `options`. Normal entry payloads are not
+    /// decoded.
     ///
     /// # Examples
     ///

@@ -31,11 +31,12 @@ fn verify_next_archive_number(current: &ArchiveHeader, next: &ArchiveHeader) -> 
 }
 
 impl<R: Read> Archive<R> {
-    /// Reads the archive header from the provided reader and returns a new [`Archive`].
+    /// Reads the archive header and creates a reader for its entries.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading the header from the reader.
+    /// Returns an error if the archive signature or header is invalid or incomplete,
+    /// or if reading fails.
     #[inline]
     pub fn read_header(reader: R) -> io::Result<Self> {
         Self::read_header_with_buffer(reader, Default::default())
@@ -118,8 +119,10 @@ impl<R: Read> Archive<R> {
         RawEntries(self)
     }
 
-    /// Returns an iterator over entries including those in solid mode, using
-    /// the supplied read options for decryption.
+    /// Returns an iterator over normal entries, including those in solid entries.
+    ///
+    /// Solid entries are decoded using `options`. Normal entry payloads are not
+    /// decoded.
     #[inline]
     pub fn entries_with_options<'a>(
         &'a mut self,
@@ -128,11 +131,14 @@ impl<R: Read> Archive<R> {
         self.entries().extract_solid_entries(options)
     }
 
-    /// Reads the next archive from the provided reader and returns a new [`Archive`].
+    /// Reads the next part of a split archive from `reader`.
+    ///
+    /// Read entries to the end of the current part before calling this method.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading from the reader.
+    /// Returns an error if the next part has an invalid or incomplete header, its
+    /// archive number does not follow this part, or reading fails.
     #[inline]
     pub fn read_next_archive<OR: Read>(self, reader: OR) -> io::Result<Archive<OR>> {
         let mut next = Archive::<OR>::read_header_with_buffer(reader, self.buf)?;
@@ -141,14 +147,15 @@ impl<R: Read> Archive<R> {
         Ok(next)
     }
 
-    /// Reads the archive that follows this one on the same reader and returns a new [`Archive`].
+    /// Reads the next part of a split archive from the same reader.
     ///
-    /// Use this when the parts of a split archive arrive on a single stream, such as
-    /// standard input, instead of one reader per part.
+    /// Read entries to the end of the current part before calling this method.
+    /// Use [`Self::read_next_archive`] when each part has a separate reader.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading from the reader.
+    /// Returns an error if the next part has an invalid or incomplete header, its
+    /// archive number does not follow this part, or reading fails.
     #[inline]
     pub fn read_next_archive_in_stream(self) -> io::Result<Self> {
         let Self {
@@ -199,12 +206,13 @@ impl<R> Archive<R> {
 
 #[cfg(feature = "unstable-async")]
 impl<R: futures_io::AsyncRead + Unpin> Archive<R> {
-    /// Reads the archive header from the provided reader and returns a new [`Archive`].
+    /// Reads the archive header and creates a reader for its entries.
     /// This API is unstable.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading the header from the reader.
+    /// Returns an error if the archive signature or header is invalid or incomplete,
+    /// or if reading fails.
     #[inline]
     pub async fn read_header_async(reader: R) -> io::Result<Self> {
         Self::read_header_with_buffer_async(reader, Default::default()).await
@@ -245,12 +253,15 @@ impl<R: futures_io::AsyncRead + Unpin> Archive<R> {
         Ok(Some(RawEntry(chunks)))
     }
 
-    /// Reads a [`ReadEntry`] from the archive.
+    /// Reads the next entry from the archive.
+    ///
+    /// Returns `Ok(None)` at the end of the current archive part.
     /// This API is unstable.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading from the archive.
+    /// Returns an error if the entry is invalid or incomplete, a chunk exceeds
+    /// the configured size limit, or reading fails.
     #[inline]
     pub async fn read_entry_async(&mut self) -> io::Result<Option<ReadEntry>> {
         self.next_raw_item_async()
@@ -298,7 +309,10 @@ impl<'r, R> Entries<'r, R> {
         Self { reader }
     }
 
-    /// Returns an iterator that extracts solid entries from the archive and returns them as normal entries.
+    /// Returns an iterator over normal entries, including those in solid entries.
+    ///
+    /// Solid entries are decoded using `options`. Normal entry payloads are not
+    /// decoded.
     ///
     /// # Examples
     ///
@@ -436,25 +450,26 @@ where
 }
 
 impl<R: Read + Seek> Archive<R> {
-    /// Seeks the cursor to the start of the end-of-archive marker.
+    /// Seeks to the start of the end-of-archive marker.
+    ///
+    /// Chunk data and CRC values are not validated.
     ///
     /// # Errors
     ///
-    /// Returns an error if seeking fails, a chunk type is invalid, or the
-    /// archive ends before the trailing CRC of a chunk. Chunk data and CRC
-    /// values are not validated while seeking.
+    /// Returns an error if reading or seeking fails, a chunk type is invalid,
+    /// or a chunk is incomplete.
     ///
     /// # Examples
     ///
-    /// For appending entry to the existing archive.
+    /// Appends an entry to an existing archive.
     ///
     /// ```no_run
-    /// # use std::fs::File;
+    /// # use std::fs::OpenOptions;
     /// # use std::io;
     /// # use libpna::*;
     ///
     /// # fn main() -> io::Result<()> {
-    /// let file = File::open("foo.pna")?;
+    /// let file = OpenOptions::new().read(true).write(true).open("foo.pna")?;
     /// let mut archive = Archive::read_header(file)?;
     /// archive.seek_to_end()?;
     /// archive.add_entry({
