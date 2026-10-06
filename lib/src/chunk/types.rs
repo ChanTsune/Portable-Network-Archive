@@ -259,27 +259,18 @@ impl ChunkType {
 
     /// Creates a custom [`ChunkType`] without validation.
     ///
-    /// # Display behavior
-    ///
-    /// If bytes are invalid UTF-8, they are rendered as lowercase hex bytes.
-    ///
-    /// ```rust
-    /// # use libpna::ChunkType;
-    ///
-    /// let custom_chunk_type = unsafe { ChunkType::from_unchecked([0xe3, 0x81, 0x82, 0xe3]) };
-    /// assert_eq!(format!("{}", custom_chunk_type), "[e3, 81, 82, e3]");
-    /// ```
-    ///
     /// # Safety
     ///
     /// Callers must ensure the value consists only of ASCII alphabetic
     /// characters ('a'..'z' and 'A'..'Z').
     ///
+    /// # Examples
+    ///
     /// ```rust
     /// # use libpna::ChunkType;
     ///
     /// let custom_chunk_type = unsafe { ChunkType::from_unchecked(*b"myTy") };
-    /// format!("{}", custom_chunk_type);
+    /// assert_eq!(custom_chunk_type.to_string(), "myTy");
     /// ```
     #[inline]
     pub const unsafe fn from_unchecked(ty: [u8; 4]) -> Self {
