@@ -130,71 +130,11 @@ impl EntryBuilderCore {
     }
 }
 
-/// A builder for creating a [`NormalEntry`] by writing an opaque byte
-/// stream tagged with a declared [`DataKind`].
+/// A builder for an opaque [`NormalEntry`] with a specified [`DataKind`].
 ///
-/// This is the escape hatch for [`DataKind`]s that have no dedicated
-/// builder: data written via the [`Write`] trait is compressed and
-/// encrypted according to the given [`WriteOptions`] and stored as-is, with
-/// no interpretation of its meaning. It also provides convenience
-/// constructors ([`new_dir()`](Self::new_dir), [`new_file()`](Self::new_file),
-/// [`new_symlink()`](Self::new_symlink), [`new_hard_link()`](Self::new_hard_link))
-/// for the kinds defined by the PNA specification, but for those kinds
-/// prefer the corresponding kind-specific builder instead
-/// ([`FileEntryBuilder`], [`DirEntryBuilder`], [`SymlinkEntryBuilder`],
-/// [`HardLinkEntryBuilder`]), which encode that kind's on-wire contract in
-/// the type itself. Reach for [`new()`](Self::new) or
-/// [`new_with_options()`](Self::new_with_options) directly only for kinds
-/// the specification does not define, such as private or experimental
-/// [`DataKind`]s.
-///
-/// # Write Trait Behavior
-///
-/// For entries constructed via [`new()`](Self::new) or
-/// [`new_with_options()`](Self::new_with_options) — writing the opaque byte
-/// stream for the declared [`DataKind`] — the [`Write`] trait is fully
-/// functional; the legacy [`new_file()`](Self::new_file) constructor (which
-/// delegates to [`new_with_options()`](Self::new_with_options) with
-/// [`DataKind::FILE`]) behaves the same way. Data written via
-/// [`write_all()`](Write::write_all) or similar methods is automatically
-/// compressed and encrypted according to the [`WriteOptions`] provided at
-/// construction time. The original (uncompressed) size is tracked
-/// separately.
-///
-/// For **directory entries** ([`new_dir()`](Self::new_dir)), the [`Write`]
-/// trait is implemented but writing data has no effect. Directories do not
-/// store data payloads in PNA archives.
-///
-/// For **symbolic link and hard link entries**, do not use the [`Write`] trait.
-/// The link target is written internally when the entry is constructed via
-/// [`new_symlink()`](Self::new_symlink) or [`new_hard_link()`](Self::new_hard_link);
-/// writing further data onto the builder would corrupt it.
-///
-/// # Metadata
-///
-/// Metadata (timestamps, permissions, extended attributes) can be set at any time before
-/// calling [`build()`](Self::build). The order does not matter - you can set metadata before,
-/// during, or after writing data.
-///
-/// # Compression and Encryption
-///
-/// When data is written:
-/// 1. Data is compressed according to [`WriteOptions`] compression settings
-/// 2. Compressed data is encrypted according to [`WriteOptions`] encryption settings
-/// 3. Encrypted data is buffered into chunks
-/// 4. Chunks are finalized when [`build()`](Self::build) is called
-///
-/// This happens **transparently** - you just write raw data and the builder handles the rest.
-///
-/// # Important Notes
-///
-/// - Each builder can only be built **once** ([`build()`](Self::build) consumes `self`)
-/// - Only entries with a [`DataKind::FILE`] kind record a raw file size; if no
-///   data is written, that size is recorded as **zero**. For all other kinds,
-///   the raw file size is omitted entirely
-/// - Compression and encryption are applied **during writes**, not at build time
-/// - The [`build()`](Self::build) method finalizes compression/encryption streams
-/// - Building a directory or file without calling write methods is valid
+/// Bytes written to the builder are compressed and encrypted according to the
+/// supplied [`WriteOptions`] without interpreting their contents.
+/// Use the kind-specific builders for data kinds defined by the PNA specification.
 pub struct OpaqueEntryBuilder {
     core: EntryBuilderCore,
     data: Option<CompressionWriter<CipherWriter<FlattenWriter>>>,
@@ -231,7 +171,7 @@ impl OpaqueEntryBuilder {
     ///
     /// # Errors
     ///
-    /// Returns an error if initialization fails.
+    /// Returns an error if the compression or encryption writer cannot be initialized.
     #[inline]
     pub fn new_with_options(
         name: EntryName,
@@ -256,7 +196,9 @@ impl OpaqueEntryBuilder {
         })
     }
 
-    /// Creates a new [`OpaqueEntryBuilder`] for a directory entry.
+    /// Creates a builder for a directory entry.
+    ///
+    /// Bytes written to this builder are discarded.
     #[deprecated(since = "0.36.0", note = "use `DirEntryBuilder::new`")]
     #[inline]
     pub const fn new_dir(name: EntryName) -> Self {
@@ -272,14 +214,14 @@ impl OpaqueEntryBuilder {
     ///
     /// # Errors
     ///
-    /// Returns an error if initialization fails.
+    /// Returns an error if the compression or encryption writer cannot be initialized.
     #[deprecated(since = "0.36.0", note = "use `FileEntryBuilder::new_with_options`")]
     #[inline]
     pub fn new_file(name: EntryName, option: impl WriteOption) -> io::Result<Self> {
         Self::new_with_options(name, DataKind::FILE, option)
     }
 
-    /// Internal helper for creating link entries (symlink or hard link).
+    // Creates link entries (symlink or hard link).
     fn new_link(header: EntryHeader, source: EntryReference) -> io::Result<Self> {
         let option = WriteOptions::store();
         let (mut writer, prefix, phsf) = data_writer(option, &header.to_bytes())?;
@@ -294,7 +236,7 @@ impl OpaqueEntryBuilder {
         })
     }
 
-    /// Creates a new [`OpaqueEntryBuilder`] for a symbolic link entry pointing to the given source.
+    /// Creates a builder for a symbolic link entry pointing to `source`.
     ///
     /// # Errors
     ///
@@ -318,7 +260,7 @@ impl OpaqueEntryBuilder {
         Self::new_link(EntryHeader::for_symlink(name), source)
     }
 
-    /// Creates a new [`OpaqueEntryBuilder`] for a hard link entry pointing to the given source.
+    /// Creates a builder for a hard link entry pointing to `source`.
     ///
     /// # Errors
     ///
@@ -478,6 +420,7 @@ impl OpaqueEntryBuilder {
 
     /// Sets whether to store the raw file size in the entry metadata.
     ///
+    /// The size is recorded only for [`DataKind::FILE`] entries.
     /// When `true`, the raw file size is recorded; when `false`, it is omitted.
     #[deprecated(since = "0.36.0", note = "renamed to `store_file_size`")]
     #[inline]
@@ -508,7 +451,7 @@ impl OpaqueEntryBuilder {
         self
     }
 
-    /// Adds extra chunk to the entry.
+    /// Adds an extra chunk to the entry.
     #[inline]
     pub fn add_extra_chunk<T: Into<RawChunk>>(&mut self, chunk: T) -> &mut Self {
         self.core.add_extra_chunk(chunk);
@@ -517,7 +460,7 @@ impl OpaqueEntryBuilder {
 
     /// Sets the maximum chunk size for data written to this entry.
     ///
-    /// The default is the maximum allowed chunk size (~4GB).
+    /// The default is [`u32::MAX`] bytes.
     ///
     /// # Examples
     ///
@@ -553,7 +496,7 @@ impl OpaqueEntryBuilder {
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while building entry into buffer.
+    /// Returns an error if the compression or encryption stream cannot be finalized.
     #[inline]
     #[must_use = "building an entry without using it is wasteful"]
     pub fn build(self) -> io::Result<NormalEntry> {
