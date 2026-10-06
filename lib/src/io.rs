@@ -13,17 +13,15 @@ pub(crate) mod sealed {
     impl<W: Write> Sealed for W {}
 }
 
-/// A chunk-value emission target.
+// Kept out of the crate root: the blanket implementation puts its methods on
+// every io::Write type, so a root re-export would inject them into method
+// resolution for crates doing `use libpna::*`.
+/// A sink for writing PNA chunks.
 ///
 /// `io::Write` implementors serialize each chunk immediately as bytes; other
 /// sinks may route or buffer chunk values without going through an
 /// intermediate byte encoding. This trait is sealed and cannot be
 /// implemented outside this crate.
-///
-/// It is deliberately not re-exported at the crate root: the blanket
-/// implementation below puts its methods on every [`Write`](io::Write) type, so
-/// a root re-export would inject them into the method resolution of any crate
-/// doing `use libpna::*`.
 pub trait WriteChunk: sealed::Sealed {
     /// Emits `chunk` to this sink and returns the number of bytes written.
     ///
@@ -50,12 +48,9 @@ pub trait WriteChunk: sealed::Sealed {
         Ok(self)
     }
 
+    // Named flush_chunks to avoid ambiguity with io::Write::flush when both
+    // traits are in scope.
     /// Flushes any output buffered by this sink.
-    ///
-    /// Named `flush_chunks` rather than `flush` because the blanket
-    /// implementation below also covers every [`Write`](io::Write) type;
-    /// reusing `flush` would make the method ambiguous on such types wherever
-    /// both traits are in scope.
     ///
     /// # Errors
     ///
