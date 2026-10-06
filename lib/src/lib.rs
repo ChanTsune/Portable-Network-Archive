@@ -1,9 +1,7 @@
 //! A library for reading and writing PNA archives.
 //!
-//! This library provides utilities necessary to manage PNA archives
-//! abstracted over a reader or writer. Great strides are taken to ensure that
-//! an archive is never required to be fully resident in memory, and all objects
-//! provide largely a streaming interface to read bytes from.
+//! The APIs operate over readers and writers and support streaming archive
+//! data without loading an entire archive into memory.
 //!
 //! # Quick Start
 //!
