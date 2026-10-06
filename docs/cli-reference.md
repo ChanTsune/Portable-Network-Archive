@@ -551,7 +551,7 @@ Update entries in archive
 * `--newer-mtime-than <FILE>` — Only include files and directories newer than the specified file. This compares mtime entries.
 * `--older-ctime-than <FILE>` — Only include files and directories older than the specified file. This compares ctime entries.
 * `--older-mtime-than <FILE>` — Only include files and directories older than the specified file. This compares mtime entries.
-* `--missing-time <MISSING_TIME>` — Behavior when a timestamp needed for time filtering or update staleness judgment is missing (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]
+* `--missing-time <MISSING_TIME>` — Behavior when a timestamp needed for time filtering or update staleness judgment is missing (unstable). Values: include, exclude, now, epoch, or a datetime. [default: epoch]
 * `--files-from <FILE>` — Read archiving files from given path
 * `--files-from-stdin` — Read archiving files from stdin
 
@@ -711,7 +711,7 @@ Extract files from archive
 * `--newer-mtime-than <file>` — Only include files and directories newer than the specified file. This compares mtime entries.
 * `--older-ctime-than <file>` [alias: `older-than`] — Only include files and directories older than the specified file. This compares ctime entries.
 * `--older-mtime-than <file>` — Only include files and directories older than the specified file. This compares mtime entries.
-* `--missing-time <MISSING_TIME>` — Behavior for entries missing a timestamp needed by the time filters (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]
+* `--missing-time <MISSING_TIME>` — Behavior for entries missing a timestamp needed by the time filters (unstable). Values: include, exclude, now, epoch, or a datetime. [default: epoch]
 * `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
 * `--exclude <PATTERN>` — Exclude path glob
 * `--exclude-from <FILE>` — Read exclude files from given path
@@ -826,7 +826,7 @@ List files in archive
 * `--newer-mtime-than <file>` — Only include files and directories newer than the specified file. This compares mtime entries.
 * `--older-ctime-than <file>` [alias: `older-than`] — Only include files and directories older than the specified file. This compares ctime entries.
 * `--older-mtime-than <file>` — Only include files and directories older than the specified file. This compares mtime entries.
-* `--missing-time <MISSING_TIME>` — Behavior for entries missing a timestamp needed by the time filters (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]
+* `--missing-time <MISSING_TIME>` — Behavior for entries missing a timestamp needed by the time filters (unstable). Values: include, exclude, now, epoch, or a datetime. [default: epoch]
 * `-q` — Force printing of non-graphic characters in file names as the character '?'
 
   Default value: `false`
@@ -1893,7 +1893,7 @@ Update entries in archive (stabilized, use `pna update` command instead. this co
 * `--newer-mtime-than <FILE>` — Only include files and directories newer than the specified file. This compares mtime entries.
 * `--older-ctime-than <FILE>` — Only include files and directories older than the specified file. This compares ctime entries.
 * `--older-mtime-than <FILE>` — Only include files and directories older than the specified file. This compares mtime entries.
-* `--missing-time <MISSING_TIME>` — Behavior when a timestamp needed for time filtering or update staleness judgment is missing (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]
+* `--missing-time <MISSING_TIME>` — Behavior when a timestamp needed for time filtering or update staleness judgment is missing (unstable). Values: include, exclude, now, epoch, or a datetime. [default: epoch]
 * `--files-from <FILE>` — Read archiving files from given path
 * `--files-from-stdin` — Read archiving files from stdin
 
