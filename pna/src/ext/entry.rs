@@ -11,7 +11,8 @@ pub trait EntryFsExt: private::Sealed {
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while creating the entry.
+    /// Returns an error if the path cannot be represented as an entry name,
+    /// filesystem metadata or contents cannot be read, or entry encoding fails.
     fn from_path<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
         Self: Sized;
@@ -20,7 +21,8 @@ pub trait EntryFsExt: private::Sealed {
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while creating the entry.
+    /// Returns an error if the path cannot be represented as an entry name,
+    /// filesystem metadata or contents cannot be read, or entry encoding fails.
     fn from_path_with<P: AsRef<Path>>(path: P, options: WriteOptions) -> io::Result<Self>
     where
         Self: Sized;
@@ -29,16 +31,20 @@ pub trait EntryFsExt: private::Sealed {
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while creating the entry.
+    /// Returns an error if the path or link target cannot be represented in the
+    /// archive, filesystem metadata or contents cannot be read, or entry encoding fails.
     fn from_path_symlink<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
         Self: Sized;
 
     /// Creates an entry from the given path with options, without following symlinks.
     ///
+    /// `options` applies only to regular file contents.
+    ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while creating the entry.
+    /// Returns an error if the path or link target cannot be represented in the
+    /// archive, filesystem metadata or contents cannot be read, or entry encoding fails.
     fn from_path_symlink_with<P: AsRef<Path>>(path: P, options: WriteOptions) -> io::Result<Self>
     where
         Self: Sized;
@@ -47,13 +53,9 @@ pub trait EntryFsExt: private::Sealed {
 impl EntryFsExt for NormalEntry {
     /// Creates an entry from the given path.
     ///
-    /// The path may refer to a regular file or a directory. For files, the
-    /// file contents are read and embedded into the resulting entry using
-    /// default [`WriteOptions`] (equivalent to
-    /// `WriteOptions::builder().build()`). For directories, an empty directory
-    /// entry is created. Symlinks are followed (uses [`std::fs::metadata`]). If
-    /// the intention is to archive a symbolic link itself, use
-    /// [`SymlinkEntryBuilder::new`].
+    /// Reads regular file contents using default [`WriteOptions`]. Other file
+    /// types are stored as directory entries. Symbolic links are followed; use
+    /// [`EntryFsExt::from_path_symlink`] to store the link itself.
     ///
     /// # Examples
     ///
@@ -69,7 +71,8 @@ impl EntryFsExt for NormalEntry {
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while creating the entry.
+    /// Returns an error if the path cannot be represented as an entry name,
+    /// filesystem metadata or contents cannot be read, or entry encoding fails.
     #[inline]
     fn from_path<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         Self::from_path_with(path.as_ref(), WriteOptions::builder().build())
@@ -94,7 +97,8 @@ impl EntryFsExt for NormalEntry {
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while creating the entry.
+    /// Returns an error if the path cannot be represented as an entry name,
+    /// filesystem metadata or contents cannot be read, or entry encoding fails.
     #[inline]
     fn from_path_with<P: AsRef<Path>>(path: P, options: WriteOptions) -> io::Result<Self>
     where
@@ -116,12 +120,8 @@ impl EntryFsExt for NormalEntry {
 
     /// Creates an entry from the given path without following symlinks.
     ///
-    /// This behaves like [`EntryFsExt::from_path`], but uses
-    /// [`std::fs::symlink_metadata`] to avoid following symbolic links.
-    /// When `path` is a symbolic link, a symbolic-link entry is created using
-    /// [`SymlinkEntryBuilder::new`], with the link target captured via
-    /// [`std::fs::read_link`]. For regular files and directories, behavior is
-    /// identical to [`EntryFsExt::from_path`].
+    /// Stores a symbolic link's target rather than its contents. For other file
+    /// types, behaves like [`EntryFsExt::from_path`].
     ///
     /// # Examples
     ///
@@ -137,7 +137,8 @@ impl EntryFsExt for NormalEntry {
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while creating the entry.
+    /// Returns an error if the path or link target cannot be represented in the
+    /// archive, filesystem metadata or contents cannot be read, or entry encoding fails.
     #[inline]
     fn from_path_symlink<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
@@ -148,9 +149,9 @@ impl EntryFsExt for NormalEntry {
 
     /// Creates an entry from the given path with options, without following symlinks.
     ///
-    /// Behaves like [`EntryFsExt::from_path_with`], but uses
-    /// [`std::fs::symlink_metadata`] and creates a symbolic-link entry for
-    /// symlinks instead of following them.
+    /// Like [`EntryFsExt::from_path_symlink`], but applies `options` to regular
+    /// file contents. Symbolic-link and directory entries use no compression
+    /// or encryption.
     ///
     /// # Examples
     ///
@@ -166,7 +167,8 @@ impl EntryFsExt for NormalEntry {
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while creating the entry.
+    /// Returns an error if the path or link target cannot be represented in the
+    /// archive, filesystem metadata or contents cannot be read, or entry encoding fails.
     #[inline]
     fn from_path_symlink_with<P: AsRef<Path>>(path: P, options: WriteOptions) -> io::Result<Self>
     where

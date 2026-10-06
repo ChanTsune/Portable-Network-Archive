@@ -8,9 +8,11 @@ use std::{fs, io};
 pub trait ArchiveFsExt: private::Sealed {
     /// Creates a new archive file at `path` and writes the archive header.
     ///
+    /// An existing file at `path` is truncated.
+    ///
     /// # Errors
     ///
-    /// Returns an error if creating the archive fails.
+    /// Returns an error if the file cannot be created or the archive header cannot be written.
     fn create<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
         Self: Sized;
@@ -19,7 +21,8 @@ pub trait ArchiveFsExt: private::Sealed {
     ///
     /// # Errors
     ///
-    /// Returns an error if opening the archive fails.
+    /// Returns an error if the file cannot be opened or the archive header is invalid
+    /// or cannot be read.
     fn open<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
         Self: Sized;
@@ -28,16 +31,22 @@ pub trait ArchiveFsExt: private::Sealed {
     ///
     /// # Errors
     ///
-    /// Returns an error if opening the archive fails.
+    /// Returns an error if the file cannot be opened for reading and writing,
+    /// the archive header is invalid, or the end-of-archive marker cannot be found.
     fn open_for_append<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
         Self: Sized;
 
     /// Opens all parts of a split archive, leaving the last part ready for appending entries.
     ///
+    /// `next_part_path` receives the original `path` and the next one-based part
+    /// index, starting at 2.
+    ///
     /// # Errors
     ///
-    /// Returns an error if opening any archive part fails or if reading archive headers fails.
+    /// Returns an error if a part cannot be opened for reading and writing,
+    /// an archive header is invalid, the part numbers are not consecutive,
+    /// or an end-of-archive marker cannot be found.
     fn open_multipart_for_append<P, F, N>(path: P, next_part_path: F) -> io::Result<Self>
     where
         Self: Sized,
@@ -49,10 +58,10 @@ pub trait ArchiveFsExt: private::Sealed {
 impl ArchiveFsExt for Archive<fs::File> {
     /// Creates a new archive file at `path` and writes the archive header.
     ///
+    /// An existing file at `path` is truncated.
+    ///
     /// Equivalent to calling [`Archive::write_header`] with a newly
     /// created [`fs::File`].
-    ///
-    /// Returns an `Archive<fs::File>` ready for writing entries.
     ///
     /// # Examples
     ///
@@ -82,8 +91,6 @@ impl ArchiveFsExt for Archive<fs::File> {
     /// Equivalent to calling [`Archive::read_header`] with a file
     /// opened via [`fs::File::open`].
     ///
-    /// Returns an `Archive<fs::File>` ready for reading entries.
-    ///
     /// # Examples
     ///
     /// ```no_run
@@ -108,9 +115,8 @@ impl ArchiveFsExt for Archive<fs::File> {
 
     /// Opens an existing archive for appending entries.
     ///
-    /// This opens the file with read/write permissions, reads the archive
-    /// header, and seeks to the end-of-archive marker using
-    /// [`Archive::seek_to_end`], so that new entries can be appended safely.
+    /// Opens the file for reading and writing and positions it before the
+    /// end-of-archive marker.
     ///
     /// # Examples
     ///
@@ -141,12 +147,12 @@ impl ArchiveFsExt for Archive<fs::File> {
 
     /// Opens all parts of a split archive, leaving the last part ready for appending entries.
     ///
-    /// This behaves like [`ArchiveFsExt::open_for_append`] but is aware of multipart archives.
-    /// The first part is opened with read/write access and rewound to just before the end marker.
-    /// While an `ANXT` chunk is present, the provided `next_part_path` closure is invoked with the
-    /// original first-part path and the next one-based part index to resolve the subsequent file
-    /// to open. Each part is read, validated, and rewound in turn so that the final [`Archive`]
-    /// returned is positioned to accept new entries safely.
+    /// Like [`ArchiveFsExt::open_for_append`], but follows subsequent archive parts.
+    /// `next_part_path` receives the original `path` and the next one-based part
+    /// index, starting at 2. The returned archive is positioned before the last
+    /// part's end-of-archive marker.
+    ///
+    /// # Examples
     ///
     /// ```no_run
     /// use pna::Archive;
