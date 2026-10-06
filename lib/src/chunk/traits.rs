@@ -2,15 +2,10 @@
 
 use crate::chunk::ChunkType;
 
-/// A trait representing a chunk in a PNA archive.
+/// A chunk in a PNA archive.
 ///
-/// A chunk is the basic unit of data storage in a PNA archive. Each chunk consists of:
-/// - A length field (4 bytes)
-/// - A chunk type (4 bytes)
-/// - The chunk data (variable length)
-/// - A CRC32 checksum (4 bytes)
-///
-/// This trait provides the basic interface for working with chunks in a PNA archive.
+/// An encoded chunk consists of a 4-byte data length, a 4-byte type code,
+/// the data, and a 4-byte CRC32 checksum of the type code and data.
 ///
 /// # Examples
 ///

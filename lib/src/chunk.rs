@@ -44,24 +44,18 @@ pub(crate) trait ChunkExt: Chunk {
 
 impl<T> ChunkExt for T where T: Chunk {}
 
-/// A raw chunk in a PNA archive.
+/// A PNA chunk containing its length, type, data, and CRC32 checksum.
 ///
-/// This structure represents a chunk in its most basic form, containing:
-/// - `length`: The length of the chunk data in bytes
-/// - `ty`: The type of the chunk (e.g., FDAT, SDAT, etc.)
-/// - `data`: The actual chunk data
-/// - `crc`: A CRC32 checksum of the chunk type and data
+/// See [`Chunk`] for the encoded chunk layout.
 ///
 /// # Examples
 ///
 /// ```rust
 /// use libpna::{ChunkType, RawChunk, prelude::*};
 ///
-/// // Create a new chunk with some data
 /// let data = [0xAA, 0xBB, 0xCC, 0xDD];
 /// let chunk = RawChunk::from_data(ChunkType::FDAT, data);
 ///
-/// // Access chunk properties
 /// assert_eq!(chunk.length(), 4);
 /// assert_eq!(chunk.ty(), ChunkType::FDAT);
 /// assert_eq!(chunk.data(), &[0xAA, 0xBB, 0xCC, 0xDD]);
@@ -399,13 +393,18 @@ pub(crate) fn chunk_data_split(
     }
 }
 
-/// Reads an archive as chunks from the given reader.
+/// Returns an iterator over the chunks of a PNA archive.
 ///
-/// Reads a PNA archive from the given reader and returns an iterator of chunks.
+/// Reads the archive signature before returning the iterator. The iterator
+/// includes the archive-end chunk and stops after that chunk or the first error.
+/// Archive-level chunk ordering is not validated.
 ///
 /// # Errors
 ///
-/// Returns an error if the input is not a PNA archive.
+/// Returns an error if the archive signature cannot be read or does not match.
+/// Each chunk of the iterator has the same error semantics as
+/// [`io::read_chunk`](crate::io::read_chunk), with no data length limit beyond
+/// the PNA format's maximum.
 ///
 /// # Examples
 ///
@@ -461,13 +460,19 @@ pub fn read_as_chunks<R: Read>(
     })
 }
 
-/// Reads an archive as chunks from the given bytes.
+/// Returns an iterator over the chunks of a PNA archive in a byte slice.
 ///
-/// Reads a PNA archive from the given byte slice and returns an iterator of chunks.
+/// Checks the archive signature before returning the iterator. Chunk data is
+/// borrowed from the slice. The iterator includes the archive-end chunk and
+/// stops after that chunk or the first error. Archive-level chunk ordering is
+/// not validated.
 ///
 /// # Errors
 ///
-/// Returns an error if the input is not a PNA archive.
+/// Returns an error if the archive signature is incomplete or does not match.
+/// Each chunk of the iterator has the same error semantics as
+/// [`bytes::read_chunk`](crate::bytes::read_chunk), with no data length limit
+/// beyond the PNA format's maximum.
 ///
 /// # Examples
 ///
