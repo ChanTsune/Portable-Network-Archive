@@ -20,12 +20,11 @@ const DOMAIN_TAG: &[u8; 13] = b"PNA-STREAM-v1";
 const KEY_CONFIRMATION_INFO: &[u8; 9] = b"PNA-KC-v1";
 const ENTRY_CONTEXT_LEN: usize = 88;
 
+// Deliberately not `PartialEq`: one operand of a real comparison is always
+// attacker-supplied archive bytes, and `==` would leak how far a guessed
+// password's confirmation agrees with the stored one. Use
+// `StreamHeader::confirms_key`, which compares in constant time.
 /// The key confirmation value carried by a stream header.
-///
-/// Deliberately not [`PartialEq`]: one operand of a real comparison is always
-/// attacker-supplied archive bytes, and `==` would leak how far a guessed
-/// password's confirmation agrees with the stored one. Use
-/// [`StreamHeader::confirms_key`], which compares in constant time.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct KeyConfirmation([u8; 32]);
 
@@ -37,11 +36,10 @@ impl KeyConfirmation {
     }
 }
 
+// Distinct from the master key so that the two cannot be swapped at a cipher
+// construction site, where the mistake would produce archives that decrypt
+// only with the same mistake.
 /// A per-stream AEAD key derived from the master key and the entry context.
-///
-/// Distinct from the master key so that the two cannot be swapped at a cipher
-/// construction site, where the mistake would produce archives that decrypt
-/// only with the same mistake.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct StreamKey([u8; 32]);
 
@@ -59,19 +57,18 @@ impl StreamKey {
 }
 
 impl fmt::Debug for StreamKey {
-    /// Redacted: this is key material, and `StreamKey` is reachable from types
-    /// that derive [`Debug`].
+    // Redacted: this is key material, and `StreamKey` is reachable from types
+    // that derive [`Debug`].
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("StreamKey(..)")
     }
 }
 
+// `SegmentSize::new` is the only way to obtain one, so a value of this type
+// carries the check with it — a segment loop cannot be handed a zero that would
+// leave it making no progress, and no downstream use has to re-validate.
 /// A segment size that is in range: non-zero and at most [`MAX_SEGMENT_SIZE`].
-///
-/// [`SegmentSize::new`] is the only way to obtain one, so a value of this type
-/// carries the check with it — a segment loop cannot be handed a zero that would
-/// leave it making no progress, and no downstream use has to re-validate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SegmentSize(NonZeroU32);
 
@@ -218,19 +215,19 @@ mod tests {
     const HEADER_DATA: &[u8] = b"header";
     const PHSF_DATA: &[u8] = b"phsf";
 
-    /// `HKDF-SHA-256(ikm = K_MASTER, salt = SALT, info = entry_context(FHED))`.
-    ///
-    /// Produced by an RFC 5869 implementation outside this crate. Regenerating it
-    /// from `derive_stream_key` would bless whatever that function currently does
-    /// and lose the only external check on the derivation.
+    // `HKDF-SHA-256(ikm = K_MASTER, salt = SALT, info = entry_context(FHED))`.
+    //
+    // Produced by an RFC 5869 implementation outside this crate. Regenerating it
+    // from `derive_stream_key` would bless whatever that function currently does
+    // and lose the only external check on the derivation.
     const K_STREAM_FHED: StreamKey = StreamKey::from_bytes([
         0xb8, 0x8e, 0x2e, 0xdc, 0x07, 0x53, 0x8b, 0xdd, 0x2b, 0x9a, 0xff, 0xf5, 0x7f, 0xb0, 0xd3,
         0x43, 0x3a, 0x1f, 0x44, 0x98, 0xd2, 0x2a, 0x59, 0x11, 0x50, 0x7e, 0x68, 0x27, 0x59, 0x0f,
         0xad, 0xb5,
     ]);
 
-    /// `HKDF-SHA-256(ikm = "master_key", salt = ∅, info = "PNA-KC-v1")`, produced
-    /// by an RFC 5869 implementation outside this crate.
+    // `HKDF-SHA-256(ikm = "master_key", salt = ∅, info = "PNA-KC-v1")`, produced
+    // by an RFC 5869 implementation outside this crate.
     const K_CONFIRM_MASTER_KEY: [u8; 32] = [
         0xe4, 0x1a, 0x66, 0x1e, 0x64, 0x9b, 0x11, 0x68, 0x18, 0xf7, 0x16, 0x71, 0x7f, 0x29, 0xe2,
         0x0c, 0x4e, 0x6b, 0x19, 0xc6, 0xea, 0x3b, 0xd3, 0x79, 0x8f, 0x9a, 0xd1, 0xcc, 0xb1, 0xb2,
@@ -356,9 +353,9 @@ mod tests {
         assert_eq!(&ctx[13..45], expected.as_slice());
     }
 
-    /// Pins every input's contribution and the order they are fed to HKDF. A
-    /// differential test cannot: transposing `ikm` with `salt`, or the `FHED` data
-    /// with the `PHSF` data, still yields a value that depends on both.
+    // Pins every input's contribution and the order they are fed to HKDF. A
+    // differential test cannot: transposing `ikm` with `salt`, or the `FHED` data
+    // with the `PHSF` data, still yields a value that depends on both.
     #[test]
     fn derive_stream_key_matches_a_fixed_vector() {
         assert_eq!(

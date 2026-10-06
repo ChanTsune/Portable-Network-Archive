@@ -54,12 +54,7 @@ pub(crate) type DecryptGcmAes256Reader<R> = gcm::GcmDecryptReader<R, Aes256>;
 /// A type alias for a Camellia-256 GCM mode STREAM decryption reader.
 pub(crate) type DecryptGcmCamellia256Reader<R> = gcm::GcmDecryptReader<R, Camellia256>;
 
-/// An enum representing different encryption writers for PNA archives.
-///
-/// This enum provides different encryption implementations for writing data to a PNA archive.
-/// It supports block ciphers (AES-256 and Camellia-256 in CBC mode), stream ciphers
-/// (AES-256 and Camellia-256 in CTR mode), and authenticated encryption
-/// (AES-256 and Camellia-256 in GCM STREAM mode).
+/// An encryption writer for a PNA datastream.
 pub(crate) enum CipherWriter<W: Write> {
     /// No encryption, data is written as-is.
     No(W),
@@ -135,12 +130,7 @@ impl<W: Write> TryIntoInner<W> for CipherWriter<W> {
     }
 }
 
-/// An enum representing different decryption readers for PNA archives.
-///
-/// This enum provides different decryption implementations for reading data from a PNA archive.
-/// It supports block ciphers (AES-256 and Camellia-256 in CBC mode), stream ciphers
-/// (AES-256 and Camellia-256 in CTR mode), and authenticated encryption
-/// (AES-256 and Camellia-256 in GCM STREAM mode).
+/// A decryption reader for a PNA datastream.
 pub(crate) enum DecryptReader<R: Read> {
     /// No decryption, data is read as-is.
     No(R),

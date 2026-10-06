@@ -1,15 +1,7 @@
 //! Byte-length-bounded owned UTF-8 strings and byte slices.
 //!
-//! Binary formats and wire protocols routinely encode variable-length fields
-//! with a fixed-width length prefix (commonly `u8`, `u16`, or `u32`). Casting
-//! a `usize` length into a narrower integer at serialization time silently
-//! truncates oversized inputs and corrupts the framing of subsequent fields.
-//!
-//! [`str::BoundedString`] and [`bytes::BoundedBytes`] move that
-//! constraint from the serializer into the type system: the maximum byte
-//! length is a const generic parameter, the bound is checked once at
-//! construction, and serialization can downcast the length infallibly
-//! thereafter.
+//! [`str::BoundedString`] and [`bytes::BoundedBytes`] reject values whose byte
+//! length exceeds their `MAX` bound.
 //!
 //! # Examples
 //!
@@ -33,9 +25,6 @@ use std::{error, fmt};
 
 /// Error returned when a value exceeds the byte-length bound of a bounded
 /// owned string or byte slice.
-///
-/// Inspect the bound and the actual length via [`max`](Self::max) and
-/// [`actual`](Self::actual).
 ///
 /// # Examples
 ///

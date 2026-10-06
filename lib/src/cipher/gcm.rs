@@ -94,17 +94,16 @@ where
     }
 }
 
+// Latched so that a later `read` cannot resume a segment whose bytes were
+// already consumed. `AeadError` alone cannot carry the second case: a failure
+// that came from the source is not one of the classes a decoder is meant to
+// report about the datastream.
 /// Why the reader stopped.
-///
-/// Latched so that a later `read` cannot resume a segment whose bytes were
-/// already consumed. `AeadError` alone cannot carry the second case: a failure
-/// that came from the source is not one of the classes a decoder is meant to
-/// report about the datastream.
 enum Stopped {
     Aead(AeadError),
-    /// The inner reader or an allocation failed partway through a segment. Those
-    /// bytes leave with `read_segment`'s local buffer, so the framing cannot be
-    /// picked up again — re-reporting the failure is the only honest answer.
+    // The inner reader or an allocation failed partway through a segment. Those
+    // bytes leave with `read_segment`'s local buffer, so the framing cannot be
+    // picked up again — re-reporting the failure is the only honest answer.
     Source(io::ErrorKind, String),
 }
 
@@ -327,10 +326,10 @@ mod tests {
     const PREFIX: [u8; 7] = [3u8; 7];
     const SEG: u32 = 4;
 
-    /// AES-256-GCM under key `[7u8; 32]`, nonce = `[3u8; 7] ‖ counter (u32 BE) ‖ final flag`,
-    /// no AAD, segment size 4, 16-byte tag appended per segment; produced by an
-    /// implementation outside this crate. Regenerating these from `GcmEncryptWriter`
-    /// would bless whatever it currently does and lose the only external check.
+    // AES-256-GCM under key `[7u8; 32]`, nonce = `[3u8; 7] ‖ counter (u32 BE) ‖ final flag`,
+    // no AAD, segment size 4, 16-byte tag appended per segment; produced by an
+    // implementation outside this crate. Regenerating these from `GcmEncryptWriter`
+    // would bless whatever it currently does and lose the only external check.
     const CT_EMPTY: [u8; 16] = [
         0x72, 0x8b, 0xbc, 0x7c, 0xcb, 0xd8, 0x69, 0x08, 0xa3, 0x0d, 0x9f, 0xe1, 0x72, 0x49, 0x33,
         0x36,
@@ -562,9 +561,9 @@ mod tests {
         assert_eq!(out, b"abcdefgh");
     }
 
-    /// A segment of exactly `SEGMENT_READ_STEP` needs a second growth step for
-    /// its tag alone, which is where unclamped doubling would commit twice the
-    /// ciphertext a segment can hold.
+    // A segment of exactly `SEGMENT_READ_STEP` needs a second growth step for
+    // its tag alone, which is where unclamped doubling would commit twice the
+    // ciphertext a segment can hold.
     #[test]
     fn segment_capacity_is_clamped_to_the_ciphertext_limit() {
         let stream = header(SEGMENT_READ_STEP as u32);
@@ -631,9 +630,9 @@ mod tests {
         roundtrip::<Aes256>(b"abcdefghi");
     }
 
-    /// The segment framing is generic over the cipher, and Camellia matches AES
-    /// in block, nonce and tag size, so the payload shapes above do not need a
-    /// second run per cipher — only the instantiation does.
+    // The segment framing is generic over the cipher, and Camellia matches AES
+    // in block, nonce and tag size, so the payload shapes above do not need a
+    // second run per cipher — only the instantiation does.
     #[test]
     fn roundtrip_two_segments_camellia() {
         roundtrip::<Camellia256>(b"abcdefgh");
@@ -697,10 +696,10 @@ mod tests {
         assert!(matches!(classify(&err), AeadError::Malformed(_)));
     }
 
-    /// Bytes after a segment make it a layout violation rather than a cut end,
-    /// even when the segment is too short to hold a tag at all. Distinguishable
-    /// from [`AeadError::Truncation`] only once a segment has been verified, so
-    /// the first stall carries a whole valid segment plus its look-ahead byte.
+    // Bytes after a segment make it a layout violation rather than a cut end,
+    // even when the segment is too short to hold a tag at all. Distinguishable
+    // from [`AeadError::Truncation`] only once a segment has been verified, so
+    // the first stall carries a whole valid segment plus its look-ahead byte.
     #[test]
     fn non_final_segment_shorter_than_a_tag_is_malformed() {
         let ct = encrypt_all::<Aes256>(b"abcdefgh");
