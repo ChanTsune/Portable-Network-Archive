@@ -3,11 +3,7 @@
 use crate::util::bounded::LengthExceeded;
 use std::{borrow::Borrow, fmt, ops::Deref};
 
-/// UTF-8 string whose byte length is guaranteed not to exceed `MAX`.
-///
-/// Construction is fallible (`new` / `TryFrom`); once constructed the bound is
-/// a type-level invariant, so callers serializing into a fixed-width length
-/// prefix (e.g. `u8`, `u32`) can downcast the length infallibly.
+/// An owned UTF-8 string with at most `MAX` bytes.
 ///
 /// # Examples
 ///
@@ -23,8 +19,7 @@ use std::{borrow::Borrow, fmt, ops::Deref};
 pub struct BoundedString<const MAX: usize>(Box<str>);
 
 impl<const MAX: usize> BoundedString<MAX> {
-    /// Constructs from any value convertible to [`Box<str>`], rejecting inputs
-    /// whose byte length exceeds `MAX`.
+    /// Creates a bounded string from the given value.
     ///
     /// # Errors
     ///

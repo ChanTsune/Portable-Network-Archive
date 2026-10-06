@@ -3,10 +3,7 @@
 use crate::util::bounded::LengthExceeded;
 use std::{borrow::Borrow, ops::Deref};
 
-/// Owned byte slice whose length is guaranteed not to exceed `MAX`.
-///
-/// Suitable for arbitrary (non-UTF-8) byte fields whose maximum length is
-/// constrained by a fixed-width on-the-wire length prefix.
+/// An owned byte slice with at most `MAX` bytes.
 ///
 /// # Examples
 ///
@@ -22,8 +19,7 @@ use std::{borrow::Borrow, ops::Deref};
 pub struct BoundedBytes<const MAX: usize>(Box<[u8]>);
 
 impl<const MAX: usize> BoundedBytes<MAX> {
-    /// Constructs from any value convertible to [`Box<[u8]>`], rejecting inputs
-    /// whose byte length exceeds `MAX`.
+    /// Creates a bounded byte slice from the given value.
     ///
     /// # Errors
     ///
