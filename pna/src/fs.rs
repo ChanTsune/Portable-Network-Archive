@@ -1,11 +1,13 @@
-//! PNA filesystem utilities
-//!
-//! The purpose of this module is to provide filesystem utilities for PNA.
+//! PNA filesystem utilities.
 use std::{fs, io, os, path::Path};
 
 /// Creates a new symbolic link on the filesystem.
 ///
 /// The `link` path will be a symbolic link pointing to the `original` path.
+/// Relative targets are resolved from the parent directory of `link`.
+///
+/// On Windows, creates a directory link if `original` resolves to an existing
+/// directory, and a file link otherwise.
 ///
 /// # Examples
 ///
@@ -55,13 +57,13 @@ pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Resu
     inner(original.as_ref(), link.as_ref())
 }
 
-/// Replaces forward-slash separators with backslashes for Windows path APIs.
-///
-/// Windows symlink reparse points store the target verbatim; non-canonical
-/// `/` separators break resolution under `\\?\` extended-length paths and
-/// confuse downstream tools that read the reparse buffer (e.g. bsdtar,
-/// GNU tar, 7-Zip all normalize on extract). Goes through UTF-16 to preserve
-/// non-UTF-8 OsString sequences (WTF-16) byte-for-byte.
+// Replaces forward-slash separators with backslashes for Windows path APIs.
+//
+// Windows symlink reparse points store the target verbatim; non-canonical
+// `/` separators break resolution under `\\?\` extended-length paths and
+// confuse downstream tools that read the reparse buffer (e.g. bsdtar,
+// GNU tar, 7-Zip all normalize on extract). Goes through UTF-16 to preserve
+// non-UTF-8 OsString sequences (WTF-16) byte-for-byte.
 #[cfg(windows)]
 fn normalize_windows_separators(path: &Path) -> std::borrow::Cow<'_, Path> {
     use std::borrow::Cow;
@@ -83,11 +85,11 @@ fn normalize_windows_separators(path: &Path) -> std::borrow::Cow<'_, Path> {
     Cow::Owned(PathBuf::from(OsString::from_wide(&wide)))
 }
 
-/// Removes a path by dispatching based on file type.
-///
-/// - Symlinks: removed via `remove_file` (or `remove_dir` for directory symlinks on Windows)
-/// - Directories: removed via the provided `remove_dir_fn`
-/// - Files: removed via `remove_file`
+// Removes a path by dispatching based on file type.
+//
+// - Symlinks: removed via `remove_file` (or `remove_dir` for directory symlinks on Windows)
+// - Directories: removed via the provided `remove_dir_fn`
+// - Files: removed via `remove_file`
 #[inline]
 fn remove_path_with<'a, F>(path: &'a Path, remove_dir_fn: F) -> io::Result<()>
 where
