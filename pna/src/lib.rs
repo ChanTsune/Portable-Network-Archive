@@ -1,7 +1,6 @@
-//! A library for more useful reading and writing PNA archives
+//! Filesystem utilities for reading and writing PNA archives.
 //!
-//! Provides filesystem-related utilities in addition to the utilities
-//! necessary to manage PNA archives abstracted over a reader or writer hosted by [`libpna`].
+//! Re-exports [`libpna`] and adds filesystem operations and extension traits.
 #![doc = include_str!("../README.md")]
 #![cfg_attr(target_os = "wasi", feature(wasi_ext))]
 #![cfg_attr(all(target_os = "wasi", target_env = "p2"), feature(wasip2))]

@@ -30,20 +30,10 @@ use std::fs;
 pub use time::*;
 
 mod private {
-    //! Implementation detail: sealing for extension traits.
-    //!
-    //! This module defines the `Sealed` trait used to prevent external crates
-    //! from implementing the extension traits exposed by this module. By
-    //! keeping the trait in a private module and requiring it as a supertrait,
-    //! the set of implementors is limited to types chosen by this crate.
+    // Sealing for extension traits.
     use super::*;
 
-    /// Marker trait used to seal extension traits in this crate.
-    ///
-    /// The trait is not exported, so it cannot be named outside this crate.
-    /// Each extension trait in this module inherits from `Sealed`, which
-    /// effectively prevents third-party crates from providing their own
-    /// implementations and allows the API to evolve safely.
+    // Prevents external implementations of the extension traits.
     pub trait Sealed {}
     impl Sealed for Archive<fs::File> {}
     impl Sealed for Metadata {}
