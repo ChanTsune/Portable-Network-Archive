@@ -991,8 +991,9 @@ mod tests {
 
             let cipher = options.cipher().unwrap();
             assert_eq!(entry.phsf.as_deref(), Some(cipher.derived.phsf.as_str()));
-            assert_eq!(entry.data[0].len(), STREAM_HEADER_LEN);
-            let header = stream_header(&entry.data[0]);
+            let datastream = entry.data.concat();
+            let (header_bytes, ciphertext) = datastream.split_at(STREAM_HEADER_LEN);
+            let header = stream_header(header_bytes);
             assert_eq!(header.segment_size().get(), 4);
             assert!(header.confirms_key(cipher.derived.key.as_bytes()));
 
@@ -1004,7 +1005,6 @@ mod tests {
                 cipher.derived.phsf.as_bytes(),
             );
             let aead = AesGcm::<C, U12>::new_from_slice(k_stream.as_bytes()).unwrap();
-            let ciphertext = entry.data[1..].concat();
             assert_eq!(ciphertext.len(), segments.last().unwrap().0.end);
             for (range, counter, final_flag, expected) in segments {
                 assert_eq!(
