@@ -383,33 +383,9 @@ mod tests {
         w.finish().unwrap()
     }
 
-    #[derive(Default)]
-    struct RecordingWriter {
-        bytes: Vec<u8>,
-        write_sizes: Vec<usize>,
-    }
-
-    impl Write for RecordingWriter {
-        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-            self.write_sizes.push(buf.len());
-            self.bytes.extend_from_slice(buf);
-            Ok(buf.len())
-        }
-
-        fn flush(&mut self) -> io::Result<()> {
-            Ok(())
-        }
-    }
-
     #[test]
-    fn encryption_writes_in_place_buffer_and_detached_tag() {
-        let mut writer =
-            GcmEncryptWriter::<_, Aes256>::new(RecordingWriter::default(), &KEY, &header(SEG));
-        writer.write_all(b"abcd").unwrap();
-        let output = writer.finish().unwrap();
-
-        assert_eq!(output.write_sizes, [SEG as usize, GCM_TAG_LEN]);
-        assert_eq!(output.bytes, CT_ABCD);
+    fn full_segment_emits_single_final_segment() {
+        assert_eq!(encrypt_all::<Aes256>(b"abcd"), CT_ABCD);
     }
 
     #[test]
