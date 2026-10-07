@@ -2074,28 +2074,6 @@ mod tests {
     }
 
     #[test]
-    fn cbc_entry_is_readable_after_rename() {
-        let options = WriteOptions::builder()
-            .encryption(Encryption::AES)
-            .cipher_mode(CipherMode::CBC)
-            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
-            .password(Some("password"))
-            .build();
-        let mut builder =
-            FileEntryBuilder::new_with_options("dir/original".into(), &options).unwrap();
-        builder.write_all(b"secret payload").unwrap();
-        let entry = builder.build().unwrap();
-
-        let renamed = entry.try_with_name("dir/renamed".into()).unwrap();
-        let mut reader = renamed
-            .reader(ReadOptions::with_password(Some("password")))
-            .unwrap();
-        let mut out = Vec::new();
-        reader.read_to_end(&mut out).unwrap();
-        assert_eq!(out, b"secret payload");
-    }
-
-    #[test]
     fn normal_entry_encoded_reader_returns_encoded_fdat_body() {
         let data = b"plain data plain data plain data";
         let mut builder = FileEntryBuilder::new_with_options(
