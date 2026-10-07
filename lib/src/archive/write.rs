@@ -1324,6 +1324,8 @@ mod tests {
             .next()
             .expect("failed to get entry")
             .expect("failed to read entry");
+        assert!(!entry.data.is_empty());
+        assert!(entry.data.iter().all(|body| body.len() <= 8));
         let mut data_reader = entry
             .reader(ReadOptions::builder().build())
             .expect("failed to read entry data");
