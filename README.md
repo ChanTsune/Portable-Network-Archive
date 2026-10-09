@@ -25,42 +25,6 @@
 
 Additionally, the PNA specification includes a rationale appendix to help developers understand key design choices, making implementation more straightforward.
 
-### Minimal archives (metadata-free by design)
-
-Many archive formats *require* a non-trivial amount of metadata (timestamps, permissions, owner ids, directory tables, checksums, etc.) to be present even when you do not want to preserve them.
-
-PNA is intentionally designed so that **everything other than the entry name and the entry body can be optional**.
-In other words, it is possible (by design, without violating the specification) to build an archive that contains only:
-
-* the file name (entry identifier), and
-* the file body (payload bytes)
-
-and omit all other information.
-
-This enables a few practical advantages:
-
-* **Smallest possible archives**: no overhead from timestamps, permissions, comments, or other ancillary fields when they are unnecessary.
-* **Privacy / information minimization**: avoids unintentionally leaking environment details such as mtime, uid/gid, filesystem attributes, tool versions, etc.
-* **Deterministic / reproducible packaging**: fewer variable fields means it is easier to produce stable byte-for-byte outputs across environments.
-* **Clean transport container**: when used as a network-friendly container, the archive can carry exactly what the sender intends—no more, no less.
-
-## Features
-
-- **File Compression and Decompression**
-  - [x] Supports zlib, zstd, and xz.
-
-- **File Encryption and Decryption**
-  - [x] Supports 256-bit AES and 256-bit Camellia.
-
-- **Solid Mode**
-  - [x] Compresses and encrypts the entire archive as a single block.
-
-- **File Attribute Preservation (Maintains and restores)**
-  - [x] File permissions.
-  - [x] File timestamps.
-  - [x] Extended attributes.
-  - [x] Access Control Lists (ACLs) (experimental).
-
 ## CLI Supported Platform
 - Cross-platform support including Windows, Linux, macOS, and FreeBSD  
   _(Support for additional platforms planned.)_
@@ -121,6 +85,42 @@ pna --help
 ```
 
 See also the [CLI Reference](./docs/cli-reference.md) for detailed command documentation.
+
+## Features
+
+- **File Compression and Decompression**
+  - [x] Supports zlib, zstd, and xz.
+
+- **File Encryption and Decryption**
+  - [x] Supports 256-bit AES and 256-bit Camellia.
+
+- **Solid Mode**
+  - [x] Compresses and encrypts the entire archive as a single block.
+
+- **File Attribute Preservation (Maintains and restores)**
+  - [x] File permissions.
+  - [x] File timestamps.
+  - [x] Extended attributes.
+  - [x] Access Control Lists (ACLs) (experimental).
+
+## Minimal archives (metadata-free by design)
+
+Many archive formats *require* a non-trivial amount of metadata (timestamps, permissions, owner ids, directory tables, checksums, etc.) to be present even when you do not want to preserve them.
+
+PNA is intentionally designed so that **everything other than the entry name and the entry body can be optional**.
+In other words, it is possible (by design, without violating the specification) to build an archive that contains only:
+
+* the file name (entry identifier), and
+* the file body (payload bytes)
+
+and omit all other information.
+
+This enables a few practical advantages:
+
+* **Smallest possible archives**: no overhead from timestamps, permissions, comments, or other ancillary fields when they are unnecessary.
+* **Privacy / information minimization**: avoids unintentionally leaking environment details such as mtime, uid/gid, filesystem attributes, tool versions, etc.
+* **Deterministic / reproducible packaging**: fewer variable fields means it is easier to produce stable byte-for-byte outputs across environments.
+* **Clean transport container**: when used as a network-friendly container, the archive can carry exactly what the sender intends—no more, no less.
 
 ## Specification
 
