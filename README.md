@@ -14,20 +14,17 @@
 
 ## Why PNA?
 
-**Portable Network Archive (PNA): A Flexible, Secure, and Cross-Platform Archive Format**
-- **Portability:** Works seamlessly across multiple platforms, combining the strengths of TAR and ZIP formats.
-- **Compression Flexibility:** Advanced per-file and archive-wide compression options reduce the need for full archive decompression.
-- **Encryption & Security:** Supports 256-bit AES and Camellia for robust protection of sensitive data.
-- **Splittable Structure**: Based on PNG’s data unit structure, enabling the easy division of large archives into smaller parts.
+- **Metadata-free:** Unlike many archive formats, PNA requires nothing but the entry name and the entry body. Timestamps, permissions, owner IDs and every other field are optional, so you get the smallest possible archives, no accidental leaks of environment details (mtime, uid/gid, tool versions), and byte-for-byte reproducible output that makes reproducible builds easy.
+- **Portability:** Works seamlessly across multiple platforms, combining the strengths of TAR and ZIP formats. The CLI supports Windows, Linux, macOS, and FreeBSD (support for additional platforms planned).
+- **Compression Flexibility:** Supports zlib, zstd, and xz. Advanced per-file and archive-wide compression options reduce the need for full archive decompression. Solid Mode compresses and encrypts the entire archive as a single block.
+- **Encryption & Security:** Supports 256-bit AES and 256-bit Camellia for robust protection of sensitive data.
+- **Splittable Structure:** Based on PNG's data unit structure, enabling the easy division of large archives into smaller parts.
 - **Streamability:** Supports serial read and write operations, making it suitable for streaming processing, similar to a TAR format.
-- **Extensibility**: Designed to accommodate future extensions and private add-ons, ensuring compatibility with the basic PNA format while allowing for flexible customization.
+- **Extensibility:** Designed to accommodate future extensions and private add-ons, ensuring compatibility with the basic PNA format while allowing for flexible customization.
 - **Error Resilience:** File integrity checks and error detection ensure data is secure during transmission.
+- **Attribute Preservation:** When you do want them, file permissions, timestamps, extended attributes, and Access Control Lists (ACLs, experimental) are maintained and restored.
 
 Additionally, the PNA specification includes a rationale appendix to help developers understand key design choices, making implementation more straightforward.
-
-## CLI Supported Platform
-- Cross-platform support including Windows, Linux, macOS, and FreeBSD  
-  _(Support for additional platforms planned.)_
 
 ## Installation
 
@@ -47,11 +44,13 @@ powershell -ExecutionPolicy Bypass -c "irm https://github.com/ChanTsune/Portable
 
 ### Via Cargo
 
+**From crates.io:**
+
 ```sh
 cargo install portable-network-archive
 ```
 
-### From Source (via Cargo)
+**From source:**
 
 ```sh
 cargo install --git https://github.com/ChanTsune/Portable-Network-Archive.git portable-network-archive
@@ -85,42 +84,6 @@ pna --help
 ```
 
 See also the [CLI Reference](./docs/cli-reference.md) for detailed command documentation.
-
-## Features
-
-- **File Compression and Decompression**
-  - [x] Supports zlib, zstd, and xz.
-
-- **File Encryption and Decryption**
-  - [x] Supports 256-bit AES and 256-bit Camellia.
-
-- **Solid Mode**
-  - [x] Compresses and encrypts the entire archive as a single block.
-
-- **File Attribute Preservation (Maintains and restores)**
-  - [x] File permissions.
-  - [x] File timestamps.
-  - [x] Extended attributes.
-  - [x] Access Control Lists (ACLs) (experimental).
-
-## Minimal archives (metadata-free by design)
-
-Many archive formats *require* a non-trivial amount of metadata (timestamps, permissions, owner ids, directory tables, checksums, etc.) to be present even when you do not want to preserve them.
-
-PNA is intentionally designed so that **everything other than the entry name and the entry body can be optional**.
-In other words, it is possible (by design, without violating the specification) to build an archive that contains only:
-
-* the file name (entry identifier), and
-* the file body (payload bytes)
-
-and omit all other information.
-
-This enables a few practical advantages:
-
-* **Smallest possible archives**: no overhead from timestamps, permissions, comments, or other ancillary fields when they are unnecessary.
-* **Privacy / information minimization**: avoids unintentionally leaking environment details such as mtime, uid/gid, filesystem attributes, tool versions, etc.
-* **Deterministic / reproducible packaging**: fewer variable fields means it is easier to produce stable byte-for-byte outputs across environments.
-* **Clean transport container**: when used as a network-friendly container, the archive can carry exactly what the sender intends—no more, no less.
 
 ## Specification
 
