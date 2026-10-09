@@ -10,8 +10,6 @@
 //! - `--numeric-owner`: Use numeric IDs only, ignoring names
 
 use crate::utils::setup;
-#[cfg(unix)]
-use crate::utils::unix::skip_if_not_root;
 use clap::Parser;
 use portable_network_archive::cli;
 use std::fs::{self, File};
@@ -28,6 +26,56 @@ struct OwnerEntryDef<'a> {
     gid: u64,
     gname: &'a str,
     permission: u16,
+}
+
+#[cfg(unix)]
+struct TestOwner {
+    uid: u32,
+    uname: String,
+    gid: u32,
+    gname: String,
+}
+
+#[cfg(unix)]
+fn owner_for_account(name: &str) -> TestOwner {
+    let user = nix::unistd::User::from_name(name)
+        .unwrap_or_else(|error| panic!("failed to look up user `{name}`: {error}"))
+        .unwrap_or_else(|| panic!("required user `{name}` is missing from the account database"));
+    let group = nix::unistd::Group::from_gid(user.gid)
+        .unwrap_or_else(|error| panic!("failed to look up primary group for `{name}`: {error}"))
+        .unwrap_or_else(|| {
+            panic!("primary group for `{name}` is missing from the account database")
+        });
+
+    TestOwner {
+        uid: user.uid.as_raw(),
+        uname: user.name,
+        gid: user.gid.as_raw(),
+        gname: group.name,
+    }
+}
+
+#[cfg(unix)]
+fn root_test_owner() -> TestOwner {
+    let owner = owner_for_account("root");
+    assert_eq!(owner.uid, 0, "the root account must have uid 0");
+    owner
+}
+
+#[cfg(unix)]
+fn non_root_test_owner() -> TestOwner {
+    let owner = owner_for_account("nobody");
+    let root = root_test_owner();
+    assert_ne!(owner.uid, root.uid, "the test account must not be root");
+    assert_ne!(
+        owner.gid, root.gid,
+        "the test account's primary group must differ from root's"
+    );
+    assert_ne!(
+        owner.gname, root.gname,
+        "the test account's primary group name must differ from root's"
+    );
+    owner
 }
 
 fn create_archive_with_owner(
@@ -67,7 +115,6 @@ fn extract_with_no_same_owner_skips_ownership() {
     let archive_uid = 1234;
     let archive_gid = 5678;
 
-    // Create archive with specific owner info
     fs::create_dir_all("extract_no_same_owner").unwrap();
     create_archive_with_owner(
         "extract_no_same_owner/archive.pna",
@@ -83,7 +130,6 @@ fn extract_with_no_same_owner_skips_ownership() {
     )
     .unwrap();
 
-    // Extract with --no-same-owner
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -125,28 +171,25 @@ fn extract_with_no_same_owner_skips_ownership() {
 #[cfg(unix)]
 fn extract_with_same_owner_restores_ownership() {
     setup();
-    skip_if_not_root!();
+    skip_unless!("root", nix::unistd::Uid::effective().is_root());
 
-    let archive_uid = 65534; // nobody
-    let archive_gid = 65534; // nogroup
+    let owner = non_root_test_owner();
 
-    // Create archive with specific owner info
     fs::create_dir_all("extract_same_owner").unwrap();
     create_archive_with_owner(
         "extract_same_owner/archive.pna",
         &[OwnerEntryDef {
             path: "test.txt",
             content: b"test content",
-            uid: archive_uid,
-            uname: "nobody",
-            gid: archive_gid,
-            gname: "nogroup",
+            uid: u64::from(owner.uid),
+            uname: &owner.uname,
+            gid: u64::from(owner.gid),
+            gname: &owner.gname,
             permission: 0o644,
         }],
     )
     .unwrap();
 
-    // Extract with --same-owner
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -167,12 +210,12 @@ fn extract_with_same_owner_restores_ownership() {
 
     assert_eq!(
         meta.uid(),
-        archive_uid as u32,
+        owner.uid,
         "extracted file should have archive's uid"
     );
     assert_eq!(
         meta.gid(),
-        archive_gid as u32,
+        owner.gid,
         "extracted file should have archive's gid"
     );
 }
@@ -184,10 +227,10 @@ fn extract_with_same_owner_restores_ownership() {
 #[cfg(unix)]
 fn extract_with_uid_override() {
     setup();
-    skip_if_not_root!();
+    skip_unless!("root", nix::unistd::Uid::effective().is_root());
 
-    let archive_uid = 1000;
-    let override_uid = 65534;
+    let owner = non_root_test_owner();
+    let root = root_test_owner();
 
     fs::create_dir_all("extract_uid_override").unwrap();
     create_archive_with_owner(
@@ -195,16 +238,15 @@ fn extract_with_uid_override() {
         &[OwnerEntryDef {
             path: "test.txt",
             content: b"test content",
-            uid: archive_uid,
-            uname: "originaluser",
-            gid: 1000,
-            gname: "originalgroup",
+            uid: u64::from(root.uid),
+            uname: &root.uname,
+            gid: u64::from(owner.gid),
+            gname: &owner.gname,
             permission: 0o644,
         }],
     )
     .unwrap();
 
-    // Extract with --uid override
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -217,7 +259,7 @@ fn extract_with_uid_override() {
         "--keep-permission",
         "--same-owner",
         "--uid",
-        &override_uid.to_string(),
+        &owner.uid.to_string(),
     ])
     .unwrap()
     .execute()
@@ -227,7 +269,7 @@ fn extract_with_uid_override() {
 
     assert_eq!(
         meta.uid(),
-        override_uid,
+        owner.uid,
         "extracted file should have overridden uid"
     );
 }
@@ -239,10 +281,10 @@ fn extract_with_uid_override() {
 #[cfg(unix)]
 fn extract_with_gid_override() {
     setup();
-    skip_if_not_root!();
+    skip_unless!("root", nix::unistd::Uid::effective().is_root());
 
-    let archive_gid = 1000;
-    let override_gid = 65534;
+    let owner = non_root_test_owner();
+    let root = root_test_owner();
 
     fs::create_dir_all("extract_gid_override").unwrap();
     create_archive_with_owner(
@@ -250,16 +292,15 @@ fn extract_with_gid_override() {
         &[OwnerEntryDef {
             path: "test.txt",
             content: b"test content",
-            uid: 1000,
-            uname: "originaluser",
-            gid: archive_gid,
-            gname: "originalgroup",
+            uid: u64::from(owner.uid),
+            uname: &owner.uname,
+            gid: u64::from(root.gid),
+            gname: &root.gname,
             permission: 0o644,
         }],
     )
     .unwrap();
 
-    // Extract with --gid override
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -272,7 +313,7 @@ fn extract_with_gid_override() {
         "--keep-permission",
         "--same-owner",
         "--gid",
-        &override_gid.to_string(),
+        &owner.gid.to_string(),
     ])
     .unwrap()
     .execute()
@@ -282,7 +323,7 @@ fn extract_with_gid_override() {
 
     assert_eq!(
         meta.gid(),
-        override_gid,
+        owner.gid,
         "extracted file should have overridden gid"
     );
 }
@@ -294,7 +335,10 @@ fn extract_with_gid_override() {
 #[cfg(unix)]
 fn extract_with_uname_override() {
     setup();
-    skip_if_not_root!();
+    skip_unless!("root", nix::unistd::Uid::effective().is_root());
+
+    let owner = non_root_test_owner();
+    let root = root_test_owner();
 
     fs::create_dir_all("extract_uname_override").unwrap();
     create_archive_with_owner(
@@ -302,17 +346,16 @@ fn extract_with_uname_override() {
         &[OwnerEntryDef {
             path: "test.txt",
             content: b"test content",
-            uid: 1000,
-            uname: "originaluser",
-            gid: 1000,
-            gname: "originalgroup",
+            uid: u64::from(root.uid),
+            uname: &root.uname,
+            gid: u64::from(owner.gid),
+            gname: &owner.gname,
             permission: 0o644,
         }],
     )
     .unwrap();
 
-    // Extract with --uname override to "nobody"
-    let result = cli::Cli::try_parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -324,29 +367,18 @@ fn extract_with_uname_override() {
         "--keep-permission",
         "--same-owner",
         "--uname",
-        "nobody",
+        &owner.uname,
     ])
     .unwrap()
-    .execute();
-
-    // The extraction might fail if user lookup fails on some systems
-    if let Err(e) = &result {
-        let err_str = format!("{:#}", e);
-        if err_str.contains("not found") || err_str.contains("No such") {
-            eprintln!("Skipping test: user 'nobody' not found on this system");
-            return;
-        }
-    }
-    result.unwrap();
+    .execute()
+    .unwrap();
 
     let meta = fs::metadata("extract_uname_override/out/test.txt").unwrap();
 
-    // Check that the uid corresponds to "nobody" (typically 65534 or 99)
-    // We just verify that it's not the original uid
-    assert_ne!(
+    assert_eq!(
         meta.uid(),
-        1000,
-        "extracted file should not have original uid after --uname override"
+        owner.uid,
+        "extracted file should use the uid resolved from --uname"
     );
 }
 
@@ -357,7 +389,10 @@ fn extract_with_uname_override() {
 #[cfg(unix)]
 fn extract_with_gname_override() {
     setup();
-    skip_if_not_root!();
+    skip_unless!("root", nix::unistd::Uid::effective().is_root());
+
+    let owner = non_root_test_owner();
+    let root = root_test_owner();
 
     fs::create_dir_all("extract_gname_override").unwrap();
     create_archive_with_owner(
@@ -365,17 +400,16 @@ fn extract_with_gname_override() {
         &[OwnerEntryDef {
             path: "test.txt",
             content: b"test content",
-            uid: 1000,
-            uname: "originaluser",
-            gid: 1000,
-            gname: "originalgroup",
+            uid: u64::from(owner.uid),
+            uname: &owner.uname,
+            gid: u64::from(root.gid),
+            gname: &root.gname,
             permission: 0o644,
         }],
     )
     .unwrap();
 
-    // Extract with --gname override to "nogroup" or "nobody"
-    let result = cli::Cli::try_parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -387,29 +421,18 @@ fn extract_with_gname_override() {
         "--keep-permission",
         "--same-owner",
         "--gname",
-        "nogroup",
+        &owner.gname,
     ])
     .unwrap()
-    .execute();
-
-    // The extraction might fail if group lookup fails on some systems
-    if let Err(e) = &result {
-        let err_str = format!("{:#}", e);
-        if err_str.contains("not found") || err_str.contains("No such") {
-            eprintln!("Skipping test: group 'nogroup' not found on this system");
-            return;
-        }
-    }
-    result.unwrap();
+    .execute()
+    .unwrap();
 
     let meta = fs::metadata("extract_gname_override/out/test.txt").unwrap();
 
-    // Check that the gid corresponds to "nogroup" (typically 65534 or 99)
-    // We just verify that it's not the original gid
-    assert_ne!(
+    assert_eq!(
         meta.gid(),
-        1000,
-        "extracted file should not have original gid after --gname override"
+        owner.gid,
+        "extracted file should use the gid resolved from --gname"
     );
 }
 
@@ -420,10 +443,10 @@ fn extract_with_gname_override() {
 #[cfg(unix)]
 fn extract_with_numeric_owner() {
     setup();
-    skip_if_not_root!();
+    skip_unless!("root", nix::unistd::Uid::effective().is_root());
 
-    let archive_uid = 65534;
-    let archive_gid = 65534;
+    let owner = non_root_test_owner();
+    let root = root_test_owner();
 
     fs::create_dir_all("extract_numeric_owner").unwrap();
     create_archive_with_owner(
@@ -431,16 +454,15 @@ fn extract_with_numeric_owner() {
         &[OwnerEntryDef {
             path: "test.txt",
             content: b"test content",
-            uid: archive_uid,
-            uname: "nonexistentuser12345", // This user name shouldn't exist
-            gid: archive_gid,
-            gname: "nonexistentgroup12345", // This group name shouldn't exist
+            uid: u64::from(owner.uid),
+            uname: &root.uname,
+            gid: u64::from(owner.gid),
+            gname: &root.gname,
             permission: 0o644,
         }],
     )
     .unwrap();
 
-    // Extract with --numeric-owner (ignores names, uses only IDs)
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -462,12 +484,12 @@ fn extract_with_numeric_owner() {
 
     assert_eq!(
         meta.uid(),
-        archive_uid as u32,
+        owner.uid,
         "extracted file should use numeric uid from archive"
     );
     assert_eq!(
         meta.gid(),
-        archive_gid as u32,
+        owner.gid,
         "extracted file should use numeric gid from archive"
     );
 }
@@ -479,10 +501,10 @@ fn extract_with_numeric_owner() {
 #[cfg(unix)]
 fn extract_with_uid_and_gid_override() {
     setup();
-    skip_if_not_root!();
+    skip_unless!("root", nix::unistd::Uid::effective().is_root());
 
-    let override_uid = 65534;
-    let override_gid = 65534;
+    let owner = non_root_test_owner();
+    let root = root_test_owner();
 
     fs::create_dir_all("extract_uid_gid_override").unwrap();
     create_archive_with_owner(
@@ -490,16 +512,15 @@ fn extract_with_uid_and_gid_override() {
         &[OwnerEntryDef {
             path: "test.txt",
             content: b"test content",
-            uid: 1000,
-            uname: "originaluser",
-            gid: 1000,
-            gname: "originalgroup",
+            uid: u64::from(root.uid),
+            uname: &root.uname,
+            gid: u64::from(root.gid),
+            gname: &root.gname,
             permission: 0o644,
         }],
     )
     .unwrap();
 
-    // Extract with both --uid and --gid overrides
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -512,9 +533,9 @@ fn extract_with_uid_and_gid_override() {
         "--keep-permission",
         "--same-owner",
         "--uid",
-        &override_uid.to_string(),
+        &owner.uid.to_string(),
         "--gid",
-        &override_gid.to_string(),
+        &owner.gid.to_string(),
     ])
     .unwrap()
     .execute()
@@ -524,12 +545,12 @@ fn extract_with_uid_and_gid_override() {
 
     assert_eq!(
         meta.uid(),
-        override_uid,
+        owner.uid,
         "extracted file should have overridden uid"
     );
     assert_eq!(
         meta.gid(),
-        override_gid,
+        owner.gid,
         "extracted file should have overridden gid"
     );
 }
@@ -541,9 +562,10 @@ fn extract_with_uid_and_gid_override() {
 #[cfg(unix)]
 fn extract_with_uid_overrides_uname() {
     setup();
-    skip_if_not_root!();
+    skip_unless!("root", nix::unistd::Uid::effective().is_root());
 
-    let override_uid = 65534;
+    let owner = non_root_test_owner();
+    let root = root_test_owner();
 
     fs::create_dir_all("extract_uid_overrides_uname").unwrap();
     create_archive_with_owner(
@@ -551,17 +573,16 @@ fn extract_with_uid_overrides_uname() {
         &[OwnerEntryDef {
             path: "test.txt",
             content: b"test content",
-            uid: 1000,
-            uname: "originaluser",
-            gid: 1000,
-            gname: "originalgroup",
+            uid: u64::from(root.uid),
+            uname: &root.uname,
+            gid: u64::from(owner.gid),
+            gname: &owner.gname,
             permission: 0o644,
         }],
     )
     .unwrap();
 
-    // Extract with both --uid and --uname (--uid should take precedence)
-    let result = cli::Cli::try_parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -573,28 +594,19 @@ fn extract_with_uid_overrides_uname() {
         "--keep-permission",
         "--same-owner",
         "--uid",
-        &override_uid.to_string(),
+        &owner.uid.to_string(),
         "--uname",
-        "nobody",
+        &root.uname,
     ])
     .unwrap()
-    .execute();
-
-    // Skip if user lookup fails
-    if let Err(e) = &result {
-        let err_str = format!("{:#}", e);
-        if err_str.contains("not found") || err_str.contains("No such") {
-            eprintln!("Skipping test: user lookup failed");
-            return;
-        }
-    }
-    result.unwrap();
+    .execute()
+    .unwrap();
 
     let meta = fs::metadata("extract_uid_overrides_uname/out/test.txt").unwrap();
 
     assert_eq!(
         meta.uid(),
-        override_uid,
+        owner.uid,
         "--uid should take precedence over --uname"
     );
 }
@@ -607,8 +619,7 @@ fn extract_with_uid_overrides_uname() {
 fn extract_default_owner_behavior() {
     setup();
 
-    let archive_uid = 65534;
-    let archive_gid = 65534;
+    let owner = non_root_test_owner();
 
     fs::create_dir_all("extract_default_owner").unwrap();
     create_archive_with_owner(
@@ -616,16 +627,15 @@ fn extract_default_owner_behavior() {
         &[OwnerEntryDef {
             path: "test.txt",
             content: b"test content",
-            uid: archive_uid,
-            uname: "nobody",
-            gid: archive_gid,
-            gname: "nogroup",
+            uid: u64::from(owner.uid),
+            uname: &owner.uname,
+            gid: u64::from(owner.gid),
+            gname: &owner.gname,
             permission: 0o644,
         }],
     )
     .unwrap();
 
-    // Extract with --keep-permission only (no explicit --same-owner or --no-same-owner)
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -645,19 +655,17 @@ fn extract_default_owner_behavior() {
     let is_root = nix::unistd::Uid::effective().is_root();
 
     if is_root {
-        // When root, default behavior restores ownership from archive
         assert_eq!(
             meta.uid(),
-            archive_uid as u32,
+            owner.uid,
             "root should restore archive's uid by default"
         );
         assert_eq!(
             meta.gid(),
-            archive_gid as u32,
+            owner.gid,
             "root should restore archive's gid by default"
         );
     } else {
-        // When non-root, file is owned by current user
         let current_uid = nix::unistd::Uid::effective().as_raw();
         let current_gid = nix::unistd::Gid::effective().as_raw();
         assert_eq!(
