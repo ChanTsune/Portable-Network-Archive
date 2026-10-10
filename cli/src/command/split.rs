@@ -7,12 +7,19 @@ use anyhow::{Context, ensure};
 use bytesize::ByteSize;
 use clap::{ArgAction, Parser, ValueHint};
 use pna::{Archive, MIN_SPLIT_PART_BYTES};
-use std::{borrow::Cow, fs, path::PathBuf};
+use std::{fs, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct SplitCommand {
     #[command(flatten)]
     archive: ArchiveFileArgs,
+    #[arg(
+        long,
+        value_name = "BASE_PATH",
+        help = "Base path used to name split archive parts. Relative paths resolve under --out-dir when given",
+        value_hint = ValueHint::FilePath
+    )]
+    output: Option<PathBuf>,
     #[arg(long, value_name = "DIRECTORY", help = "Output directory for split archives", value_hint = ValueHint::DirPath)]
     out_dir: Option<PathBuf>,
     #[arg(long, conflicts_with = "no_overwrite", help = "Overwrite file")]
@@ -60,12 +67,15 @@ fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
     #[cfg(feature = "memmap")]
     let entries = read_archive.raw_entries_slice();
 
-    let base_out_file_name = if let Some(out_dir) = args.out_dir {
-        fs::create_dir_all(&out_dir)?;
-        Cow::Owned(out_dir.join(archive_path.file_name().unwrap_or_default()))
-    } else {
-        Cow::Borrowed(archive_path.as_path())
+    let base_out_file_name = match (args.out_dir, args.output) {
+        (Some(out_dir), Some(output)) => out_dir.join(output),
+        (Some(out_dir), None) => out_dir.join(archive_path.file_name().unwrap_or_default()),
+        (None, Some(output)) => output,
+        (None, None) => archive_path,
     };
+    if let Some(parent) = base_out_file_name.parent() {
+        fs::create_dir_all(parent)?;
+    }
     write_split_archive(&base_out_file_name, entries, max_file_size, args.overwrite).with_context(
         || {
             format!(

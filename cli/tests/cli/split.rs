@@ -252,3 +252,111 @@ fn split_fails_with_missing_archive() {
         "split should fail with non-existent archive"
     );
 }
+
+/// Precondition: A valid archive exists.
+/// Action: Run `pna split` with `--output` naming a different base path.
+/// Expectation: The split parts are created under the requested base path.
+#[test]
+fn split_output_renames_parts_for_file_input() {
+    setup();
+
+    let test_dir = "split_output/in/";
+    fs::create_dir_all(test_dir).unwrap();
+
+    for i in 0..5 {
+        let filename = format!("{test_dir}file{i}.txt");
+        let mut file = fs::File::create(&filename).unwrap();
+        file.write_all(&[b'A' + i; 20]).unwrap();
+    }
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "create",
+        "-f",
+        "split_output/input.pna",
+        "--overwrite",
+        test_dir,
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "split",
+        "-f",
+        "split_output/input.pna",
+        "--output",
+        "split_output/renamed.pna",
+        "--overwrite",
+        "--max-size",
+        "150",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    assert!(
+        fs::metadata("split_output/renamed.part1.pna").is_ok(),
+        "split with --output should create renamed parts"
+    );
+}
+
+/// Precondition: A valid archive exists.
+/// Action: Run `pna split` with a nested `--output` together with `--out-dir`.
+/// Expectation: The split parts resolve under `--out-dir` preserving the nested path.
+#[test]
+fn split_output_with_directory_resolves_under_out_dir() {
+    setup();
+
+    let test_dir = "split_output_nested/in/";
+    fs::create_dir_all(test_dir).unwrap();
+
+    for i in 0..5 {
+        let filename = format!("{test_dir}file{i}.txt");
+        let mut file = fs::File::create(&filename).unwrap();
+        file.write_all(&[b'A' + i; 20]).unwrap();
+    }
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "create",
+        "-f",
+        "split_output_nested/input.pna",
+        "--overwrite",
+        test_dir,
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "split",
+        "-f",
+        "split_output_nested/input.pna",
+        "--output",
+        "nested/named.pna",
+        "--out-dir",
+        "split_output_nested/parts",
+        "--overwrite",
+        "--max-size",
+        "150",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    assert!(
+        fs::metadata("split_output_nested/parts/nested/named.part1.pna").is_ok(),
+        "relative --output should resolve under --out-dir"
+    );
+    assert!(
+        fs::metadata("split_output_nested/parts/named.part1.pna").is_err(),
+        "part should not be created directly under --out-dir"
+    );
+}
