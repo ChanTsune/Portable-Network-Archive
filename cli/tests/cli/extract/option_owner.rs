@@ -153,14 +153,12 @@ fn extract_with_no_same_owner_skips_ownership() {
     assert_eq!(
         meta.uid(),
         current_uid,
-        "extracted file should be owned by current user, not archive's uid {}",
-        archive_uid
+        "extracted file should be owned by current user"
     );
     assert_eq!(
         meta.gid(),
         current_gid,
-        "extracted file should be owned by current group, not archive's gid {}",
-        archive_gid
+        "extracted file should be owned by current group"
     );
 }
 
