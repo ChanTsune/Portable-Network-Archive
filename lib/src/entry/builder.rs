@@ -390,15 +390,18 @@ mod tests {
     }
 
     #[test]
-    fn fltp_on_regular_file_is_preserved() {
+    fn fltp_on_regular_file_is_ignored() {
         let mut builder = FileEntryBuilder::new("regular.txt".into()).unwrap();
         builder.metadata(Metadata::new().with_link_target_type(Some(LinkTargetType::File)));
         let entry = builder.build().unwrap();
         let restored = NormalEntry::parse_chunks(entry_chunks(entry)).unwrap();
-        assert_eq!(
-            restored.metadata().link_target_type(),
-            Some(LinkTargetType::File)
-        );
+        assert_eq!(restored.metadata().link_target_type(), None);
+
+        let mut builder = FileEntryBuilder::new("regular.txt".into()).unwrap();
+        builder.add_extra_chunk(RawChunk::from_data(ChunkType::fLTP, []));
+        let entry = builder.build().unwrap();
+        let restored = NormalEntry::parse_chunks(entry_chunks(entry)).unwrap();
+        assert_eq!(restored.metadata().link_target_type(), None);
     }
 
     #[test]
