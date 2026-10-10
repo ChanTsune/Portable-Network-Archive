@@ -734,6 +734,9 @@ pub(crate) fn collect_items_with_state(
     // see `normalize_non_follow_root_path` for the rationale.
     let walk_path = normalize_non_follow_root_path(path, options);
 
+    // REASON: The CLI distinguishes following only command-line symlinks from
+    // following nested symlinks too. `ignore::WalkBuilder` has one `follow_links`
+    // setting; `WalkDir` lets these cases be controlled separately.
     let mut iter = if options.recursive {
         walkdir::WalkDir::new(walk_path)
     } else {
