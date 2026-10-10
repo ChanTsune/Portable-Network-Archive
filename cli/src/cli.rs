@@ -222,7 +222,7 @@ pub(crate) struct ArchiveFileArgs {
         help = "Archive file path",
         value_hint = ValueHint::FilePath
     )]
-    pub(crate) file: PathBuf,
+    pub(crate) file: Option<PathBuf>,
 }
 
 #[derive(Args, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
