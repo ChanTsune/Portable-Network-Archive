@@ -953,6 +953,7 @@ Split archive
 ###### **Options:**
 
 * `-f`, `--file <ARCHIVE>` — Archive file path
+* `--output <BASE_PATH>` — Base path used to name split archive parts. Relative paths resolve under --out-dir when given
 * `--out-dir <DIRECTORY>` — Output directory for split archives
 * `--overwrite` — Overwrite file
 
