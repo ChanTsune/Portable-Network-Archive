@@ -50,6 +50,11 @@ where
             failed: false,
         })
     }
+
+    #[inline]
+    pub(crate) fn into_inner(self) -> R {
+        self.r
+    }
 }
 
 impl<R, C, P> CbcBlockCipherDecryptReader<R, C, P>
