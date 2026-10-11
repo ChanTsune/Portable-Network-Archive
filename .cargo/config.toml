@@ -1,8 +1,6 @@
 [alias]
 xtask = "run --package xtask --"
 
-[target."wasm32-wasi"]
-runner = ["wasmtime", "--dir", "/"]
 [target."wasm32-wasip1"]
 runner = ["wasmtime", "--dir", "/"]
 [target."wasm32-wasip2"]
