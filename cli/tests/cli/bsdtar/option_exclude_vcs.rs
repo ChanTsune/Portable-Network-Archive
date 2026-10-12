@@ -46,7 +46,6 @@ fn bsdtar_with_exclude_vcs() {
         "bsdtar",
         "--create",
         "--overwrite",
-        "--unstable",
         "--exclude-vcs",
         "bsdtar_with_exclude_vcs/in/raw",
     ]);
@@ -60,7 +59,6 @@ fn bsdtar_with_exclude_vcs() {
         "bsdtar",
         "--extract",
         "--overwrite",
-        "--unstable",
         "--exclude-vcs",
         "--out-dir",
         out_dir,

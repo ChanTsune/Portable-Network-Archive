@@ -2,7 +2,7 @@
 
 load '../test_helper.bash'
 
-EXECUTABLE="pna --log-level error compat bsdtar --unstable --keep-dir --overwrite"
+EXECUTABLE="pna --log-level error compat bsdtar --keep-dir --overwrite"
 
 setup_file() {
   pushd "$BATS_FILE_TMPDIR" || exit 1
