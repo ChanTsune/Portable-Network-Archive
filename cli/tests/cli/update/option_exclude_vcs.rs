@@ -56,7 +56,6 @@ fn update_with_exclude_vcs() {
         "-f",
         "update_option_exclude_vcs/archive.pna",
         "update_option_exclude_vcs/in/",
-        "--unstable",
         "--exclude-vcs",
     ])
     .unwrap()
