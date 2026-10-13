@@ -1244,40 +1244,54 @@ mod tests {
         /// A datastream carried across an `ANXT` boundary reaches the decoder as
         /// one stream, so the segment look-ahead must not read the end of a part
         /// as the end of the datastream and verify a non-final segment as final.
-        #[allow(deprecated)]
         #[test]
         fn entry_split_across_archive_parts_remains_decryptable() {
+            use std::{cell::RefCell, rc::Rc};
+
+            #[derive(Clone, Default)]
+            struct SharedBuf(Rc<RefCell<Vec<u8>>>);
+
+            impl Write for SharedBuf {
+                fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+                    self.0.borrow_mut().extend_from_slice(buf);
+                    Ok(buf.len())
+                }
+
+                fn flush(&mut self) -> io::Result<()> {
+                    Ok(())
+                }
+            }
+
+            let collected: Rc<RefCell<Vec<SharedBuf>>> = Rc::new(RefCell::new(Vec::new()));
+            let next = {
+                let collected = collected.clone();
+                move |_| {
+                    let buf = SharedBuf::default();
+                    collected.borrow_mut().push(buf.clone());
+                    Ok(buf)
+                }
+            };
+            let max = crate::MIN_SPLIT_PART_BYTES + 128;
+            let mut archive = Archive::write_split_header(max, next).unwrap();
             let options = gcm_options(Encryption::AES, Compression::NO, 4);
             let mut builder =
                 FileEntryBuilder::new_with_options("dir/file".into(), &options).unwrap();
             builder.write_all(REPRESENTATIVE).unwrap();
-            let entry = EntryPart::from(builder.build().unwrap());
+            archive.add_entry(builder.build().unwrap()).unwrap();
+            let count = archive.finalize().unwrap().parts();
+            assert!(count >= 2, "the entry must span both parts");
 
-            let mut remaining = entry.as_ref();
-            let mut parts = Vec::new();
-            loop {
-                let (head, tail) = remaining
-                    .try_split(entry.bytes_len() / 2)
-                    .expect("half an entry leaves room for a chunk header");
-                parts.push(head);
-                match tail {
-                    Some(tail) => remaining = tail,
-                    None => break,
-                }
+            let part_bytes: Vec<Vec<u8>> = collected
+                .borrow()
+                .iter()
+                .map(|part| part.0.borrow().clone())
+                .collect();
+            for part in &part_bytes {
+                assert!(part.len() <= max);
             }
-            assert!(parts.len() >= 2, "the entry must span both parts");
 
-            let mut part1 = Vec::new();
-            let mut part2 = Vec::new();
-            let mut writer = Archive::write_header(&mut part1).unwrap();
-            writer.add_entry_part(parts[0].clone()).unwrap();
-            let mut writer = writer.split_to_next_archive(&mut part2).unwrap();
-            for part in &parts[1..] {
-                writer.add_entry_part(part.clone()).unwrap();
-            }
-            writer.finalize().unwrap();
-
-            let mut reader = Archive::read_header(part1.as_slice()).unwrap();
+            let mut reader = Archive::read_header(part_bytes[0].as_slice()).unwrap();
+            let mut part_index = 0;
             let mut out = Vec::new();
             loop {
                 for entry in reader.entries().skip_solid() {
@@ -1290,7 +1304,10 @@ mod tests {
                 if !reader.has_next_archive() {
                     break;
                 }
-                reader = reader.read_next_archive(part2.as_slice()).unwrap();
+                part_index += 1;
+                reader = reader
+                    .read_next_archive(part_bytes[part_index].as_slice())
+                    .unwrap();
             }
             assert_eq!(out, REPRESENTATIVE);
         }
