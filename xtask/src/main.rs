@@ -136,8 +136,23 @@ fn tar2pna(args: Tar2pnaArgs) -> Result<(), Box<dyn std::error::Error>> {
     let mut tar = tar::Archive::new(reader);
 
     let output_path = args.output.unwrap_or_else(|| {
-        let stem = tar_stem(&args.input);
-        args.input.with_file_name(format!("{stem}.pna"))
+        pna_output_path(
+            &args.input,
+            &[
+                ".tar.gz",
+                ".tgz",
+                ".tar.bz2",
+                ".tbz2",
+                ".tar.xz",
+                ".txz",
+                ".tar.lzma",
+                ".tar.lz4",
+                ".tar.zst",
+                ".tzst",
+                ".tar.Z",
+                ".tar",
+            ],
+        )
     });
     let write_options = build_write_options(args.compression, args.password.as_deref());
 
@@ -226,32 +241,13 @@ fn spawn_decompressor(
     Ok((stdout, child))
 }
 
-/// Extract the archive stem, stripping `.tar.*` suffixes.
-fn tar_stem(path: &Path) -> String {
-    let name = path
-        .file_name()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .to_string();
-    for suffix in [
-        ".tar.gz",
-        ".tgz",
-        ".tar.bz2",
-        ".tbz2",
-        ".tar.xz",
-        ".txz",
-        ".tar.lzma",
-        ".tar.lz4",
-        ".tar.zst",
-        ".tzst",
-        ".tar.Z",
-        ".tar",
-    ] {
-        if let Some(stem) = name.strip_suffix(suffix) {
-            return stem.to_string();
-        }
-    }
-    name
+fn pna_output_path(path: &Path, suffixes: &[&str]) -> PathBuf {
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    let stem = suffixes
+        .iter()
+        .find_map(|suffix| name.strip_suffix(suffix))
+        .unwrap_or(&name);
+    path.with_file_name(format!("{stem}.pna"))
 }
 
 fn build_write_options(method: CompressionMethod, password: Option<&str>) -> libpna::WriteOptions {
@@ -299,26 +295,18 @@ fn convert_entry<R: Read, W: Write>(
         builder.metadata(owner.metadata(mtime_duration));
         archive.add_entry(builder.build()?)?;
     } else if entry_type.is_symlink() {
-        let link = entry
-            .link_name()?
-            .ok_or("symlink missing link name")?
-            .to_string_lossy()
-            .to_string();
+        let link = entry.link_name()?.ok_or("symlink missing link name")?;
         let mut builder = libpna::SymlinkEntryBuilder::new(
             entry_name,
-            libpna::EntryReference::from_utf8_preserve_root(&link),
+            libpna::EntryReference::from_path_lossy_preserve_root(&link),
         )?;
         builder.metadata(owner.metadata(mtime_duration));
         archive.add_entry(builder.build()?)?;
     } else if entry_type.is_hard_link() {
-        let link = entry
-            .link_name()?
-            .ok_or("hardlink missing link name")?
-            .to_string_lossy()
-            .to_string();
+        let link = entry.link_name()?.ok_or("hardlink missing link name")?;
         let mut builder = libpna::HardLinkEntryBuilder::new(
             entry_name,
-            libpna::EntryReference::from_utf8_preserve_root(&link),
+            libpna::EntryReference::from_path_lossy_preserve_root(&link),
         )?;
         builder.metadata(owner.metadata(mtime_duration));
         archive.add_entry(builder.build()?)?;
@@ -425,10 +413,9 @@ fn zip2pna(args: Zip2pnaArgs) -> Result<(), Box<dyn std::error::Error>> {
     let file = File::open(&args.input)?;
     let mut zip = zip::ZipArchive::new(file)?;
 
-    let output_path = args.output.unwrap_or_else(|| {
-        let stem = zip_stem(&args.input);
-        args.input.with_file_name(format!("{stem}.pna"))
-    });
+    let output_path = args
+        .output
+        .unwrap_or_else(|| pna_output_path(&args.input, &[".zip"]));
     let write_options = build_write_options(args.compression, args.password.as_deref());
 
     let output_file = File::create(&output_path)?;
@@ -445,11 +432,6 @@ fn zip2pna(args: Zip2pnaArgs) -> Result<(), Box<dyn std::error::Error>> {
     archive.finalize()?;
     eprintln!("PNA archive created: {}", output_path.display());
     Ok(())
-}
-
-fn zip_stem(path: &Path) -> String {
-    let name = path.file_name().unwrap_or_default().to_string_lossy();
-    name.strip_suffix(".zip").unwrap_or(&name).to_string()
 }
 
 fn convert_zip_entry<R: Read + io::Seek, W: Write>(
@@ -521,4 +503,38 @@ fn zip_entry_metadata<R: Read + io::Seek>(
     libpna::Metadata::new()
         .with_modified(Some(modified))
         .with_permission_mode(permission_mode)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_output_path_preserves_parent_and_strips_only_archive_suffix() {
+        for (input, suffixes, expected) in [
+            (
+                "dir/日本語.tar.gz",
+                &[".tar.gz", ".tar"][..],
+                "dir/日本語.pna",
+            ),
+            ("dir/a.tar.tar", &[".tar"][..], "dir/a.tar.pna"),
+            ("dir/a.zip", &[".zip"][..], "dir/a.pna"),
+            ("dir/a.ZIP", &[".zip"][..], "dir/a.ZIP.pna"),
+            ("dir/.zip", &[".zip"][..], "dir/.pna"),
+        ] {
+            assert_eq!(
+                pna_output_path(Path::new(input), suffixes),
+                Path::new(expected)
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn default_output_path_replaces_invalid_utf8_only_in_filename() {
+        use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
+        let input = Path::new(OsStr::from_bytes(b"dir\xff/name\xff.tar.gz"));
+        let expected = Path::new(OsStr::from_bytes(b"dir\xff/name\xef\xbf\xbd.pna"));
+        assert_eq!(pna_output_path(input, &[".tar.gz"]), expected);
+    }
 }
