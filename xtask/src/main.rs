@@ -281,18 +281,20 @@ fn convert_entry<R: Read, W: Write>(
     let header = entry.header();
     let entry_type = header.entry_type();
     let path = entry.path()?;
-    let path = path.to_string_lossy();
     let mtime = header.mtime().unwrap_or_else(|e| {
-        eprintln!("warning: {path}: failed to read mtime ({e}), defaulting to 0");
+        eprintln!(
+            "warning: {}: failed to read mtime ({e}), defaulting to 0",
+            path.display()
+        );
         0
     });
     let mtime_duration = libpna::Duration::new(mtime as i64, 0);
-    let owner = TarOwner::from_header(header, &path);
-    let entry_name = libpna::EntryName::from_utf8_preserve_root(&path);
+    let metadata = tar_entry_metadata(header, &path, mtime_duration);
+    let entry_name = libpna::EntryName::from_path_lossy_preserve_root(&path);
 
     if entry_type.is_dir() {
         let mut builder = libpna::DirEntryBuilder::new(entry_name);
-        builder.metadata(owner.metadata(mtime_duration));
+        builder.metadata(metadata);
         archive.add_entry(builder.build()?)?;
     } else if entry_type.is_symlink() {
         let link = entry.link_name()?.ok_or("symlink missing link name")?;
@@ -300,7 +302,7 @@ fn convert_entry<R: Read, W: Write>(
             entry_name,
             libpna::EntryReference::from_path_lossy_preserve_root(&link),
         )?;
-        builder.metadata(owner.metadata(mtime_duration));
+        builder.metadata(metadata);
         archive.add_entry(builder.build()?)?;
     } else if entry_type.is_hard_link() {
         let link = entry.link_name()?.ok_or("hardlink missing link name")?;
@@ -308,17 +310,17 @@ fn convert_entry<R: Read, W: Write>(
             entry_name,
             libpna::EntryReference::from_path_lossy_preserve_root(&link),
         )?;
-        builder.metadata(owner.metadata(mtime_duration));
+        builder.metadata(metadata);
         archive.add_entry(builder.build()?)?;
     } else if entry_type.is_file() {
         let mut builder = libpna::FileEntryBuilder::new_with_options(entry_name, write_options)?;
         io::copy(entry, &mut builder)?;
-        builder.metadata(owner.metadata(mtime_duration));
+        builder.metadata(metadata);
         archive.add_entry(builder.build()?)?;
     } else {
         eprintln!(
-            "warning: skipping unsupported entry type {:?}: {path}",
-            entry_type
+            "warning: skipping unsupported entry type {entry_type:?}: {}",
+            path.display()
         );
     }
 
@@ -351,62 +353,47 @@ fn owner_name_bounded(s: &str) -> Option<&str> {
     Some(&s[..end])
 }
 
-struct TarOwner {
-    uid: u64,
-    gid: u64,
-    mode: u16,
-    uname: String,
-    gname: String,
-}
-
-impl TarOwner {
-    fn from_header(header: &tar::Header, path: &str) -> Self {
-        let uid = header.uid().unwrap_or_else(|e| {
-            eprintln!("warning: {path}: failed to read uid ({e}), defaulting to 0");
-            0
-        });
-        let gid = header.gid().unwrap_or_else(|e| {
-            eprintln!("warning: {path}: failed to read gid ({e}), defaulting to 0");
-            0
-        });
-        let mode = (header.mode().unwrap_or_else(|e| {
-            eprintln!("warning: {path}: failed to read mode ({e}), defaulting to 0o644");
-            0o644
-        }) & 0o7777) as u16;
-        let uname = match header.username() {
-            Ok(Some(name)) => name.to_string(),
-            Ok(None) => String::new(),
-            Err(e) => {
-                eprintln!("warning: {path}: username is not valid UTF-8 ({e})");
-                String::new()
-            }
-        };
-        let gname = match header.groupname() {
-            Ok(Some(name)) => name.to_string(),
-            Ok(None) => String::new(),
-            Err(e) => {
-                eprintln!("warning: {path}: groupname is not valid UTF-8 ({e})");
-                String::new()
-            }
-        };
-        Self {
-            uid,
-            gid,
-            mode,
-            uname,
-            gname,
+fn tar_entry_metadata(
+    header: &tar::Header,
+    path: &Path,
+    modified: libpna::Duration,
+) -> libpna::Metadata {
+    let path = path.display();
+    let uid = header.uid().unwrap_or_else(|e| {
+        eprintln!("warning: {path}: failed to read uid ({e}), defaulting to 0");
+        0
+    });
+    let gid = header.gid().unwrap_or_else(|e| {
+        eprintln!("warning: {path}: failed to read gid ({e}), defaulting to 0");
+        0
+    });
+    let mode = (header.mode().unwrap_or_else(|e| {
+        eprintln!("warning: {path}: failed to read mode ({e}), defaulting to 0o644");
+        0o644
+    }) & 0o7777) as u16;
+    let uname = match header.username() {
+        Ok(Some(name)) => name,
+        Ok(None) => "",
+        Err(e) => {
+            eprintln!("warning: {path}: username is not valid UTF-8 ({e})");
+            ""
         }
-    }
-
-    fn metadata(&self, modified: libpna::Duration) -> libpna::Metadata {
-        libpna::Metadata::new()
-            .with_modified(Some(modified))
-            .with_owner_uid(Some(libpna::OwnerUid::from(self.uid)))
-            .with_owner_gid(Some(libpna::OwnerGid::from(self.gid)))
-            .with_permission_mode(Some(libpna::PermissionMode::from(self.mode)))
-            .with_owner_user_name(owner_name_opt(&self.uname))
-            .with_owner_group_name(owner_group_name_opt(&self.gname))
-    }
+    };
+    let gname = match header.groupname() {
+        Ok(Some(name)) => name,
+        Ok(None) => "",
+        Err(e) => {
+            eprintln!("warning: {path}: groupname is not valid UTF-8 ({e})");
+            ""
+        }
+    };
+    libpna::Metadata::new()
+        .with_modified(Some(modified))
+        .with_owner_uid(Some(libpna::OwnerUid::from(uid)))
+        .with_owner_gid(Some(libpna::OwnerGid::from(gid)))
+        .with_permission_mode(Some(libpna::PermissionMode::from(mode)))
+        .with_owner_user_name(owner_name_opt(uname))
+        .with_owner_group_name(owner_group_name_opt(gname))
 }
 
 fn zip2pna(args: Zip2pnaArgs) -> Result<(), Box<dyn std::error::Error>> {
@@ -536,5 +523,118 @@ mod tests {
         let input = Path::new(OsStr::from_bytes(b"dir\xff/name\xff.tar.gz"));
         let expected = Path::new(OsStr::from_bytes(b"dir\xff/name\xef\xbf\xbd.pna"));
         assert_eq!(pna_output_path(input, &[".tar.gz"]), expected);
+    }
+
+    #[test]
+    fn tar_conversion_preserves_metadata_and_long_link_targets() {
+        use std::io::Cursor;
+        let target = format!("/root/../{}", "日本語/".repeat(30));
+        let cases = [
+            (
+                "folder/",
+                tar::EntryType::Directory,
+                libpna::DataKind::DIRECTORY,
+                "",
+            ),
+            (
+                "日本語.txt",
+                tar::EntryType::Regular,
+                libpna::DataKind::FILE,
+                "content\n",
+            ),
+            (
+                "symlink",
+                tar::EntryType::Symlink,
+                libpna::DataKind::SYMBOLIC_LINK,
+                target.as_str(),
+            ),
+            (
+                "hardlink",
+                tar::EntryType::Link,
+                libpna::DataKind::HARD_LINK,
+                target.as_str(),
+            ),
+        ];
+        let mut tar = tar::Builder::new(Vec::new());
+        for (name, kind, _, content) in cases {
+            let mut header = tar::Header::new_gnu();
+            header.set_entry_type(kind);
+            header.set_uid(123);
+            header.set_gid(456);
+            header.set_mode(0o6754);
+            header.set_mtime(1_700_000_000);
+            header.set_username("owner").unwrap();
+            header.set_groupname("group").unwrap();
+            if kind.is_symlink() || kind.is_hard_link() {
+                header.set_size(0);
+                tar.append_link(&mut header, name, content).unwrap();
+            } else {
+                header.set_size(content.len() as u64);
+                tar.append_data(&mut header, name, content.as_bytes())
+                    .unwrap();
+            }
+        }
+        let mut unsupported = tar::Header::new_gnu();
+        unsupported.set_entry_type(tar::EntryType::Fifo);
+        unsupported.set_size(0);
+        unsupported.as_mut_bytes()[108..116].fill(b'x');
+        tar.append_data(&mut unsupported, "fifo", io::empty())
+            .unwrap();
+        let mut tar = tar::Archive::new(Cursor::new(tar.into_inner().unwrap()));
+        let mut bytes = Vec::new();
+        let mut pna = libpna::Archive::write_header(&mut bytes).unwrap();
+        for entry in tar.entries().unwrap() {
+            convert_entry(
+                &mut entry.unwrap(),
+                &mut pna,
+                &libpna::WriteOptions::store(),
+            )
+            .unwrap();
+        }
+        pna.finalize().unwrap();
+        let options = libpna::ReadOptions::builder().build();
+        let mut pna = libpna::Archive::read_header(Cursor::new(bytes)).unwrap();
+        let mut entries = pna.entries_with_options(&options);
+        for (name, _, kind, content) in cases {
+            let entry = entries.next().unwrap().unwrap();
+            assert_eq!(entry.name().as_str(), name);
+            assert_eq!(entry.data_kind(), kind);
+            let metadata = entry.metadata();
+            assert_eq!(metadata.owner_uid().unwrap().get(), 123);
+            assert_eq!(metadata.owner_gid().unwrap().get(), 456);
+            assert_eq!(metadata.permission_mode().unwrap().get(), 0o6754);
+            assert_eq!(
+                metadata.modified(),
+                Some(libpna::Duration::seconds(1_700_000_000))
+            );
+            assert_eq!(metadata.owner_user_name().unwrap().as_str(), "owner");
+            assert_eq!(metadata.owner_group_name().unwrap().as_str(), "group");
+            if kind != libpna::DataKind::DIRECTORY {
+                let mut actual = String::new();
+                entry
+                    .reader(&options)
+                    .unwrap()
+                    .read_to_string(&mut actual)
+                    .unwrap();
+                assert_eq!(actual, content);
+            }
+        }
+        assert!(entries.next().is_none());
+    }
+
+    #[test]
+    fn tar_metadata_omits_invalid_owner_names_and_defaults_invalid_ids() {
+        let mut header = tar::Header::new_gnu();
+        header.set_uid(123);
+        header.set_gid(456);
+        header.set_mode(0o644);
+        header.as_mut_bytes()[108..116].fill(b'x');
+        header.as_mut_bytes()[265] = 0xff;
+        let metadata = tar_entry_metadata(&header, Path::new("file"), libpna::Duration::seconds(0));
+        assert_eq!(metadata.owner_uid().unwrap().get(), 0);
+        assert_eq!(metadata.owner_gid().unwrap().get(), 456);
+        assert!(metadata.owner_user_name().is_none());
+        assert!(metadata.owner_group_name().is_none());
+        assert_eq!(metadata.permission_mode().unwrap().get(), 0o644);
     }
 }
