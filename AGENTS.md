@@ -37,7 +37,7 @@ Before adding a new `#[test]`, verify criteria 1–4 and 6; criterion 5 is N/A w
 5. **Symmetry without logic:** Pin completeness of closed sets and keep cases independently readable; prefer explicit repetition over obscuring abstractions.
 6. **No narration:** Keep test bodies comment-free; convey meaning through names, case tables, and assertion messages. The only test comments are CLI integration-test Precondition/Action/Expectation doc comments.
 
-Before adding, restructuring, or changing test assertions, read [.agents/docs/testing.md](.agents/docs/testing.md). Before editing CLI integration tests, also read [cli/tests/AGENTS.md](cli/tests/AGENTS.md).
+Before adding, restructuring, or changing test assertions, or selecting compatibility tests, read [.agents/docs/testing.md](.agents/docs/testing.md). Before editing CLI integration tests, also read [cli/tests/AGENTS.md](cli/tests/AGENTS.md).
 
 ## Validation
 
@@ -45,7 +45,7 @@ Before adding, restructuring, or changing test assertions, read [.agents/docs/te
 - Rust: run focused tests first, then `cargo fmt --all -- --check` and package Clippy with `--all-targets --all-features -- -D warnings`; also check changed feature configurations.
 - Changes in multiple crates, or public API/behavior changes used by downstream crates: follow focused tests with `cargo test --workspace --all-features` and workspace Clippy.
 - Feature-gated changes: test affected feature combinations, including disabled-feature behavior where relevant.
-- Parser, serialization, or cryptography changes: run relevant compatibility tests listed in the test-design reference and bounded fuzz sessions when practical.
+- Parser, serialization, or cryptography changes: run relevant compatibility tests listed in the [test-design reference](.agents/docs/testing.md) and bounded fuzz sessions when practical.
 - CLI pipe or tar-compatibility changes: run the affected Bats tests using the development-command reference.
 - Use workspace-wide or feature-powerset tests when the change's scope or an explicit request warrants them.
 
