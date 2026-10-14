@@ -346,11 +346,7 @@ fn owner_name_bounded(s: &str) -> Option<&str> {
     if s.len() <= MAX {
         return Some(s);
     }
-    let mut end = MAX;
-    while !s.is_char_boundary(end) {
-        end -= 1;
-    }
-    Some(&s[..end])
+    Some(&s[..s.floor_char_boundary(MAX)])
 }
 
 fn tar_entry_metadata(
