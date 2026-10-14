@@ -4,9 +4,13 @@
 
 Search for tests of the same fault class before adding a case. Cipher round-trips covered by `lib/tests/extract_compatibility.rs` do not justify equivalent CLI tests.
 
-A body with no assertion beyond `.unwrap()` / `.assert().success()` fails the gate. Accepting a flag alone tests clap rather than this project's CLI behavior.
+A body with no assertion beyond `.unwrap()` fails the gate. `.assert().success()` alone is sufficient only when successful exit status is the entire observable contract and the test satisfies the regression-value criterion; acceptance of a flag alone is clap's guarantee.
 
 Re-checking an already pinned constant adds no value: if `X::from_byte(2) == GCM` and `GCM.to_byte() == 2` are tested, a third round-trip test is redundant.
+
+Test the defect at the layer that owns it: wire bytes and codec behavior in `lib/`; reusable filesystem APIs in `pna/`; flag translation, preservation policies, and output in `cli/`. For example, `cli/src/command/core.rs::entry_option` translates compression flags into library options; that mapping is a CLI contract distinct from codec correctness. Keep CLI ACL and xattr OS adapters in their existing `cli/src/utils/os/` modules for scoped fixes.
+
+For archive reader/format changes, select affected cases from `lib/tests/extract_compatibility.rs`, `extract_solid_compatibility.rs`, and `extract_multipart_compatibility.rs`. These fixture tests validate decoding of existing archives; they supplement contract-specific tests and API compatibility checks rather than define the whole compatibility obligation.
 
 ## Oracles & Preconditions
 

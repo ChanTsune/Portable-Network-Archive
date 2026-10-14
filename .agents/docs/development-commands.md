@@ -2,6 +2,14 @@
 
 Run commands from the repository root. Replace angle-bracket placeholders with package names, test targets, or filters.
 
+| Directory | Cargo package |
+|-----------|---------------|
+| `lib/` | `libpna` |
+| `pna/` | `pna` |
+| `cli/` | `portable-network-archive` |
+| `xtask/` | `xtask` |
+| `fuzz/` | `portable-network-archive-fuzz` |
+
 ## Focused Validation
 
 ```bash
@@ -12,7 +20,7 @@ cargo fmt --all -- --check
 cargo clippy -p <package-name> --all-targets --all-features -- -D warnings
 ```
 
-Use the affected feature configuration for focused checks. CLI test target commands are in `cli/tests/AGENTS.md`.
+Use filters matching the changed contract in the affected package. Run package Clippy across all targets/features, then test changed feature configurations explicitly with `--features <features>` and, for disabled-default behavior, `--no-default-features`. CLI test commands are in `cli/tests/AGENTS.md`.
 
 ## Workspace & Feature Validation
 
@@ -51,11 +59,26 @@ Coverage requires nightly Rust, `cargo-llvm-cov`, and the toolchain's `llvm-tool
 cargo +nightly llvm-cov --workspace --all-features --html
 ```
 
-## Generated Documentation
+## Shell Integration Tests
 
-`cargo xtask` is configured in `.cargo/config.toml`. Use the generators for man pages and Markdown CLI documentation:
+For CLI pipe and tar-compatibility changes, select the affected `.bats` files under `tests/bats/`. Install `bats-core`, then fetch the pinned helper libraries with the setup script. Build the CLI and put its binary directory on PATH for the test run:
 
 ```bash
+bash tests/bats/setup.sh
+cargo build --release -p portable-network-archive
+PATH="$PWD/target/release:$PATH" bats tests/bats/bsdtar_compat/
+PATH="$PWD/target/release:$PATH" bats tests/bats/gnutar_compat/
+PATH="$PWD/target/release:$PATH" bats tests/bats/test_broken_pipe.bats tests/bats/test_option_to_stdout.bats
+```
+
+Run only the files covering the changed behavior. `tests/bats/large_file.bats` creates 5 GiB of random data per test plus archives; reserve it for large-file behavior changes with sufficient scratch disk space. Setup and helper details are in `tests/bats/README.md`, `tests/bats/setup.sh`, and `tests/bats/test_helper.bash`.
+
+## Generated Documentation
+
+`cargo xtask` is configured in `.cargo/config.toml`. The docs workflow generates the tracked `docs/cli-reference.md`; use this output when updating the repository reference. The other outputs below are local previews:
+
+```bash
+cargo xtask docgen --output docs/cli-reference.md
 cargo xtask mangen --output target/man
 cargo xtask docgen --output target/doc/pna.md
 ```
