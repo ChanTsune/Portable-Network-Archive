@@ -70,5 +70,6 @@ jobs:
         uses: anomalyco/opencode/github@a3b97d9090ccf4aa9ac32268486283e3131e36b4 # github-v1.2.25
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENCODE_CONFIG: ${{ github.workspace }}/.github/opencode/config.json
         with:
           model: ${{ steps.select.outputs.model }}
