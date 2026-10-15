@@ -16,7 +16,7 @@ use crate::{
             collect_split_archives,
             path_lock::OrderedPathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
-            read_paths, run_across_archive_readers, validate_no_duplicate_stdin,
+            read_paths, read_paths_stdin, run_across_archive_readers, validate_no_duplicate_stdin,
         },
         create::{CreationContext, create_archive_file},
         extract::{Outcome, OutputOption, OverwriteStrategy, run_extract_archive_reader},
@@ -29,7 +29,7 @@ use clap::{ArgGroup, Args, Parser, ValueHint};
 use pna::Archive;
 use std::{
     env, io,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, atomic::AtomicBool},
     time::SystemTime,
 };
@@ -845,6 +845,18 @@ impl ExtractionPermissionStrategyResolver {
     }
 }
 
+/// Reads `-T`/`--files-from` entries for archive creation modes (create/append/update),
+/// treating `"-"` as stdin like bsdtar's `-T -` in write mode.
+/// Extract/list modes read `-` as a regular filename, matching bsdtar's read path.
+#[inline]
+fn read_files_from(path: impl AsRef<Path>, null: bool) -> io::Result<Vec<String>> {
+    if path.as_ref().as_os_str() == "-" {
+        read_paths_stdin(null)
+    } else {
+        read_paths(path, null)
+    }
+}
+
 #[hooq::hooq(anyhow)]
 fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
@@ -854,11 +866,11 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
     file.take_if(|it| it == "-");
     let archive_file = file.take().map(|p| current_dir.join(p));
     let mut files = args.files;
-    if let Some(path) = args.files_from {
-        files.extend(read_paths(path, args.null)?);
-    }
-    if files.is_empty() {
+    if files.is_empty() && args.files_from.is_none() {
         anyhow::bail!("create mode requires at least one input path or @archive source");
+    }
+    if let Some(path) = args.files_from {
+        files.extend(read_files_from(path, args.null)?);
     }
 
     let mut exclude = args.exclude;
@@ -1195,7 +1207,11 @@ fn run_list_archive(args: BsdtarCommand) -> anyhow::Result<()> {
             LineEnding::Lf
         },
     };
-    let files_globs = BsdGlobMatcher::new(args.files.iter().map(|it| it.as_str()))
+    let mut files = args.files;
+    if let Some(path) = args.files_from {
+        files.extend(read_paths(path, args.null)?);
+    }
+    let files_globs = BsdGlobMatcher::new(files.iter().map(|it| it.as_str()))
         .with_no_recursive(args.no_recursive);
 
     let mut exclude = args.exclude;
@@ -1302,9 +1318,21 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
     let mut file = args.file;
     file.take_if(|it| it == "-");
     let archive_path = file.take().map(|p| current_dir.join(p));
+    let files_from_stdin = args
+        .files_from
+        .as_ref()
+        .is_some_and(|p| p.as_os_str() == "-");
+    if files_from_stdin && archive_path.is_none() {
+        anyhow::bail!(
+            "-T - (--files-from -) cannot be combined with reading the archive from stdin"
+        );
+    }
     let mut files = args.files;
+    if files.is_empty() && args.files_from.is_none() {
+        anyhow::bail!("append mode requires at least one input path or @archive source");
+    }
     if let Some(path) = args.files_from {
-        files.extend(read_paths(path, args.null)?);
+        files.extend(read_files_from(path, args.null)?);
     }
 
     let mut exclude = args.exclude;
@@ -1482,8 +1510,11 @@ fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
     }
 
     let mut files = args.files;
+    if files.is_empty() && args.files_from.is_none() {
+        anyhow::bail!("update mode requires at least one input path or @archive source");
+    }
     if let Some(path) = args.files_from {
-        files.extend(read_paths(path, args.null)?);
+        files.extend(read_files_from(path, args.null)?);
     }
 
     let mut exclude = args.exclude;
