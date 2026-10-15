@@ -1,0 +1,6 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    ".github/opencode/commit-instructions.md"
+  ]
+}
