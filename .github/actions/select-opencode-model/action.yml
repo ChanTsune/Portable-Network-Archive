@@ -1,0 +1,50 @@
+name: Select OpenCode model
+description: Select an available OpenCode model using repository priorities.
+inputs:
+  api-key:
+    description: OpenCode API key for querying available models
+    required: true
+outputs:
+  model:
+    description: Selected provider/model identifier
+    value: ${{ steps.select.outputs.model }}
+runs:
+  using: composite
+  steps:
+    - name: Select model
+      id: select
+      shell: bash
+      env:
+        OPENCODE_API_KEY: ${{ inputs.api-key }}
+      run: |
+        set -euo pipefail
+        curl -sf -H "Authorization: Bearer $OPENCODE_API_KEY" \
+          https://opencode.ai/zen/v1/models \
+          | jq -r '.data[].id' | sort -u > "$RUNNER_TEMP/opencode-models-raw.txt"
+        # Normalize to provider/model form (available IDs may omit the "opencode/" prefix)
+        while read -r id; do
+          case "$id" in
+            */*) echo "$id" ;;
+            *)   echo "opencode/$id" ;;
+          esac
+        done < "$RUNNER_TEMP/opencode-models-raw.txt" | sort -u > "$RUNNER_TEMP/opencode-models.txt"
+
+        MODEL=""
+        while read -r m; do
+          [ -z "$m" ] && continue
+          if grep -Fxq "$m" "$RUNNER_TEMP/opencode-models.txt"; then MODEL="$m"; break; fi
+          # also match by bare model name if the priority file omits the provider prefix
+          if grep -Fxq "opencode/$m" "$RUNNER_TEMP/opencode-models.txt"; then MODEL="opencode/$m"; break; fi
+        done < .github/opencode-model-priority.txt
+
+        if [ -z "$MODEL" ]; then
+          MODEL=$(grep -E -- '-free$' "$RUNNER_TEMP/opencode-models.txt" | head -n1 || true)
+        fi
+
+        if [ -z "$MODEL" ]; then
+          echo "::error::No usable free model found"
+          exit 1
+        fi
+
+        echo "Selected model: $MODEL"
+        echo "model=$MODEL" >> "$GITHUB_OUTPUT"
