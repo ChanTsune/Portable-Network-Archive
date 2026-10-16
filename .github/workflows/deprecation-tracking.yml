@@ -1,0 +1,49 @@
+name: Track deprecated interfaces
+
+on:
+  # Only merged default-branch PR metadata is read; checkout uses the trusted default branch.
+  pull_request_target: # zizmor: ignore[dangerous-triggers]
+    types: [closed]
+    paths:
+      - 'lib/src/**/*.rs'
+      - 'pna/src/**/*.rs'
+      - 'cli/src/**/*.rs'
+  workflow_dispatch:
+    inputs:
+      pull_number:
+        description: "Merged PR to inspect"
+        required: true
+        type: string
+      dry_run:
+        description: "Preview without starting OpenCode"
+        type: boolean
+        default: true
+
+permissions: {}
+
+jobs:
+  track:
+    name: Inspect merged deprecations
+    if: >-
+      (github.event_name == 'pull_request_target' && github.event.pull_request.merged && github.event.pull_request.base.ref == github.event.repository.default_branch) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read # checkout trusted default branch
+      pull-requests: read # inspect merged changes
+      actions: write # dispatch OpenCode deprecation tracking
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Inspect merged deprecations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PULL_NUMBER: ${{ inputs.pull_number || github.event.pull_request.number }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          args=()
+          if [ "$DRY_RUN" != true ]; then args+=(--apply); fi
+          python3 .agents/skills/deprecation-tracking/scripts/deprecation_tracking.py --dispatch-pr "$PULL_NUMBER" "${args[@]}"
