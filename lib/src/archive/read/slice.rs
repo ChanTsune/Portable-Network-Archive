@@ -1,18 +1,20 @@
 //! Slice-based archive reading for memory-mapped access.
 
+use super::verify_next_archive_number;
 use crate::{
     Archive, Chunk, ChunkType, Entry, NormalEntry, RawChunk, ReadEntry, ReadOptions,
-    archive::ArchiveHeader, entry::RawEntry,
+    archive::{ArchiveHeader, read::ExtractSolidEntries},
+    entry::RawEntry,
 };
 use std::borrow::Cow;
 use std::io;
 
 impl<'d> Archive<&'d [u8]> {
-    /// Reads the archive header from the provided bytes and returns a new [`Archive`].
+    /// Reads the archive header and creates a reader for its entries.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading the header from the bytes.
+    /// Returns an error if the archive signature or header is invalid or incomplete.
     #[inline]
     pub fn read_header_from_slice(bytes: &'d [u8]) -> io::Result<Self> {
         Self::read_header_from_slice_with_buffer(bytes, Vec::new())
@@ -79,6 +81,7 @@ impl<'d> Archive<&'d [u8]> {
     /// Returns an iterator over the entries in the archive.
     ///
     /// # Examples
+    ///
     /// ```no_run
     /// use libpna::{Archive, ReadEntry};
     /// use std::fs;
@@ -132,29 +135,44 @@ impl<'d> Archive<&'d [u8]> {
         RawEntries::<'s, 'd>(self)
     }
 
-    /// Reads the next archive from the provided bytes and returns a new [`Archive`].
+    /// Reads the next part of a split archive from `bytes`.
+    ///
+    /// Read entries to the end of the current part before calling this method.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading from the bytes.
+    /// Returns an error if the next part has an invalid or incomplete header, or
+    /// its archive number does not follow this part.
     #[inline]
     pub fn read_next_archive_from_slice(self, bytes: &[u8]) -> io::Result<Archive<&[u8]>> {
-        let current_header = self.header;
         let mut next = Archive::read_header_from_slice_with_buffer(bytes, self.buf)?;
         next.max_chunk_size = self.max_chunk_size;
-        let next_number = current_header
-            .archive_number
-            .checked_add(1)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "archive number overflow"))?;
-        if next_number != next.header.archive_number {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    "next archive number must be {next_number} (expected previous + 1, detected: {})",
-                    next.header.archive_number
-                ),
-            ));
-        }
+        verify_next_archive_number(&self.header, &next.header)?;
+        Ok(next)
+    }
+
+    /// Reads the next part of a split archive from the same byte slice.
+    ///
+    /// Read entries to the end of the current part before calling this method.
+    /// Use [`Self::read_next_archive_from_slice`] when each part has a separate
+    /// byte slice.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the next part has an invalid or incomplete header, or
+    /// its archive number does not follow this part.
+    #[inline]
+    pub fn read_next_archive_in_stream_from_slice(self) -> io::Result<Self> {
+        let Self {
+            inner,
+            header,
+            max_chunk_size,
+            buf,
+            ..
+        } = self;
+        let mut next = Self::read_header_from_slice_with_buffer(inner, buf)?;
+        next.max_chunk_size = max_chunk_size;
+        verify_next_archive_number(&header, &next.header)?;
         Ok(next)
     }
 }
@@ -181,7 +199,10 @@ impl<'a, 'r> Entries<'a, 'r> {
         Self { reader }
     }
 
-    /// Returns an iterator that extracts solid entries from the archive and returns them as normal entries.
+    /// Returns an iterator over normal entries, including those in solid entries.
+    ///
+    /// Solid entries are decoded using `options`. Normal entry payloads are not
+    /// decoded.
     ///
     /// # Examples
     ///
@@ -194,10 +215,7 @@ impl<'a, 'r> Entries<'a, 'r> {
     /// let file = fs::read("foo.pna")?;
     /// let mut archive = Archive::read_header_from_slice(&file[..])?;
     /// let options = ReadOptions::with_password(Some(b"password"));
-    /// for entry in archive
-    ///     .entries_slice()
-    ///     .extract_solid_entries(&options)
-    /// {
+    /// for entry in archive.entries_slice().extract_solid_entries(&options) {
     ///     let mut reader = entry?.reader(ReadOptions::builder().build());
     ///     // process the entry
     /// }
@@ -208,19 +226,8 @@ impl<'a, 'r> Entries<'a, 'r> {
     pub fn extract_solid_entries(
         self,
         options: &ReadOptions,
-    ) -> impl Iterator<Item = io::Result<NormalEntry>> + 'a
-    where
-        'a: 'r,
-    {
-        let read_options = options.clone();
-        self.flat_map(move |f| match f {
-            Ok(ReadEntry::Normal(r)) => vec![Ok(r.into())],
-            Ok(ReadEntry::Solid(r)) => match r.entries(&read_options) {
-                Ok(entries) => entries.collect(),
-                Err(e) => vec![Err(e)],
-            },
-            Err(e) => vec![Err(e)],
-        })
+    ) -> impl Iterator<Item = io::Result<NormalEntry<Cow<'r, [u8]>>>> + 'a {
+        ExtractSolidEntries::new(self, options)
     }
 }
 
@@ -236,7 +243,7 @@ impl<'r> Iterator for Entries<'_, 'r> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{FileEntryBuilder, WriteOptions};
+    use crate::{FileEntryBuilder, Metadata, RawChunk, SolidEntryBuilder, WriteOptions};
     use std::{io::Write, num::NonZeroU32};
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
@@ -282,12 +289,98 @@ mod tests {
     }
 
     fn archive_with_eight_byte_data() -> Vec<u8> {
-        let mut builder =
-            FileEntryBuilder::new_with_options("a".into(), WriteOptions::store()).unwrap();
-        builder.write_all(b"12345678").unwrap();
         let mut archive = Archive::write_header(Vec::new()).unwrap();
-        archive.add_entry(builder.build().unwrap()).unwrap();
+        archive
+            .write_file(
+                "a".into(),
+                Metadata::new(),
+                WriteOptions::store(),
+                |writer| writer.write_all(b"12345678"),
+            )
+            .unwrap();
         archive.finalize().unwrap()
+    }
+
+    fn archive_with_normal_and_solid_entries() -> Vec<u8> {
+        let mut normal_builder =
+            FileEntryBuilder::new_with_options("normal".into(), WriteOptions::store()).unwrap();
+        normal_builder.write_all(b"normal data").unwrap();
+        let normal = normal_builder
+            .build()
+            .unwrap()
+            .with_extra_chunks(vec![RawChunk::from_data(
+                ChunkType::private(*b"exTr").unwrap(),
+                b"extra".to_vec(),
+            )]);
+
+        let mut solid = SolidEntryBuilder::new(WriteOptions::store()).unwrap();
+        solid
+            .write_file("solid-1".into(), Metadata::new(), |writer| {
+                writer.write_all(b"solid data 1")
+            })
+            .unwrap();
+        solid
+            .write_file("solid-2".into(), Metadata::new(), |writer| {
+                writer.write_all(b"solid data 2")
+            })
+            .unwrap();
+
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        archive.add_entry(normal).unwrap();
+        archive.add_entry(solid.build().unwrap()).unwrap();
+        archive.finalize().unwrap()
+    }
+
+    fn collect_slice_entries<'d>(bytes: &'d [u8]) -> Vec<NormalEntry<Cow<'d, [u8]>>> {
+        let mut archive = Archive::read_header_from_slice(bytes).unwrap();
+        archive
+            .entries_slice()
+            .extract_solid_entries(&ReadOptions::builder().build())
+            .collect::<io::Result<Vec<_>>>()
+            .unwrap()
+    }
+
+    #[test]
+    fn extract_solid_entries_borrows_normal_data_and_owns_solid_data() {
+        let bytes = archive_with_normal_and_solid_entries();
+        let entries = collect_slice_entries(&bytes);
+
+        assert_eq!(entries.len(), 3);
+        assert_eq!(entries[0].header().path(), "normal");
+        assert!(
+            entries[0]
+                .data
+                .iter()
+                .all(|data| matches!(data, Cow::Borrowed(_)))
+        );
+        assert!(matches!(
+            entries[0].extra.first().map(|chunk| &chunk.data),
+            Some(Cow::Borrowed(_))
+        ));
+
+        assert_eq!(entries[1].header().path(), "solid-1");
+        assert_eq!(entries[2].header().path(), "solid-2");
+        for entry in &entries[1..] {
+            assert!(entry.data.iter().all(|data| matches!(data, Cow::Owned(_))));
+        }
+    }
+
+    #[test]
+    fn extract_solid_entries_decodes_encrypted_compressed_data() {
+        let bytes = include_bytes!("../../../../resources/test/solid_zstd_aes_gcm.pna");
+        let mut archive = Archive::read_header_from_slice(bytes).unwrap();
+        let entries = archive
+            .entries_slice()
+            .extract_solid_entries(&ReadOptions::with_password(Some(b"password")))
+            .collect::<io::Result<Vec<_>>>()
+            .unwrap();
+
+        assert_eq!(entries.len(), 9);
+        assert!(
+            entries
+                .iter()
+                .all(|entry| entry.data.iter().all(|data| matches!(data, Cow::Owned(_))))
+        );
     }
 
     #[test]
@@ -308,10 +401,14 @@ mod tests {
         let first = Archive::write_header(&mut first_bytes).unwrap();
         let mut second = first.split_to_next_archive(Vec::new()).unwrap();
 
-        let mut builder =
-            FileEntryBuilder::new_with_options("a".into(), WriteOptions::store()).unwrap();
-        builder.write_all(b"12345678").unwrap();
-        second.add_entry(builder.build().unwrap()).unwrap();
+        second
+            .write_file(
+                "a".into(),
+                Metadata::new(),
+                WriteOptions::store(),
+                |writer| writer.write_all(b"12345678"),
+            )
+            .unwrap();
         let second_bytes = second.finalize().unwrap();
 
         let mut first = Archive::read_header_from_slice(&first_bytes).unwrap();
@@ -323,5 +420,53 @@ mod tests {
             second.entries_slice().next().unwrap().unwrap_err().kind(),
             io::ErrorKind::InvalidData
         );
+    }
+
+    #[test]
+    fn next_archive_in_stream_from_slice_reads_the_part_that_follows() {
+        let mut bytes = Vec::new();
+        let first = Archive::write_header(&mut bytes).unwrap();
+        let mut second = first.split_to_next_archive(Vec::new()).unwrap();
+
+        second
+            .write_file(
+                "a".into(),
+                Metadata::new(),
+                WriteOptions::store(),
+                |writer| writer.write_all(b"12345678"),
+            )
+            .unwrap();
+        let second_bytes = second.finalize().unwrap();
+        bytes.extend_from_slice(&second_bytes);
+
+        let mut first = Archive::read_header_from_slice(&bytes).unwrap();
+        first.set_max_chunk_size(NonZeroU32::new(7).unwrap());
+        assert!(first.entries_slice().next().is_none());
+        assert!(first.has_next_archive());
+
+        let mut second = first.read_next_archive_in_stream_from_slice().unwrap();
+        assert_eq!(
+            second.entries_slice().next().unwrap().unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+    }
+
+    #[test]
+    fn next_archive_in_stream_from_slice_rejects_non_consecutive_number() {
+        let mut bytes = Vec::new();
+        Archive::write_header(&mut bytes)
+            .unwrap()
+            .finalize()
+            .unwrap();
+        let independent = bytes.clone();
+        bytes.extend_from_slice(&independent);
+
+        let mut first = Archive::read_header_from_slice(&bytes).unwrap();
+        assert!(first.entries_slice().next().is_none());
+        let err = first
+            .read_next_archive_in_stream_from_slice()
+            .err()
+            .unwrap();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
     }
 }

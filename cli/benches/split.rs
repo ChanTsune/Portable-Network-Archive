@@ -9,6 +9,7 @@ fn bench_create_with_split(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "c",
+                "--file",
                 concat!(
                     env!("CARGO_TARGET_TMPDIR"),
                     "/bench/create_with_split/store.pna"
@@ -32,6 +33,7 @@ fn bench_split(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "split",
+                "--file",
                 concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/test/store.pna"),
                 "--overwrite",
                 "--max-size",
@@ -52,6 +54,7 @@ fn bench_extract_multipart(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "x",
+                "--file",
                 concat!(
                     env!("CARGO_MANIFEST_DIR"),
                     "/../resources/test/multipart.part1.pna"

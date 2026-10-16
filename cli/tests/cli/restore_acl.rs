@@ -19,7 +19,10 @@ struct RestoreAclCase {
     acl_entry: &'static str,
 }
 
-fn current_platform() -> &'static str {
+/// `""` on platforms with no ACL implementation to restore through (OpenBSD,
+/// Solaris, …). The archive still carries its ACL metadata there, so only the
+/// archive-side assertions apply.
+const fn current_platform() -> &'static str {
     if cfg!(windows) {
         "windows"
     } else if cfg!(target_os = "macos") {
@@ -97,12 +100,6 @@ fn assert_extracted_payload_matches_baseline(baseline_path: &Path, keep_acl_path
 
 fn assert_current_platform_acl_roundtrip(case: &RestoreAclCase, out_dir: &Path) {
     let current_platform = current_platform();
-    if current_platform.is_empty() {
-        return;
-    }
-    if case.platform != current_platform && !case.platform.is_empty() {
-        return;
-    }
 
     let roundtrip_archive = out_dir.parent().unwrap().join("roundtrip.pna");
     cargo_bin_cmd!("pna")
@@ -226,7 +223,11 @@ fn assert_restore_acl(case: RestoreAclCase) {
     let baseline_path = Path::new(&baseline_dir).join(case.entry);
     let keep_acl_path = Path::new(&keep_acl_dir).join(case.entry);
     assert_extracted_payload_matches_baseline(&baseline_path, &keep_acl_path);
-    assert_current_platform_acl_roundtrip(&case, Path::new(&keep_acl_dir));
+
+    let platform = current_platform();
+    if !platform.is_empty() && (case.platform.is_empty() || case.platform == platform) {
+        assert_current_platform_acl_roundtrip(&case, Path::new(&keep_acl_dir));
+    }
 }
 
 /// Precondition: A Windows ACL fixture archive is available.

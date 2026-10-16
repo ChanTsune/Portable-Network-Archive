@@ -1,25 +1,25 @@
 use crate::{
-    cli::{PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs},
+    cli::{ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategyArgs},
     command::{
         Command, ask_password,
         core::{
-            SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid, collect_split_archives,
+            Umask, resolve_rewrite_output,
+            rewrite::{EntryTransform, execute_archive_transform},
         },
     },
     utils::{
-        GlobPatterns, PathPartExt,
+        GlobPatterns,
         fs::{Group, User},
     },
 };
 use clap::{ArgAction, Parser, ValueHint, builder::ArgPredicate};
 use pna::NormalEntry;
-use std::{io, ops::Not, path::PathBuf, str::FromStr};
+use std::{borrow::Cow, io, ops::Not, path::PathBuf, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ChownCommand {
-    #[arg(short = 'f', long = "file", value_hint = ValueHint::FilePath)]
-    archive: PathBuf,
+    #[command(flatten)]
+    archive: ArchiveFileArgs,
     #[arg(help = "owner[:group]|:group")]
     owner: RawOwnership,
     #[arg(long, help = "force numeric owner and group IDs (no name resolution)")]
@@ -36,6 +36,21 @@ pub(crate) struct ChownCommand {
     no_owner_lookup: (),
     #[arg(value_hint = ValueHint::AnyPath)]
     files: Vec<String>,
+    #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
+    output: Option<PathBuf>,
+    #[arg(
+        long,
+        conflicts_with = "no_overwrite",
+        help = "Overwrite the output file (rewrite in place when --output is omitted)"
+    )]
+    overwrite: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not overwrite output file. This is the inverse option of --overwrite",
+        requires = "output"
+    )]
+    no_overwrite: (),
     #[command(flatten)]
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
@@ -44,67 +59,56 @@ pub(crate) struct ChownCommand {
 
 impl Command for ChownCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
-        archive_chown(self)
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
+        archive_chown(self, ctx.umask())
     }
 }
 
 #[hooq::hooq(anyhow)]
-fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
+fn archive_chown(args: ChownCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     if args.files.is_empty() {
         return Ok(());
     }
-    let mut globs = GlobPatterns::new(args.files.iter().map(|p| p.as_ref()))?;
+    let globs = GlobPatterns::new(args.files.iter().map(|p| p.as_ref()))?;
 
     let owner = args
         .owner
         .lookup_platform_owner(args.numeric_owner, args.owner_lookup)?;
+    let destination = resolve_rewrite_output(&args.archive.file, args.output, args.overwrite)?;
+    execute_archive_transform(
+        &args.archive.file,
+        destination,
+        umask,
+        password.as_deref(),
+        args.transform_strategy.strategy(),
+        ChownTransform { globs, owner },
+    )
+}
 
-    let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive)?)?;
+struct ChownTransform<'g> {
+    globs: GlobPatterns<'g>,
+    owner: Ownership,
+}
 
-    let output_path = args.archive.remove_part();
-    let mut staged = StagedArchive::new(output_path)?;
+impl EntryTransform for ChownTransform<'_> {
+    fn transform<'d>(
+        &mut self,
+        entry: NormalEntry<Cow<'d, [u8]>>,
+    ) -> io::Result<Option<NormalEntry<Cow<'d, [u8]>>>> {
+        Ok(Some(if self.globs.matches_any(entry.name()) {
+            transform_entry(entry, &self.owner)
+        } else {
+            entry
+        }))
+    }
 
-    match args.transform_strategy.strategy() {
-        SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
-            staged.as_file_mut(),
-            password.as_deref(),
-            #[hooq::skip_all]
-            |entry| {
-                let entry = entry?;
-                if globs.matches_any(entry.name()) {
-                    Ok(Some(transform_entry(entry, &owner)))
-                } else {
-                    Ok(Some(entry))
-                }
-            },
-            TransformStrategyUnSolid,
-        ),
-        SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
-            staged.as_file_mut(),
-            password.as_deref(),
-            #[hooq::skip_all]
-            |entry| {
-                let entry = entry?;
-                if globs.matches_any(entry.name()) {
-                    Ok(Some(transform_entry(entry, &owner)))
-                } else {
-                    Ok(Some(entry))
-                }
-            },
-            TransformStrategyKeepSolid,
-        ),
-    }?;
-
-    drop(source);
-
-    staged.commit(Some(&globs))?;
-    Ok(())
+    fn patterns(&self) -> Option<&GlobPatterns<'_>> {
+        Some(&self.globs)
+    }
 }
 
 #[inline]
-#[allow(deprecated)]
 fn transform_entry<T>(entry: NormalEntry<T>, owner: &Ownership) -> NormalEntry<T> {
     let metadata = entry.metadata().clone();
     let own = crate::ext::ResolvedOwnership::from_metadata(&metadata);
@@ -128,7 +132,6 @@ fn transform_entry<T>(entry: NormalEntry<T>, owner: &Ownership) -> NormalEntry<T
     };
     let metadata =
         metadata
-            .with_permission(None)
             .with_owner_uid(uid.map(pna::OwnerUid::from))
             .with_owner_gid(gid.map(pna::OwnerGid::from))
             .with_owner_user_name(crate::command::core::permission::owner_name_opt(&uname))

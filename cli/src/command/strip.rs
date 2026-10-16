@@ -1,20 +1,20 @@
 use crate::{
     cli::{
-        FileArgs, PasswordArgs, PrivateChunkType, SolidEntriesTransformStrategy,
+        ArchiveFileArgs, FileOperands, PasswordArgs, PrivateChunkType,
         SolidEntriesTransformStrategyArgs,
     },
     command::{
         Command, ask_password,
         core::{
-            SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid, collect_split_archives,
+            Umask, resolve_rewrite_output,
+            rewrite::{EntryTransform, execute_archive_transform},
         },
     },
-    utils::PathPartExt,
+    utils::GlobPatterns,
 };
-use clap::{Args, Parser, ValueHint};
+use clap::{ArgAction, Args, Parser, ValueHint};
 use pna::{Metadata, NormalEntry, RawChunk, prelude::*};
-use std::path::PathBuf;
+use std::{borrow::Cow, io, path::PathBuf};
 
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) struct StripOptions {
@@ -54,49 +54,84 @@ pub(crate) struct StripCommand {
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[arg(long, help = "Output file path", value_hint = ValueHint::AnyPath)]
     pub(crate) output: Option<PathBuf>,
+    #[arg(
+        long,
+        conflicts_with = "no_overwrite",
+        help = "Overwrite the output file (rewrite in place when --output is omitted)"
+    )]
+    overwrite: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not overwrite output file. This is the inverse option of --overwrite",
+        requires = "output"
+    )]
+    no_overwrite: (),
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
-    pub(crate) file: FileArgs,
+    pub(crate) archive: ArchiveFileArgs,
+    #[command(flatten)]
+    pub(crate) files: FileOperands,
 }
 
 impl Command for StripCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
-        strip_metadata(self)
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
+        strip_metadata(self, ctx.umask())
     }
 }
 
 #[hooq::hooq(anyhow)]
-fn strip_metadata(args: StripCommand) -> anyhow::Result<()> {
+fn strip_metadata(args: StripCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    let archive = args.file.archive;
-    let mut source = SplitArchiveReader::new(collect_split_archives(&archive)?)?;
+    let archive = args.archive.file;
+    let destination = resolve_rewrite_output(&archive, args.output, args.overwrite)?;
+    let globs = if args.files.files.is_empty() {
+        None
+    } else {
+        Some(GlobPatterns::new(
+            args.files.files.iter().map(String::as_str),
+        )?)
+    };
+    execute_archive_transform(
+        &archive,
+        destination,
+        umask,
+        password.as_deref(),
+        args.transform_strategy.strategy(),
+        StripTransform {
+            options: args.strip_options,
+            globs,
+        },
+    )
+}
 
-    let output_path = args.output.unwrap_or_else(|| archive.remove_part());
-    let mut staged = StagedArchive::new(output_path)?;
+struct StripTransform<'g> {
+    options: StripOptions,
+    /// `None` selects every entry.
+    globs: Option<GlobPatterns<'g>>,
+}
 
-    match args.transform_strategy.strategy() {
-        SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
-            staged.as_file_mut(),
-            password.as_deref(),
-            #[hooq::skip_all]
-            |entry| Ok(Some(strip_entry_metadata(entry?, &args.strip_options))),
-            TransformStrategyUnSolid,
-        ),
-        SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
-            staged.as_file_mut(),
-            password.as_deref(),
-            #[hooq::skip_all]
-            |entry| Ok(Some(strip_entry_metadata(entry?, &args.strip_options))),
-            TransformStrategyKeepSolid,
-        ),
-    }?;
+impl EntryTransform for StripTransform<'_> {
+    fn transform<'d>(
+        &mut self,
+        entry: NormalEntry<Cow<'d, [u8]>>,
+    ) -> io::Result<Option<NormalEntry<Cow<'d, [u8]>>>> {
+        let selected = match &mut self.globs {
+            Some(globs) => globs.matches_any(entry.name()),
+            None => true,
+        };
+        Ok(Some(if selected {
+            strip_entry_metadata(entry, &self.options)
+        } else {
+            entry
+        }))
+    }
 
-    drop(source);
-
-    staged.commit(None)?;
-    Ok(())
+    fn patterns(&self) -> Option<&GlobPatterns<'_>> {
+        self.globs.as_ref()
+    }
 }
 
 #[inline]

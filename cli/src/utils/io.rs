@@ -1,14 +1,6 @@
 use crate::ext::BufReadExt;
 use std::io;
 
-pub(crate) fn is_pna<R: io::Read>(mut reader: R) -> io::Result<bool> {
-    match pna::io::read_signature(&mut reader) {
-        Ok(()) => Ok(true),
-        Err(error) if error.kind() == io::ErrorKind::InvalidData => Ok(false),
-        Err(error) => Err(error),
-    }
-}
-
 #[inline]
 pub(crate) fn read_to_lines<R: io::BufRead>(reader: R) -> io::Result<Vec<String>> {
     reader
@@ -104,22 +96,6 @@ pub(crate) fn streams_equal<R1: io::Read, R2: io::Read>(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn is_pna_uses_signature_validation() {
-        assert!(is_pna(&pna::PNA_SIGNATURE[..]).unwrap());
-
-        let mut invalid = *pna::PNA_SIGNATURE;
-        invalid[0] ^= 0xff;
-        assert!(!is_pna(&invalid[..]).unwrap());
-
-        assert_eq!(
-            is_pna(&pna::PNA_SIGNATURE[..pna::PNA_SIGNATURE.len() - 1])
-                .unwrap_err()
-                .kind(),
-            io::ErrorKind::UnexpectedEof
-        );
-    }
 
     #[test]
     fn read_to_nul_splits_on_nul_without_including_delimiters() {

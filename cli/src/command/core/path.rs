@@ -5,7 +5,7 @@ use std::{
 };
 use typed_path::{Utf8WindowsComponent, Utf8WindowsPath};
 
-use super::PathTransformers;
+use crate::command::core::PathTransformers;
 
 /// Centralized path transformation editor, similar to libarchive's `edit_pathname`.
 ///
@@ -228,9 +228,9 @@ fn sanitize_preserve_curdir_reference(reference: EntryReference) -> EntryReferen
 
 /// Returns `true` if the path is unsafe as a link reference.
 ///
-/// A link is unsafe if it contains an absolute path component (root separator,
-/// drive letter, or Windows API prefix) or a parent directory (`..`) component
-/// under either host or Windows path semantics.
+/// A link is unsafe if, under either host or Windows path semantics, it
+/// contains an absolute path component (root separator, drive letter, or Windows API prefix)
+/// or a parent directory (`..`) component.
 pub(crate) fn is_unsafe_link_path(s: &str) -> bool {
     let (rewritten, had_root) = strip_absolute_path_bsdtar(s);
     had_root || has_parent_dir_component(rewritten)
@@ -242,7 +242,10 @@ pub(crate) fn is_unsafe_link_path(s: &str) -> bool {
 /// The dual check ensures that Windows-style `..` preceded by backslash
 /// separators (e.g., `..\\file`) is detected even on non-Windows hosts where
 /// `std::path::Path` treats backslashes as literal characters.
-fn has_parent_dir_component(s: &str) -> bool {
+///
+/// Shared by extraction filtering so entry names and link targets use the
+/// same traversal definition.
+pub(crate) fn has_parent_dir_component(s: &str) -> bool {
     Path::new(s)
         .components()
         .any(|c| matches!(c, Component::ParentDir))
@@ -441,7 +444,7 @@ mod tests {
         // Example: path "old/a/b" with transform /old/new/ and strip=1
         // bsdtar order: "old/a/b" -> transform -> "new/a/b" -> strip 1 -> "a/b"
         // (wrong order would be: "old/a/b" -> strip 1 -> "a/b" -> transform -> "a/b")
-        use super::super::{PathTransformers, re::bsd::SubstitutionRules};
+        use crate::command::core::{PathTransformers, re::bsd::SubstitutionRules};
 
         // Format: /pattern/replacement/flags - first char is the delimiter
         let rules = SubstitutionRules::new(vec!["/old/new/".parse().unwrap()]);
@@ -910,7 +913,7 @@ mod tests {
         assert!(had_root);
     }
 
-    // --- B1: strip_absolute_path_bsdtar boundary values ---
+    // --- strip_absolute_path_bsdtar boundary values ---
 
     #[test]
     fn strip_absolute_path_bsdtar_empty_string() {
@@ -1017,7 +1020,7 @@ mod tests {
         assert!(had_root);
     }
 
-    // --- B2: device prefix (\\.\) tests ---
+    // --- device prefix (\\.\) tests ---
 
     #[test]
     fn strip_absolute_path_bsdtar_device_prefix_with_drive() {
@@ -1062,9 +1065,7 @@ mod tests {
         assert!(has_parent_dir_component(path));
     }
 
-    // --- B3+B4: is_unsafe_link equivalent (strip + has_parent_dir combined) ---
-    // is_unsafe_link is: had_root || has_parent_dir_component(rewritten)
-    // We test the same logic directly here.
+    // --- is_unsafe_link equivalent (strip + has_parent_dir combined) ---
 
     #[test]
     fn strip_then_parent_dir_detects_drive_dotdot_backslash() {

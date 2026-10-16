@@ -1,21 +1,11 @@
 //! Byte-length-bounded owned UTF-8 strings and byte slices.
 //!
-//! Binary formats and wire protocols routinely encode variable-length fields
-//! with a fixed-width length prefix (commonly `u8`, `u16`, or `u32`). Casting
-//! a `usize` length into a narrower integer at serialization time silently
-//! truncates oversized inputs and corrupts the framing of subsequent fields.
-//!
-//! [`str::BoundedString`] and [`bytes::BoundedBytes`] move that
-//! constraint from the serializer into the type system: the maximum byte
-//! length is a const generic parameter, the bound is checked once at
-//! construction, and serialization can downcast the length infallibly
-//! thereafter.
+//! [`str::BoundedString`] and [`bytes::BoundedBytes`] reject values whose byte
+//! length exceeds their `MAX` bound.
 //!
 //! # Examples
 //!
 //! ```ignore
-//! use libpna::util::bounded::{str::BoundedString, bytes::BoundedBytes};
-//!
 //! // A field whose on-the-wire length prefix is a `u8` accepts at most 255 bytes.
 //! let name: BoundedString<255> = "root".try_into().unwrap();
 //! assert_eq!(name.len(), 4);
@@ -36,14 +26,9 @@ use std::{error, fmt};
 /// Error returned when a value exceeds the byte-length bound of a bounded
 /// owned string or byte slice.
 ///
-/// Inspect the bound and the actual length via [`max`](Self::max) and
-/// [`actual`](Self::actual).
-///
 /// # Examples
 ///
 /// ```ignore
-/// use libpna::util::bounded::str::BoundedString;
-///
 /// let err = BoundedString::<3>::new("hello").unwrap_err();
 /// assert_eq!(err.max(), 3);
 /// assert_eq!(err.actual(), 5);

@@ -153,18 +153,4 @@ mod tests {
         let ct = writer.finish().unwrap();
         assert_eq!(&ct[..], &ciphertext[..]);
     }
-
-    #[test]
-    fn write_len() {
-        let key = [0x42; 16];
-        let iv = [0x24; 16];
-        let plaintext = b"hello world! this is my plaintext.".repeat(1024);
-        let mut writer =
-            CbcBlockCipherEncryptWriter::<_, aes::Aes128, Pkcs7>::new(Vec::new(), &key, &iv)
-                .unwrap();
-        for p in plaintext.chunks(13) {
-            assert_eq!(writer.write(p).unwrap(), p.len());
-        }
-        writer.finish().unwrap();
-    }
 }

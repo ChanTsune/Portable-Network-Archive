@@ -9,6 +9,7 @@ fn bench_store(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "x",
+                "--file",
                 concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/test/store.pna"),
                 "--overwrite",
                 "--out-dir",
@@ -27,6 +28,7 @@ fn bench_zstd(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "x",
+                "--file",
                 concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/test/zstd.pna"),
                 "--overwrite",
                 "--out-dir",
@@ -45,6 +47,7 @@ fn bench_deflate(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "x",
+                "--file",
                 concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/test/deflate.pna"),
                 "--overwrite",
                 "--out-dir",
@@ -63,6 +66,7 @@ fn bench_xz(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "x",
+                "--file",
                 concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/test/xz.pna"),
                 "--overwrite",
                 "--out-dir",
@@ -81,6 +85,7 @@ fn bench_zstd_keep_timestamp(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "x",
+                "--file",
                 concat!(
                     env!("CARGO_MANIFEST_DIR"),
                     "/../resources/test/zstd_keep_timestamp.pna"
@@ -102,6 +107,7 @@ fn bench_zstd_keep_permission(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "x",
+                "--file",
                 concat!(
                     env!("CARGO_MANIFEST_DIR"),
                     "/../resources/test/zstd_keep_permission.pna"
@@ -124,6 +130,7 @@ fn bench_zstd_keep_xattr(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "x",
+                "--file",
                 concat!(
                     env!("CARGO_MANIFEST_DIR"),
                     "/../resources/test/zstd_keep_xattr.pna"

@@ -1,6 +1,6 @@
 use crate::utils::{
     EmbedExt, TestResources,
-    archive::{for_each_entry, xattr},
+    archive::{get_archive_entry_names, xattr, xattrs_by_entry},
     setup,
 };
 use clap::Parser;
@@ -42,23 +42,14 @@ fn archive_xattr_remove() {
     .execute()
     .unwrap();
 
-    for_each_entry("xattr_remove/xattr_remove.pna", |entry| {
-        if entry.name() == "xattr_remove/in/raw/empty.txt" {
-            assert_eq!(
-                entry.metadata().xattrs(),
-                &[xattr("user.name", b"pna developers!")],
-            );
-        } else {
-            // Non-target entries should have no xattrs
-            assert!(
-                entry.metadata().xattrs().is_empty(),
-                "Entry {} should have no xattrs but has {:?}",
-                entry.name(),
-                entry.metadata().xattrs()
-            );
-        }
-    })
-    .unwrap();
+    assert_eq!(
+        xattrs_by_entry("xattr_remove/xattr_remove.pna", None),
+        vec![(
+            "xattr_remove/in/raw/empty.txt".to_string(),
+            vec![xattr("user.name", b"pna developers!")]
+        )]
+    );
+    let entries = get_archive_entry_names("xattr_remove/xattr_remove.pna");
 
     cli::Cli::try_parse_from([
         "pna",
@@ -75,14 +66,12 @@ fn archive_xattr_remove() {
     .execute()
     .unwrap();
 
-    for_each_entry("xattr_remove/xattr_remove.pna", |entry| {
-        // After removal, all entries should have no xattrs
-        assert!(
-            entry.metadata().xattrs().is_empty(),
-            "Entry {} should have no xattrs after removal but has {:?}",
-            entry.name(),
-            entry.metadata().xattrs()
-        );
-    })
-    .unwrap();
+    assert_eq!(
+        xattrs_by_entry("xattr_remove/xattr_remove.pna", None),
+        vec![]
+    );
+    assert_eq!(
+        get_archive_entry_names("xattr_remove/xattr_remove.pna"),
+        entries
+    );
 }

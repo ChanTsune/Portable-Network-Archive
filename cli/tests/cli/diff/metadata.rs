@@ -206,14 +206,14 @@ fn diff_ignores_subsecond_when_archive_has_whole_second_mtime() {
 
     let with_nanos = whole_second + Duration::from_nanos(123_456_789);
     filetime::set_file_mtime(&file_path, filetime::FileTime::from_system_time(with_nanos)).unwrap();
-    if fs::symlink_metadata(&file_path)
-        .unwrap()
-        .modified()
-        .unwrap()
-        != with_nanos
-    {
-        return;
-    }
+    skip_unless!(
+        "mtime_nanos",
+        fs::symlink_metadata(&file_path)
+            .unwrap()
+            .modified()
+            .unwrap()
+            == with_nanos
+    );
 
     cargo_bin_cmd!("pna")
         .args(["experimental", "diff", "-f", &archive_path])
@@ -244,14 +244,14 @@ fn diff_detects_subsecond_difference_when_archive_stores_nanoseconds() {
         filetime::FileTime::from_system_time(archived_time),
     )
     .unwrap();
-    if fs::symlink_metadata(&file_path)
-        .unwrap()
-        .modified()
-        .unwrap()
-        != archived_time
-    {
-        return;
-    }
+    skip_unless!(
+        "mtime_nanos",
+        fs::symlink_metadata(&file_path)
+            .unwrap()
+            .modified()
+            .unwrap()
+            == archived_time
+    );
 
     let archive_path = format!("{dir}/test.pna");
     cargo_bin_cmd!("pna")
@@ -272,14 +272,14 @@ fn diff_detects_subsecond_difference_when_archive_stores_nanoseconds() {
         filetime::FileTime::from_system_time(different_nanos),
     )
     .unwrap();
-    if fs::symlink_metadata(&file_path)
-        .unwrap()
-        .modified()
-        .unwrap()
-        != different_nanos
-    {
-        return;
-    }
+    skip_unless!(
+        "mtime_nanos",
+        fs::symlink_metadata(&file_path)
+            .unwrap()
+            .modified()
+            .unwrap()
+            == different_nanos
+    );
 
     cargo_bin_cmd!("pna")
         .args(["experimental", "diff", "-f", &archive_path])
@@ -310,14 +310,14 @@ fn diff_accepts_exact_nanosecond_roundtrip() {
         filetime::FileTime::from_system_time(archived_time),
     )
     .unwrap();
-    if fs::symlink_metadata(&file_path)
-        .unwrap()
-        .modified()
-        .unwrap()
-        != archived_time
-    {
-        return;
-    }
+    skip_unless!(
+        "mtime_nanos",
+        fs::symlink_metadata(&file_path)
+            .unwrap()
+            .modified()
+            .unwrap()
+            == archived_time
+    );
 
     let archive_path = format!("{dir}/test.pna");
     cargo_bin_cmd!("pna")
@@ -380,14 +380,14 @@ fn diff_ignores_end_of_second_when_archive_has_whole_second_mtime() {
         filetime::FileTime::from_system_time(end_of_second),
     )
     .unwrap();
-    if fs::symlink_metadata(&file_path)
-        .unwrap()
-        .modified()
-        .unwrap()
-        != end_of_second
-    {
-        return;
-    }
+    skip_unless!(
+        "mtime_nanos",
+        fs::symlink_metadata(&file_path)
+            .unwrap()
+            .modified()
+            .unwrap()
+            == end_of_second
+    );
 
     cargo_bin_cmd!("pna")
         .args(["experimental", "diff", "-f", &archive_path])

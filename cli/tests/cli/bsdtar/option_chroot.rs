@@ -8,10 +8,7 @@ use std::fs;
 /// Expectation: Absolute output path is resolved relative to chroot root, not filesystem root.
 #[test]
 fn compat_bsdtar_extract_chroot() {
-    // chroot needs root privileges.
-    if !nix::unistd::Uid::effective().is_root() {
-        return;
-    }
+    skip_unless!("root", nix::unistd::Uid::effective().is_root());
     setup();
     TestResources::extract_in("zstd.pna", "extract_chroot/").unwrap();
 

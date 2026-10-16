@@ -16,12 +16,14 @@ mod option_include;
 mod option_newer_ctime;
 mod option_newer_ctime_than;
 mod option_newer_mtime;
+#[cfg(not(target_family = "wasm"))]
 mod option_newer_mtime_than;
 mod option_no_recursive;
 #[cfg(any(windows, target_os = "macos"))]
 mod option_older_ctime;
 mod option_older_ctime_than;
 mod option_older_mtime;
+#[cfg(not(target_family = "wasm"))]
 mod option_older_mtime_than;
 #[cfg(unix)]
 mod option_one_file_system;

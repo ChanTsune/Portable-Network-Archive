@@ -87,10 +87,7 @@ mod platform {
     #[test]
     fn create_nodump() {
         setup();
-        if !is_nodump_supported() {
-            eprintln!("Skipping test: nodump not supported on this system");
-            return;
-        }
+        skip_unless!("nodump", is_nodump_supported());
 
         let _ = fs::remove_dir_all("nodump_create");
         fs::create_dir_all("nodump_create").unwrap();
@@ -121,10 +118,7 @@ mod platform {
     #[test]
     fn append_nodump() {
         setup();
-        if !is_nodump_supported() {
-            eprintln!("Skipping test: nodump not supported on this system");
-            return;
-        }
+        skip_unless!("nodump", is_nodump_supported());
 
         let _ = fs::remove_dir_all("nodump_append");
         fs::create_dir_all("nodump_append").unwrap();

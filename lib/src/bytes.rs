@@ -20,6 +20,33 @@ pub fn read_signature(bytes: &[u8]) -> io::Result<&[u8]> {
     Ok(rest)
 }
 
+/// Checks whether `bytes` starts with a PNA signature.
+///
+/// Use this for in-memory probing. For streaming readers, see
+/// [`crate::io::is_pna`].
+///
+/// Returns `false` for inputs shorter than the signature (including empty
+/// input).
+///
+/// A matching signature does not imply that the archive is complete or valid.
+///
+/// # Examples
+///
+/// ```
+/// assert!(libpna::bytes::is_pna(libpna::PNA_SIGNATURE));
+/// assert!(!libpna::bytes::is_pna(b""));
+/// assert!(!libpna::bytes::is_pna(b"not a pna archive"));
+/// assert!(!libpna::bytes::is_pna(
+///     &libpna::PNA_SIGNATURE[..libpna::PNA_SIGNATURE.len() - 1]
+/// ));
+/// ```
+#[inline]
+pub fn is_pna(bytes: &[u8]) -> bool {
+    bytes
+        .split_first_chunk::<{ PNA_SIGNATURE.len() }>()
+        .is_some_and(|(signature, _)| crate::format::validate_signature(signature).is_ok())
+}
+
 /// Reads and validates one PNA chunk from the beginning of `bytes`.
 ///
 /// Returns the zero-copy chunk and the bytes following it. The input must start
@@ -41,12 +68,7 @@ pub fn read_chunk(bytes: &[u8], max_data_len: u32) -> io::Result<(RawChunk<&[u8]
         .split_first_chunk::<{ mem::size_of::<u32>() }>()
         .ok_or(io::ErrorKind::UnexpectedEof)?;
     let length = u32::from_be_bytes(*length);
-    if length > max_data_len {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("chunk data length {length} exceeds limit {max_data_len}"),
-        ));
-    }
+    crate::format::check_chunk_length_limit(length, max_data_len)?;
 
     let (ty, bytes) = bytes
         .split_first_chunk::<{ mem::size_of::<ChunkType>() }>()
@@ -113,8 +135,33 @@ pub fn skip_chunk(bytes: &[u8]) -> io::Result<(ChunkType, &[u8])> {
 mod tests {
     use super::*;
     use crate::Chunk;
+    use crate::chunk::test_support::{raw_chunk_bytes, valid_chunk_bytes};
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
+
+    #[test]
+    fn is_pna_accepts_signature() {
+        assert!(is_pna(PNA_SIGNATURE));
+        assert!(is_pna(
+            [PNA_SIGNATURE.as_slice(), b"body"].concat().as_slice()
+        ));
+    }
+
+    #[test]
+    fn is_pna_rejects_non_signature() {
+        assert!(!is_pna(b"xxxxxxxx"));
+
+        let mut tampered = *PNA_SIGNATURE;
+        tampered[0] ^= 0xFF;
+        assert!(!is_pna(&tampered));
+
+        for len in 0..PNA_SIGNATURE.len() {
+            assert!(
+                !is_pna(&PNA_SIGNATURE[..len]),
+                "truncation at {len} bytes must be false",
+            );
+        }
+    }
 
     #[test]
     fn read_signature_returns_remaining_bytes() {
@@ -137,24 +184,6 @@ mod tests {
             read_signature(b"xxxxxxxx").unwrap_err().kind(),
             io::ErrorKind::InvalidData
         );
-    }
-
-    fn valid_chunk_bytes() -> Vec<u8> {
-        vec![
-            0x00, 0x00, 0x00, 0x04, // chunk length
-            b'F', b'D', b'A', b'T', // chunk type
-            0xAA, 0xBB, 0xCC, 0xDD, // chunk data
-            0x47, 0xF3, 0x2B, 0x10, // CRC-32
-        ]
-    }
-
-    fn raw_chunk_bytes(ty: [u8; 4], data: &[u8]) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(data.len() + 12);
-        bytes.extend_from_slice(&(data.len() as u32).to_be_bytes());
-        bytes.extend_from_slice(&ty);
-        bytes.extend_from_slice(data);
-        bytes.extend_from_slice(&crate::format::chunk_crc(&ty, data).to_be_bytes());
-        bytes
     }
 
     #[test]

@@ -18,8 +18,8 @@ on:
 jobs:
   actionlint:
     name: Run actionlint
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
+    runs-on: ubuntu-slim
+    timeout-minutes: 15
     permissions:
       contents: read # checkout
       checks: write # reviewdog annotations
@@ -29,7 +29,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Run actionlint
-        uses: reviewdog/action-actionlint@dbe5299849118fd6f099ba563d263d770955a64a # v1.73.2
+        uses: reviewdog/action-actionlint/dockerless@a8ac3eea598697a830f7d8e701fc9fcbfde88974 # v1.80.0
         with:
           fail_level: error
           filter_mode: nofilter
@@ -49,6 +49,6 @@ jobs:
         with:
           persist-credentials: false
       - name: Run zizmor
-        uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
         with:
           persona: pedantic

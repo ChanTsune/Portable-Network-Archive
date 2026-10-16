@@ -1,9 +1,7 @@
 //! A library for reading and writing PNA archives.
 //!
-//! This library provides utilities necessary to manage PNA archives
-//! abstracted over a reader or writer. Great strides are taken to ensure that
-//! an archive is never required to be fully resident in memory, and all objects
-//! provide largely a streaming interface to read bytes from.
+//! The APIs operate over readers and writers and support streaming archive
+//! data without loading an entire archive into memory.
 //!
 //! # Quick Start
 //!
@@ -64,18 +62,18 @@
 //! PNA supports multiple compression algorithms and encryption options:
 //!
 //! ```no_run
-//! use libpna::{WriteOptions, Compression, Encryption, CipherMode, HashAlgorithm};
+//! use libpna::{CipherMode, Compression, Encryption, HashAlgorithm, WriteOptions};
 //!
 //! // Compressed entry (Zstandard)
 //! let compressed = WriteOptions::builder()
 //!     .compression(Compression::ZSTANDARD)
 //!     .build();
 //!
-//! // Encrypted entry (AES-256-CTR with Argon2id key derivation)
+//! // Encrypted entry (AES-256-GCM with Argon2id key derivation)
 //! let encrypted = WriteOptions::builder()
 //!     .compression(Compression::ZSTANDARD)
 //!     .encryption(Encryption::AES)
-//!     .cipher_mode(CipherMode::CTR)
+//!     .cipher_mode(CipherMode::GCM)
 //!     .hash_algorithm(HashAlgorithm::argon2id())
 //!     .password(Some("secure_password"))
 //!     .build();
@@ -126,7 +124,7 @@
 //! - `zlib-ng` - Use zlib-ng for improved deflate compression performance
 //! - `unstable-async` - Enable async I/O support via `futures-io` (unstable API)
 
-#![doc(html_root_url = "https://docs.rs/libpna/0.37.0")]
+#![doc(html_root_url = "https://docs.rs/libpna/0.40.0")]
 #![deny(
     missing_docs,
     clippy::missing_inline_in_public_items,

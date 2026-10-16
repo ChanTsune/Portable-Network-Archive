@@ -7,6 +7,7 @@ This document contains the help content for the `pna` command-line program.
 * [`pna`↴](#pna)
 * [`pna create`↴](#pna-create)
 * [`pna append`↴](#pna-append)
+* [`pna update`↴](#pna-update)
 * [`pna extract`↴](#pna-extract)
 * [`pna list`↴](#pna-list)
 * [`pna delete`↴](#pna-delete)
@@ -62,6 +63,7 @@ This document contains the help content for the `pna` command-line program.
 * [`pna help`↴](#pna-help)
 * [`pna help create`↴](#pna-help-create)
 * [`pna help append`↴](#pna-help-append)
+* [`pna help update`↴](#pna-help-update)
 * [`pna help extract`↴](#pna-help-extract)
 * [`pna help list`↴](#pna-help-list)
 * [`pna help delete`↴](#pna-help-delete)
@@ -100,6 +102,7 @@ Portable-Network-Archive cli
 
 * `create` — Create archive
 * `append` — Append files to archive
+* `update` — Update entries in archive
 * `extract` — Extract files from archive
 * `list` — List files in archive
 * `delete` — Delete entry from archive
@@ -259,8 +262,8 @@ Create archive
 * `--null` — Filenames or patterns are separated by null characters, not by newlines
 
   Default value: `false`
-* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option
-* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option
+* `-s <PATTERN>` — Modify file or archive member names according to a pattern like the BSD tar -s option
+* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to a pattern like the GNU tar --transform option
 * `--store` — No compression
 
   Default value: `false`
@@ -278,7 +281,7 @@ Create archive
 * `--argon2 <PARAMS>` — Use argon2 for password hashing
 * `--pbkdf2 <PARAMS>` — Use pbkdf2 for password hashing
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `-f`, `--file <ARCHIVE>` — Archive file path
 * `--quiet` — Make some output more quiet (alias for --log-level off)
@@ -412,8 +415,8 @@ Append files to archive
 * `--null` — Filenames or patterns are separated by null characters, not by newlines
 
   Default value: `false`
-* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option
-* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option
+* `-s <PATTERN>` — Modify file or archive member names according to a pattern like the BSD tar -s option
+* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to a pattern like the GNU tar --transform option
 * `--store` — No compression
 
   Default value: `false`
@@ -421,7 +424,7 @@ Append files to archive
 * `--zstd <level>` — Use zstd for compression [possible level: 1-21, min, max]
 * `--xz <level>` — Use xz for compression [possible level: 0-9, min, max]
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--aes <cipher mode>` — Use aes for encryption
 
@@ -434,6 +437,174 @@ Append files to archive
 * `--argon2 <PARAMS>` — Use argon2 for password hashing
 * `--pbkdf2 <PARAMS>` — Use pbkdf2 for password hashing
 * `-f`, `--file <ARCHIVE>` — Archive file path
+* `--quiet` — Make some output more quiet (alias for --log-level off)
+
+  Default value: `false`
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
+
+  Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
+* `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
+
+  Default value: `false`
+* `-h`, `--help` — Print help
+
+
+
+## `pna update`
+
+Update entries in archive
+
+**Usage:** `pna update [OPTIONS] --file <ARCHIVE> [FILES]...`
+
+###### **Arguments:**
+
+* `<FILES>` — Files or directories to process
+
+###### **Options:**
+
+* `--output <OUTPUT>` — Output file path
+* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+
+  Default value: `false`
+* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+
+  Default value: `false`
+* `--one-file-system` — Stay in the same file system when collecting files
+
+  Default value: `false`
+* `--nodump` — Exclude files with the nodump flag
+
+  Default value: `false`
+* `-r`, `--recursive` [alias: `recursion`] — Add the directory to the archive recursively
+
+  Default value: `true`
+* `--no-recursive` [alias: `no-recursion`] — Do not recursively add directories to the archives. This is the inverse option of --recursive
+
+  Default value: `false`
+* `--keep-dir` — Include directories in archive (default)
+
+  Default value: `true`
+* `--no-keep-dir` — Do not archive directories. This is the inverse option of --keep-dir
+
+  Default value: `false`
+* `--preserve-timestamps` [alias: `keep-timestamp`] — Preserve file timestamps
+
+  Default value: `false`
+* `--no-preserve-timestamps` [alias: `no-keep-timestamp`] — Do not archive timestamp of files. This is the inverse option of --preserve-timestamps
+
+  Default value: `false`
+* `--preserve-permissions` [alias: `keep-permission`] — Preserve file permissions
+
+  Default value: `false`
+* `--no-preserve-permissions` [alias: `no-keep-permission`] — Do not archive permissions of files. This is the inverse option of --preserve-permissions
+
+  Default value: `false`
+* `--preserve-xattrs` [alias: `keep-xattr`] — Preserve extended attributes
+
+  Default value: `false`
+* `--no-preserve-xattrs` [alias: `no-keep-xattr`] — Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs
+
+  Default value: `false`
+* `--preserve-acls` [alias: `keep-acl`] — Preserve ACLs
+
+  Default value: `false`
+* `--no-preserve-acls` [alias: `no-keep-acl`] — Do not archive ACLs. This is the inverse option of --preserve-acls
+
+  Default value: `false`
+* `--uname <NAME>` — Set user name for archive entries
+* `--gname <NAME>` — Set group name for archive entries
+* `--uid <ID>` — Overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id
+* `--gid <ID>` — Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id
+* `--strip-components <N>` — Remove the specified number of leading path elements when storing paths
+* `--numeric-owner` — This is equivalent to --uname "" --gname "". It causes user and group names to not be stored in the archive
+
+  Default value: `false`
+* `--ctime <DATETIME>` — Overrides the creation time read from disk
+* `--clamp-ctime` — Clamp the creation time of the entries to the specified time by --ctime
+
+  Default value: `false`
+* `--atime <DATETIME>` — Overrides the access time read from disk
+* `--clamp-atime` — Clamp the access time of the entries to the specified time by --atime
+
+  Default value: `false`
+* `--mtime <DATETIME>` — Overrides the modification time read from disk
+* `--clamp-mtime` — Clamp the modification time of the entries to the specified time by --mtime
+
+  Default value: `false`
+* `--older-ctime <DATETIME>` — Only include files and directories older than the specified date. This compares ctime entries.
+* `--older-mtime <DATETIME>` — Only include files and directories older than the specified date. This compares mtime entries.
+* `--newer-ctime <DATETIME>` — Only include files and directories newer than the specified date. This compares ctime entries.
+* `--newer-mtime <DATETIME>` — Only include files and directories newer than the specified date. This compares mtime entries.
+* `--newer-ctime-than <FILE>` — Only include files and directories newer than the specified file. This compares ctime entries.
+* `--newer-mtime-than <FILE>` — Only include files and directories newer than the specified file. This compares mtime entries.
+* `--older-ctime-than <FILE>` — Only include files and directories older than the specified file. This compares ctime entries.
+* `--older-mtime-than <FILE>` — Only include files and directories older than the specified file. This compares mtime entries.
+* `--missing-time <MISSING_TIME>` — Behavior when a timestamp needed for time filtering or update staleness judgment is missing (unstable). Values: include, exclude, now, epoch, or a datetime. [default: epoch]
+* `--files-from <FILE>` — Read archiving files from given path
+* `--files-from-stdin` — Read archiving files from stdin
+
+  Default value: `false`
+* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
+* `--exclude <PATTERN>` — Exclude path glob
+* `--exclude-from <FILE>` — Read exclude files from given path
+* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)
+
+  Default value: `false`
+* `-s <PATTERN>` — Modify file or archive member names according to a pattern like the BSD tar -s option
+* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to a pattern like the GNU tar --transform option
+* `--store` — No compression
+
+  Default value: `false`
+* `--deflate <level>` — Use deflate for compression [possible level: 1-9, min, max]
+* `--zstd <level>` — Use zstd for compression [possible level: 1-21, min, max]
+* `--xz <level>` — Use xz for compression [possible level: 0-9, min, max]
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
+* `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
+* `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
+* `--aes <cipher mode>` — Use aes for encryption
+
+  Possible values: `cbc`, `ctr`, `gcm`
+
+* `--camellia <cipher mode>` — Use camellia for encryption
+
+  Possible values: `cbc`, `ctr`, `gcm`
+
+* `--argon2 <PARAMS>` — Use argon2 for password hashing
+* `--pbkdf2 <PARAMS>` — Use pbkdf2 for password hashing
+* `--unsolid` — Convert solid entries to regular entries
+
+  Default value: `false`
+* `--keep-solid` — Preserve solid entries without conversion
+
+  Default value: `false`
+* `-f`, `--file <ARCHIVE>` — Archive file path
+* `--null` — Filenames or patterns are separated by null characters, not by newlines
+
+  Default value: `false`
+* `--gitignore` — Ignore files from .gitignore
+
+  Default value: `false`
+* `--follow-links` [alias: `dereference`] — Follow symbolic links
+
+  Default value: `false`
+* `-H`, `--follow-command-links` — Follow symbolic links named on the command line
+
+  Default value: `false`
+* `--sync` — Synchronize archive with source: replace updated entries instead of appending, and remove entries for files that no longer exist on disk.
+
+  Default value: `false`
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -487,7 +658,7 @@ Extract files from archive
   Default value: `false`
 * `--out-dir <DIRECTORY>` — Output directory of extracted files
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--preserve-timestamps` [alias: `keep-timestamp`] — Restore the timestamp of the files
 
@@ -540,7 +711,7 @@ Extract files from archive
 * `--newer-mtime-than <file>` — Only include files and directories newer than the specified file. This compares mtime entries.
 * `--older-ctime-than <file>` [alias: `older-than`] — Only include files and directories older than the specified file. This compares ctime entries.
 * `--older-mtime-than <file>` — Only include files and directories older than the specified file. This compares mtime entries.
-* `--missing-time <MISSING_TIME>` — Behavior for entries missing a timestamp needed by the time filters (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]
+* `--missing-time <MISSING_TIME>` — Behavior for entries missing a timestamp needed by the time filters (unstable). Values: include, exclude, now, epoch, or a datetime. [default: epoch]
 * `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
 * `--exclude <PATTERN>` — Exclude path glob
 * `--exclude-from <FILE>` — Read exclude files from given path
@@ -552,8 +723,8 @@ Extract files from archive
 
   Default value: `false`
 * `--strip-components <N>` — Remove the specified number of leading path elements. Path names with fewer elements will be silently skipped
-* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option
-* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option
+* `-s <PATTERN>` — Modify file or archive member names according to a pattern like the BSD tar -s option
+* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to a pattern like the GNU tar --transform option
 * `--same-owner` — Try extracting files with the same ownership as exists in the archive (default)
 
   Default value: `true`
@@ -655,7 +826,7 @@ List files in archive
 * `--newer-mtime-than <file>` — Only include files and directories newer than the specified file. This compares mtime entries.
 * `--older-ctime-than <file>` [alias: `older-than`] — Only include files and directories older than the specified file. This compares ctime entries.
 * `--older-mtime-than <file>` — Only include files and directories older than the specified file. This compares mtime entries.
-* `--missing-time <MISSING_TIME>` — Behavior for entries missing a timestamp needed by the time filters (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]
+* `--missing-time <MISSING_TIME>` — Behavior for entries missing a timestamp needed by the time filters (unstable). Values: include, exclude, now, epoch, or a datetime. [default: epoch]
 * `-q` — Force printing of non-graphic characters in file names as the character '?'
 
   Default value: `false`
@@ -678,7 +849,7 @@ List files in archive
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `-f`, `--file <ARCHIVE>` — Archive file path
 * `--help` — Print help
@@ -719,6 +890,12 @@ Delete entry from archive
 ###### **Options:**
 
 * `--output <OUTPUT>` — Output file path
+* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+
+  Default value: `false`
+* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+
+  Default value: `false`
 * `--files-from <FILE>` — Read deleting files from given path
 * `--files-from-stdin` — Read deleting files from stdin
 
@@ -733,7 +910,7 @@ Delete entry from archive
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--unsolid` — Convert solid entries to regular entries
 
@@ -771,11 +948,12 @@ Delete entry from archive
 
 Split archive
 
-**Usage:** `pna split [OPTIONS] --file <FILE>`
+**Usage:** `pna split [OPTIONS] --file <ARCHIVE>`
 
 ###### **Options:**
 
-* `-f`, `--file <FILE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Archive file path
+* `--output <BASE_PATH>` — Base path used to name split archive parts. Relative paths resolve under --out-dir when given
 * `--out-dir <DIRECTORY>` — Output directory for split archives
 * `--overwrite` — Overwrite file
 
@@ -824,6 +1002,7 @@ Concat archives
 
   Default value: `false`
 * `-f`, `--files <FILES>` — Archive files to concatenate
+* `--output <OUTPUT>` — Output archive file path
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -881,8 +1060,14 @@ Strip entries metadata
 
   Default value: `false`
 * `--output <OUTPUT>` — Output file path
+* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+
+  Default value: `false`
+* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+
+  Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `-f`, `--file <ARCHIVE>` — Archive file path
 * `--quiet` — Make some output more quiet (alias for --log-level off)
@@ -920,11 +1105,17 @@ Sort entries in archive
 
 * `-f`, `--file <ARCHIVE>` — Archive file path
 * `--output <OUTPUT>` — Output archive file path
+* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+
+  Default value: `false`
+* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+
+  Default value: `false`
 * `--by <KEY>` — Sort key in format KEY[:ORDER] (e.g., name, mtime:desc) [keys: name, ctime, mtime, atime] [orders: asc, desc]
 
   Default value: `name`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
@@ -966,10 +1157,16 @@ Upgrade archives created by older PNA versions
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
-* `-f`, `--file <ARCHIVE>`
+* `-f`, `--file <ARCHIVE>` — Archive file path
 * `--output <OUTPUT>` — Output file path
+* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+
+  Default value: `false`
+* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+
+  Default value: `false`
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -1058,7 +1255,7 @@ Get extended attributes of entries
   Possible values: `text`, `hex`, `base64`
 
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
@@ -1101,7 +1298,17 @@ Set extended attributes of entries
 * `-n`, `--name <NAME>` — Name of extended attribute
 * `-v`, `--value <VALUE>` — Value of extended attribute
 * `-x`, `--remove <NAME>` — Remove extended attribute
-* `--restore <FILE>` — Restores extended attributes from file. The file must be in the format generated by the pna xattr get command with the --dump option. If a dash (-) is given as the file name, reads from standard input
+* `--restore <FILE>` — Restore extended attributes from a file in the format generated by pna xattr get --dump. For compatibility, '-' temporarily reads from standard input; use --restore-from-stdin instead
+* `--restore-from-stdin` — Restore extended attributes from standard input in the format generated by pna xattr get --dump
+
+  Default value: `false`
+* `--output <OUTPUT>` — Output file path
+* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+
+  Default value: `false`
+* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+
+  Default value: `false`
 * `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
@@ -1109,7 +1316,7 @@ Set extended attributes of entries
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
@@ -1337,7 +1544,7 @@ bsdtar-like CLI semantics for PNA archives
 * `--keep-newer-files` — Skip extracting files if a newer version already exists
 
   Default value: `false`
-* `-U`, `--unlink-first` [alias: `unlink`] — Unlink files before creating them; also removes intervening directory symlinks (extract mode only)
+* `-U`, `--unlink-first` [alias: `unlink`] — (extract mode only) Unlink files before creating them; also removes intervening directory symlinks.
 
   Default value: `false`
 * `-k`, `--keep-old-files` — Skip extracting files if they already exist
@@ -1358,7 +1565,7 @@ bsdtar-like CLI semantics for PNA archives
 * `--no-same-permissions` [aliases: `no-preserve-permissions`, `no-permissions`] — Do not store file permissions (mode bits) in the archive
 
   Default value: `false`
-* `-p`, `--same-permissions` [alias: `preserve-permissions`] — Restore file permissions (mode, ACLs, xattrs, fflags, mac-metadata, but NOT ownership) (extract only)
+* `-p`, `--same-permissions` [alias: `preserve-permissions`] — Restore file permissions (mode, ACLs, xattrs, fflags, mac-metadata, but NOT ownership; extract only)
 
   Default value: `false`
 * `--preserve-xattrs` [aliases: `keep-xattr`, `xattrs`] — Preserve extended attributes
@@ -1411,7 +1618,7 @@ bsdtar-like CLI semantics for PNA archives
 * `--argon2 <PARAMS>` — Use argon2 for password hashing
 * `--pbkdf2 <PARAMS>` — Use pbkdf2 for password hashing
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--options <OPTIONS>` — Comma-separated list of options. Format: key=value or module:key=value. Supported: compression-level. Modules: deflate, zstd, xz
 * `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
@@ -1464,8 +1671,8 @@ bsdtar-like CLI semantics for PNA archives
 * `--older-ctime-than <FILE>` — Only include files and directories older than the specified file. This compares ctime entries.
 * `--older-mtime-than <FILE>` [alias: `older-than`] — Only include files and directories older than the specified file. This compares mtime entries.
 * `-T`, `--files-from <FILE>` — Read archiving files from given path
-* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option
-* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option
+* `-s <PATTERN>` — Modify file or archive member names according to a pattern like the BSD tar -s option
+* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to a pattern like the GNU tar --transform option
 * `--same-owner` — Try extracting files with the same ownership as exists in the archive
 
   Default value: `false`
@@ -1476,10 +1683,10 @@ bsdtar-like CLI semantics for PNA archives
 * `-O`, `--to-stdout` — Write extracted file data to standard output instead of the file system
 
   Default value: `false`
-* `--allow-unsafe-links` — Allow extracting symbolic links and hard links that contain root or parent paths (default)
+* `--allow-unsafe-links` — Allow extracting symbolic or hard links containing root or parent paths (default)
 
   Default value: `true`
-* `--no-allow-unsafe-links` — Do not allow extracting symbolic links and hard links that contain root or parent paths
+* `--no-allow-unsafe-links` — Do not allow extracting symbolic links or hard links if either contains root or parent paths
 
   Default value: `false`
 * `--chroot` — chroot() to the current directory after processing any --cd options and before extracting any files (requires root privileges)
@@ -1562,7 +1769,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ###### **Subcommands:**
 
-* `update` — Update entries in archive
+* `update` — Update entries in archive (stabilized, use `pna update` command instead. this command will be removed in the future)
 * `chown` — Change owner
 * `chmod` — Change mode
 * `acl` — Manipulate ACLs of entries
@@ -1600,7 +1807,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ## `pna experimental update`
 
-Update entries in archive
+Update entries in archive (stabilized, use `pna update` command instead. this command will be removed in the future)
 
 **Usage:** `pna experimental update [OPTIONS] --file <ARCHIVE> [FILES]...`
 
@@ -1611,6 +1818,12 @@ Update entries in archive
 ###### **Options:**
 
 * `--output <OUTPUT>` — Output file path
+* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+
+  Default value: `false`
+* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+
+  Default value: `false`
 * `--one-file-system` — Stay in the same file system when collecting files
 
   Default value: `false`
@@ -1681,7 +1894,7 @@ Update entries in archive
 * `--newer-mtime-than <FILE>` — Only include files and directories newer than the specified file. This compares mtime entries.
 * `--older-ctime-than <FILE>` — Only include files and directories older than the specified file. This compares ctime entries.
 * `--older-mtime-than <FILE>` — Only include files and directories older than the specified file. This compares mtime entries.
-* `--missing-time <MISSING_TIME>` — Behavior when a timestamp needed for time filtering or update staleness judgment is missing (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]
+* `--missing-time <MISSING_TIME>` — Behavior when a timestamp needed for time filtering or update staleness judgment is missing (unstable). Values: include, exclude, now, epoch, or a datetime. [default: epoch]
 * `--files-from <FILE>` — Read archiving files from given path
 * `--files-from-stdin` — Read archiving files from stdin
 
@@ -1692,8 +1905,8 @@ Update entries in archive
 * `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)
 
   Default value: `false`
-* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option
-* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option
+* `-s <PATTERN>` — Modify file or archive member names according to a pattern like the BSD tar -s option
+* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to a pattern like the GNU tar --transform option
 * `--store` — No compression
 
   Default value: `false`
@@ -1701,7 +1914,7 @@ Update entries in archive
 * `--zstd <level>` — Use zstd for compression [possible level: 1-21, min, max]
 * `--xz <level>` — Use xz for compression [possible level: 0-9, min, max]
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--aes <cipher mode>` — Use aes for encryption
 
@@ -1773,7 +1986,7 @@ Change owner
 
 ###### **Options:**
 
-* `-f`, `--file <ARCHIVE>`
+* `-f`, `--file <ARCHIVE>` — Archive file path
 * `--numeric-owner` — force numeric owner and group IDs (no name resolution)
 
   Default value: `false`
@@ -1783,6 +1996,13 @@ Change owner
 * `--no-owner-lookup` — do not resolve user and group
 
   Default value: `false`
+* `--output <OUTPUT>` — Output file path
+* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+
+  Default value: `false`
+* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+
+  Default value: `false`
 * `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
@@ -1790,7 +2010,7 @@ Change owner
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
@@ -1830,7 +2050,14 @@ Change mode
 
 ###### **Options:**
 
-* `-f`, `--file <ARCHIVE>`
+* `-f`, `--file <ARCHIVE>` — Archive file path
+* `--output <OUTPUT>` — Output file path
+* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+
+  Default value: `false`
+* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+
+  Default value: `false`
 * `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
@@ -1838,7 +2065,7 @@ Change mode
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
@@ -1923,7 +2150,7 @@ Get acl of entries
   Default value: `false`
 * `-f`, `--file <ARCHIVE>` — Archive file path
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
@@ -1965,11 +2192,21 @@ Set acl of entries
 * `-f`, `--file <ARCHIVE>` — Archive file path
 * `--set <SET>` — Set the ACL on the specified file.
 * `-m`, `--modify <MODIFY>` — Modify the ACL on the specified file. New entries will be added, and existing entries will be modified according to the entries argument.
-* `-x`, `--remove <REMOVE>` — Remove the ACL entries specified there from the access or default ACL of the specified files.
+* `-x`, `--remove <REMOVE>` — Remove the ACL entries specified there from the access or default ACLs of the specified files.
 * `--platform <PLATFORM>` — Target ACL platform
 
   Default value: ``
-* `--restore <RESTORE>` — Restore a permission backup created by `pna acl get *` or similar. All permissions of a complete directory subtree are restored using this mechanism. If a dash (-) is given as the file name, reads from standard input
+* `--restore <RESTORE>` — Restore from a file a permission backup created by `pna acl get *` or similar. All permissions of a complete directory subtree are restored using this mechanism
+* `--restore-from-stdin` — Restore a permission backup created by `pna acl get *` or similar from standard input
+
+  Default value: `false`
+* `--output <OUTPUT>` — Output file path
+* `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
+
+  Default value: `false`
+* `--no-overwrite` — Do not overwrite output file. This is the inverse option of --overwrite
+
+  Default value: `false`
 * `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
@@ -1977,7 +2214,7 @@ Set acl of entries
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
@@ -2097,7 +2334,7 @@ List chunks
   Default value: `false`
 * `--type <TYPE>` — Only list chunks of the specified type
 * `--exclude-type <TYPE>` — Do not list chunks of the specified type
-* `-f`, `--file <ARCHIVE>`
+* `-f`, `--file <ARCHIVE>` — Archive file path
 * `--help` — Print help
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
@@ -2166,12 +2403,26 @@ Compare archive entries with filesystem
 
 * `-f`, `--file <ARCHIVE>` — Archive file path
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--full-compare` — Compare directory mtime and ownership (by default, only mode is compared for directories)
 
   Default value: `false`
-* `--format <FORMAT>` — Output format. plain: tar-style text. jsonl: one JSON Lines record per difference with fields `path`, `kind` (one of: missing, size, content, mode, mtime, uid, gid, type, symlink, hardlink) and, for kind=hardlink only, `target` (the stored link target). mode/mtime/uid/gid comparisons only occur on Unix.
+* `--compare <COMPARE>` — Compare only selected fields; repeat or separate values with commas. `default` stands for the fields compared when this option is omitted, and combines with any other value rather than replacing it. Missing paths and file type mismatches are reported regardless of the selection. Naming a field that cannot be compared - unsupported on this platform, or no value recorded in the archive - reports the differences it did find and then exits 2, so a run with both differences and uncomparable fields is indistinguishable from an uncomparable-only run by exit code alone. Conflicts with --full-compare.
+
+  Possible values:
+  - `default`:
+    Not a field; adds the default fields
+  - `size`
+  - `content`
+  - `mtime`
+  - `mode`
+  - `uid`
+  - `gid`
+  - `symlink`
+  - `hardlink`
+
+* `--format <FORMAT>` — Output format. plain: GNU tar --diff style text. jsonl: one JSON Lines record per difference with fields `path`, `kind` (one of: missing, size, content, mode, mtime, uid, gid, type, symlink, hardlink) and, for kind=hardlink only, `target` (the stored link target). mode/uid/gid comparisons only occur on Unix.
 
   Default value: `plain`
 
@@ -2213,11 +2464,11 @@ Note: for entries encrypted in CBC or CTR mode, a wrong password is indistinguis
 ###### **Options:**
 
 * `-f`, `--file <ARCHIVE>` — Archive file path
-* `--fast` — Verify chunk structure and CRC32 only. No entry data is decoded, so neither the entries contained in a solid block nor corruption that leaves a chunk's CRC32 intact are checked. Every entry whose chunks are intact is counted as ok, and no password is required.
+* `--fast` — Verify only chunk structure and CRC32. No entry data is decoded, so neither the entries contained in a solid block nor corruption that leaves a chunk's CRC32 intact are checked. Every entry whose chunks are intact is counted as ok, and no password is required.
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <FILE>` — Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password
+* `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
@@ -2252,7 +2503,7 @@ Print this message or the help of the given subcommand(s)
 
 ###### **Subcommands:**
 
-* `update` — Update entries in archive
+* `update` — Update entries in archive (stabilized, use `pna update` command instead. this command will be removed in the future)
 * `chown` — Change owner
 * `chmod` — Change mode
 * `acl` — Manipulate ACLs of entries
@@ -2265,7 +2516,7 @@ Print this message or the help of the given subcommand(s)
 
 ## `pna experimental help update`
 
-Update entries in archive
+Update entries in archive (stabilized, use `pna update` command instead. this command will be removed in the future)
 
 **Usage:** `pna experimental help update`
 
@@ -2370,6 +2621,7 @@ Print this message or the help of the given subcommand(s)
 
 * `create` — Create archive
 * `append` — Append files to archive
+* `update` — Update entries in archive
 * `extract` — Extract files from archive
 * `list` — List files in archive
 * `delete` — Delete entry from archive
@@ -2400,6 +2652,14 @@ Create archive
 Append files to archive
 
 **Usage:** `pna help append`
+
+
+
+## `pna help update`
+
+Update entries in archive
+
+**Usage:** `pna help update`
 
 
 
@@ -2540,7 +2800,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ###### **Subcommands:**
 
-* `update` — Update entries in archive
+* `update` — Update entries in archive (stabilized, use `pna update` command instead. this command will be removed in the future)
 * `chown` — Change owner
 * `chmod` — Change mode
 * `acl` — Manipulate ACLs of entries
@@ -2552,7 +2812,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ## `pna help experimental update`
 
-Update entries in archive
+Update entries in archive (stabilized, use `pna update` command instead. this command will be removed in the future)
 
 **Usage:** `pna help experimental update`
 

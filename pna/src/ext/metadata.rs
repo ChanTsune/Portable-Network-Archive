@@ -11,142 +11,64 @@ use std::{fs, io, path::Path, time::SystemTime};
 pub trait MetadataTimeExt: private::Sealed {
     /// Returns the created time.
     ///
-    /// # Panics
-    ///
-    /// Panics if the stored duration is outside the platform's representable
-    /// `SystemTime` range.
-    #[deprecated(
-        since = "0.34.0",
-        note = "panics for archive timestamps outside the platform's SystemTime range; use try_created_time or saturating_created_time"
-    )]
-    fn created_time(&self) -> Option<SystemTime>;
-    /// Returns the modified time.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the stored duration is outside the platform's representable
-    /// `SystemTime` range.
-    #[deprecated(
-        since = "0.34.0",
-        note = "panics for archive timestamps outside the platform's SystemTime range; use try_modified_time or saturating_modified_time"
-    )]
-    fn modified_time(&self) -> Option<SystemTime>;
-    /// Returns the accessed time.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the stored duration is outside the platform's representable
-    /// `SystemTime` range.
-    #[deprecated(
-        since = "0.34.0",
-        note = "panics for archive timestamps outside the platform's SystemTime range; use try_accessed_time or saturating_accessed_time"
-    )]
-    fn accessed_time(&self) -> Option<SystemTime>;
-    /// Returns the created time, or `Err` if the stored duration is outside
-    /// the platform's representable [`SystemTime`] range.
-    ///
     /// # Errors
     ///
     /// Returns [`SystemTimeOutOfRange`] when the stored duration cannot be
     /// represented as a [`SystemTime`] on the current platform.
     fn try_created_time(&self) -> Result<Option<SystemTime>, SystemTimeOutOfRange>;
-    /// Returns the modified time, or `Err` if the stored duration is outside
-    /// the platform's representable [`SystemTime`] range.
+    /// Returns the modified time.
     ///
     /// # Errors
     ///
     /// Returns [`SystemTimeOutOfRange`] when the stored duration cannot be
     /// represented as a [`SystemTime`] on the current platform.
     fn try_modified_time(&self) -> Result<Option<SystemTime>, SystemTimeOutOfRange>;
-    /// Returns the accessed time, or `Err` if the stored duration is outside
-    /// the platform's representable [`SystemTime`] range.
+    /// Returns the accessed time.
     ///
     /// # Errors
     ///
     /// Returns [`SystemTimeOutOfRange`] when the stored duration cannot be
     /// represented as a [`SystemTime`] on the current platform.
     fn try_accessed_time(&self) -> Result<Option<SystemTime>, SystemTimeOutOfRange>;
-    /// Returns the created time, clamping an out-of-range stored duration to
-    /// the platform's representable bound.
+    /// Returns the created time, using a platform-dependent fallback if it is
+    /// out of range.
+    ///
+    /// The fallback is a representable time on the same side of the Unix epoch,
+    /// or the Unix epoch if the platform cannot represent times on that side.
+    /// It need not be the platform's earliest or latest representable time.
     fn saturating_created_time(&self) -> Option<SystemTime>;
-    /// Returns the modified time, clamping an out-of-range stored duration to
-    /// the platform's representable bound.
+    /// Returns the modified time, using a platform-dependent fallback if it is
+    /// out of range.
+    ///
+    /// The fallback is a representable time on the same side of the Unix epoch,
+    /// or the Unix epoch if the platform cannot represent times on that side.
+    /// It need not be the platform's earliest or latest representable time.
     fn saturating_modified_time(&self) -> Option<SystemTime>;
-    /// Returns the accessed time, clamping an out-of-range stored duration to
-    /// the platform's representable bound.
+    /// Returns the accessed time, using a platform-dependent fallback if it is
+    /// out of range.
+    ///
+    /// The fallback is a representable time on the same side of the Unix epoch,
+    /// or the Unix epoch if the platform cannot represent times on that side.
+    /// It need not be the platform's earliest or latest representable time.
     fn saturating_accessed_time(&self) -> Option<SystemTime>;
-    /// Sets the created time.
+    /// Returns this metadata with the created time set.
+    ///
+    /// Clears the time if `time` is `None` or cannot be represented as a
+    /// libpna [`Duration`](libpna::Duration).
     fn with_created_time(self, time: impl Into<Option<SystemTime>>) -> Self;
-    /// Sets the modified time.
+    /// Returns this metadata with the modified time set.
+    ///
+    /// Clears the time if `time` is `None` or cannot be represented as a
+    /// libpna [`Duration`](libpna::Duration).
     fn with_modified_time(self, time: impl Into<Option<SystemTime>>) -> Self;
-    /// Sets the accessed time.
+    /// Returns this metadata with the accessed time set.
+    ///
+    /// Clears the time if `time` is `None` or cannot be represented as a
+    /// libpna [`Duration`](libpna::Duration).
     fn with_accessed_time(self, time: impl Into<Option<SystemTime>>) -> Self;
 }
 
 impl MetadataTimeExt for Metadata {
-    /// Returns the created time.
-    ///
-    /// This is the same as [Metadata::created] + [SystemTime::UNIX_EPOCH].
-    /// ```
-    /// # #![allow(deprecated)]
-    /// use pna::{Duration, Metadata, prelude::*};
-    /// use std::time::UNIX_EPOCH;
-    ///
-    /// let metadata = Metadata::new().with_created(Some(Duration::seconds(1000)));
-    ///
-    /// assert_eq!(
-    ///     metadata.created().map(|d| UNIX_EPOCH + d),
-    ///     metadata.created_time(),
-    /// );
-    /// ```
-    #[allow(deprecated)]
-    #[inline]
-    fn created_time(&self) -> Option<SystemTime> {
-        self.created().map(|it| SystemTime::UNIX_EPOCH + it)
-    }
-
-    /// Returns the modified time.
-    ///
-    /// This is the same as [Metadata::modified] + [SystemTime::UNIX_EPOCH].
-    /// ```
-    /// # #![allow(deprecated)]
-    /// use pna::{Duration, Metadata, prelude::*};
-    /// use std::time::UNIX_EPOCH;
-    ///
-    /// let metadata = Metadata::new().with_modified(Some(Duration::seconds(1000)));
-    ///
-    /// assert_eq!(
-    ///     metadata.modified().map(|d| UNIX_EPOCH + d),
-    ///     metadata.modified_time(),
-    /// );
-    /// ```
-    #[allow(deprecated)]
-    #[inline]
-    fn modified_time(&self) -> Option<SystemTime> {
-        self.modified().map(|it| SystemTime::UNIX_EPOCH + it)
-    }
-
-    /// Returns the accessed time.
-    ///
-    /// This is the same as [Metadata::accessed] + [SystemTime::UNIX_EPOCH].
-    /// ```
-    /// # #![allow(deprecated)]
-    /// use pna::{Duration, Metadata, prelude::*};
-    /// use std::time::UNIX_EPOCH;
-    ///
-    /// let metadata = Metadata::new().with_accessed(Some(Duration::seconds(1000)));
-    ///
-    /// assert_eq!(
-    ///     metadata.accessed().map(|d| UNIX_EPOCH + d),
-    ///     metadata.accessed_time(),
-    /// );
-    /// ```
-    #[allow(deprecated)]
-    #[inline]
-    fn accessed_time(&self) -> Option<SystemTime> {
-        self.accessed().map(|it| SystemTime::UNIX_EPOCH + it)
-    }
-
     #[inline]
     fn try_created_time(&self) -> Result<Option<SystemTime>, SystemTimeOutOfRange> {
         self.created().map(duration_to_system_time).transpose()
@@ -177,11 +99,14 @@ impl MetadataTimeExt for Metadata {
         self.accessed().map(saturating_duration_to_system_time)
     }
 
-    /// Sets the created time.
+    /// Returns this metadata with the created time set.
+    ///
+    /// Clears the time if `time` is `None` or cannot be represented as a
+    /// libpna [`Duration`](libpna::Duration).
     ///
     /// # Examples
+    ///
     /// ```
-    /// # #![allow(deprecated)]
     /// use pna::{Metadata, prelude::*};
     /// use std::time::{Duration, SystemTime, UNIX_EPOCH};
     ///
@@ -189,13 +114,13 @@ impl MetadataTimeExt for Metadata {
     /// // Time after Unix epoch will be preserved
     /// let after_epoch = UNIX_EPOCH + Duration::from_secs(1000);
     /// let metadata = Metadata::new().with_created_time(Some(after_epoch));
-    /// assert_eq!(metadata.created_time(), Some(after_epoch));
+    /// assert_eq!(metadata.saturating_created_time(), Some(after_epoch));
     ///
     /// # #[cfg(target_family = "wasm")]
     /// # return;
     /// let before_epoch = UNIX_EPOCH - Duration::from_secs(1);
     /// let metadata = Metadata::new().with_created_time(Some(before_epoch));
-    /// assert_eq!(metadata.created_time(), Some(before_epoch));
+    /// assert_eq!(metadata.saturating_created_time(), Some(before_epoch));
     /// # }
     /// ```
     #[inline]
@@ -203,11 +128,14 @@ impl MetadataTimeExt for Metadata {
         self.with_created(opt_system_time_to_duration(time.into()))
     }
 
-    /// Sets the modified time.
+    /// Returns this metadata with the modified time set.
+    ///
+    /// Clears the time if `time` is `None` or cannot be represented as a
+    /// libpna [`Duration`](libpna::Duration).
     ///
     /// # Examples
+    ///
     /// ```
-    /// # #![allow(deprecated)]
     /// use pna::{Metadata, prelude::*};
     /// use std::time::{Duration, SystemTime, UNIX_EPOCH};
     ///
@@ -215,13 +143,13 @@ impl MetadataTimeExt for Metadata {
     /// // Time after Unix epoch will be preserved
     /// let after_epoch = UNIX_EPOCH + Duration::from_secs(1000);
     /// let metadata = Metadata::new().with_modified_time(Some(after_epoch));
-    /// assert_eq!(metadata.modified_time(), Some(after_epoch));
+    /// assert_eq!(metadata.saturating_modified_time(), Some(after_epoch));
     ///
     /// # #[cfg(target_family = "wasm")]
     /// # return;
     /// let before_epoch = UNIX_EPOCH - Duration::from_secs(1);
     /// let metadata = Metadata::new().with_modified_time(Some(before_epoch));
-    /// assert_eq!(metadata.modified_time(), Some(before_epoch));
+    /// assert_eq!(metadata.saturating_modified_time(), Some(before_epoch));
     /// # }
     /// ```
     #[inline]
@@ -229,11 +157,14 @@ impl MetadataTimeExt for Metadata {
         self.with_modified(opt_system_time_to_duration(time.into()))
     }
 
-    /// Sets the accessed time.
+    /// Returns this metadata with the accessed time set.
+    ///
+    /// Clears the time if `time` is `None` or cannot be represented as a
+    /// libpna [`Duration`](libpna::Duration).
     ///
     /// # Examples
+    ///
     /// ```
-    /// # #![allow(deprecated)]
     /// use pna::{Metadata, prelude::*};
     /// use std::time::{Duration, SystemTime, UNIX_EPOCH};
     ///
@@ -241,13 +172,13 @@ impl MetadataTimeExt for Metadata {
     /// // Time after Unix epoch will be preserved
     /// let after_epoch = UNIX_EPOCH + Duration::from_secs(1000);
     /// let metadata = Metadata::new().with_accessed_time(Some(after_epoch));
-    /// assert_eq!(metadata.accessed_time(), Some(after_epoch));
+    /// assert_eq!(metadata.saturating_accessed_time(), Some(after_epoch));
     ///
     /// # #[cfg(target_family = "wasm")]
     /// # return;
     /// let before_epoch = UNIX_EPOCH - Duration::from_secs(1);
     /// let metadata = Metadata::new().with_accessed_time(Some(before_epoch));
-    /// assert_eq!(metadata.accessed_time(), Some(before_epoch));
+    /// assert_eq!(metadata.saturating_accessed_time(), Some(before_epoch));
     /// # }
     /// ```
     #[inline]
@@ -265,7 +196,8 @@ pub trait MetadataFsExt: private::Sealed {
     /// are preserved as owner facets as well.
     ///
     /// # Errors
-    /// Returns an error if converting from [`fs::Metadata`] fails.
+    ///
+    /// Currently never returns an error.
     fn from_metadata(metadata: &fs::Metadata) -> io::Result<Self>
     where
         Self: Sized;
@@ -292,6 +224,7 @@ impl MetadataFsExt for Metadata {
     /// ```
     ///
     /// # Errors
+    ///
     /// Currently never returns an error.
     #[inline]
     fn from_metadata(metadata: &fs::Metadata) -> io::Result<Self>
@@ -304,7 +237,7 @@ impl MetadataFsExt for Metadata {
 
 /// [`Metadata`] path-related extension methods.
 pub trait MetadataPathExt: private::Sealed {
-    /// Creates a new [`Metadata`] from the given path.
+    /// Creates a new [`Metadata`] from the given path, following symbolic links.
     ///
     /// # Errors
     ///
@@ -324,7 +257,7 @@ pub trait MetadataPathExt: private::Sealed {
 }
 
 impl MetadataPathExt for Metadata {
-    /// Creates a new [`Metadata`] from the given path.
+    /// Creates a new [`Metadata`] from the given path, following symbolic links.
     ///
     /// # Examples
     ///
@@ -333,6 +266,7 @@ impl MetadataPathExt for Metadata {
     ///
     /// Metadata::from_path("path/to/file");
     /// ```
+    ///
     /// # Errors
     ///
     /// Returns an error if [`std::fs::metadata`] returns an error.
@@ -354,6 +288,7 @@ impl MetadataPathExt for Metadata {
     ///
     /// Metadata::from_symlink_path("path/to/file");
     /// ```
+    ///
     /// # Errors
     ///
     /// Returns an error if [`std::fs::symlink_metadata`] returns an error.
@@ -387,7 +322,7 @@ fn fs_metadata_to_metadata(meta: &fs::Metadata) -> io::Result<Metadata> {
 }
 
 #[cfg(test)]
-mod time_ext_tests {
+mod tests {
     use super::*;
     use libpna::Duration;
 

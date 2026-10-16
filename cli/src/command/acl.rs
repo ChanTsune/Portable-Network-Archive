@@ -1,19 +1,17 @@
 use crate::{
     chunk::{Ace, AcePlatform, Flag, Identifier, OwnerType, Permission},
-    cli::{
-        FileArgs, PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs,
-    },
+    cli::{ArchiveFileArgs, FileOperands, PasswordArgs, SolidEntriesTransformStrategyArgs},
     command::{
         Command, ask_password,
         core::{
-            SplitArchiveReader, StagedArchive, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid, collect_split_archives,
+            SplitArchiveReader, Umask, collect_split_archives, resolve_rewrite_output,
+            rewrite::{EntryTransform, execute_archive_transform},
         },
     },
     ext::{Acls, NormalEntryExt},
-    utils::{GlobPatterns, PathPartExt},
+    utils::GlobPatterns,
 };
-use clap::{ArgGroup, Parser, ValueHint};
+use clap::{ArgAction, ArgGroup, Parser, ValueHint};
 use nom::{
     Parser as _,
     branch::alt,
@@ -24,8 +22,10 @@ use nom::{
 use pna::{Chunk, NormalEntry, RawChunk, ReadOptions};
 use regex::Regex;
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
     fs, io,
+    path::PathBuf,
     str::FromStr,
 };
 
@@ -62,7 +62,9 @@ pub(crate) struct GetAclCommand {
     #[arg(short, long, help = "List numeric user and group IDs")]
     numeric: bool,
     #[command(flatten)]
-    file: FileArgs,
+    archive: ArchiveFileArgs,
+    #[command(flatten)]
+    files: FileOperands,
     #[command(flatten)]
     password: PasswordArgs,
 }
@@ -77,10 +79,13 @@ impl Command for GetAclCommand {
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(
     group(ArgGroup::new("set-flags").args(["set", "modify"])),
+    group(ArgGroup::new("restore-source").args(["restore", "restore_from_stdin"])),
 )]
 pub(crate) struct SetAclCommand {
     #[command(flatten)]
-    file: FileArgs,
+    archive: ArchiveFileArgs,
+    #[command(flatten)]
+    files: FileOperands,
     #[arg(long, help = "Set the ACL on the specified file.")]
     set: Option<AclEntries>,
     #[arg(
@@ -92,7 +97,7 @@ pub(crate) struct SetAclCommand {
     #[arg(
         short = 'x',
         long,
-        help = "Remove the ACL entries specified there from the access or default ACL of the specified files."
+        help = "Remove the ACL entries specified there from the access or default ACLs of the specified files."
     )]
     remove: Option<AclEntries>,
     #[arg(
@@ -103,10 +108,30 @@ pub(crate) struct SetAclCommand {
     platform: AcePlatform,
     #[arg(
         long,
-        help = "Restore a permission backup created by `pna acl get *` or similar. All permissions of a complete directory subtree are restored using this mechanism. If a dash (-) is given as the file name, reads from standard input",
+        help = "Restore from a file a permission backup created by `pna acl get *` or similar. All permissions of a complete directory subtree are restored using this mechanism",
         value_hint = ValueHint::FilePath
     )]
-    restore: Option<String>,
+    restore: Option<PathBuf>,
+    #[arg(
+        long,
+        help = "Restore a permission backup created by `pna acl get *` or similar from standard input"
+    )]
+    restore_from_stdin: bool,
+    #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
+    output: Option<PathBuf>,
+    #[arg(
+        long,
+        conflicts_with = "no_overwrite",
+        help = "Overwrite the output file (rewrite in place when --output is omitted)"
+    )]
+    overwrite: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not overwrite output file. This is the inverse option of --overwrite",
+        requires = "output"
+    )]
+    no_overwrite: (),
     #[command(flatten)]
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
@@ -115,8 +140,8 @@ pub(crate) struct SetAclCommand {
 
 impl Command for SetAclCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
-        archive_set_acl(self)
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
+        archive_set_acl(self, ctx.umask())
     }
 }
 
@@ -280,15 +305,15 @@ impl FromStr for AclEntries {
 #[hooq::hooq(anyhow)]
 fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    if args.file.files.is_empty() {
+    if args.files.files.is_empty() {
         return Ok(());
     }
-    let files = args.file.files;
+    let files = args.files.files;
     let mut globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
     let platforms = args.platform.into_iter().collect::<HashSet<_>>();
     let numeric_owner = args.numeric;
 
-    let mut source = SplitArchiveReader::new(collect_split_archives(args.file.archive)?)?;
+    let mut source = SplitArchiveReader::new(collect_split_archives(args.archive.file)?)?;
     let read_options = ReadOptions::with_password(password.as_deref());
 
     source.for_each_entry(
@@ -327,10 +352,10 @@ fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
 }
 
 #[hooq::hooq(anyhow)]
-fn archive_set_acl(args: SetAclCommand) -> anyhow::Result<()> {
+fn archive_set_acl(args: SetAclCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    let files = args.file.files;
-    let mut set_strategy = if let Some("-") = args.restore.as_deref() {
+    let files = args.files.files;
+    let set_strategy = if args.restore_from_stdin {
         SetAclsStrategy::Restore(parse_acl_dump(io::stdin().lock())?)
     } else if let Some(path) = args.restore.as_deref() {
         SetAclsStrategy::Restore(parse_acl_dump(io::BufReader::new(fs::File::open(path)?))?)
@@ -347,32 +372,15 @@ fn archive_set_acl(args: SetAclCommand) -> anyhow::Result<()> {
         }
     };
 
-    let mut source = SplitArchiveReader::new(collect_split_archives(&args.file.archive)?)?;
-
-    let output_path = args.file.archive.remove_part();
-    let mut staged = StagedArchive::new(output_path)?;
-
-    match args.transform_strategy.strategy() {
-        SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
-            staged.as_file_mut(),
-            password.as_deref(),
-            #[hooq::skip_all]
-            |entry| Ok(Some(set_strategy.transform_entry(entry?))),
-            TransformStrategyUnSolid,
-        ),
-        SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
-            staged.as_file_mut(),
-            password.as_deref(),
-            #[hooq::skip_all]
-            |entry| Ok(Some(set_strategy.transform_entry(entry?))),
-            TransformStrategyKeepSolid,
-        ),
-    }?;
-
-    drop(source);
-
-    staged.commit(set_strategy.globs())?;
-    Ok(())
+    let destination = resolve_rewrite_output(&args.archive.file, args.output, args.overwrite)?;
+    execute_archive_transform(
+        &args.archive.file,
+        destination,
+        umask,
+        password.as_deref(),
+        args.transform_strategy.strategy(),
+        set_strategy,
+    )
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -453,6 +461,19 @@ impl SetAclsStrategy<'_> {
                 }
             }
         }
+    }
+}
+
+impl EntryTransform for SetAclsStrategy<'_> {
+    fn transform<'d>(
+        &mut self,
+        entry: NormalEntry<Cow<'d, [u8]>>,
+    ) -> io::Result<Option<NormalEntry<Cow<'d, [u8]>>>> {
+        Ok(Some(self.transform_entry(entry)))
+    }
+
+    fn patterns(&self) -> Option<&GlobPatterns<'_>> {
+        self.globs()
     }
 }
 
@@ -545,7 +566,10 @@ fn parse_acl_dump(reader: impl io::BufRead) -> io::Result<HashMap<String, Acls>>
         } else if let Some(file) = &current_file {
             let ace =
                 Ace::from_str(&line).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-            let file_entry = result.entry(file.clone()).or_insert_with(Acls::new);
+            let file_entry = match result.get_mut(file) {
+                Some(file_entry) => file_entry,
+                None => result.entry(file.to_owned()).or_insert_with(Acls::new),
+            };
             file_entry
                 .entry(current_platform.clone())
                 .or_default()

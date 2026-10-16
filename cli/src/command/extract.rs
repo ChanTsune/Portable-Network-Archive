@@ -1,21 +1,22 @@
 #[cfg(feature = "memmap")]
-use crate::command::core::{run_entries, run_entries_stoppable};
+use crate::command::core::{run_process_archive_bytes, run_process_archive_bytes_stoppable};
 use crate::ext::*;
 #[cfg(any(unix, windows))]
 use crate::utils::fs::lchown;
 use crate::{
-    cli::{DateTime, FileArgs, MissingTimePolicy, PasswordArgs},
+    cli::{ArchiveFileArgs, DateTime, FileOperands, MissingTimePolicy, PasswordArgs},
     command::{
-        Command, ask_password,
+        Command, ExitCodeError, ask_password,
         core::{
             AclStrategy, FflagsStrategy, KeepOptions, MacMetadataStrategy, ModeStrategy,
             OwnerOptions, OwnerStrategy, PathFilter, PathTransformers, PathnameEditor,
             PermissionStrategyResolver, ProcessAction, SafeWriter, TimeFilterResolver, TimeFilters,
             TimestampStrategy, TimestampStrategyResolver, Umask, XattrStrategy,
             collect_split_archives,
+            path::has_parent_dir_component,
             path_lock::OrderedPathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
-            read_paths, run_process_archive, run_process_archive_stoppable,
+            read_paths, run_process_archive_readers, run_process_archive_readers_stoppable,
         },
     },
     utils::{
@@ -273,7 +274,7 @@ pub(crate) struct ExtractCommand {
         long,
         requires_all = ["unstable", "time-filter"],
         help_heading = "Unstable Options",
-        help = "Behavior for entries missing a timestamp needed by the time filters (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]"
+        help = "Behavior for entries missing a timestamp needed by the time filters (unstable). Values: include, exclude, now, epoch, or a datetime. [default: epoch]"
     )]
     missing_time: Option<MissingTimePolicy>,
     #[arg(
@@ -304,8 +305,6 @@ pub(crate) struct ExtractCommand {
     exclude_from: Option<PathBuf>,
     #[arg(
         long,
-        requires = "unstable",
-        help_heading = "Unstable Options",
         help = "Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)"
     )]
     exclude_vcs: bool,
@@ -334,7 +333,7 @@ pub(crate) struct ExtractCommand {
         value_name = "PATTERN",
         requires = "unstable",
         help_heading = "Unstable Options",
-        help = "Modify file or archive member names according to pattern that like BSD tar -s option"
+        help = "Modify file or archive member names according to a pattern like the BSD tar -s option"
     )]
     substitutions: Option<Vec<SubstitutionRule>>,
     #[arg(
@@ -343,7 +342,7 @@ pub(crate) struct ExtractCommand {
         value_name = "PATTERN",
         requires = "unstable",
         help_heading = "Unstable Options",
-        help = "Modify file or archive member names according to pattern that like GNU tar -transform option"
+        help = "Modify file or archive member names according to a pattern like the GNU tar --transform option"
     )]
     transforms: Option<Vec<TransformRule>>,
     #[arg(
@@ -387,7 +386,9 @@ pub(crate) struct ExtractCommand {
     )]
     no_safe_writes: (),
     #[command(flatten)]
-    pub(crate) file: FileArgs,
+    pub(crate) archive: ArchiveFileArgs,
+    #[command(flatten)]
+    pub(crate) files: FileOperands,
 }
 
 impl Command for ExtractCommand {
@@ -400,7 +401,7 @@ impl Command for ExtractCommand {
 fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password).with_context(|| "reading password")?;
     let start = Instant::now();
-    let archive = args.file.archive;
+    let archive = args.archive.file;
     log::info!("Extract archive {}", PathWithCwd::new(&archive));
 
     let archives = collect_split_archives(&archive)
@@ -424,7 +425,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
 
-    let mut files = args.file.files;
+    let mut files = args.files.files;
     if let Some(path) = &args.files_from {
         files.extend(
             read_paths(path, args.null)
@@ -441,8 +442,8 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: args.missing_time.unwrap_or(MissingTimePolicy::Include),
-        missing_mtime: args.missing_time.unwrap_or(MissingTimePolicy::Include),
+        missing_ctime: args.missing_time.unwrap_or_default(),
+        missing_mtime: args.missing_time.unwrap_or_default(),
     }
     .resolve()?;
     let overwrite_strategy = OverwriteStrategy::from_flags(
@@ -504,7 +505,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         warned_lead_slash: Arc::new(AtomicBool::new(false)),
     };
     #[cfg(not(feature = "memmap"))]
-    run_extract_archive_reader(
+    let outcome = run_extract_archive_reader(
         archives
             .into_iter()
             .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
@@ -527,7 +528,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let archives = mmaps.iter().map(|m| m.as_ref());
 
     #[cfg(feature = "memmap")]
-    run_extract_archive(
+    let outcome = run_extract_archive(
         archives,
         files,
         || password.as_deref(),
@@ -540,6 +541,9 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         "Successfully extracted an archive in {}",
         DurationDisplay(start.elapsed())
     );
+    if outcome == Outcome::Warn {
+        return Err(anyhow::Error::from(ExitCodeError::silent(1)));
+    }
     Ok(())
 }
 
@@ -592,162 +596,38 @@ pub(crate) struct OutputOption<'a> {
 }
 
 pub(crate) fn run_extract_archive_reader<'a, 'p, Provider>(
-    reader: impl IntoIterator<Item = impl Read> + Send,
+    reader: impl IntoIterator<Item = impl Read>,
     files: Vec<String>,
     mut password_provider: Provider,
     args: OutputOption<'a>,
     no_recursive: bool,
     fast_read: bool,
     allow_concatenated_archives: bool,
-) -> anyhow::Result<()>
+) -> anyhow::Result<Outcome>
 where
     Provider: FnMut() -> Option<&'p [u8]> + Send,
 {
     let password = password_provider();
     let read_options = ReadOptions::with_password(password);
-    // Bind as a shared reference so `move` closures below (rayon::spawn_fifo)
-    // can capture a `Copy` reference instead of moving the `ReadOptions` value.
     let read_options = &read_options;
+    let args = &args;
     let patterns = files;
     let mut globs =
         BsdGlobMatcher::new(patterns.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
 
     let mut link_entries = Vec::new();
     let mut dir_metadata = Vec::new();
+    let mut security_skips = SecuritySkips::default();
 
-    #[cfg(not(target_family = "wasm"))]
-    {
-        let (tx, rx) = std::sync::mpsc::channel();
-        rayon::scope_fifo(|s| -> anyhow::Result<()> {
-            if fast_read && !globs.is_empty() {
-                run_process_archive_stoppable(
-                    reader,
-                    read_options,
-                    |entry| {
-                        let item = entry.map_err(|e| {
-                            io::Error::new(e.kind(), format!("reading archive entry: {e}"))
-                        })?;
-                        let item_path = item.name().to_string();
-                        let name =
-                            match filter_entry_fast_read(&item, &item_path, &mut globs, &args) {
-                                FastReadFilterAction::Skip(action) => return Ok(action),
-                                FastReadFilterAction::Accept(name) => name,
-                            };
-                        if args.verbose {
-                            eprintln!("x {}", name);
-                        }
-                        if args.to_stdout {
-                            extract_entry_to_stdout(&item, read_options)?;
-                            if globs.all_matched() {
-                                return Ok(ProcessAction::Stop);
-                            }
-                            return Ok(ProcessAction::Continue);
-                        }
-                        if matches!(
-                            item.header().data_kind(),
-                            DataKind::SYMBOLIC_LINK | DataKind::HARD_LINK
-                        ) {
-                            link_entries.push((name, item));
-                            if globs.all_matched() {
-                                return Ok(ProcessAction::Stop);
-                            }
-                            return Ok(ProcessAction::Continue);
-                        }
-                        if item.header().data_kind() == DataKind::DIRECTORY {
-                            if extract_directory_structure(&item, &name, &args).map_err(|e| {
-                                io::Error::new(e.kind(), format!("extracting {}: {e}", item.name()))
-                            })? {
-                                dir_metadata.push((name, item));
-                            }
-                            if globs.all_matched() {
-                                return Ok(ProcessAction::Stop);
-                            }
-                            return Ok(ProcessAction::Continue);
-                        }
-                        let path = build_output_path(args.out_dir.as_deref(), name.as_path());
-                        let ticket = args.ordered_path_locks.register(&path);
-                        let tx = tx.clone();
-                        let args = args.clone();
-                        let all_matched = globs.all_matched();
-                        s.spawn_fifo(move |_| {
-                            let _guard = ticket.wait_for_turn();
-                            tx.send(
-                                extract_file_entry(item, &name, read_options, &args)
-                                    .with_context(|| format!("extracting {}", item_path)),
-                            )
-                            .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
-                        });
-                        if all_matched {
-                            return Ok(ProcessAction::Stop);
-                        }
-                        Ok(ProcessAction::Continue)
-                    },
-                    allow_concatenated_archives,
-                )
-                .with_context(|| "streaming archive entries")?;
-            } else {
-                run_process_archive(
-                    reader,
-                    read_options,
-                    |entry| {
-                        let item = entry.map_err(|e| {
-                            io::Error::new(e.kind(), format!("reading archive entry: {e}"))
-                        })?;
-                        let Some(name) = filter_entry(&item, &mut globs, &args) else {
-                            return Ok(());
-                        };
-                        if args.verbose {
-                            eprintln!("x {}", name);
-                        }
-                        if args.to_stdout {
-                            return extract_entry_to_stdout(&item, read_options);
-                        }
-                        if matches!(
-                            item.header().data_kind(),
-                            DataKind::SYMBOLIC_LINK | DataKind::HARD_LINK
-                        ) {
-                            link_entries.push((name, item));
-                            return Ok(());
-                        }
-                        if item.header().data_kind() == DataKind::DIRECTORY {
-                            if extract_directory_structure(&item, &name, &args).map_err(|e| {
-                                io::Error::new(e.kind(), format!("extracting {}: {e}", item.name()))
-                            })? {
-                                dir_metadata.push((name, item));
-                            }
-                            return Ok(());
-                        }
-                        let path = build_output_path(args.out_dir.as_deref(), name.as_path());
-                        let ticket = args.ordered_path_locks.register(&path);
-                        let item_path = item.name().to_string();
-                        let tx = tx.clone();
-                        let args = args.clone();
-                        s.spawn_fifo(move |_| {
-                            let _guard = ticket.wait_for_turn();
-                            tx.send(
-                                extract_file_entry(item, &name, read_options, &args)
-                                    .with_context(|| format!("extracting {}", item_path)),
-                            )
-                            .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
-                        });
-                        Ok(())
-                    },
-                    allow_concatenated_archives,
-                )
-                .with_context(|| "streaming archive entries")?;
-            }
-            drop(tx);
-            Ok(())
-        })?;
-        for result in rx {
-            result?;
-        }
-    }
+    // On single-threaded targets (e.g. non-threaded WASM), spawned jobs cannot
+    // run until the reader closure returns, so queueing every entry would
+    // retain the whole archive in memory. Run sequentially instead.
+    let sequential = rayon::current_num_threads() <= 1;
 
-    #[cfg(target_family = "wasm")]
-    {
+    let (tx, rx) = std::sync::mpsc::channel();
+    rayon::in_place_scope_fifo(|s| -> anyhow::Result<()> {
         if fast_read && !globs.is_empty() {
-            run_process_archive_stoppable(
+            run_process_archive_readers_stoppable(
                 reader,
                 read_options,
                 |entry| {
@@ -755,8 +635,12 @@ where
                         io::Error::new(e.kind(), format!("reading archive entry: {e}"))
                     })?;
                     let item_path = item.name().to_string();
-                    let name = match filter_entry_fast_read(&item, &item_path, &mut globs, &args) {
+                    let name = match filter_entry_fast_read(&item, &item_path, &mut globs, args) {
                         FastReadFilterAction::Skip(action) => return Ok(action),
+                        FastReadFilterAction::SecuritySkip(action) => {
+                            security_skips.record(item_path.as_str());
+                            return Ok(action);
+                        }
                         FastReadFilterAction::Accept(name) => name,
                     };
                     if args.verbose {
@@ -780,7 +664,7 @@ where
                         return Ok(ProcessAction::Continue);
                     }
                     if item.header().data_kind() == DataKind::DIRECTORY {
-                        if extract_directory_structure(&item, &name, &args).map_err(|e| {
+                        if extract_directory_structure(&item, &name, args).map_err(|e| {
                             io::Error::new(e.kind(), format!("extracting {}: {e}", item.name()))
                         })? {
                             dir_metadata.push((name, item));
@@ -790,10 +674,26 @@ where
                         }
                         return Ok(ProcessAction::Continue);
                     }
-                    extract_file_entry(item, &name, read_options, &args).map_err(|e| {
-                        io::Error::new(e.kind(), format!("extracting {}: {e}", item_path))
-                    })?;
-                    if globs.all_matched() {
+                    let path = build_output_path(args.out_dir.as_deref(), name.as_path());
+                    let ticket = args.ordered_path_locks.register(&path);
+                    let all_matched = globs.all_matched();
+                    if sequential {
+                        let _guard = ticket.wait_for_turn();
+                        extract_file_entry(item, &name, read_options, args).map_err(|e| {
+                            io::Error::new(e.kind(), format!("extracting {}: {e}", item_path))
+                        })?;
+                    } else {
+                        let tx = tx.clone();
+                        s.spawn_fifo(move |_| {
+                            let _guard = ticket.wait_for_turn();
+                            tx.send(
+                                extract_file_entry(item, &name, read_options, args)
+                                    .with_context(|| format!("extracting {}", item_path)),
+                            )
+                            .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
+                        });
+                    }
+                    if all_matched {
                         return Ok(ProcessAction::Stop);
                     }
                     Ok(ProcessAction::Continue)
@@ -802,15 +702,20 @@ where
             )
             .with_context(|| "streaming archive entries")?;
         } else {
-            run_process_archive(
+            run_process_archive_readers(
                 reader,
                 read_options,
                 |entry| {
                     let item = entry.map_err(|e| {
                         io::Error::new(e.kind(), format!("reading archive entry: {e}"))
                     })?;
-                    let Some(name) = filter_entry(&item, &mut globs, &args) else {
-                        return Ok(());
+                    let name = match filter_entry(&item, &mut globs, args) {
+                        FilterResult::Skipped => return Ok(()),
+                        FilterResult::SecuritySkipped => {
+                            security_skips.record(item.name().as_str());
+                            return Ok(());
+                        }
+                        FilterResult::Accept(name) => name,
                     };
                     if args.verbose {
                         eprintln!("x {}", name);
@@ -826,27 +731,53 @@ where
                         return Ok(());
                     }
                     if item.header().data_kind() == DataKind::DIRECTORY {
-                        if extract_directory_structure(&item, &name, &args).map_err(|e| {
+                        if extract_directory_structure(&item, &name, args).map_err(|e| {
                             io::Error::new(e.kind(), format!("extracting {}: {e}", item.name()))
                         })? {
                             dir_metadata.push((name, item));
                         }
                         return Ok(());
                     }
-                    extract_file_entry(item, &name, read_options, &args).map_err(|e| {
-                        io::Error::new(e.kind(), format!("extracting {}: {e}", name))
-                    })?;
+                    let path = build_output_path(args.out_dir.as_deref(), name.as_path());
+                    let ticket = args.ordered_path_locks.register(&path);
+                    let item_path = item.name().to_string();
+                    if sequential {
+                        let _guard = ticket.wait_for_turn();
+                        extract_file_entry(item, &name, read_options, args).map_err(|e| {
+                            io::Error::new(e.kind(), format!("extracting {}: {e}", name))
+                        })?;
+                    } else {
+                        let tx = tx.clone();
+                        s.spawn_fifo(move |_| {
+                            let _guard = ticket.wait_for_turn();
+                            tx.send(
+                                extract_file_entry(item, &name, read_options, args)
+                                    .with_context(|| format!("extracting {}", item_path)),
+                            )
+                            .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
+                        });
+                    }
                     Ok(())
                 },
                 allow_concatenated_archives,
             )
             .with_context(|| "streaming archive entries")?;
         }
+        drop(tx);
+        Ok(())
+    })?;
+    if !sequential {
+        for result in rx {
+            result?;
+        }
     }
 
     for (name, item) in link_entries {
-        extract_link_entry(item, &name, read_options, &args)
+        let result = extract_link_entry(item, &name, read_options, args)
             .with_context(|| format!("extracting deferred link {name}"))?;
+        if result == ExtractResult::SecuritySkipped {
+            security_skips.record(name.as_str());
+        }
     }
 
     // Apply deferred directory metadata (deepest paths first, so child metadata
@@ -860,7 +791,12 @@ where
     }
 
     globs.ensure_all_matched()?;
-    Ok(())
+    if security_skips.is_empty() {
+        Ok::<Outcome, anyhow::Error>(Outcome::Success)
+    } else {
+        security_skips.report();
+        Ok::<Outcome, anyhow::Error>(Outcome::Warn)
+    }
 }
 
 #[cfg(feature = "memmap")]
@@ -872,32 +808,36 @@ pub(crate) fn run_extract_archive<'a, 'd, 'p, Provider>(
     args: OutputOption<'a>,
     no_recursive: bool,
     fast_read: bool,
-) -> anyhow::Result<()>
+) -> anyhow::Result<Outcome>
 where
     Provider: FnMut() -> Option<&'p [u8]> + Send,
 {
     let password = password_provider();
     let read_options = ReadOptions::with_password(password);
-    // Bind as a shared reference so `move` closures below (rayon::spawn_fifo)
-    // can capture a `Copy` reference instead of moving the `ReadOptions` value.
     let read_options = &read_options;
+    let args = &args;
     let mut globs =
         BsdGlobMatcher::new(files.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
 
     let mut link_entries: Vec<(EntryName, NormalEntry<Vec<u8>>)> = Vec::new();
     let mut dir_metadata: Vec<(EntryName, NormalEntry<Vec<u8>>)> = Vec::new();
+    let mut security_skips = SecuritySkips::default();
 
     let (tx, rx) = std::sync::mpsc::channel();
 
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
         if fast_read && !globs.is_empty() {
             #[hooq::skip_all]
-            run_entries_stoppable(archives, read_options, |entry| {
+            run_process_archive_bytes_stoppable(archives, read_options, |entry| {
                 let item = entry
                     .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
                 let item_path = item.name().to_string();
-                let name = match filter_entry_fast_read(&item, &item_path, &mut globs, &args) {
+                let name = match filter_entry_fast_read(&item, &item_path, &mut globs, args) {
                     FastReadFilterAction::Skip(action) => return Ok(action),
+                    FastReadFilterAction::SecuritySkip(action) => {
+                        security_skips.record(item_path.as_str());
+                        return Ok(action);
+                    }
                     FastReadFilterAction::Accept(name) => name,
                 };
                 if args.verbose {
@@ -921,7 +861,7 @@ where
                     return Ok(ProcessAction::Continue);
                 }
                 if item.header().data_kind() == DataKind::DIRECTORY {
-                    if extract_directory_structure(&item, &name, &args).map_err(|e| {
+                    if extract_directory_structure(&item, &name, args).map_err(|e| {
                         io::Error::new(e.kind(), format!("extracting {}: {e}", item.name()))
                     })? {
                         dir_metadata.push((name, item.into()));
@@ -934,12 +874,11 @@ where
                 let path = build_output_path(args.out_dir.as_deref(), name.as_path());
                 let ticket = args.ordered_path_locks.register(&path);
                 let tx = tx.clone();
-                let args = args.clone();
                 let all_matched = globs.all_matched();
                 s.spawn_fifo(move |_| {
                     let _guard = ticket.wait_for_turn();
                     tx.send(
-                        extract_file_entry(item, &name, read_options, &args)
+                        extract_file_entry(item, &name, read_options, args)
                             .with_context(|| format!("extracting {}", item_path)),
                     )
                     .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
@@ -952,11 +891,16 @@ where
             .with_context(|| "streaming archive entries")?;
         } else {
             #[hooq::skip_all]
-            run_entries(archives, read_options, |entry| {
+            run_process_archive_bytes(archives, read_options, |entry| {
                 let item = entry
                     .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
-                let Some(name) = filter_entry(&item, &mut globs, &args) else {
-                    return Ok(());
+                let name = match filter_entry(&item, &mut globs, args) {
+                    FilterResult::Skipped => return Ok(()),
+                    FilterResult::SecuritySkipped => {
+                        security_skips.record(item.name().as_str());
+                        return Ok(());
+                    }
+                    FilterResult::Accept(name) => name,
                 };
                 if args.verbose {
                     eprintln!("x {}", name);
@@ -972,7 +916,7 @@ where
                     return Ok(());
                 }
                 if item.header().data_kind() == DataKind::DIRECTORY {
-                    if extract_directory_structure(&item, &name, &args).map_err(|e| {
+                    if extract_directory_structure(&item, &name, args).map_err(|e| {
                         io::Error::new(e.kind(), format!("extracting {}: {e}", item.name()))
                     })? {
                         dir_metadata.push((name, item.into()));
@@ -983,11 +927,10 @@ where
                 let ticket = args.ordered_path_locks.register(&path);
                 let item_path = item.name().to_string();
                 let tx = tx.clone();
-                let args = args.clone();
                 s.spawn_fifo(move |_| {
                     let _guard = ticket.wait_for_turn();
                     tx.send(
-                        extract_file_entry(item, &name, read_options, &args)
+                        extract_file_entry(item, &name, read_options, args)
                             .with_context(|| format!("extracting {}", item_path)),
                     )
                     .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
@@ -1004,8 +947,11 @@ where
     }
 
     for (name, item) in link_entries {
-        extract_link_entry(item, &name, read_options, &args)
+        let result = extract_link_entry(item, &name, read_options, args)
             .with_context(|| format!("extracting deferred link {name}"))?;
+        if result == ExtractResult::SecuritySkipped {
+            security_skips.record(name.as_str());
+        }
     }
 
     // Apply deferred directory metadata (deepest paths first, so child metadata
@@ -1019,7 +965,12 @@ where
     }
 
     globs.ensure_all_matched()?;
-    Ok(())
+    if security_skips.is_empty() {
+        Ok::<Outcome, anyhow::Error>(Outcome::Success)
+    } else {
+        security_skips.report();
+        Ok::<Outcome, anyhow::Error>(Outcome::Warn)
+    }
 }
 
 #[inline]
@@ -1039,33 +990,124 @@ fn filter_entry<T: AsRef<[u8]>>(
     item: &NormalEntry<T>,
     globs: &mut BsdGlobMatcher<'_>,
     args: &OutputOption<'_>,
-) -> Option<EntryName>
+) -> FilterResult
 where
     pna::RawChunk<T>: Chunk,
 {
     let item_name = item.name();
     if !globs.is_empty() && !globs.matches(item_name) {
         log::debug!("Skip: {item_name}");
-        return None;
+        return FilterResult::Skipped;
     }
     if args.filter.excluded(item_name) {
         log::debug!("Skip: {item_name}");
-        return None;
+        return FilterResult::Skipped;
     }
     if !entry_matches_time_filters(item, &args.time_filters) {
         log::debug!("Skip: {item_name}");
-        return None;
+        return FilterResult::Skipped;
     }
-    let name = args.pathname_editor.edit_entry_name(item_name.as_path());
-    if name.is_none() {
+    let Some(name) = args.pathname_editor.edit_entry_name(item_name.as_path()) else {
+        // Distinguish security-related skips (path traversal) from benign skips
+        // (path became empty after sanitization, e.g. "." entries).
+        if has_parent_dir_component(item_name.as_str()) {
+            log::warn!("Skipping entry with unsafe path: {item_name}");
+            return FilterResult::SecuritySkipped;
+        }
         log::debug!("Skip: {item_name}");
+        return FilterResult::Skipped;
+    };
+    FilterResult::Accept(name)
+}
+
+/// Entries skipped for path-security reasons during a single extraction.
+///
+/// The reader callback runs single-threaded (parallelism is only introduced
+/// via explicitly spawned jobs that never touch this), and the deferred link
+/// loop runs after the rayon scope joins, so no synchronization is needed.
+///
+/// The summary is printed with `eprintln!` rather than `log::warn!` so it
+/// stays visible even when the log level is `error` (as used by the
+/// bsdtar-compat wrapper, where these skips fail conformance tests if silent).
+#[derive(Debug, Default)]
+struct SecuritySkips {
+    /// Total number of skipped entries.
+    count: usize,
+    /// Example paths, bounded to avoid unbounded memory on hostile archives.
+    samples: Vec<String>,
+}
+
+impl SecuritySkips {
+    /// Maximum number of skipped paths shown in the summary line.
+    const MAX_SAMPLES: usize = 5;
+
+    fn record(&mut self, path: &str) {
+        self.count += 1;
+        if self.samples.len() < Self::MAX_SAMPLES {
+            self.samples.push(path.to_owned());
+        }
     }
-    name
+
+    fn is_empty(&self) -> bool {
+        self.count == 0
+    }
+
+    /// Prints a one-line summary to stderr. Always visible (never log-gated).
+    fn report(&self) {
+        debug_assert!(!self.is_empty());
+        let mut line = format!(
+            "pna: warning: skipped {} {} due to path security violations: ",
+            self.count,
+            if self.count == 1 { "entry" } else { "entries" },
+        );
+        for (i, sample) in self.samples.iter().enumerate() {
+            if i > 0 {
+                line.push_str(", ");
+            }
+            line.push('"');
+            line.push_str(sample);
+            line.push('"');
+        }
+        if self.count > self.samples.len() {
+            line.push_str(&format!(", and {} more", self.count - self.samples.len()));
+        }
+        eprintln!("{line}");
+    }
+}
+
+/// Outcome of an extraction operation, tracking whether security warnings occurred.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum Outcome {
+    #[default]
+    Success,
+    Warn,
+}
+
+/// Result of filtering an entry before extraction.
+enum FilterResult {
+    /// Entry accepted for extraction.
+    Accept(EntryName),
+    /// Entry skipped by user-specified filters (glob, exclude, time).
+    Skipped,
+    /// Entry skipped due to path security violation (traversal, empty after strip).
+    SecuritySkipped,
+}
+
+/// Result of extracting a single entry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ExtractResult {
+    /// Entry successfully extracted.
+    Extracted,
+    /// Entry skipped by overwrite strategy (keep-newer, keep-older).
+    Skipped,
+    /// Entry skipped due to unsafe link target.
+    SecuritySkipped,
 }
 
 enum FastReadFilterAction {
     Accept(EntryName),
     Skip(ProcessAction),
+    SecuritySkip(ProcessAction),
 }
 
 fn filter_entry_fast_read<T: AsRef<[u8]>>(
@@ -1094,6 +1136,10 @@ where
         };
     }
     let Some(name) = args.pathname_editor.edit_entry_name(item.name().as_path()) else {
+        if has_parent_dir_component(item.name().as_str()) {
+            log::warn!("Skipping entry with unsafe path: {item_path}");
+            return FastReadFilterAction::SecuritySkip(ProcessAction::Continue);
+        }
         log::debug!("Skip: {item_path}");
         return FastReadFilterAction::Skip(ProcessAction::Continue);
     };
@@ -1296,7 +1342,7 @@ where
 /// Extracts a regular file entry from the archive to the filesystem.
 ///
 /// In parallel extraction contexts, the caller must hold a
-/// [`PathOrderGuard`](super::core::path_lock::PathOrderGuard) for the entry's
+/// [`PathOrderGuard`](crate::command::core::path_lock::PathOrderGuard) for the entry's
 /// output path to guarantee archive-order writes.
 pub(crate) fn extract_file_entry<'a, T>(
     item: NormalEntry<T>,
@@ -1337,7 +1383,7 @@ where
     };
 
     if *safe_writes {
-        let mut safe_writer = SafeWriter::new(&path)?;
+        let mut safe_writer = SafeWriter::new(&path, true)?;
         {
             let mut writer = io::BufWriter::with_capacity(64 * 1024, safe_writer.as_file_mut());
             let mut reader = item.reader(read_options)?;
@@ -1384,7 +1430,7 @@ pub(crate) fn extract_link_entry<'a, T>(
         warned_lead_slash,
         ..
     }: &OutputOption<'a>,
-) -> io::Result<()>
+) -> io::Result<ExtractResult>
 where
     T: AsRef<[u8]>,
     pna::RawChunk<T>: Chunk,
@@ -1398,7 +1444,7 @@ where
         *absolute_paths,
     )?
     else {
-        return Ok(());
+        return Ok(ExtractResult::Skipped);
     };
 
     match item.content(read_options)? {
@@ -1408,7 +1454,7 @@ where
                 log::warn!(
                     "Skipped extracting a symbolic link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
                 );
-                return Ok(());
+                return Ok(ExtractResult::SecuritySkipped);
             }
             if *safe_writes || remove_existing {
                 utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
@@ -1420,11 +1466,21 @@ where
             let Some((original, had_root)) =
                 pathname_editor.edit_hardlink(Path::new(stored.as_str()))
             else {
-                log::warn!(
-                    "Skipped extracting a hard link that pointed at a file which was skipped.: {}",
+                // A target that became empty after stripping (e.g. too short
+                // for --strip-components) is benign; only real traversal is
+                // a security skip. Mirrors the distinction in `filter_entry`.
+                if has_parent_dir_component(stored.as_str()) {
+                    log::warn!(
+                        "Skipped extracting a hard link that pointed at a file which was skipped.: {}",
+                        stored
+                    );
+                    return Ok(ExtractResult::SecuritySkipped);
+                }
+                log::debug!(
+                    "Skipped extracting a hard link whose target was stripped away: {}",
                     stored
                 );
-                return Ok(());
+                return Ok(ExtractResult::Skipped);
             };
             if had_root && !warned_lead_slash.swap(true, Ordering::Relaxed) {
                 eprintln!("bsdtar: Removing leading '/' from member names");
@@ -1433,7 +1489,7 @@ where
                 log::warn!(
                     "Skipped extracting a hard link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
                 );
-                return Ok(());
+                return Ok(ExtractResult::SecuritySkipped);
             }
             let original = if let Some(out_dir) = out_dir {
                 Cow::from(out_dir.join(original))
@@ -1450,7 +1506,7 @@ where
 
     restore_metadata(&item, &path, keep_options)?;
     log::debug!("end: {}", path.display());
-    Ok(())
+    Ok(ExtractResult::Extracted)
 }
 
 #[inline]
@@ -1557,14 +1613,13 @@ fn restore_path_timestamps(
     Ok(())
 }
 
-/// Restores entry metadata (timestamps for non-file entries, ownership, permissions, extended attributes, ACLs, and macOS metadata) according to the provided keep options.
+/// Restores entry metadata according to the provided keep options.
 ///
 /// - Timestamps are restored for non-file entries (symlinks, directories, hardlinks) via path-based API;
 ///   regular files are handled earlier by `restore_timestamps()` with an open file handle
 /// - Ownership is restored via `lchown` when `owner_strategy` is `Preserve` (does not follow symlinks)
 /// - Mode bits are restored when `mode_strategy` is `Preserve`, but skipped for symlinks since
 ///   `chmod()` follows symlinks and would corrupt the target's permissions
-/// - These are independent: `--keep-permission --no-same-owner` restores mode but not ownership
 fn restore_metadata<T>(
     item: &NormalEntry<T>,
     path: &Path,
@@ -1573,15 +1628,12 @@ fn restore_metadata<T>(
 where
     T: AsRef<[u8]>,
 {
-    // Restore timestamps for non-file entries (symlinks, directories, hardlinks).
-    // Regular files are handled by restore_timestamps() with an open file handle.
     // On WASM, path-based timestamp restoration is not supported (filetime limitation).
     #[cfg(not(target_family = "wasm"))]
     if item.header().data_kind() != DataKind::FILE {
         restore_path_timestamps(path, item.metadata(), keep_options)?;
     }
-    let ownership = crate::ext::ResolvedOwnership::from_metadata(item.metadata());
-    // Restore ownership when owner_strategy is Preserve (independent of mode).
+    let ownership = ResolvedOwnership::from_metadata(item.metadata());
     // A permission-mode-only entry (`fMOd`) is not owner identity and must not
     // fall back to uid/gid 0.
     if let OwnerStrategy::Preserve { options } = &keep_options.owner_strategy
@@ -1589,9 +1641,7 @@ where
     {
         restore_owner(path, &ownership, options)?;
     }
-    // Restore mode bits when configured.
-    // Skip for symlinks: symlink permissions are not settable via chmod() on most
-    // platforms, and chmod() follows symlinks, which would corrupt the target's permissions.
+    // Not settable via chmod() on most platforms.
     if item.header().data_kind() != DataKind::SYMBOLIC_LINK
         && let Some(mode) = ownership.mode
     {
@@ -1689,9 +1739,9 @@ where
 
 /// Restore POSIX/Windows ACLs on a filesystem path when ACL preservation is enabled.
 ///
-/// When `acl_strategy` is `AclStrategy::Always`, selects the ACL entries that match the current
-/// platform if present, otherwise uses the first available platform-tagged ACL set, and applies
-/// them to `path`. Empty ACL lists are ignored.
+/// When `acl_strategy` is `AclStrategy::Always`, selects the ACL entries matching the current
+/// platform when such entries are present; otherwise uses the first available platform-tagged
+/// ACL set, and applies them to `path`. Empty ACL lists are ignored.
 ///
 /// On platforms without ACL support, this emits a warning and returns successfully.
 /// On supported platforms, if the target filesystem does not support ACLs (e.g., FAT32),
@@ -1756,7 +1806,7 @@ fn restore_acls(
 /// 2. Override uname/gname if specified, searching by name
 /// 3. Archive's uname/gname with fallback to archive's uid/gid
 fn resolve_owner(
-    ownership: &crate::ext::ResolvedOwnership,
+    ownership: &ResolvedOwnership,
     uname_override: Option<&str>,
     gname_override: Option<&str>,
     uid_override: Option<u32>,
@@ -1778,7 +1828,7 @@ fn resolve_owner(
 }
 
 #[inline]
-fn should_restore_owner(ownership: &crate::ext::ResolvedOwnership, options: &OwnerOptions) -> bool {
+fn should_restore_owner(ownership: &ResolvedOwnership, options: &OwnerOptions) -> bool {
     ownership.has_posix_owner_identity() || options.has_overrides()
 }
 
@@ -1787,7 +1837,7 @@ fn should_restore_owner(ownership: &crate::ext::ResolvedOwnership, options: &Own
 #[inline]
 fn restore_owner(
     path: &Path,
-    ownership: &crate::ext::ResolvedOwnership,
+    ownership: &ResolvedOwnership,
     options: &OwnerOptions,
 ) -> io::Result<()> {
     #[cfg(any(unix, windows))]
@@ -2026,7 +2076,7 @@ mod tests {
 
     #[test]
     fn mode_only_metadata_does_not_request_owner_restore() {
-        let ownership = crate::ext::ResolvedOwnership {
+        let ownership = ResolvedOwnership {
             mode: Some(0o644),
             ..Default::default()
         };
@@ -2035,7 +2085,7 @@ mod tests {
 
     #[test]
     fn explicit_owner_override_requests_owner_restore_without_archive_owner() {
-        let ownership = crate::ext::ResolvedOwnership {
+        let ownership = ResolvedOwnership {
             mode: Some(0o644),
             ..Default::default()
         };
@@ -2048,7 +2098,7 @@ mod tests {
 
     #[test]
     fn archive_owner_identity_requests_owner_restore() {
-        let ownership = crate::ext::ResolvedOwnership {
+        let ownership = ResolvedOwnership {
             uid: Some(1000),
             mode: Some(0o644),
             ..Default::default()

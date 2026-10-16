@@ -1,9 +1,10 @@
 use libpna::{Archive, DataKind, ReadOptions};
 use std::io;
 
-fn extract_all(follows: &[&[u8]], password: Option<&str>) {
+fn extract_all(follows: &[&[u8]], password: Option<&str>, expected_entries: usize) {
     let mut idx = 0;
     let mut archive_reader = Archive::read_header(follows[idx]).unwrap();
+    let mut n = 0;
     loop {
         idx += 1;
         for entry in archive_reader.entries().skip_solid() {
@@ -22,6 +23,7 @@ fn extract_all(follows: &[&[u8]], password: Option<&str>) {
                 ),
                 a => panic!("Unexpected entry name {a}"),
             }
+            n += 1;
         }
         if archive_reader.has_next_archive() {
             archive_reader = archive_reader.read_next_archive(follows[idx]).unwrap();
@@ -29,6 +31,7 @@ fn extract_all(follows: &[&[u8]], password: Option<&str>) {
             break;
         }
     }
+    assert_eq!(n, expected_entries);
 }
 
 #[test]
@@ -39,5 +42,6 @@ fn extract_multipart_archive() {
             include_bytes!("../../resources/test/multipart.part2.pna"),
         ],
         None,
+        1,
     );
 }

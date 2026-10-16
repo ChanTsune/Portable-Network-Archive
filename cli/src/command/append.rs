@@ -1,7 +1,7 @@
 use crate::{
     cli::{
-        CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileArgs, HashAlgorithmArgs,
-        MissingTimePolicy, PasswordArgs,
+        ArchiveFileArgs, CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileOperands,
+        HashAlgorithmArgs, MissingTimePolicy, PasswordArgs,
     },
     command::{
         Command, ask_password,
@@ -324,8 +324,6 @@ pub(crate) struct AppendCommand {
     exclude_from: Option<PathBuf>,
     #[arg(
         long,
-        requires = "unstable",
-        help_heading = "Unstable Options",
         help = "Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)"
     )]
     exclude_vcs: bool,
@@ -356,7 +354,7 @@ pub(crate) struct AppendCommand {
         value_name = "PATTERN",
         requires = "unstable",
         help_heading = "Unstable Options",
-        help = "Modify file or archive member names according to pattern that like BSD tar -s option"
+        help = "Modify file or archive member names according to a pattern like the BSD tar -s option"
     )]
     substitutions: Option<Vec<SubstitutionRule>>,
     #[arg(
@@ -365,7 +363,7 @@ pub(crate) struct AppendCommand {
         value_name = "PATTERN",
         requires = "unstable",
         help_heading = "Unstable Options",
-        help = "Modify file or archive member names according to pattern that like GNU tar -transform option"
+        help = "Modify file or archive member names according to a pattern like the GNU tar --transform option"
     )]
     transforms: Option<Vec<TransformRule>>,
     #[command(flatten)]
@@ -377,7 +375,9 @@ pub(crate) struct AppendCommand {
     #[command(flatten)]
     pub(crate) hash: HashAlgorithmArgs,
     #[command(flatten)]
-    pub(crate) file: FileArgs,
+    pub(crate) archive: ArchiveFileArgs,
+    #[command(flatten)]
+    pub(crate) files: FileOperands,
 }
 
 impl Command for AppendCommand {
@@ -390,7 +390,7 @@ impl Command for AppendCommand {
 #[hooq::hooq(anyhow)]
 fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    let archive_path = args.file.archive;
+    let archive_path = args.archive.file;
     if !archive_path.exists() {
         anyhow::bail!("{} is not exists", archive_path.display());
     }
@@ -398,7 +398,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
     let option = entry_option(args.compression, args.cipher, args.hash, password);
     let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
         keep_permission: args.keep_permission,
-        same_owner: true, // Must be `true` for creation
+        same_owner: true, // Creation always stores ownership; same_owner only matters for extraction.
         uname: args.uname,
         gname: args.gname,
         uid: args.uid,
@@ -435,8 +435,8 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: MissingTimePolicy::Include,
-        missing_mtime: MissingTimePolicy::Include,
+        missing_ctime: MissingTimePolicy::default(),
+        missing_mtime: MissingTimePolicy::default(),
     }
     .resolve()?;
     let create_options = CreateOptions {
@@ -452,7 +452,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
 
     let archive = open_archive_then_seek_to_end(&archive_path, false)?;
 
-    let mut files = args.file.files;
+    let mut files = args.files.files;
     if args.files_from_stdin {
         files.extend(read_paths_stdin(args.null)?);
     } else if let Some(path) = args.files_from {

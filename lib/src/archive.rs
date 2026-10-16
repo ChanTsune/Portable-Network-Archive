@@ -2,34 +2,34 @@
 
 mod header;
 mod read;
+mod split_parts;
 mod write;
 
 use crate::{
-    chunk::{ChunkStreamWriter, RawChunk},
+    PNA_SIGNATURE,
+    chunk::{ChunkStreamWriter, ChunkType, RawChunk},
     cipher::CipherWriter,
     compress::CompressionWriter,
+    io::WriteChunk,
 };
 use core::num::NonZeroU32;
 pub(crate) use header::*;
-use std::io::prelude::*;
+pub use split_parts::{MIN_SPLIT_PART_BYTES, SplitParts};
+use std::io::{self, Write};
 pub(crate) use write::*;
 
-/// Provides read and write access to a PNA file.
-///
-/// An instance of an [`Archive`] can be read and/or written.
-///
-/// The [`Archive`] struct provides two main modes of operation:
-/// - Read mode: Allows reading entries from an existing PNA file
-/// - Write mode: Enables creating new entries and writing data to the archive
-///
-/// The archive supports various features including:
-/// - Multiple compression algorithms
-/// - Encryption options
-/// - Solid and non-solid modes
-/// - Chunk-based storage
+fn write_archive_framing<W: Write>(writer: &mut W, header: &ArchiveHeader) -> io::Result<()> {
+    writer.write_all(PNA_SIGNATURE)?;
+    crate::io::write_chunk(writer, (ChunkType::AHED, header.to_bytes()))?;
+    Ok(())
+}
+
+/// A reader or writer for a PNA archive.
 ///
 /// # Examples
+///
 /// Creates a new PNA file and adds an entry to it.
+///
 /// ```no_run
 /// # use libpna::{Archive, FileEntryBuilder, WriteOptions};
 /// # use std::fs::File;
@@ -49,6 +49,7 @@ pub(crate) use write::*;
 /// ```
 ///
 /// Reads the entries of a PNA file.
+///
 /// ```no_run
 /// # use libpna::{Archive, ReadOptions};
 /// # use std::fs::File;
@@ -70,7 +71,7 @@ pub struct Archive<T> {
     inner: T,
     header: ArchiveHeader,
     max_chunk_size: Option<NonZeroU32>,
-    // following fields are only use in reader mode
+    // The following fields are only used in reader mode.
     next_archive: bool,
     buf: Vec<RawChunk>,
 }
@@ -90,21 +91,16 @@ impl<T> Archive<T> {
         }
     }
 
-    /// Sets the maximum chunk size limit.
+    /// Sets the maximum chunk data length.
     ///
-    /// When set, this limit affects both reading and writing:
-    /// - **Reading**: Chunks larger than this size will be rejected with an error,
-    ///   protecting against maliciously crafted archives with extremely large chunks.
-    /// - **Writing**: Data written via [`write_file()`](Archive::write_file) or
-    ///   [`write_opaque()`](Archive::write_opaque) will be split into chunks no
-    ///   larger than this size.
+    /// Reading entries rejects chunk data exceeding `size`. Writing splits data
+    /// from [`Self::write_file`], [`Self::write_opaque`], and the solid stream
+    /// opened by [`Self::write_solid_with`] into chunks with at most `size` data
+    /// bytes.
     ///
-    /// **Note**: This setting only affects the streaming write path
-    /// ([`write_file()`](Archive::write_file) and
-    /// [`write_opaque()`](Archive::write_opaque)). Pre-built entries added via
-    /// [`add_entry()`](Archive::add_entry) use their own chunk size configured
-    /// through [`FileEntryBuilder::max_chunk_size()`](crate::FileEntryBuilder::max_chunk_size).
-    ///
+    /// Pre-built entries added with [`Self::add_entry`] retain their chunk sizes.
+    /// Set those sizes with
+    /// [`FileEntryBuilder::max_chunk_size`](crate::FileEntryBuilder::max_chunk_size).
     #[inline]
     pub fn set_max_chunk_size(&mut self, size: NonZeroU32) {
         self.max_chunk_size = Some(size);
@@ -118,40 +114,21 @@ impl<T> Archive<T> {
         self.next_archive
     }
 
-    /// Consumes the archive and returns the underlying reader or writer.
+    /// Consumes this archive, returning the underlying reader or writer.
     ///
-    /// # Warning
-    ///
-    /// This method does not finalize the archive. If you are writing to an
-    /// archive, call [`Archive::finalize`] first to ensure the end-of-archive
-    /// marker is written. Using `into_inner` on a writer without finalizing
-    /// leaves the archive incomplete.
+    /// This does not write the end-of-archive marker, leaving an archive opened
+    /// for writing incomplete. Use [`Archive::finalize`] to finish writing and
+    /// return the writer.
     ///
     /// # Examples
     ///
-    /// For normal archive completion, prefer [`Archive::finalize`] which writes
-    /// the end-of-archive marker and returns the inner writer:
-    ///
     /// ```
     /// # use libpna::Archive;
     /// # use std::io;
     /// # fn main() -> io::Result<()> {
-    /// let archive = Archive::write_header(Vec::new())?;
-    /// let writer = archive.finalize()?; // Preferred: archive is properly closed
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// Use `into_inner` when you need to abandon an archive or access the
-    /// underlying reader:
-    ///
-    /// ```
-    /// # use libpna::Archive;
-    /// # use std::io;
-    /// # fn main() -> io::Result<()> {
-    /// let file = std::io::Cursor::new(include_bytes!("../../resources/test/empty.pna").to_vec());
-    /// let archive = Archive::read_header(file)?;
-    /// let _reader = archive.into_inner(); // Safe for readers
+    /// let bytes = Archive::write_header(Vec::new())?.finalize()?;
+    /// let archive = Archive::read_header(bytes.as_slice())?;
+    /// let reader = archive.into_inner();
     /// # Ok(())
     /// # }
     /// ```
@@ -162,20 +139,15 @@ impl<T> Archive<T> {
     }
 }
 
-/// Provides write access to solid mode PNA files.
+/// A writer for a PNA archive containing a single [`SolidEntry`](crate::SolidEntry).
 ///
-/// In solid mode, all entries are compressed together as a single unit,
-/// which typically results in better compression ratios compared to
-/// non-solid mode. However, this means that individual entries cannot
-/// be accessed randomly - they must be read sequentially.
-///
-/// Key features of solid mode:
-/// - Improved compression ratio
-/// - Sequential access only
-/// - Single compression/encryption context for all entries
+/// Entries share the compression and encryption specified when the archive is
+/// created.
 ///
 /// # Examples
+///
 /// Creates a new solid mode PNA file and adds an entry to it.
+///
 /// ```no_run
 /// use libpna::{Archive, FileEntryBuilder, WriteOptions};
 /// use std::fs::File;
@@ -193,7 +165,7 @@ impl<T> Archive<T> {
 /// #     Ok(())
 /// # }
 /// ```
-pub struct SolidArchive<T: Write> {
+pub struct SolidArchive<T: WriteChunk> {
     archive_header: ArchiveHeader,
     inner: CompressionWriter<CipherWriter<ChunkStreamWriter<T>>>,
     max_chunk_size: Option<NonZeroU32>,
@@ -203,7 +175,7 @@ pub struct SolidArchive<T: Write> {
 mod tests {
     use super::*;
     use crate::{Duration, PNA_SIGNATURE, entry::*};
-    use std::io::{self, Cursor};
+    use std::io::{self, Cursor, Read, Write};
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
@@ -255,7 +227,7 @@ mod tests {
                 .compression(Compression::NO)
                 .encryption(Encryption::AES)
                 .cipher_mode(CipherMode::CBC)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"))
                 .build(),
         )
@@ -270,7 +242,7 @@ mod tests {
                 .compression(Compression::ZSTANDARD)
                 .encryption(Encryption::AES)
                 .cipher_mode(CipherMode::CTR)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"))
                 .build(),
         )
@@ -285,7 +257,7 @@ mod tests {
                 .compression(Compression::ZSTANDARD)
                 .encryption(Encryption::AES)
                 .cipher_mode(CipherMode::CBC)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"))
                 .build(),
         )
@@ -300,7 +272,7 @@ mod tests {
                 .compression(Compression::ZSTANDARD)
                 .encryption(Encryption::CAMELLIA)
                 .cipher_mode(CipherMode::CTR)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"))
                 .build(),
         )
@@ -315,7 +287,7 @@ mod tests {
                 .compression(Compression::ZSTANDARD)
                 .encryption(Encryption::CAMELLIA)
                 .cipher_mode(CipherMode::CBC)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"))
                 .build(),
         )
@@ -330,7 +302,7 @@ mod tests {
                 .compression(Compression::XZ)
                 .encryption(Encryption::AES)
                 .cipher_mode(CipherMode::CBC)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"))
                 .build(),
         )
@@ -345,7 +317,7 @@ mod tests {
                 .compression(Compression::XZ)
                 .encryption(Encryption::CAMELLIA)
                 .cipher_mode(CipherMode::CBC)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"))
                 .build(),
         )
@@ -488,7 +460,7 @@ mod tests {
     fn read_options_cache_is_reused_across_solid_blocks() {
         let write_options = WriteOptions::builder()
             .encryption(Encryption::AES)
-            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
             .password(Some("password"))
             .try_build()
             .unwrap();
@@ -597,10 +569,231 @@ mod tests {
                 .compression(Compression::NO)
                 .encryption(Encryption::CAMELLIA)
                 .cipher_mode(CipherMode::CBC)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("PASSWORD"))
                 .build(),
         );
+    }
+
+    fn text_entry(name: &str, body: &str) -> NormalEntry {
+        let mut builder = FileEntryBuilder::new(name.into()).unwrap();
+        builder.write_all(body.as_bytes()).unwrap();
+        builder.build().unwrap()
+    }
+
+    fn read_texts(bytes: &[u8], password: Option<&str>) -> Vec<(String, String)> {
+        let read_options = ReadOptions::with_password(password);
+        let mut archive = Archive::read_header(bytes).unwrap();
+        archive
+            .entries_with_options(&read_options)
+            .map(|entry| {
+                let entry = entry.unwrap();
+                let name = entry.header().path().to_string();
+                let mut body = String::new();
+                entry
+                    .reader(read_options.clone())
+                    .unwrap()
+                    .read_to_string(&mut body)
+                    .unwrap();
+                (name, body)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn write_solid_with_mixes_solid_and_normal_entries() {
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        archive
+            .add_entry(text_entry("outer/before.txt", "before"))
+            .unwrap();
+        archive
+            .write_solid_with(WriteOptions::store(), |solid| {
+                solid.add_entry(text_entry("inner/a.txt", "solid a"))?;
+                solid.add_entry(text_entry("inner/b.txt", "solid b"))
+            })
+            .unwrap();
+        archive
+            .add_entry(text_entry("outer/after.txt", "after"))
+            .unwrap();
+        let buf = archive.finalize().unwrap();
+
+        assert_eq!(
+            read_texts(&buf, None),
+            [
+                ("outer/before.txt".into(), "before".into()),
+                ("inner/a.txt".into(), "solid a".into()),
+                ("inner/b.txt".into(), "solid b".into()),
+                ("outer/after.txt".into(), "after".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn write_solid_with_returns_closure_value() {
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        let value = archive
+            .write_solid_with(WriteOptions::store(), |_| Ok(42))
+            .unwrap();
+        archive.finalize().unwrap();
+
+        assert_eq!(value, 42);
+    }
+
+    #[test]
+    fn write_solid_with_empty_block_roundtrips() {
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        archive
+            .write_solid_with(WriteOptions::store(), |_| Ok(()))
+            .unwrap();
+        archive.add_entry(text_entry("after.txt", "after")).unwrap();
+        let buf = archive.finalize().unwrap();
+
+        assert_eq!(
+            read_texts(&buf, None),
+            [("after.txt".into(), "after".into())]
+        );
+    }
+
+    #[test]
+    fn write_solid_with_zstd_aes_ctr_roundtrips() {
+        let options = WriteOptions::builder()
+            .compression(Compression::ZSTANDARD)
+            .encryption(Encryption::AES)
+            .cipher_mode(CipherMode::CTR)
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
+            .password(Some("password"))
+            .build();
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        archive
+            .write_solid_with(options, |solid| {
+                solid.add_entry(text_entry("inner/secret.txt", "secret body"))
+            })
+            .unwrap();
+        let buf = archive.finalize().unwrap();
+
+        assert_eq!(
+            read_texts(&buf, Some("password")),
+            [("inner/secret.txt".into(), "secret body".into())]
+        );
+    }
+
+    #[test]
+    fn write_solid_with_consecutive_blocks_roundtrip() {
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        archive
+            .write_solid_with(WriteOptions::store(), |solid| {
+                solid.add_entry(text_entry("first/a.txt", "first"))
+            })
+            .unwrap();
+        archive
+            .write_solid_with(WriteOptions::store(), |solid| {
+                solid.add_entry(text_entry("second/b.txt", "second"))
+            })
+            .unwrap();
+        let buf = archive.finalize().unwrap();
+
+        assert_eq!(
+            read_texts(&buf, None),
+            [
+                ("first/a.txt".into(), "first".into()),
+                ("second/b.txt".into(), "second".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn write_solid_with_write_file_roundtrips() {
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        archive
+            .write_solid_with(WriteOptions::store(), |solid| {
+                solid.write_file("inner/streamed.txt".into(), Metadata::new(), |writer| {
+                    writer.write_all(b"streamed body")
+                })
+            })
+            .unwrap();
+        let buf = archive.finalize().unwrap();
+
+        assert_eq!(
+            read_texts(&buf, None),
+            [("inner/streamed.txt".into(), "streamed body".into())]
+        );
+    }
+
+    #[test]
+    fn write_solid_with_frames_block_between_normal_entries() {
+        use crate::chunk::{Chunk, ChunkType};
+
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        archive
+            .add_entry(text_entry("before.txt", "before"))
+            .unwrap();
+        archive
+            .write_solid_with(WriteOptions::store(), |solid| {
+                solid.add_entry(text_entry("inner.txt", "inner"))
+            })
+            .unwrap();
+        archive.add_entry(text_entry("after.txt", "after")).unwrap();
+        let buf = archive.finalize().unwrap();
+
+        let mut types: Vec<ChunkType> = crate::read_as_chunks(&buf[..])
+            .unwrap()
+            .map(|chunk| chunk.unwrap().ty())
+            .collect();
+        types.dedup();
+        assert_eq!(
+            types,
+            [
+                ChunkType::AHED,
+                ChunkType::FHED,
+                ChunkType::fSIZ,
+                ChunkType::FDAT,
+                ChunkType::FEND,
+                ChunkType::SHED,
+                ChunkType::SDAT,
+                ChunkType::SEND,
+                ChunkType::FHED,
+                ChunkType::fSIZ,
+                ChunkType::FDAT,
+                ChunkType::FEND,
+                ChunkType::AEND,
+            ]
+        );
+    }
+
+    #[test]
+    fn write_solid_with_splits_sdat_at_max_chunk_size() {
+        use crate::chunk::{Chunk, ChunkType};
+
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        archive.set_max_chunk_size(NonZeroU32::new(64).unwrap());
+        archive
+            .write_solid_with(WriteOptions::store(), |solid| {
+                solid.add_entry(text_entry("inner.txt", &"x".repeat(500)))
+            })
+            .unwrap();
+        let buf = archive.finalize().unwrap();
+
+        let sdat_lengths = crate::read_as_chunks(&buf[..])
+            .unwrap()
+            .map(|chunk| chunk.unwrap())
+            .filter(|chunk| chunk.ty() == ChunkType::SDAT)
+            .map(|chunk| chunk.length())
+            .collect::<Vec<_>>();
+
+        assert!(sdat_lengths.contains(&64));
+        assert!(sdat_lengths.iter().all(|length| *length <= 64));
+    }
+
+    #[test]
+    fn write_solid_with_propagates_closure_error() {
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        let err = archive
+            .write_solid_with(WriteOptions::store(), |_| {
+                Err::<(), _>(io::Error::other("boom"))
+            })
+            .unwrap_err();
+
+        assert_eq!(err.to_string(), "boom");
     }
 
     #[test]
@@ -694,27 +887,24 @@ mod tests {
         assert!(entries.next().is_none());
     }
 
-    #[allow(deprecated)]
     #[test]
     fn metadata() {
         let original_entry = {
             let mut builder =
                 FileEntryBuilder::new_with_options("name".into(), WriteOptions::builder().build())
                     .unwrap();
+            builder.write_all(b"entry data").unwrap();
             builder.metadata(
                 Metadata::new()
                     .with_created(Some(Duration::seconds(31)))
                     .with_modified(Some(Duration::seconds(32)))
                     .with_accessed(Some(Duration::seconds(33)))
-                    .with_permission(Some(Permission::new(
-                        1,
-                        "uname".into(),
-                        2,
-                        "gname".into(),
-                        0o775,
-                    ))),
+                    .with_owner_uid(Some(OwnerUid::from(1)))
+                    .with_owner_gid(Some(OwnerGid::from(2)))
+                    .with_owner_user_name(Some(OwnerUserName::new("uname").unwrap()))
+                    .with_owner_group_name(Some(OwnerGroupName::new("gname").unwrap()))
+                    .with_permission_mode(Some(PermissionMode::from(0o775))),
             );
-            builder.write_all(b"entry data").unwrap();
             builder.build().unwrap()
         };
 
@@ -740,9 +930,19 @@ mod tests {
             original_entry.metadata().accessed(),
             read_entry.metadata().accessed()
         );
+        assert_eq!(read_entry.metadata().owner_uid().map(|v| v.get()), Some(1));
+        assert_eq!(read_entry.metadata().owner_gid().map(|v| v.get()), Some(2));
         assert_eq!(
-            original_entry.metadata().permission(),
-            read_entry.metadata().permission()
+            read_entry.metadata().owner_user_name().map(|v| v.as_str()),
+            Some("uname")
+        );
+        assert_eq!(
+            read_entry.metadata().owner_group_name().map(|v| v.as_str()),
+            Some("gname")
+        );
+        assert_eq!(
+            read_entry.metadata().permission_mode().map(|v| v.get()),
+            Some(0o775)
         );
         assert_eq!(
             original_entry.metadata().compressed_size(),
@@ -771,7 +971,7 @@ mod tests {
                 .compression(compression)
                 .encryption(encryption)
                 .cipher_mode(CipherMode::GCM)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"));
             builder.segment_size(segment_size);
             builder.build()
@@ -946,16 +1146,6 @@ mod tests {
         }
 
         #[test]
-        fn chunk_split_default() {
-            let options = gcm_options(Encryption::AES, Compression::NO, 4);
-            let archived = per_entry_archive(&options, REPRESENTATIVE, None);
-            assert_eq!(
-                read_per_entry(&archived, Some("password")).unwrap(),
-                REPRESENTATIVE
-            );
-        }
-
-        #[test]
         fn chunk_split_one_byte() {
             let options = gcm_options(Encryption::AES, Compression::NO, 4);
             let archived = per_entry_archive(&options, REPRESENTATIVE, Some(1));
@@ -1031,9 +1221,8 @@ mod tests {
             assert_eq!(out, REPRESENTATIVE);
         }
 
-        /// Copying re-serializes the parsed header, so the entry stays
-        /// decryptable only while that reproduces the header bytes the stream key
-        /// was derived from.
+        /// Copying re-serializes the parsed header, so the entry stays decryptable only while this
+        /// re-serialization reproduces the header bytes the stream key was derived from.
         #[test]
         fn copied_entry_remains_decryptable() {
             let options = gcm_options(Encryption::AES, Compression::NO, 4);
@@ -1055,6 +1244,7 @@ mod tests {
         /// A datastream carried across an `ANXT` boundary reaches the decoder as
         /// one stream, so the segment look-ahead must not read the end of a part
         /// as the end of the datastream and verify a non-final segment as final.
+        #[allow(deprecated)]
         #[test]
         fn entry_split_across_archive_parts_remains_decryptable() {
             let options = gcm_options(Encryption::AES, Compression::NO, 4);
@@ -1132,7 +1322,7 @@ mod tests {
                 .compression(Compression::NO)
                 .encryption(Encryption::AES)
                 .cipher_mode(CipherMode::GCM)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some(PASSWORD));
             builder.segment_size(segment_size);
             builder.build()

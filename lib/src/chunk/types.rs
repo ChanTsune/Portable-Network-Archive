@@ -74,7 +74,7 @@ impl From<ChunkTypeError> for io::Error {
 ///
 /// - **Timestamps**: [`cTIM`](Self::cTIM), [`mTIM`](Self::mTIM), [`aTIM`](Self::aTIM)
 ///   (seconds), [`cTNS`](Self::cTNS), [`mTNS`](Self::mTNS), [`aTNS`](Self::aTNS) (nanoseconds)
-/// - **File info**: [`fSIZ`](Self::fSIZ) (size), [`fPRM`](Self::fPRM) (permissions)
+/// - **File info**: [`fSIZ`](Self::fSIZ) (size)
 /// - **Link info**: [`fLTP`](Self::fLTP) (link target type)
 /// - **Extended attributes**: [`xATR`](Self::xATR)
 ///
@@ -115,7 +115,7 @@ impl ChunkType {
     /// Solid mode data stream end marker.
     pub const SEND: ChunkType = ChunkType(*b"SEND");
 
-    // -- Auxiliary chunks --
+    // -- Ancillary chunks --
     /// Raw file size.
     #[allow(non_upper_case_globals)]
     pub const fSIZ: ChunkType = ChunkType(*b"fSIZ");
@@ -137,13 +137,11 @@ impl ChunkType {
     /// Nanoseconds for last accessed datetime.
     #[allow(non_upper_case_globals)]
     pub const aTNS: ChunkType = ChunkType(*b"aTNS");
-    /// Entry permissions.
+    /// Legacy entry permissions, superseded by the owner facet chunks
+    /// (`fUId`/`fGId`/`fONm`/`fGNm`/`fOSi`/`fGSi`/`fMOd`). libpna never
+    /// writes this chunk; it exists only so the reader can still decode it.
     #[allow(non_upper_case_globals)]
-    #[deprecated(
-        since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks fUId/fGId/fONm/fGNm/fOSi/fGSi/fMOd"
-    )]
-    pub const fPRM: ChunkType = ChunkType(*b"fPRM");
+    pub(crate) const fPRM: ChunkType = ChunkType(*b"fPRM");
     /// Extended attribute.
     #[allow(non_upper_case_globals)]
     pub const xATR: ChunkType = ChunkType(*b"xATR");
@@ -261,23 +259,18 @@ impl ChunkType {
 
     /// Creates a custom [`ChunkType`] without validation.
     ///
-    /// # Display behavior
-    /// If bytes are invalid UTF-8, they are rendered as lowercase hex bytes.
-    /// ```rust
-    /// # use libpna::ChunkType;
-    ///
-    /// let custom_chunk_type = unsafe { ChunkType::from_unchecked([0xe3, 0x81, 0x82, 0xe3]) };
-    /// assert_eq!(format!("{}", custom_chunk_type), "[e3, 81, 82, e3]");
-    /// ```
-    ///
     /// # Safety
+    ///
     /// Callers must ensure the value consists only of ASCII alphabetic
     /// characters ('a'..'z' and 'A'..'Z').
+    ///
+    /// # Examples
+    ///
     /// ```rust
     /// # use libpna::ChunkType;
     ///
     /// let custom_chunk_type = unsafe { ChunkType::from_unchecked(*b"myTy") };
-    /// format!("{}", custom_chunk_type);
+    /// assert_eq!(custom_chunk_type.to_string(), "myTy");
     /// ```
     #[inline]
     pub const unsafe fn from_unchecked(ty: [u8; 4]) -> Self {

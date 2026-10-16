@@ -720,7 +720,7 @@ bitflags! {
         /// CHANGE_OWNER permission for a file or directory.
         const CHOWN = 0b1000000000000;
 
-        /// SYNCHRONIZE permission (unsupported).
+        /// SYNCHRONIZE permission.
         const SYNC = 0b10000000000000;
 
         /// NFSv4 READ_DATA permission.

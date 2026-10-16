@@ -44,24 +44,18 @@ pub(crate) trait ChunkExt: Chunk {
 
 impl<T> ChunkExt for T where T: Chunk {}
 
-/// A raw chunk in a PNA archive.
+/// A PNA chunk containing its length, type, data, and CRC32 checksum.
 ///
-/// This structure represents a chunk in its most basic form, containing:
-/// - `length`: The length of the chunk data in bytes
-/// - `ty`: The type of the chunk (e.g., FDAT, SDAT, etc.)
-/// - `data`: The actual chunk data
-/// - `crc`: A CRC32 checksum of the chunk type and data
+/// See [`Chunk`] for the encoded chunk layout.
 ///
 /// # Examples
 ///
 /// ```rust
 /// use libpna::{ChunkType, RawChunk, prelude::*};
 ///
-/// // Create a new chunk with some data
 /// let data = [0xAA, 0xBB, 0xCC, 0xDD];
 /// let chunk = RawChunk::from_data(ChunkType::FDAT, data);
 ///
-/// // Access chunk properties
 /// assert_eq!(chunk.length(), 4);
 /// assert_eq!(chunk.ty(), ChunkType::FDAT);
 /// assert_eq!(chunk.data(), &[0xAA, 0xBB, 0xCC, 0xDD]);
@@ -115,6 +109,13 @@ impl<const N: usize> From<(ChunkType, [u8; N])> for RawChunk<Vec<u8>> {
     }
 }
 
+impl From<(ChunkType, Box<[u8]>)> for RawChunk<Vec<u8>> {
+    #[inline]
+    fn from(value: (ChunkType, Box<[u8]>)) -> Self {
+        RawChunk::<Box<[u8]>>::from(value).into()
+    }
+}
+
 impl<'d> RawChunk<&'d [u8]> {
     pub(crate) fn from_slice(ty: ChunkType, data: &'d [u8]) -> Self {
         let chunk = (ty, data);
@@ -152,6 +153,66 @@ impl<'a> From<RawChunk<&'a [u8]>> for RawChunk<Vec<u8>> {
 }
 
 impl<const N: usize> From<RawChunk<[u8; N]>> for RawChunk<Vec<u8>> {
+    #[inline]
+    fn from(value: RawChunk<[u8; N]>) -> Self {
+        Self {
+            length: value.length,
+            ty: value.ty,
+            data: value.data.into(),
+            crc: value.crc,
+        }
+    }
+}
+
+impl From<RawChunk<Box<[u8]>>> for RawChunk<Vec<u8>> {
+    #[inline]
+    fn from(value: RawChunk<Box<[u8]>>) -> Self {
+        Self {
+            length: value.length,
+            ty: value.ty,
+            data: value.data.into(),
+            crc: value.crc,
+        }
+    }
+}
+
+impl From<RawChunk<Vec<u8>>> for RawChunk<Box<[u8]>> {
+    #[inline]
+    fn from(value: RawChunk<Vec<u8>>) -> Self {
+        Self {
+            length: value.length,
+            ty: value.ty,
+            data: value.data.into(),
+            crc: value.crc,
+        }
+    }
+}
+
+impl<'a> From<RawChunk<Cow<'a, [u8]>>> for RawChunk<Box<[u8]>> {
+    #[inline]
+    fn from(value: RawChunk<Cow<'a, [u8]>>) -> Self {
+        Self {
+            length: value.length,
+            ty: value.ty,
+            data: value.data.into(),
+            crc: value.crc,
+        }
+    }
+}
+
+impl<'a> From<RawChunk<&'a [u8]>> for RawChunk<Box<[u8]>> {
+    #[inline]
+    fn from(value: RawChunk<&'a [u8]>) -> Self {
+        Self {
+            length: value.length,
+            ty: value.ty,
+            data: value.data.into(),
+            crc: value.crc,
+        }
+    }
+}
+
+impl<const N: usize> From<RawChunk<[u8; N]>> for RawChunk<Box<[u8]>> {
     #[inline]
     fn from(value: RawChunk<[u8; N]>) -> Self {
         Self {
@@ -228,6 +289,7 @@ impl RawChunk {
     /// Creates a new [`RawChunk`] from the given [`ChunkType`] and bytes.
     ///
     /// # Examples
+    ///
     /// ```rust
     /// use libpna::{ChunkType, RawChunk, prelude::*};
     ///
@@ -331,13 +393,18 @@ pub(crate) fn chunk_data_split(
     }
 }
 
-/// Reads an archive as chunks from the given reader.
+/// Returns an iterator over the chunks of a PNA archive.
 ///
-/// Reads a PNA archive from the given reader and returns an iterator of chunks.
+/// Reads the archive signature before returning the iterator. The iterator
+/// includes the archive-end chunk and stops after that chunk or the first error.
+/// Archive-level chunk ordering is not validated.
 ///
 /// # Errors
 ///
-/// Returns an error if the input is not a PNA archive.
+/// Returns an error if the archive signature cannot be read or does not match.
+/// Each chunk of the iterator has the same error semantics as
+/// [`io::read_chunk`](crate::io::read_chunk), with no data length limit beyond
+/// the PNA format's maximum.
 ///
 /// # Examples
 ///
@@ -393,13 +460,19 @@ pub fn read_as_chunks<R: Read>(
     })
 }
 
-/// Reads an archive as chunks from the given bytes.
+/// Returns an iterator over the chunks of a PNA archive in a byte slice.
 ///
-/// Reads a PNA archive from the given byte slice and returns an iterator of chunks.
+/// Checks the archive signature before returning the iterator. Chunk data is
+/// borrowed from the slice. The iterator includes the archive-end chunk and
+/// stops after that chunk or the first error. Archive-level chunk ordering is
+/// not validated.
 ///
 /// # Errors
 ///
-/// Returns an error if the input is not a PNA archive.
+/// Returns an error if the archive signature is incomplete or does not match.
+/// Each chunk of the iterator has the same error semantics as
+/// [`bytes::read_chunk`](crate::bytes::read_chunk), with no data length limit
+/// beyond the PNA format's maximum.
 ///
 /// # Examples
 ///
@@ -503,6 +576,7 @@ mod tests {
         check_impl::<RawChunk<Cow<[u8]>>>();
         check_impl::<RawChunk<&[u8]>>();
         check_impl::<RawChunk<[u8; 1]>>();
+        check_impl::<RawChunk<Box<[u8]>>>();
     }
 
     #[test]
@@ -585,5 +659,26 @@ mod tests {
 
         assert!(matches!(chunks.next(), Some(Err(_))));
         assert!(chunks.next().is_none());
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod test_support {
+    pub(crate) fn valid_chunk_bytes() -> Vec<u8> {
+        vec![
+            0x00, 0x00, 0x00, 0x04, // chunk length
+            b'F', b'D', b'A', b'T', // chunk type
+            0xAA, 0xBB, 0xCC, 0xDD, // chunk data
+            0x47, 0xF3, 0x2B, 0x10, // CRC-32
+        ]
+    }
+
+    pub(crate) fn raw_chunk_bytes(ty: [u8; 4], data: &[u8]) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(data.len() + 12);
+        bytes.extend_from_slice(&(data.len() as u32).to_be_bytes());
+        bytes.extend_from_slice(&ty);
+        bytes.extend_from_slice(data);
+        bytes.extend_from_slice(&crate::format::chunk_crc(&ty, data).to_be_bytes());
+        bytes
     }
 }

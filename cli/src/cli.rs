@@ -10,11 +10,11 @@ use crate::{
         complete::CompleteCommand, concat::ConcatCommand, core::Umask, create::CreateCommand,
         delete::DeleteCommand, experimental::ExperimentalCommand, extract::ExtractCommand,
         list::ListCommand, migrate::MigrateCommand, sort::SortCommand, split::SplitCommand,
-        strip::StripCommand, xattr::XattrCommand,
+        strip::StripCommand, update::UpdateCommand, xattr::XattrCommand,
     },
     utils::{fs::current_umask, process::is_running_as_root},
 };
-use clap::{ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
+use clap::{ArgGroup, Args, Parser, Subcommand, ValueEnum, ValueHint};
 use log::{Level, LevelFilter};
 use pna::HashAlgorithm;
 use std::{io, path::PathBuf};
@@ -181,6 +181,8 @@ pub(crate) enum Commands {
     Create(CreateCommand),
     #[command(visible_alias = "a", about = "Append files to archive")]
     Append(AppendCommand),
+    #[command(about = "Update entries in archive")]
+    Update(UpdateCommand),
     #[command(visible_alias = "x", about = "Extract files from archive")]
     Extract(ExtractCommand),
     #[command(visible_aliases = &["l", "ls"], about = "List files in archive")]
@@ -211,10 +213,20 @@ pub(crate) enum Commands {
     Experimental(ExperimentalCommand),
 }
 
-#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct FileArgs {
-    #[arg(short = 'f', long = "file", help = "Archive file path", value_hint = ValueHint::FilePath)]
-    pub(crate) archive: PathBuf,
+#[derive(Args, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) struct ArchiveFileArgs {
+    #[arg(
+        short = 'f',
+        long = "file",
+        value_name = "ARCHIVE",
+        help = "Archive file path",
+        value_hint = ValueHint::FilePath
+    )]
+    pub(crate) file: PathBuf,
+}
+
+#[derive(Args, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) struct FileOperands {
     #[arg(help = "Files or directories to process", value_hint = ValueHint::FilePath)]
     pub(crate) files: Vec<String>,
 }
@@ -233,7 +245,7 @@ pub(crate) struct PasswordArgs {
     #[arg(
         long,
         value_name = "FILE",
-        help = "Read password from the specified file (entire contents). Files containing newlines or non-UTF-8 content emit a warning; use --password-file-raw if the full file content is intentionally the password"
+        help = "Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored"
     )]
     pub(crate) password_file: Option<PathBuf>,
     #[arg(
@@ -346,8 +358,8 @@ impl CipherAlgorithmArgs {
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, ValueEnum)]
 pub(crate) enum CipherMode {
     Cbc,
-    #[default]
     Ctr,
+    #[default]
     Gcm,
 }
 
@@ -632,5 +644,23 @@ mod tests {
                 err.render()
             );
         }
+    }
+
+    /// `mode()` resolves the default in two separate arms: an algorithm flag
+    /// without a mode value, and no algorithm flag at all (the
+    /// `pna create --password …` path).
+    #[test]
+    fn cipher_algorithm_args_default_to_gcm_when_no_mode_is_given() {
+        let flag_without_mode = CipherAlgorithmArgs {
+            aes: Some(None),
+            camellia: None,
+        };
+        let no_flag_at_all = CipherAlgorithmArgs {
+            aes: None,
+            camellia: None,
+        };
+
+        assert_eq!(flag_without_mode.mode(), pna::CipherMode::GCM);
+        assert_eq!(no_flag_at_all.mode(), pna::CipherMode::GCM);
     }
 }

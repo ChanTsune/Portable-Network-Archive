@@ -79,7 +79,6 @@ fn list_with_exclude_vcs() {
             "-f",
             "list_with_exclude_vcs/list_with_exclude_vcs.pna",
             "--exclude-vcs",
-            "--unstable",
         ])
         .assert();
 

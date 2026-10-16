@@ -221,7 +221,7 @@ fn update_no_recursive_preserves_existing_entries() {
     )
     .unwrap();
 
-    // Create archive with all files (recursive by default)
+    // Create archive with all files (recursive collection by default)
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",

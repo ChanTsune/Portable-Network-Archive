@@ -1,16 +1,20 @@
 //! Archive writing and entry serialization.
 
+#[cfg(feature = "unstable-async")]
+use crate::PNA_SIGNATURE;
+#[allow(deprecated)]
+use crate::entry::EntryPart;
 use crate::{
-    PNA_SIGNATURE,
-    archive::{Archive, ArchiveHeader, SolidArchive},
+    archive::{Archive, ArchiveHeader, SolidArchive, SplitParts, write_archive_framing},
     chunk::{Chunk, ChunkStreamWriter, ChunkType, RawChunk},
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{
-        DataKind, Entry, EntryHeader, EntryName, EntryPart, EntryWriteAttributes, NormalEntry,
-        SealedEntryExt, SolidHeader, WriteCipher, WriteOption, WriteOptions, get_writer,
-        get_writer_context, write_metadata_facets,
+        DataKind, Entry, EntryHeader, EntryName, EntryWriteAttributes, NormalEntry, SealedEntryExt,
+        SolidHeader, WriteCipher, WriteOption, WriteOptions, get_writer, get_writer_context,
+        write_metadata_facets,
     },
+    io::WriteChunk,
     util::io::TryIntoInner,
 };
 use core::num::NonZeroU32;
@@ -26,10 +30,10 @@ pub(crate) type InternalDataWriter<W> = CompressionWriter<CipherWriter<W>>;
 /// Internal Writer type alias.
 pub(crate) type InternalArchiveDataWriter<W> = InternalDataWriter<ChunkStreamWriter<W>>;
 
-/// Writer for an entry payload, compressed and encrypted according to the given options.
-pub struct EntryDataWriter<W: Write>(InternalArchiveDataWriter<W>);
+/// Writer for an entry payload that is compressed and encrypted according to the given options.
+pub struct EntryDataWriter<W: WriteChunk>(InternalArchiveDataWriter<W>);
 
-impl<W: Write> Write for EntryDataWriter<W> {
+impl<W: WriteChunk> Write for EntryDataWriter<W> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.0.write(buf)
@@ -43,15 +47,14 @@ impl<W: Write> Write for EntryDataWriter<W> {
 
 /// A writer for individual entry payloads within a solid archive.
 ///
-/// This type is passed by mutable reference to the closure in
-/// [`SolidArchive::write_file`] or [`SolidArchive::write_opaque`] and implements
-/// [`Write`](std::io::Write), allowing callers to stream entry data into the
-/// solid archive's shared compression and encryption pipeline.
-pub struct SolidArchiveEntryDataWriter<'w, W: Write>(
+/// Passed to the closure in [`SolidArchive::write_file`] and
+/// [`SolidArchive::write_opaque`]. Data is compressed and encrypted with the
+/// other entries in the solid archive.
+pub struct SolidArchiveEntryDataWriter<'w, W: WriteChunk>(
     InternalArchiveDataWriter<&'w mut InternalArchiveDataWriter<W>>,
 );
 
-impl<W: Write> Write for SolidArchiveEntryDataWriter<'_, W> {
+impl<W: WriteChunk> Write for SolidArchiveEntryDataWriter<'_, W> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.0.write(buf)
@@ -64,11 +67,11 @@ impl<W: Write> Write for SolidArchiveEntryDataWriter<'_, W> {
 }
 
 impl<W: Write> Archive<W> {
-    /// Writes the archive header to the given `Write` object and returns a new [`Archive`].
+    /// Writes the archive header and creates a writer for its entries.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while writing header to the writer.
+    /// Returns an error if writing the header fails.
     ///
     /// # Examples
     ///
@@ -92,20 +95,165 @@ impl<W: Write> Archive<W> {
 
     #[inline]
     fn write_header_with(mut write: W, header: ArchiveHeader) -> io::Result<Self> {
-        write.write_all(PNA_SIGNATURE)?;
-        crate::io::write_chunk(&mut write, (ChunkType::AHED, header.to_bytes()))?;
+        write_archive_framing(&mut write, &header)?;
         Ok(Self::new(write, header))
     }
 
-    /// Writes a regular file as a normal entry into the archive.
+    #[inline]
+    fn add_next_archive_marker(&mut self) -> io::Result<usize> {
+        crate::io::write_chunk(&mut self.inner, (ChunkType::ANXT, []))
+    }
+
+    /// Splits to the next archive.
+    ///
+    /// For automatic, budget-driven splitting prefer [`Archive::write_split_header`].
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while writing the entry, or if the closure returns an error.
+    /// Returns an error if an I/O error occurs while splitting to the next archive.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use libpna::{Archive, FileEntryBuilder, WriteOptions};
+    /// # use std::fs::File;
+    /// # use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let part1_file = File::create("example.part1.pna")?;
+    /// let mut archive_part1 = Archive::write_header(part1_file)?;
+    /// let entry =
+    ///     FileEntryBuilder::new_with_options("example.txt".into(), WriteOptions::builder().build())?
+    ///         .build()?;
+    /// archive_part1.add_entry(entry)?;
+    ///
+    /// let part2_file = File::create("example.part2.pna")?;
+    /// let archive_part2 = archive_part1.split_to_next_archive(part2_file)?;
+    /// archive_part2.finalize()?;
+    /// #    Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn split_to_next_archive<OW: Write>(mut self, writer: OW) -> io::Result<Archive<OW>> {
+        let next_archive_number = self.header.archive_number + 1;
+        let header = ArchiveHeader::new(0, 0, next_archive_number);
+        let max_chunk_size = self.max_chunk_size;
+        self.add_next_archive_marker()?;
+        self.finalize()?;
+        let mut archive = Archive::write_header_with(writer, header)?;
+        archive.max_chunk_size = max_chunk_size;
+        Ok(archive)
+    }
+}
+
+impl<W: Write, F: FnMut(u32) -> io::Result<W>> Archive<SplitParts<W, F>> {
+    /// Creates an archive writer that splits output into parts of at most
+    /// `max_part_bytes` bytes.
+    ///
+    /// Calls `next_part(0)` and writes the first part's header. Further parts
+    /// are opened through `next_part` with consecutive part numbers as needed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error with kind [`io::ErrorKind::InvalidInput`] if
+    /// `max_part_bytes` is below [`MIN_SPLIT_PART_BYTES`](crate::archive::MIN_SPLIT_PART_BYTES),
+    /// or an error from `next_part` or from writing the first part's framing.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::{Archive, FileEntryBuilder, ReadOptions, WriteOptions};
+    /// use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let mut archive = Archive::write_split_header(4096, |_part_number| Ok(Vec::new()))?;
+    /// let entry =
+    ///     FileEntryBuilder::new_with_options("example.txt".into(), WriteOptions::builder().build())?
+    ///         .build()?;
+    /// archive.add_entry(entry)?;
+    ///
+    /// let parts = archive.finalize()?;
+    /// assert_eq!(parts.parts(), 1);
+    /// let last_part = parts.into_inner();
+    ///
+    /// let read_option = ReadOptions::builder().build();
+    /// let mut archive = Archive::read_header(&last_part[..])?;
+    /// let entry = archive.entries_with_options(&read_option).next().unwrap()?;
+    /// assert_eq!(entry.header().path().to_string(), "example.txt");
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn write_split_header(max_part_bytes: usize, next_part: F) -> io::Result<Self> {
+        let parts = SplitParts::new(max_part_bytes, next_part)?;
+        Ok(Archive::new(parts, ArchiveHeader::new(0, 0, 0)))
+    }
+
+    /// Creates a solid archive writer that splits output into parts of at most
+    /// `max_part_bytes` bytes.
+    ///
+    /// Parts are opened as in [`Self::write_split_header`]. Entries share the
+    /// compression and encryption specified by `option`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error with kind [`io::ErrorKind::InvalidInput`] if
+    /// `max_part_bytes` is below [`MIN_SPLIT_PART_BYTES`](crate::archive::MIN_SPLIT_PART_BYTES).
+    /// Also returns an error if opening a part or initializing the solid stream
+    /// fails.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::{Archive, Metadata, ReadOptions, WriteOptions};
+    /// use std::io::{self, Read};
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let option = WriteOptions::builder().build();
+    /// let mut archive =
+    ///     Archive::write_solid_split_header(4096, |_part_number| Ok(Vec::new()), option)?;
+    /// archive.write_file("example.txt".into(), Metadata::new(), |writer| {
+    ///     std::io::Write::write_all(writer, b"text")
+    /// })?;
+    ///
+    /// let parts = archive.finalize()?;
+    /// assert_eq!(parts.parts(), 1);
+    /// let last_part = parts.into_inner();
+    ///
+    /// let read_option = ReadOptions::builder().build();
+    /// let mut archive = Archive::read_header(&last_part[..])?;
+    /// let entry = archive.entries_with_options(&read_option).next().unwrap()?;
+    /// let mut text = String::new();
+    /// entry.reader(read_option)?.read_to_string(&mut text)?;
+    /// assert_eq!(text, "text");
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn write_solid_split_header(
+        max_part_bytes: usize,
+        next_part: F,
+        option: impl WriteOption,
+    ) -> io::Result<SolidArchive<SplitParts<W, F>>> {
+        Self::write_split_header(max_part_bytes, next_part)?.into_solid_archive(option)
+    }
+}
+
+impl<W> Archive<W>
+where
+    W: WriteChunk,
+    for<'a> &'a mut W: WriteChunk,
+{
+    /// Writes a regular file entry using data produced by `f`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the entry cannot be written or the closure returns an error.
     /// If this method returns an error, the archive may contain a partial entry
     /// and must be discarded without further use.
     ///
     /// # Examples
+    ///
     /// ```no_run
     /// use libpna::{Archive, Metadata, WriteOptions};
     /// # use std::error::Error;
@@ -151,19 +299,16 @@ impl<W: Write> Archive<W> {
         )
     }
 
-    /// Writes an opaque entry payload with the declared data kind.
+    /// Writes an opaque entry of `kind` using data produced by `f`.
     ///
-    /// No validation is performed between `kind` and the payload written by
-    /// the closure. Prefer the kind-specific builder or [`Self::write_file`]
-    /// for data kinds defined by the PNA specification; this method is a
-    /// low-level escape hatch for private, reserved, or experimental kinds.
+    /// The payload is not checked against `kind`. Prefer kind-specific builders
+    /// or [`Self::write_file`] for data kinds defined by the PNA specification.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while writing the entry, or if
-    /// the closure returns an error. If this method returns an error, the
-    /// archive may contain a partial entry and must be discarded without
-    /// further use.
+    /// Returns an error if the entry cannot be written or the closure returns an error.
+    /// If this method returns an error, the archive may contain a partial entry
+    /// and must be discarded without further use.
     #[inline]
     pub fn write_opaque<F>(
         &mut self,
@@ -191,7 +336,58 @@ impl<W: Write> Archive<W> {
         )
     }
 
-    /// Adds a new entry to the archive.
+    /// Writes one solid block into this archive and returns the closure's
+    /// value.
+    ///
+    /// Entries written by the closure share the compression and encryption
+    /// specified by `option`. On success, the solid block is complete and further
+    /// entries can be added to the archive.
+    ///
+    /// To write an archive containing a single solid block, use
+    /// [`Self::write_solid_header`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the solid block cannot be written or the closure
+    /// returns an error. If this method returns an error, the archive may contain
+    /// a partial solid block and must be discarded without further use.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::{Archive, FileEntryBuilder, WriteOptions};
+    /// # use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let mut archive = Archive::write_header(Vec::new())?;
+    /// archive.write_solid_with(WriteOptions::builder().build(), |solid| {
+    ///     solid.add_entry(FileEntryBuilder::new("a.txt".into())?.build()?)?;
+    ///     solid.add_entry(FileEntryBuilder::new("b.txt".into())?.build()?)
+    /// })?;
+    /// archive.add_entry(FileEntryBuilder::new("c.txt".into())?.build()?)?;
+    /// archive.finalize()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn write_solid_with<T>(
+        &mut self,
+        option: impl WriteOption,
+        f: impl FnOnce(&mut SolidArchive<&mut W>) -> io::Result<T>,
+    ) -> io::Result<T> {
+        let mut solid = SolidArchive {
+            archive_header: self.header.clone(),
+            inner: begin_solid_stream(&mut self.inner, self.max_chunk_size, option)?,
+            max_chunk_size: None,
+        };
+        let value = f(&mut solid)?;
+        end_solid_stream(solid.inner)?;
+        Ok(value)
+    }
+}
+
+impl<W: WriteChunk> Archive<W> {
+    /// Adds an entry to the archive and returns the number of bytes written.
     ///
     /// # Errors
     ///
@@ -220,7 +416,7 @@ impl<W: Write> Archive<W> {
         entry.write_in(&mut self.inner)
     }
 
-    /// Adds a part of an entry to the archive.
+    /// Adds an entry part to the archive and returns the number of bytes written.
     ///
     /// # Errors
     ///
@@ -247,6 +443,8 @@ impl<W: Write> Archive<W> {
     /// #    Ok(())
     /// # }
     /// ```
+    #[deprecated(since = "0.38.0", note = "use Archive::write_split_header instead")]
+    #[allow(deprecated)]
     #[inline]
     pub fn add_entry_part<T>(&mut self, entry_part: EntryPart<T>) -> io::Result<usize>
     where
@@ -254,65 +452,21 @@ impl<W: Write> Archive<W> {
     {
         let mut written_len = 0;
         for chunk in entry_part.0 {
-            written_len += crate::io::write_chunk(&mut self.inner, chunk)?;
+            written_len += self.inner.write_chunk(chunk)?;
         }
         Ok(written_len)
     }
 
-    #[inline]
-    fn add_next_archive_marker(&mut self) -> io::Result<usize> {
-        crate::io::write_chunk(&mut self.inner, (ChunkType::ANXT, []))
-    }
-
-    /// Splits to the next archive.
+    /// Writes the end-of-archive marker and returns the underlying writer.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while splitting to the next archive.
+    /// Returns an error if writing the marker or finalizing the output fails.
     ///
     /// # Examples
-    /// ```no_run
-    /// # use libpna::{Archive, EntryPart, FileEntryBuilder, WriteOptions};
-    /// # use std::fs::File;
-    /// # use std::io;
     ///
-    /// # fn main() -> io::Result<()> {
-    /// let part1_file = File::create("example.part1.pna")?;
-    /// let mut archive_part1 = Archive::write_header(part1_file)?;
-    /// let entry =
-    ///     FileEntryBuilder::new_with_options("example.txt".into(), WriteOptions::builder().build())?
-    ///         .build()?;
-    /// archive_part1.add_entry_part(EntryPart::from(entry))?;
-    ///
-    /// let part2_file = File::create("example.part2.pna")?;
-    /// let archive_part2 = archive_part1.split_to_next_archive(part2_file)?;
-    /// archive_part2.finalize()?;
-    /// #    Ok(())
-    /// # }
-    /// ```
-    #[inline]
-    pub fn split_to_next_archive<OW: Write>(mut self, writer: OW) -> io::Result<Archive<OW>> {
-        let next_archive_number = self.header.archive_number + 1;
-        let header = ArchiveHeader::new(0, 0, next_archive_number);
-        let max_chunk_size = self.max_chunk_size;
-        self.add_next_archive_marker()?;
-        self.finalize()?;
-        let mut archive = Archive::write_header_with(writer, header)?;
-        archive.max_chunk_size = max_chunk_size;
-        Ok(archive)
-    }
-
-    /// Writes the end-of-archive marker and finalizes the archive.
-    ///
-    /// Marks that the PNA archive contains no more entries.
-    /// Normally, a PNA archive reader will continue reading entries in the hope that the entry exists until it encounters this end marker.
-    /// This end marker should always be recorded at the end of the file unless there is a special reason to do so.
-    ///
-    /// # Errors
-    /// Returns an error if writing the end-of-archive marker fails.
-    ///
-    /// # Examples
     /// Creates an empty archive.
+    ///
     /// ```no_run
     /// # use std::io;
     /// # use std::fs::File;
@@ -327,20 +481,62 @@ impl<W: Write> Archive<W> {
     /// ```
     #[inline]
     #[must_use = "archive is not complete until finalize succeeds"]
-    pub fn finalize(mut self) -> io::Result<W> {
-        crate::io::write_chunk(&mut self.inner, (ChunkType::AEND, []))?;
-        Ok(self.inner)
+    pub fn finalize(self) -> io::Result<W> {
+        self.inner.finalize_archive()
     }
+
+    #[inline]
+    fn into_solid_archive(self, option: impl WriteOption) -> io::Result<SolidArchive<W>> {
+        Ok(SolidArchive {
+            archive_header: self.header,
+            inner: begin_solid_stream(self.inner, self.max_chunk_size, option)?,
+            max_chunk_size: None,
+        })
+    }
+}
+
+/// Opens a solid stream over `inner`. The returned writer must be closed by
+/// `end_solid_stream`; dropping it instead leaves an unterminated block in the
+/// output.
+fn begin_solid_stream<W: WriteChunk>(
+    mut inner: W,
+    max_chunk_size: Option<NonZeroU32>,
+    option: impl WriteOption,
+) -> io::Result<InternalArchiveDataWriter<W>> {
+    let header = SolidHeader::new(
+        option.compression(),
+        option.encryption(),
+        option.cipher_mode(),
+    );
+    let context = get_writer_context(option, ChunkType::SHED, &header.to_bytes())?;
+
+    inner.write_chunk((ChunkType::SHED, header.to_bytes()))?;
+    if let Some(WriteCipher { context: c, .. }) = &context.cipher {
+        inner.write_chunk((ChunkType::PHSF, c.phsf.as_bytes()))?;
+    }
+    inner.flush_chunks()?;
+    let mut writer = ChunkStreamWriter::new(ChunkType::SDAT, inner, max_chunk_size);
+    if let Some(WriteCipher { context: c, .. }) = &context.cipher {
+        c.write_prefix(&mut writer)?;
+    }
+    get_writer(writer, &context)
+}
+
+fn end_solid_stream<W: WriteChunk>(mut writer: InternalArchiveDataWriter<W>) -> io::Result<W> {
+    writer.flush()?;
+    let mut inner = writer.try_into_inner()?.try_into_inner()?.into_inner();
+    inner.write_chunk((ChunkType::SEND, []))?;
+    Ok(inner)
 }
 
 #[cfg(feature = "unstable-async")]
 impl<W: AsyncWrite + Unpin> Archive<W> {
-    /// Writes the archive header to the given object and returns a new [`Archive`].
+    /// Writes the archive header and creates a writer for its entries.
     /// This API is unstable.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while writing header to the writer.
+    /// Returns an error if writing the header fails.
     #[inline]
     pub async fn write_header_async(write: W) -> io::Result<Self> {
         let header = ArchiveHeader::new(0, 0, 0);
@@ -354,7 +550,7 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
         Ok(Self::new(write, header))
     }
 
-    /// Adds a new entry to the archive.
+    /// Adds an entry to the archive and returns the number of bytes written.
     /// This API is unstable.
     ///
     /// # Errors
@@ -368,7 +564,7 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
         Ok(bytes.len())
     }
 
-    /// Writes the end-of-archive marker and finalizes the archive.
+    /// Writes the end-of-archive marker and returns the underlying writer.
     /// This API is unstable.
     ///
     /// # Errors
@@ -382,12 +578,11 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
 }
 
 impl<W: Write> Archive<W> {
-    /// Writes the archive header and creates a new [`SolidArchive`] with the specified
-    /// compression and encryption options for solid mode.
+    /// Writes the archive header and creates a solid archive writer using `option`.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while writing header to the writer.
+    /// Returns an error if writing the header or initializing the solid stream fails.
     ///
     /// # Examples
     ///
@@ -409,38 +604,10 @@ impl<W: Write> Archive<W> {
         let archive = Self::write_header(write)?;
         archive.into_solid_archive(option)
     }
-
-    #[inline]
-    fn into_solid_archive(mut self, option: impl WriteOption) -> io::Result<SolidArchive<W>> {
-        let header = SolidHeader::new(
-            option.compression(),
-            option.encryption(),
-            option.cipher_mode(),
-        );
-        let context = get_writer_context(option, ChunkType::SHED, &header.to_bytes())?;
-
-        crate::io::write_chunk(&mut self.inner, (ChunkType::SHED, header.to_bytes()))?;
-        if let Some(WriteCipher { context: c, .. }) = &context.cipher {
-            crate::io::write_chunk(&mut self.inner, (ChunkType::PHSF, c.phsf.as_bytes()))?;
-        }
-        self.inner.flush()?;
-        let max_chunk_size = self.max_chunk_size;
-        let mut writer = ChunkStreamWriter::new(ChunkType::SDAT, self.inner, max_chunk_size);
-        if let Some(WriteCipher { context: c, .. }) = &context.cipher {
-            writer.write_all(&c.prefix_bytes())?;
-        }
-        let writer = get_writer(writer, &context)?;
-
-        Ok(SolidArchive {
-            archive_header: self.header,
-            inner: writer,
-            max_chunk_size: None,
-        })
-    }
 }
 
-impl<W: Write> SolidArchive<W> {
-    /// Adds a new entry to the archive.
+impl<W: WriteChunk> SolidArchive<W> {
+    /// Adds an entry to the archive and returns the number of bytes written.
     ///
     /// # Errors
     ///
@@ -470,15 +637,16 @@ impl<W: Write> SolidArchive<W> {
         entry.write_in(&mut self.inner)
     }
 
-    /// Writes a regular file as a solid entry into the archive.
+    /// Writes a regular file entry using data produced by `f`.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while writing the entry, or if the closure returns an error.
+    /// Returns an error if the entry cannot be written or the closure returns an error.
     /// If this method returns an error, the solid archive may contain a partial
     /// entry and must be discarded without further use.
     ///
     /// # Examples
+    ///
     /// ```no_run
     /// use libpna::{Archive, Metadata, WriteOptions};
     /// # use std::error::Error;
@@ -522,19 +690,16 @@ impl<W: Write> SolidArchive<W> {
         )
     }
 
-    /// Writes an opaque entry payload into the solid archive.
+    /// Writes an opaque entry of `kind` using data produced by `f`.
     ///
-    /// The inner entry always uses STORE; compression and encryption are
-    /// provided only by the outer solid stream. No validation is performed
-    /// between `kind` and the payload. Prefer kind-specific APIs for data kinds
-    /// defined by the PNA specification.
+    /// The payload is not checked against `kind`. Prefer kind-specific builders
+    /// or [`Self::write_file`] for data kinds defined by the PNA specification.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while writing the entry, or if
-    /// the closure returns an error. If this method returns an error, the solid
-    /// archive may contain a partial entry and must be discarded without
-    /// further use.
+    /// Returns an error if the entry cannot be written or the closure returns an error.
+    /// If this method returns an error, the solid archive may contain a partial
+    /// entry and must be discarded without further use.
     #[inline]
     pub fn write_opaque<F>(
         &mut self,
@@ -569,7 +734,7 @@ impl<W: Write> SolidArchive<W> {
     /// the solid stream. The outer SDAT chunk size is fixed when `SolidArchive` is
     /// constructed and cannot be changed afterward. To control the outer SDAT chunk
     /// size, call [`Archive::set_max_chunk_size`] before
-    /// [`write_solid_header()`](Archive::write_solid_header).
+    /// [`write_solid_with()`](Archive::write_solid_with).
     ///
     /// Pre-built entries added via [`add_entry()`](SolidArchive::add_entry) use their own
     /// chunk size configured through [`FileEntryBuilder::max_chunk_size()`](crate::FileEntryBuilder::max_chunk_size).
@@ -578,17 +743,18 @@ impl<W: Write> SolidArchive<W> {
         self.max_chunk_size = Some(size);
     }
 
-    /// Writes the end-of-archive marker and finalizes the archive.
-    ///
-    /// Marks that the PNA archive contains no more entries.
-    /// Normally, a PNA archive reader will continue reading entries in the hope that the entry exists until it encounters this end marker.
-    /// This end marker should always be recorded at the end of the file unless there is a special reason to do so.
+    /// Finishes the solid entry, writes the end-of-archive marker, and returns
+    /// the underlying writer.
     ///
     /// # Errors
-    /// Returns an error if writing the end-of-archive marker fails.
+    ///
+    /// Returns an error if finishing compression or encryption, writing the end
+    /// markers, or finalizing the output fails.
     ///
     /// # Examples
+    ///
     /// Creates an empty archive.
+    ///
     /// ```no_run
     /// use libpna::{Archive, WriteOptions};
     /// use std::fs::File;
@@ -610,11 +776,11 @@ impl<W: Write> SolidArchive<W> {
     }
 
     #[inline]
-    fn finalize_solid_entry(mut self) -> io::Result<Archive<W>> {
-        self.inner.flush()?;
-        let mut inner = self.inner.try_into_inner()?.try_into_inner()?.into_inner();
-        crate::io::write_chunk(&mut inner, (ChunkType::SEND, []))?;
-        Ok(Archive::new(inner, self.archive_header))
+    fn finalize_solid_entry(self) -> io::Result<Archive<W>> {
+        Ok(Archive::new(
+            end_solid_stream(self.inner)?,
+            self.archive_header,
+        ))
     }
 }
 
@@ -628,7 +794,8 @@ pub(crate) fn write_stream_entry<W, F>(
     f: F,
 ) -> io::Result<()>
 where
-    W: Write,
+    W: WriteChunk,
+    for<'a> &'a mut W: WriteChunk,
     F: FnOnce(InternalArchiveDataWriter<&mut W>) -> io::Result<InternalArchiveDataWriter<&mut W>>,
 {
     let EntryWriteAttributes {
@@ -643,26 +810,26 @@ where
         name,
     );
     let header_bytes = header.to_bytes();
-    crate::io::write_chunk(inner, (ChunkType::FHED, &header_bytes))?;
+    inner.write_chunk((ChunkType::FHED, &header_bytes))?;
     for chunk in extra_chunks {
-        crate::io::write_chunk(inner, chunk)?;
+        inner.write_chunk(chunk)?;
     }
     write_metadata_facets(inner, &metadata)?;
     let context = get_writer_context(option, ChunkType::FHED, &header_bytes)?;
     if let Some(WriteCipher { context: c, .. }) = &context.cipher {
-        crate::io::write_chunk(inner, (ChunkType::PHSF, c.phsf.as_bytes()))?;
+        inner.write_chunk((ChunkType::PHSF, c.phsf.as_bytes()))?;
     }
     let inner = {
         let mut writer = ChunkStreamWriter::new(ChunkType::FDAT, inner, max_chunk_size);
         if let Some(WriteCipher { context: c, .. }) = &context.cipher {
-            writer.write_all(&c.prefix_bytes())?;
+            c.write_prefix(&mut writer)?;
         }
         let writer = get_writer(writer, &context)?;
         let mut writer = f(writer)?;
         writer.flush()?;
         writer.try_into_inner()?.try_into_inner()?.into_inner()
     };
-    crate::io::write_chunk(inner, (ChunkType::FEND, Vec::<u8>::new()))?;
+    inner.write_chunk((ChunkType::FEND, []))?;
     Ok(())
 }
 
@@ -670,9 +837,12 @@ where
 mod tests {
     use super::*;
     use crate::{
-        CipherMode, Compression, Encryption, HashAlgorithm, LinkTargetType, Metadata, ReadOptions,
+        CipherMode, Compression, Encryption, FileEntryBuilder, HashAlgorithm, LinkTargetType,
+        Metadata, ReadOptions,
     };
+    use std::cell::Cell;
     use std::io::Read;
+    use std::rc::Rc;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
@@ -997,7 +1167,7 @@ mod tests {
         WriteOptions::builder()
             .encryption(Encryption::AES)
             .cipher_mode(CipherMode::GCM)
-            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
             .password(Some("password"))
             .build()
     }
@@ -1222,5 +1392,79 @@ mod tests {
         };
         let expected = include_bytes!("../../../resources/test/empty.pna");
         assert_eq!(archive_bytes.as_slice(), expected.as_slice());
+    }
+
+    struct FlushCountingWriter<W> {
+        inner: W,
+        flushes: Rc<Cell<usize>>,
+    }
+
+    impl<W: Write> Write for FlushCountingWriter<W> {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.inner.write(buf)
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            self.flushes.set(self.flushes.get() + 1);
+            self.inner.flush()
+        }
+    }
+
+    /// `write_stream_entry` flushes the compression/cipher/`ChunkStreamWriter` stack after each
+    /// streamed entry; the stack descends to `ChunkStreamWriter::flush` ->
+    /// `WriteChunk::flush_chunks` on the archive's writer. Exercised via
+    /// `Archive::write_file`, before `finalize` is even called.
+    #[test]
+    fn write_file_propagates_flush_to_inner_writer() {
+        let flushes = Rc::new(Cell::new(0));
+        let mut archive = Archive::write_header(FlushCountingWriter {
+            inner: Vec::new(),
+            flushes: Rc::clone(&flushes),
+        })
+        .expect("failed to write header");
+        archive
+            .write_file(
+                EntryName::from_lossy("text.txt"),
+                Metadata::new(),
+                WriteOptions::store(),
+                |writer| writer.write_all(b"text"),
+            )
+            .expect("failed to write");
+        assert!(
+            flushes.get() > 0,
+            "write_stream_entry should flush the inner writer"
+        );
+    }
+
+    /// `SolidArchive::finalize` flushes the outer solid stream in
+    /// `finalize_solid_entry`, which descends the same
+    /// `ChunkStreamWriter::flush` -> `WriteChunk::flush_chunks` path. Uses
+    /// `add_entry` rather than `write_file` (which would flush per entry, as
+    /// exercised above) and snapshots the count before `finalize` so the
+    /// assertion isolates the flush that `finalize` itself causes from the
+    /// one `write_solid_header` already performs while setting up the
+    /// solid stream.
+    #[test]
+    fn solid_finalize_propagates_flush_to_inner_writer() {
+        let flushes = Rc::new(Cell::new(0));
+        let mut archive = Archive::write_solid_header(
+            FlushCountingWriter {
+                inner: Vec::new(),
+                flushes: Rc::clone(&flushes),
+            },
+            WriteOptions::store(),
+        )
+        .expect("failed to write solid header");
+        let entry = FileEntryBuilder::new("text.txt".into())
+            .unwrap()
+            .build()
+            .unwrap();
+        archive.add_entry(entry).expect("failed to add entry");
+        let flushes_before_finalize = flushes.get();
+        archive.finalize().expect("failed to finalize");
+        assert!(
+            flushes.get() > flushes_before_finalize,
+            "SolidArchive::finalize should flush the inner writer"
+        );
     }
 }

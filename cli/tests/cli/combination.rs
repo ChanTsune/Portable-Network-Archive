@@ -33,7 +33,7 @@ const ENCRYPTION_OPTIONS: &[Option<[&str; 2]>] = &[
     Some(["--camellia", "gcm"]),
 ];
 
-const HASH_OPTIONS: &[[&str; 2]] = &[["--pbkdf2", "r=1"], ["--argon2", "t=1,m=50"]];
+const HASH_OPTIONS: &[[&str; 2]] = &[["--pbkdf2", "r=1000"], ["--argon2", "t=1,m=50"]];
 
 const SOLID_OPTIONS: &[Option<&str>] = &[None, Some("--solid")];
 

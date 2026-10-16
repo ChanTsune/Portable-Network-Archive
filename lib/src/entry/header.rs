@@ -1,6 +1,6 @@
 //! Entry header types for normal and solid mode entries.
 
-use super::{CipherMode, Compression, DataKind, Encryption, EntryName};
+use crate::entry::{CipherMode, Compression, DataKind, Encryption, EntryName};
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::io;
@@ -66,18 +66,7 @@ impl EntryHeader {
         Self::new(DataKind::DIRECTORY, path)
     }
 
-    /// Creates a header for a symbolic link (symlink).
-    #[inline]
-    pub(crate) const fn for_symlink(path: EntryName) -> Self {
-        Self::new(DataKind::SYMBOLIC_LINK, path)
-    }
-
-    #[inline]
-    pub(crate) const fn for_hard_link(path: EntryName) -> Self {
-        Self::new(DataKind::HARD_LINK, path)
-    }
-
-    /// Creates a new EntryHeader with a different name, resetting the sanitized path cache.
+    // Creates a new EntryHeader with a different name, resetting the sanitized path cache.
     #[inline]
     pub(crate) fn with_name(self, name: EntryName) -> Self {
         Self {
@@ -87,7 +76,7 @@ impl EntryHeader {
         }
     }
 
-    /// Returns the sanitized path of this entry, with path traversal characters removed by [`EntryName::sanitize`].
+    /// Returns the entry name normalized and sanitized by [`EntryName::sanitize`].
     #[inline]
     pub fn path(&self) -> &EntryName {
         self.sanitized_path.get_or_init(|| self.name.sanitize())
@@ -117,9 +106,9 @@ impl EntryHeader {
         self.cipher_mode
     }
 
-    /// Must stay byte-identical to the bytes [`Self::try_from_bytes`] accepted:
-    /// AEAD stream-key derivation is specified over the received `FHED` Data
-    /// field and reads it back through this method.
+    // Must stay byte-identical to the bytes `Self::try_from_bytes` accepted:
+    // AEAD stream-key derivation is specified over the received `FHED` Data
+    // field and reads it back through this method.
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
         let name = self.name.as_bytes();
         let mut data = Vec::with_capacity(6 + name.len());
@@ -144,8 +133,7 @@ impl EntryHeader {
             std::str::from_utf8(&bytes[6..])
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
         );
-        let sanitized = path.sanitize();
-        let header = Self {
+        Ok(Self {
             major: bytes[0],
             minor: bytes[1],
             data_kind: DataKind::from_byte(bytes[2]),
@@ -154,9 +142,7 @@ impl EntryHeader {
             cipher_mode: CipherMode::from_byte(bytes[5]),
             sanitized_path: OnceLock::new(),
             name: path,
-        };
-        let _ = header.sanitized_path.set(sanitized);
-        Ok(header)
+        })
     }
 }
 
@@ -265,11 +251,11 @@ impl SolidHeader {
         self.cipher_mode
     }
 
-    /// Converts to [`ChunkType::SHED`](crate::ChunkType::SHED) body bytes.
-    ///
-    /// For a header read from an archive this reproduces the `SHED` Data field
-    /// byte for byte, which [`CipherMode::GCM`] relies on: stream-key
-    /// derivation is specified over that field as received.
+    /// Returns the `SHED` chunk body bytes.
+    //
+    // For a header read from an archive this reproduces the `SHED` Data field
+    // byte for byte, which `CipherMode::GCM` relies on: stream-key
+    // derivation is specified over that field as received.
     #[inline]
     pub const fn to_bytes(&self) -> [u8; 5] {
         [
@@ -311,21 +297,29 @@ mod tests {
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
     #[test]
-    fn entry_header_try_from_bytes() {
-        assert!(EntryHeader::try_from_bytes(&[]).is_err());
+    fn entry_header_to_bytes_follows_fhed_layout() {
+        let header = EntryHeader::for_file(
+            Compression::XZ,
+            Encryption::AES,
+            CipherMode::GCM,
+            "file".into(),
+        );
+        assert_eq!(header.to_bytes(), b"\x00\x00\x00\x04\x01\x02file");
     }
 
     #[test]
-    fn entry_header_to_from_bytes() {
-        let header = EntryHeader::for_file(
-            Compression::ZSTANDARD,
-            Encryption::CAMELLIA,
-            CipherMode::CTR,
-            "file".into(),
+    fn entry_header_try_from_bytes_requires_six_fixed_bytes() {
+        assert_eq!(
+            EntryHeader::try_from_bytes(&[]).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
         );
         assert_eq!(
-            header,
-            EntryHeader::try_from_bytes(&header.to_bytes()).unwrap(),
+            EntryHeader::try_from_bytes(&[0; 5]).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+        assert_eq!(
+            EntryHeader::try_from_bytes(&[0; 6]).unwrap(),
+            EntryHeader::for_file(Compression::NO, Encryption::NO, CipherMode::CBC, "".into())
         );
     }
 
@@ -348,7 +342,10 @@ mod tests {
 
     #[test]
     fn solid_header_try_from_bytes() {
-        assert!(SolidHeader::try_from_bytes(&[0; 5]).is_ok());
+        assert_eq!(
+            SolidHeader::try_from_bytes(&[0; 5]).unwrap(),
+            SolidHeader::new(Compression::NO, Encryption::NO, CipherMode::CBC)
+        );
         assert_eq!(
             SolidHeader::try_from_bytes(&[0; 4]).unwrap_err().kind(),
             io::ErrorKind::InvalidData,
@@ -360,11 +357,10 @@ mod tests {
     }
 
     #[test]
-    fn solid_header_to_from_bytes() {
-        let header = SolidHeader::new(Compression::ZSTANDARD, Encryption::AES, CipherMode::CBC);
+    fn solid_header_to_bytes_follows_shed_layout() {
         assert_eq!(
-            header,
-            SolidHeader::try_from_bytes(&header.to_bytes()).unwrap(),
+            SolidHeader::new(Compression::ZSTANDARD, Encryption::AES, CipherMode::CBC).to_bytes(),
+            [0x00, 0x00, 0x02, 0x01, 0x00]
         );
     }
 

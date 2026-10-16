@@ -1,4 +1,4 @@
-use super::fs::FileHandle;
+use crate::utils::os::windows::fs::FileHandle;
 use crate::utils::str::encode_wide;
 use std::fmt::{Display, Formatter};
 use std::ptr::null_mut;

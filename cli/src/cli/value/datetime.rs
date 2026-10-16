@@ -31,30 +31,12 @@ impl DateTime {
     #[inline]
     fn epoch_components(&self) -> (i64, u32) {
         match self {
-            Self::Naive(naive) => {
-                // Resolve in the system time zone with jiff's default
-                // disambiguation, falling back to UTC interpretation if the
-                // system zone cannot be resolved (e.g. on minimal embedded
-                // builds where no tzdata is available).
-                let zoned = naive
-                    .in_tz("system")
-                    .or_else(|_| naive.to_zoned(jiff::tz::TimeZone::UTC))
-                    .expect("UTC accepts any civil DateTime");
-                let ts = zoned.timestamp();
-                (ts.as_second(), zoned.subsec_nanosecond() as u32)
-            }
+            Self::Naive(naive) => resolve_civil(*naive, system_zone()),
             Self::Zoned(zoned) => {
                 let ts = zoned.timestamp();
                 (ts.as_second(), zoned.subsec_nanosecond() as u32)
             }
-            Self::Date(date) => {
-                let zoned = date
-                    .at(0, 0, 0, 0)
-                    .to_zoned(jiff::tz::TimeZone::UTC)
-                    .expect("UTC accepts any civil DateTime");
-                let ts = zoned.timestamp();
-                (ts.as_second(), zoned.subsec_nanosecond() as u32)
-            }
+            Self::Date(date) => resolve_civil(date.at(0, 0, 0, 0), system_zone()),
             Self::Epoch(seconds, nanos) => (*seconds, *nanos),
         }
     }
@@ -79,6 +61,30 @@ impl DateTime {
         epoch_to_system_time(seconds, nanos)
             .expect("DateTime invariant: FromStr must reject values that overflow SystemTime")
     }
+}
+
+/// System time zone, or UTC when it cannot be determined.
+#[inline]
+fn system_zone() -> jiff::tz::TimeZone {
+    jiff::tz::TimeZone::try_system().unwrap_or(jiff::tz::TimeZone::UTC)
+}
+
+/// Resolve a zone-less civil datetime in the given zone, saturating
+/// out-of-range values to the nearest representable instant.
+#[inline]
+fn resolve_civil(dt: JiffDateTime, zone: jiff::tz::TimeZone) -> (i64, u32) {
+    let timestamp = dt
+        .to_zoned(zone)
+        .or_else(|_| dt.to_zoned(jiff::tz::TimeZone::UTC))
+        .map(|zoned| zoned.timestamp())
+        .unwrap_or_else(|_| {
+            if dt.year() >= 0 {
+                jiff::Timestamp::MAX
+            } else {
+                jiff::Timestamp::MIN
+            }
+        });
+    (timestamp.as_second(), timestamp.subsec_nanosecond() as u32)
 }
 
 /// Returns the `SystemTime` equal to
@@ -136,15 +142,16 @@ impl Display for DateTime {
 /// branch instead.
 #[inline]
 fn has_timezone_marker(s: &str) -> bool {
-    if s.ends_with('Z') || s.contains('[') {
+    let bytes = s.as_bytes();
+    if s.ends_with('Z') || memchr::memchr(b'[', bytes).is_some() {
         return true;
     }
-    let Some(t_pos) = s.find('T') else {
+    let Some(t_pos) = memchr::memchr(b'T', bytes) else {
         return false;
     };
     // Within the time portion, only digits, `:`, and `.` are valid; any `+`
     // or `-` therefore signals a UTC offset.
-    s[t_pos + 1..].bytes().any(|b| b == b'+' || b == b'-')
+    memchr::memchr2(b'+', b'-', &bytes[t_pos + 1..]).is_some()
 }
 
 #[inline]
@@ -184,6 +191,16 @@ impl FromStr for DateTime {
             match JiffDateTime::from_str(s) {
                 Ok(naive) => Self::Naive(naive),
                 Err(_) => Self::Zoned(parse_zoned(s)?),
+            }
+        } else if s.contains(' ') {
+            // Space-separated datetime ("2024-04-01 12:34:56"): try the full datetime
+            // first; the Date branch below would silently drop the time part.
+            if let Ok(naive) = JiffDateTime::from_str(s) {
+                Self::Naive(naive)
+            } else if let Ok(date) = JiffDate::from_str(s) {
+                Self::Date(date)
+            } else {
+                Self::Zoned(parse_zoned(s)?)
             }
         } else if let Ok(date) = JiffDate::from_str(s) {
             // No `T` separator: treat as date-only. We branch on `T` first
@@ -226,6 +243,17 @@ mod tests {
     fn test_datetime_parse_invalid() {
         let invalid_dt = "invalid-datetime";
         assert!(DateTime::from_str(invalid_dt).is_err());
+    }
+
+    #[test]
+    fn has_timezone_marker_detects_offsets_and_suffixes() {
+        assert!(has_timezone_marker("2024-03-20T12:34:56Z"));
+        assert!(has_timezone_marker("2024-03-20T12:34:56+09:00"));
+        assert!(has_timezone_marker("2024-03-20T12:34:56-05:00"));
+        assert!(has_timezone_marker("2024-03-20T12:34:56[Asia/Tokyo]"));
+        assert!(!has_timezone_marker("2024-03-20T12:34:56"));
+        assert!(!has_timezone_marker("2024-04-01"));
+        assert!(!has_timezone_marker("invalid-datetime"));
     }
 
     #[test]
@@ -324,11 +352,72 @@ mod tests {
     }
 
     #[test]
+    fn test_space_separated_datetime_keeps_time() {
+        assert_eq!(
+            DateTime::from_str("2024-04-01 12:34:56").unwrap(),
+            DateTime::from_str("2024-04-01T12:34:56").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_display_round_trip() {
+        let dt = DateTime::from_str("2024-03-20T12:34:56").unwrap();
+        assert_eq!(DateTime::from_str(&dt.to_string()).unwrap(), dt);
+    }
+
+    #[test]
     fn test_to_system_time_naive() {
         let naive = JiffDate::new(2024, 4, 1).unwrap().at(12, 0, 0, 0);
         let datetime = DateTime::Naive(naive);
         let system_time = datetime.to_system_time();
         assert!(system_time > UNIX_EPOCH);
+    }
+
+    #[test]
+    fn test_bare_date_equals_naive_midnight() {
+        let date = JiffDate::new(2024, 4, 1).unwrap();
+        assert_eq!(
+            DateTime::Date(date).to_system_time(),
+            DateTime::Naive(date.at(0, 0, 0, 0)).to_system_time()
+        );
+    }
+
+    #[test]
+    fn test_zone_offset_shifts_instant() {
+        // 2024-04-01T00:00:00+09:00 == 2024-03-31T15:00:00Z.
+        let zone = jiff::tz::Offset::from_seconds(9 * 3600)
+            .unwrap()
+            .to_time_zone();
+        assert_eq!(
+            resolve_civil(JiffDate::new(2024, 4, 1).unwrap().at(0, 0, 0, 0), zone),
+            (1711897200, 0)
+        );
+    }
+
+    #[test]
+    fn test_no_silent_utc_fallback() {
+        // Independent check: fails on non-UTC machines if resolution
+        // silently falls back to UTC.
+        let midnight = JiffDate::new(2024, 4, 1).unwrap().at(0, 0, 0, 0);
+        let expected = midnight.to_zoned(jiff::tz::TimeZone::system()).unwrap();
+        let ts = expected.timestamp();
+        let want = epoch_to_system_time(ts.as_second(), ts.subsec_nanosecond() as u32).unwrap();
+        assert_eq!(DateTime::Naive(midnight).to_system_time(), want);
+        assert_eq!(
+            DateTime::Date(JiffDate::new(2024, 4, 1).unwrap()).to_system_time(),
+            want
+        );
+    }
+
+    #[test]
+    fn test_extreme_civil_saturates_to_max() {
+        // Convertible in no real zone: must saturate, not panic.
+        let dt = DateTime::from_str("9999-12-31T23:59:59").unwrap();
+        let max = jiff::Timestamp::MAX;
+        let want = UNIX_EPOCH
+            + std::time::Duration::from_secs(max.as_second() as u64)
+            + std::time::Duration::from_nanos(max.subsec_nanosecond() as u64);
+        assert_eq!(dt.to_system_time(), want);
     }
 
     #[test]
@@ -396,9 +485,7 @@ mod tests {
     #[test]
     fn test_year_9999_accepted() {
         // Within jiff's civil DateTime range, the parse succeeds and the
-        // resulting SystemTime is far past UNIX_EPOCH. The date-only form
-        // routes through `Self::Date`, anchoring the conversion at UTC
-        // 00:00 so the result is independent of the system time zone.
+        // resulting SystemTime is far past UNIX_EPOCH in any time zone.
         let dt = DateTime::from_str("9999-12-30").unwrap();
         assert!(dt.to_system_time() > UNIX_EPOCH);
     }

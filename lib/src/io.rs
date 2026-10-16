@@ -5,6 +5,71 @@ use crate::{
 };
 use std::{io, mem};
 
+pub(crate) mod sealed {
+    use std::io::Write;
+
+    pub trait Sealed {}
+
+    impl<W: Write> Sealed for W {}
+}
+
+// Kept out of the crate root: the blanket implementation puts its methods on
+// every io::Write type, so a root re-export would inject them into method
+// resolution for crates doing `use libpna::*`.
+/// A sink for writing PNA chunks.
+///
+/// `io::Write` implementors serialize each chunk immediately as bytes; other
+/// sinks may route or buffer chunk values without going through an
+/// intermediate byte encoding. This trait is sealed and cannot be
+/// implemented outside this crate.
+pub trait WriteChunk: sealed::Sealed {
+    /// Emits `chunk` to this sink and returns the number of bytes written.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the sink fails to accept the chunk.
+    fn write_chunk<C: Chunk>(&mut self, chunk: C) -> io::Result<usize>;
+
+    /// Consumes this sink, emits the archive-end marker, and returns the
+    /// finalized sink.
+    ///
+    /// Prefer [`Archive::finalize`](crate::Archive::finalize) when constructing
+    /// an archive so the marker is emitted at the correct point.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the sink fails to write or finalize its output.
+    #[inline]
+    fn finalize_archive(mut self) -> io::Result<Self>
+    where
+        Self: Sized,
+    {
+        self.write_chunk((ChunkType::AEND, []))?;
+        Ok(self)
+    }
+
+    // Named flush_chunks to avoid ambiguity with io::Write::flush when both
+    // traits are in scope.
+    /// Flushes any output buffered by this sink.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the sink fails to flush its buffered output.
+    fn flush_chunks(&mut self) -> io::Result<()>;
+}
+
+impl<W: io::Write> WriteChunk for W {
+    #[inline]
+    fn write_chunk<C: Chunk>(&mut self, chunk: C) -> io::Result<usize> {
+        crate::io::write_chunk(self, chunk)
+    }
+
+    #[inline]
+    fn flush_chunks(&mut self) -> io::Result<()> {
+        self.flush()
+    }
+}
+
 /// Reads and validates the PNA archive signature.
 ///
 /// On success, `reader` has consumed exactly the signature bytes. On failure an
@@ -21,6 +86,53 @@ pub fn read_signature<R: io::Read + ?Sized>(reader: &mut R) -> io::Result<()> {
     let mut signature = [0u8; PNA_SIGNATURE.len()];
     reader.read_exact(&mut signature)?;
     crate::format::validate_signature(&signature)
+}
+
+/// Checks whether the bytes at the start of `reader` are a PNA signature.
+///
+/// On `Ok(true)`, `reader` has consumed exactly the signature bytes. On
+/// `Ok(false)` or `Err`, an unspecified number of bytes has been consumed, so
+/// `reader` cannot be reused to probe for another format.
+///
+/// A matching signature does not imply that the archive is complete or valid.
+///
+/// If fewer bytes than the signature could be read, this returns `Ok(false)`.
+///
+/// Use [`crate::bytes::is_pna`] when the input is already in memory and you
+/// want a non-consuming check.
+///
+/// # Errors
+///
+/// Propagates any error produced by `reader`, except that a short read
+/// ([`io::ErrorKind::UnexpectedEof`]) is reported as `Ok(false)` instead.
+/// Signature mismatch is reported as `Ok(false)`; this function does not
+/// itself return [`io::ErrorKind::InvalidData`], but an `InvalidData` error
+/// produced by `reader` propagates.
+///
+/// # Examples
+///
+/// ```
+/// use std::io::Cursor;
+///
+/// let mut reader = Cursor::new(libpna::PNA_SIGNATURE.to_vec());
+/// assert!(libpna::io::is_pna(&mut reader)?);
+///
+/// let mut reader = Cursor::new(b"not a pna archive");
+/// assert!(!libpna::io::is_pna(&mut reader)?);
+///
+/// let n = libpna::PNA_SIGNATURE.len();
+/// let mut reader = Cursor::new(&libpna::PNA_SIGNATURE[..n - 1]);
+/// assert!(!libpna::io::is_pna(&mut reader)?);
+/// # Ok::<(), std::io::Error>(())
+/// ```
+#[inline]
+pub fn is_pna<R: io::Read + ?Sized>(reader: &mut R) -> io::Result<bool> {
+    let mut signature = [0u8; PNA_SIGNATURE.len()];
+    match reader.read_exact(&mut signature) {
+        Ok(()) => Ok(crate::format::validate_signature(&signature).is_ok()),
+        Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => Ok(false),
+        Err(error) => Err(error),
+    }
 }
 
 /// Reads and validates one PNA chunk from `reader`.
@@ -51,12 +163,7 @@ pub fn read_chunk<R: io::Read + ?Sized>(
     let mut length = [0u8; mem::size_of::<u32>()];
     reader.read_exact(&mut length)?;
     let length = u32::from_be_bytes(length);
-    if length > max_data_len {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("chunk data length {length} exceeds limit {max_data_len}"),
-        ));
-    }
+    crate::format::check_chunk_length_limit(length, max_data_len)?;
 
     let mut ty = [0u8; mem::size_of::<ChunkType>()];
     reader.read_exact(&mut ty)?;
@@ -167,10 +274,87 @@ pub fn skip_chunk<R: io::Read + io::Seek + ?Sized>(reader: &mut R) -> io::Result
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chunk::test_support::{raw_chunk_bytes, valid_chunk_bytes};
     use crate::{Chunk, util::io::tests::PartialReader};
     use std::io::{Read, Seek};
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
+
+    #[test]
+    fn is_pna_accepts_signature() {
+        let mut input = io::Cursor::new(PNA_SIGNATURE.to_vec());
+        assert!(is_pna(&mut input).unwrap());
+        assert_eq!(input.position(), PNA_SIGNATURE.len() as u64);
+
+        let input = [PNA_SIGNATURE.as_slice(), b"body"].concat();
+        let mut reader = io::Cursor::new(input);
+        assert!(is_pna(&mut reader).unwrap());
+        assert_eq!(reader.position(), PNA_SIGNATURE.len() as u64);
+    }
+
+    #[test]
+    fn is_pna_rejects_non_signature() {
+        let mut input = io::Cursor::new([b'x'; PNA_SIGNATURE.len()]);
+        assert!(!is_pna(&mut input).unwrap());
+
+        let mut tampered = *PNA_SIGNATURE;
+        tampered[0] ^= 0xFF;
+        let mut input = io::Cursor::new(tampered);
+        assert!(!is_pna(&mut input).unwrap());
+    }
+
+    #[test]
+    fn is_pna_reports_short_input_as_false() {
+        for len in 0..PNA_SIGNATURE.len() {
+            let mut input = io::Cursor::new(&PNA_SIGNATURE[..len]);
+            assert!(
+                !is_pna(&mut input).unwrap(),
+                "truncation at {len} bytes must be false",
+            );
+        }
+    }
+
+    #[test]
+    fn is_pna_matches_bytes_verdict_for_representative_inputs() {
+        let mut tampered = *PNA_SIGNATURE;
+        tampered[0] ^= 0xFF;
+        let cases: Vec<Vec<u8>> = vec![
+            PNA_SIGNATURE.to_vec(),
+            [PNA_SIGNATURE.as_slice(), b"body"].concat(),
+            b"xxxxxxxx".to_vec(),
+            tampered.to_vec(),
+            PNA_SIGNATURE[..PNA_SIGNATURE.len() - 1].to_vec(),
+        ];
+        for input in &cases {
+            let mut reader = io::Cursor::new(input);
+            assert_eq!(
+                is_pna(&mut reader).unwrap(),
+                crate::bytes::is_pna(input),
+                "verdict differs for {input:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn is_pna_propagates_reader_errors() {
+        struct FailingReader(io::ErrorKind);
+        impl io::Read for FailingReader {
+            fn read(&mut self, _buf: &mut [u8]) -> io::Result<usize> {
+                Err(io::Error::new(self.0, "reader failure"))
+            }
+        }
+        // Reader-originated `InvalidData` must propagate, not become `Ok(false)`.
+        let mut reader = FailingReader(io::ErrorKind::InvalidData);
+        assert_eq!(
+            is_pna(&mut reader).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+        let mut reader = FailingReader(io::ErrorKind::Other);
+        assert_eq!(
+            is_pna(&mut reader).unwrap_err().kind(),
+            io::ErrorKind::Other
+        );
+    }
 
     #[test]
     fn read_signature_consumes_exactly_the_signature() {
@@ -203,24 +387,6 @@ mod tests {
             read_signature(&mut reader).unwrap_err().kind(),
             io::ErrorKind::InvalidData
         );
-    }
-
-    fn valid_chunk_bytes() -> Vec<u8> {
-        vec![
-            0x00, 0x00, 0x00, 0x04, // chunk length
-            b'F', b'D', b'A', b'T', // chunk type
-            0xAA, 0xBB, 0xCC, 0xDD, // chunk data
-            0x47, 0xF3, 0x2B, 0x10, // CRC-32
-        ]
-    }
-
-    fn raw_chunk_bytes(ty: [u8; 4], data: &[u8]) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(data.len() + 12);
-        bytes.extend_from_slice(&(data.len() as u32).to_be_bytes());
-        bytes.extend_from_slice(&ty);
-        bytes.extend_from_slice(data);
-        bytes.extend_from_slice(&crate::format::chunk_crc(&ty, data).to_be_bytes());
-        bytes
     }
 
     #[test]

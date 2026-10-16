@@ -1,7 +1,7 @@
 use crate::{
     cli::{
-        CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileArgs, HashAlgorithmArgs,
-        MissingTimePolicy, PasswordArgs, SolidEntriesTransformStrategy,
+        ArchiveFileArgs, CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileOperands,
+        HashAlgorithmArgs, MissingTimePolicy, PasswordArgs, SolidEntriesTransformStrategy,
         SolidEntriesTransformStrategyArgs,
     },
     command::{
@@ -11,15 +11,15 @@ use crate::{
             KeepOptions, MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
             PermissionStrategyResolver, SplitArchiveReader, StagedArchive, TimeFilterResolver,
             TimestampStrategyResolver, TransformContext, TransformStrategy,
-            TransformStrategyKeepSolid, TransformStrategyUnSolid, XattrStrategy,
+            TransformStrategyKeepSolid, TransformStrategyUnSolid, Umask, XattrStrategy,
             cmp_at_stored_precision, collect_items_from_paths, collect_split_archives,
             create_entry, entry_option,
             iter::ReorderByIndex,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
-            read_paths, read_paths_stdin,
+            read_paths, read_paths_stdin, resolve_rewrite_output,
         },
     },
-    utils::{PathPartExt, VCS_FILES, fs::HardlinkResolver},
+    utils::{VCS_FILES, fs::HardlinkResolver},
 };
 use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
 use indexmap::IndexMap;
@@ -55,6 +55,19 @@ use std::{
 pub(crate) struct UpdateCommand {
     #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
     output: Option<PathBuf>,
+    #[arg(
+        long,
+        conflicts_with = "no_overwrite",
+        help = "Overwrite the output file (rewrite in place when --output is omitted)"
+    )]
+    overwrite: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not overwrite output file. This is the inverse option of --overwrite",
+        requires = "output"
+    )]
+    no_overwrite: (),
     #[arg(
         long,
         requires = "unstable",
@@ -293,7 +306,7 @@ pub(crate) struct UpdateCommand {
         long,
         requires = "unstable",
         help_heading = "Unstable Options",
-        help = "Behavior when a timestamp needed for time filtering or update staleness judgment is missing (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]"
+        help = "Behavior when a timestamp needed for time filtering or update staleness judgment is missing (unstable). Values: include, exclude, now, epoch, or a datetime. [default: epoch]"
     )]
     missing_time: Option<MissingTimePolicy>,
     #[arg(
@@ -340,8 +353,6 @@ pub(crate) struct UpdateCommand {
     exclude_from: Option<PathBuf>,
     #[arg(
         long,
-        requires = "unstable",
-        help_heading = "Unstable Options",
         help = "Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)"
     )]
     exclude_vcs: bool,
@@ -350,7 +361,7 @@ pub(crate) struct UpdateCommand {
         value_name = "PATTERN",
         requires = "unstable",
         help_heading = "Unstable Options",
-        help = "Modify file or archive member names according to pattern that like BSD tar -s option"
+        help = "Modify file or archive member names according to a pattern like the BSD tar -s option"
     )]
     substitutions: Option<Vec<SubstitutionRule>>,
     #[arg(
@@ -359,7 +370,7 @@ pub(crate) struct UpdateCommand {
         value_name = "PATTERN",
         requires = "unstable",
         help_heading = "Unstable Options",
-        help = "Modify file or archive member names according to pattern that like GNU tar -transform option"
+        help = "Modify file or archive member names according to a pattern like the GNU tar --transform option"
     )]
     transforms: Option<Vec<TransformRule>>,
     #[command(flatten)]
@@ -373,7 +384,9 @@ pub(crate) struct UpdateCommand {
     #[command(flatten)]
     pub(crate) transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
-    pub(crate) file: FileArgs,
+    pub(crate) archive: ArchiveFileArgs,
+    #[command(flatten)]
+    pub(crate) files: FileOperands,
     #[arg(
         long,
         help = "Filenames or patterns are separated by null characters, not by newlines"
@@ -408,17 +421,17 @@ pub(crate) struct UpdateCommand {
 
 impl Command for UpdateCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
-        update_archive(self)
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
+        update_archive(self, ctx.umask())
     }
 }
 
 #[hooq::hooq(anyhow)]
-fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
+fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
     let transform_strategy = args.transform_strategy.strategy();
     let sync = args.sync;
     let password = ask_password(args.password)?;
-    let archive_path = &args.file.archive;
+    let archive_path = &args.archive.file;
     if !archive_path.exists() {
         anyhow::bail!("{} is not exists", archive_path.display());
     }
@@ -426,7 +439,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
     let option = entry_option(args.compression, args.cipher, args.hash, password);
     let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
         keep_permission: args.keep_permission,
-        same_owner: true, // Must be `true` for creation
+        same_owner: true, // Creation always stores ownership; same_owner only matters for extraction.
         uname: args.uname,
         gname: args.gname,
         uid: args.uid,
@@ -454,7 +467,8 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
         fflags_strategy: FflagsStrategy::Never,
         mac_metadata_strategy: MacMetadataStrategy::Never,
     };
-    let missing_time = args.missing_time.unwrap_or(MissingTimePolicy::Include);
+    let missing_ctime = args.missing_time.unwrap_or_default();
+    let missing_mtime = args.missing_time.unwrap_or_default();
     let time_filters = TimeFilterResolver {
         newer_ctime_than: args.newer_ctime_than.as_deref(),
         older_ctime_than: args.older_ctime_than.as_deref(),
@@ -464,8 +478,8 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: missing_time,
-        missing_mtime: missing_time,
+        missing_ctime,
+        missing_mtime,
     }
     .resolve()?;
     let create_options = CreateOptions {
@@ -479,9 +493,9 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
         ),
     };
 
-    let archives = collect_split_archives(&args.file.archive)?;
+    let archives = collect_split_archives(&args.archive.file)?;
 
-    let mut files = args.file.files;
+    let mut files = args.files.files;
     if args.files_from_stdin {
         files.extend(read_paths_stdin(args.null)?);
     } else if let Some(path) = args.files_from {
@@ -516,8 +530,8 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
     let mut resolver = HardlinkResolver::new(collect_options.follow_links);
     let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
 
-    let output_path = args.output.unwrap_or_else(|| archive_path.remove_part());
-    let mut staged = StagedArchive::new(output_path)?;
+    let destination = resolve_rewrite_output(archive_path, args.output, args.overwrite)?;
+    let mut staged = StagedArchive::new(destination.path, umask, destination.overwrite)?;
     let mut out_archive = Archive::write_header(staged.as_file_mut())?;
 
     let mut source = SplitArchiveReader::new(archives)?;
@@ -528,7 +542,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
             &create_options,
             target_items,
             sync,
-            missing_time,
+            missing_mtime,
             &mut out_archive,
             TransformStrategyUnSolid,
             false,
@@ -540,7 +554,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
             &create_options,
             target_items,
             sync,
-            missing_time,
+            missing_mtime,
             &mut out_archive,
             TransformStrategyKeepSolid,
             false,
@@ -550,7 +564,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
     out_archive.finalize()?;
     drop(source);
 
-    staged.commit(None)?;
+    staged.commit()?;
 
     Ok(())
 }
@@ -570,7 +584,7 @@ pub(crate) fn run_update_archive<Strategy, W>(
 ) -> anyhow::Result<()>
 where
     Strategy: TransformStrategy,
-    W: io::Write + Send,
+    W: io::Write,
 {
     let (tx, rx) = std::sync::mpsc::channel();
     let context = TransformContext::new(password);
@@ -609,7 +623,7 @@ where
         }
     }
 
-    rayon::scope_fifo(|s| -> anyhow::Result<()> {
+    rayon::in_place_scope_fifo(|s| -> anyhow::Result<()> {
         source.for_each_read_entry(
             |entry| {
                 Strategy::transform(out_archive, &context, entry, |entry| {
@@ -622,10 +636,9 @@ where
                             is_newer_than_archive(missing_time, &item.metadata, entry.metadata());
                         if need_update {
                             let tx = tx.clone();
-                            let create_options = create_options.clone();
                             s.spawn_fifo(move |_| {
                                 log::debug!("Updating: {}", item.path.display());
-                                tx.send((idx, create_entry(&item, &create_options)))
+                                tx.send((idx, create_entry(&item, create_options)))
                                     .unwrap_or_else(|_| {
                                         unreachable!("receiver is held by scope owner")
                                     });
@@ -656,10 +669,9 @@ where
         // Add entries that were never matched against an archive entry above.
         for (idx, item) in target_files_mapping.into_values().flatten() {
             let tx = tx.clone();
-            let create_options = create_options.clone();
             s.spawn_fifo(move |_| {
                 log::debug!("Adding: {}", item.path.display());
-                tx.send((idx, create_entry(&item, &create_options)))
+                tx.send((idx, create_entry(&item, create_options)))
                     .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
             });
         }

@@ -6,7 +6,7 @@ members = ["cargo:cli"]
 # Skip checking whether the specified configuration files are up to date
 allow-dirty = ["ci"]
 # The preferred dist version to use in CI (Cargo.toml SemVer syntax)
-cargo-dist-version = "0.31.0"
+cargo-dist-version = "0.32.0"
 # CI backends to support
 ci = "github"
 # The installers to generate for each app
@@ -34,6 +34,8 @@ install-path = "CARGO_HOME"
 # Disabled: axoupdater does not provide prebuilt binaries for aarch64-pc-windows-msvc
 # See: https://github.com/axodotdev/axoupdater/issues/313
 install-updater = false
+# Enable GitHub Artifact Attestations (Sigstore/SLSA provenance)
+github-attestations = true
 # Build only the required packages, and individually
 precise-builds = true
 # Features to pass to cargo build

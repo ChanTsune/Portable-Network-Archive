@@ -17,6 +17,8 @@ on:
       - 'Cargo.toml'
       - '.github/workflows/bsdtar-compat.yml'
       - '.github/scripts/jsonify-bsdtar-output.py'
+      - '.github/scripts/bsdtar-xfail-baseline.json'
+      - '.github/scripts/test_jsonify_bsdtar_output.py'
   pull_request:
     branches: ["*"]
     paths:
@@ -32,6 +34,11 @@ on:
       - 'Cargo.toml'
       - '.github/workflows/bsdtar-compat.yml'
       - '.github/scripts/jsonify-bsdtar-output.py'
+      - '.github/scripts/bsdtar-xfail-baseline.json'
+      - '.github/scripts/test_jsonify_bsdtar_output.py'
+
+env:
+  LIBARCHIVE_REF: v3.8.5
 
 jobs:
   bsdtar-reference:
@@ -81,16 +88,24 @@ jobs:
         run: |
           brew install autoconf automake libtool make pkg-config
 
+      - name: Restore libarchive build
+        id: libarchive_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: libarchive
+          key: "libarchive-${{ env.LIBARCHIVE_REF }}-${{ matrix.name }}-${{ runner.arch }}"
+
       - name: Clone libarchive
+        if: ${{ steps.libarchive_cache.outputs.cache-hit != 'true' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: libarchive/libarchive
-          ref: v3.8.5
+          ref: ${{ env.LIBARCHIVE_REF }}
           path: libarchive
           persist-credentials: false
 
       - name: Build bsdtar and bsdtar_test
-        if: ${{ matrix.name != 'windows' }}
+        if: ${{ steps.libarchive_cache.outputs.cache-hit != 'true' && matrix.name != 'windows' }}
         run: |
           cd libarchive
           JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu)"
@@ -104,7 +119,7 @@ jobs:
           "${MAKE}" -j"${JOBS}" bsdtar_test bsdtar
 
       - name: Build bsdtar and bsdtar_test (Windows)
-        if: ${{ matrix.name == 'windows' }}
+        if: ${{ steps.libarchive_cache.outputs.cache-hit != 'true' && matrix.name == 'windows' }}
         shell: cmd
         working-directory: libarchive
         env:
@@ -116,6 +131,13 @@ jobs:
           call build\ci\github_actions\ci.cmd configure
           cd /d "%ROOT%"
           call build\ci\github_actions\ci.cmd build
+
+      - name: Save libarchive build
+        if: ${{ steps.libarchive_cache.outputs.cache-hit != 'true' && github.ref_name == github.event.repository.default_branch }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: libarchive
+          key: "${{ steps.libarchive_cache.outputs.cache-primary-key }}"
 
       - name: Locate built binaries
         run: |
@@ -134,8 +156,8 @@ jobs:
 
       - name: Run bsdtar_test with bsdtar
         id: bsdtar_test
-        continue-on-error: true
         run: |
+          set -euo pipefail
           WORKSPACE="$GITHUB_WORKSPACE"
           if [ "$MATRIX_NAME" = "windows" ]; then
             WORKSPACE="$(cygpath -u "$WORKSPACE")"
@@ -244,16 +266,24 @@ jobs:
           cargo build --locked --release --all-features -p portable-network-archive
         working-directory: pna
 
+      - name: Restore libarchive build
+        id: libarchive_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: libarchive
+          key: "libarchive-${{ env.LIBARCHIVE_REF }}-${{ matrix.name }}-${{ runner.arch }}"
+
       - name: Clone libarchive
+        if: ${{ steps.libarchive_cache.outputs.cache-hit != 'true' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: libarchive/libarchive
-          ref: v3.8.5
+          ref: ${{ env.LIBARCHIVE_REF }}
           path: libarchive
           persist-credentials: false
 
-      - name: Build bsdtar_test
-        if: ${{ matrix.name != 'windows' }}
+      - name: Build bsdtar and bsdtar_test
+        if: ${{ steps.libarchive_cache.outputs.cache-hit != 'true' && matrix.name != 'windows' }}
         run: |
           cd libarchive
           JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu)"
@@ -264,10 +294,10 @@ jobs:
           ./build/autogen.sh
           ./configure --enable-bsdtar --disable-bsdcpio --disable-bsdcat --disable-bsdunzip
           "${MAKE}" tar/test/list.h
-          "${MAKE}" -j"${JOBS}" bsdtar_test
+          "${MAKE}" -j"${JOBS}" bsdtar_test bsdtar
 
-      - name: Build bsdtar_test (Windows)
-        if: ${{ matrix.name == 'windows' }}
+      - name: Build bsdtar and bsdtar_test (Windows)
+        if: ${{ steps.libarchive_cache.outputs.cache-hit != 'true' && matrix.name == 'windows' }}
         shell: cmd
         working-directory: libarchive
         env:
@@ -279,6 +309,13 @@ jobs:
           call build\ci\github_actions\ci.cmd configure
           cd /d "%ROOT%"
           call build\ci\github_actions\ci.cmd build
+
+      - name: Save libarchive build
+        if: ${{ steps.libarchive_cache.outputs.cache-hit != 'true' && github.ref_name == github.event.repository.default_branch }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: libarchive
+          key: "${{ steps.libarchive_cache.outputs.cache-primary-key }}"
 
       - name: Build tar2pna
         if: ${{ matrix.name != 'windows' }}
@@ -470,7 +507,7 @@ jobs:
 
       - name: Upload test artifacts
         if: always() && steps.bsdtar_test.outcome != 'skipped'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: bsdtar-test-artifacts-${{ matrix.name }}
           path: bsdtar-test-artifacts.pna
@@ -478,7 +515,7 @@ jobs:
 
       - name: Parse test results
         if: always() && steps.bsdtar_test.outcome != 'skipped'
-        run: python3 pna/.github/scripts/jsonify-bsdtar-output.py bsdtar_test_output.txt > bsdtar_test_result.json
+        run: python3 pna/.github/scripts/jsonify-bsdtar-output.py --platform "$MATRIX_NAME" bsdtar_test_output.txt > bsdtar_test_result.json
 
       - name: Generate summary
         if: always()
@@ -508,6 +545,7 @@ jobs:
           PASSED=$(jq '.summary.passed' bsdtar_test_result.json)
           FAILED=$(jq '.summary.failed' bsdtar_test_result.json)
           SKIPS=$(jq '.summary.skipped' bsdtar_test_result.json)
+          SKIP_REPORTS=$(jq '.summary.skip_reports // 0' bsdtar_test_result.json)
           ASSERT_FAIL=$(jq '.summary.assertions_failed' bsdtar_test_result.json)
 
           echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
@@ -515,6 +553,7 @@ jobs:
           echo "| Tests passed | **${PASSED}** / ${TOTAL} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Tests failed | ${FAILED} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Tests skipped | ${SKIPS} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Skip reports | ${SKIP_REPORTS} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Tests excluded (owner/group metadata) | ${EXCLUDED_TEST_COUNT} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Assertions failed | ${ASSERT_FAIL} |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"

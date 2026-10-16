@@ -1,6 +1,6 @@
 [package]
 name = "portable-network-archive"
-version = "0.37.0"
+version = "0.40.0"
 edition = "2024"
 license = "Apache-2.0 OR MIT"
 description = "Portable-Network-Archive cli"
@@ -23,7 +23,7 @@ clap_complete = "4.6.5"
 const-hex = "1.19.1"
 csv = "1.3.1"
 fern = "0.7.1"
-gix-prompt = "0.16.0"
+gix-prompt = "0.19.0"
 globset = "0.4.18"
 hooq = "0.3.1"
 ignore = "0.4.26"
@@ -35,20 +35,20 @@ log = "0.4.32"
 memchr = "2.8.1"
 memmap2 = { version = "0.9.10", optional = true }
 nom = "8.0.0"
-parse_datetime = "0.15.0"
+parse_datetime = "0.17.0"
 path-slash = "0.2.1"
-pna = { version = "0.37.0", path = "../pna" }
+pna = { version = "0.40.0", path = "../pna" }
 rayon = "1.12.0"
 regex = "1.12.3"
 same-file = "1.0.6"
 scopeguard = "1.2.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
-tabled = { version = "0.21.0", default-features = false, features = ["std", "ansi"] }
+tabled = { version = "0.22.0", default-features = false, features = ["std", "ansi"] }
 termtree = "0.5"
 thiserror = "2.0.18"
 typed-path = "0.12"
-rand = "0.8.6"
+rand = "0.10"
 walkdir = "2.5.0"
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
@@ -112,6 +112,9 @@ harness = false
 [[bench]]
 name = "split"
 harness = false
+
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/{ name }-{ version }/{ name }-{ target }{ archive-suffix }"
 
 [package.metadata.release]
 pre-release-replacements = [

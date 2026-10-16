@@ -9,6 +9,7 @@ pub(crate) mod path_lock;
 mod path_transformer;
 pub(crate) mod permission;
 pub(crate) mod re;
+pub(crate) mod rewrite;
 pub(crate) mod safe_writer;
 mod staged_archive;
 pub(crate) mod time_filter;
@@ -29,10 +30,9 @@ pub(crate) use path_filter::PathFilter;
 use path_slash::*;
 pub(crate) use path_transformer::PathTransformers;
 use pna::{
-    Archive, DataKind, DirEntryBuilder, EntryContent, EntryPart, FileEntryBuilder,
-    HardLinkEntryBuilder, LinkTargetType, MIN_CHUNK_BYTES_SIZE, Metadata, NormalEntry,
-    OpaqueEntryBuilder, PNA_SIGNATURE, ReadEntry, ReadOptions, SolidEntryBuilder,
-    SymlinkEntryBuilder, WriteOptions, prelude::*,
+    Archive, DataKind, DirEntryBuilder, EntryContent, FileEntryBuilder, HardLinkEntryBuilder,
+    LinkTargetType, Metadata, NormalEntry, OpaqueEntryBuilder, PNA_SIGNATURE, ReadEntry,
+    ReadOptions, SymlinkEntryBuilder, WriteOptions, prelude::*,
 };
 use std::{
     borrow::Cow,
@@ -46,7 +46,6 @@ pub(crate) use time_filter::{TimeFilter, TimeFilters, TimeRange};
 
 /// Detected format of an @archive source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(not(unix), allow(dead_code))]
 pub(crate) enum SourceFormat {
     /// PNA archive format (detected by magic bytes)
     Pna,
@@ -58,7 +57,6 @@ pub(crate) enum SourceFormat {
 ///
 /// Returns `SourceFormat::Pna` if the data starts with PNA magic bytes,
 /// otherwise returns `SourceFormat::Mtree`.
-#[cfg_attr(not(unix), allow(dead_code))]
 pub(crate) fn detect_format<R: io::BufRead>(reader: &mut R) -> io::Result<SourceFormat> {
     let buf = reader.fill_buf()?;
 
@@ -147,13 +145,6 @@ impl TimeFilterResolver<'_> {
         })
     }
 }
-
-/// Overhead for a split archive part in bytes, including PNA signature, AHED, ANXT, and AEND chunks.
-pub(crate) const SPLIT_ARCHIVE_OVERHEAD_BYTES: usize =
-    PNA_SIGNATURE.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8;
-
-/// Minimum bytes required for a split archive part (overhead + one minimal chunk).
-pub(crate) const MIN_SPLIT_PART_BYTES: usize = SPLIT_ARCHIVE_OVERHEAD_BYTES + MIN_CHUNK_BYTES_SIZE;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) enum XattrStrategy {
@@ -312,9 +303,6 @@ impl PermissionStrategyResolver {
     /// The `same_owner` field controls ownership handling:
     /// - `true`: Restore/store ownership (Preserve with options)
     /// - `false`: Skip ownership restoration (Never)
-    ///
-    /// For creation contexts, pass `same_owner: true` since ownership
-    /// is always stored when `--keep-permission` is enabled.
     pub(crate) fn resolve(self) -> (ModeStrategy, OwnerStrategy) {
         if self.keep_permission {
             let mode_strategy = ModeStrategy::Preserve;
@@ -372,6 +360,62 @@ pub(crate) enum StoreAs {
 pub(crate) enum ArchiveSource {
     File(PathBuf),
     Stdin,
+}
+
+/// Resolved `--output` of a rewrite subcommand.
+///
+/// `None` keeps the historical in-place behavior and always replaces the input.
+/// An explicit `--output` without `--overwrite` is refused at commit time when
+/// occupied, so `--output` naming the input itself still requires `--overwrite`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct RewriteDestination {
+    pub(crate) path: PathBuf,
+    /// Whether the destination may replace an existing entry.
+    pub(crate) overwrite: bool,
+}
+
+/// Resolves `--output`/`--overwrite` into a [`RewriteDestination`].
+///
+/// An omitted `--output` without `--overwrite` keeps the historical in-place
+/// behavior but emits a deprecation warning (a future release will write to
+/// standard output instead); passing `--overwrite` selects in-place
+/// explicitly and stays silent.
+/// The existence check only fails fast; the commit enforces the guard.
+/// `symlink_metadata` (not `exists()`) is used so a dangling symlink is also
+/// refused and unexpected I/O errors propagate.
+pub(crate) fn resolve_rewrite_output(
+    archive: &Path,
+    output: Option<PathBuf>,
+    overwrite: bool,
+) -> anyhow::Result<RewriteDestination> {
+    match output {
+        Some(path) => {
+            if !overwrite {
+                match fs::symlink_metadata(&path) {
+                    Ok(_) => anyhow::bail!(
+                        "{} already exists (use --overwrite to replace it)",
+                        path.display()
+                    ),
+                    Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                    Err(e) => return Err(e.into()),
+                }
+            }
+            Ok(RewriteDestination { path, overwrite })
+        }
+        None => {
+            let path = archive.remove_part();
+            if !overwrite {
+                log::warn!(
+                    "omitting `--output` is deprecated and will write to standard output instead of rewriting '{}' in place in a future release; specify `--output` explicitly, or pass `--overwrite` to keep rewriting in place",
+                    path.display()
+                );
+            }
+            Ok(RewriteDestination {
+                path,
+                overwrite: true,
+            })
+        }
+    }
 }
 
 impl fmt::Display for ArchiveSource {
@@ -551,10 +595,12 @@ pub(crate) fn spawn_entry_results(
 /// where archive entries should be inserted.
 ///
 /// # Order Guarantee
+///
 /// - Between arguments: strictly preserved
 /// - Within a single filesystem argument: walkdir traversal order
 ///
 /// # Hardlink Detection
+///
 /// A single `HardlinkResolver` is shared across all filesystem paths,
 /// enabling cross-path hardlink detection.
 pub(crate) fn collect_items_from_sources(
@@ -587,6 +633,7 @@ pub(crate) fn collect_items_from_sources(
 /// [`HardlinkResolver::incomplete_links`].
 ///
 /// # Order Preservation
+///
 /// Items are collected in the order paths are provided. Each path's items
 /// appear in traversal order. This enables predictable archive ordering
 /// matching CLI argument order.
@@ -670,6 +717,7 @@ fn normalize_non_follow_root_path<'a>(path: &'a Path, options: &CollectOptions<'
 /// Returns a vector of [`CollectedEntry`] on success.
 ///
 /// # Errors
+///
 /// Propagates I/O errors encountered during traversal. Broken symlinks are
 /// tolerated and returned as `StoreAs::Symlink` instead of an error. Returns
 /// `io::ErrorKind::Unsupported` for entries with unsupported types. Other walk
@@ -686,6 +734,9 @@ pub(crate) fn collect_items_with_state(
     // see `normalize_non_follow_root_path` for the rationale.
     let walk_path = normalize_non_follow_root_path(path, options);
 
+    // REASON: The CLI distinguishes following only command-line symlinks from
+    // following nested symlinks too. `ignore::WalkBuilder` has one `follow_links`
+    // setting; `WalkDir` lets these cases be controlled separately.
     let mut iter = if options.recursive {
         walkdir::WalkDir::new(walk_path)
     } else {
@@ -884,11 +935,18 @@ pub(crate) fn collect_split_archives(first: impl AsRef<Path>) -> io::Result<Vec<
     Ok(archives)
 }
 
-const IN_MEMORY_THRESHOLD: usize = 50 * 1024 * 1024;
+#[cfg(feature = "memmap")]
+const MMAP_THRESHOLD: usize = 50 * 1024 * 1024;
+const BUFFER_CAP: usize = 256 * 1024;
 
 #[inline]
-fn copy_buffered(file: fs::File, writer: &mut impl Write) -> io::Result<()> {
-    let mut reader = io::BufReader::with_capacity(IN_MEMORY_THRESHOLD, file);
+fn copy_buffered(
+    file: fs::File,
+    writer: &mut impl Write,
+    size_hint: Option<usize>,
+) -> io::Result<()> {
+    let capacity = size_hint.map(|s| s.min(BUFFER_CAP)).unwrap_or(BUFFER_CAP);
+    let mut reader = io::BufReader::with_capacity(capacity, file);
     io::copy(&mut reader, writer)?;
     Ok(())
 }
@@ -896,28 +954,19 @@ fn copy_buffered(file: fs::File, writer: &mut impl Write) -> io::Result<()> {
 #[inline]
 pub(crate) fn write_from_path(writer: &mut impl Write, path: impl AsRef<Path>) -> io::Result<()> {
     let path = path.as_ref();
-    let mut file = fs::File::open(path)?;
+    let file = fs::File::open(path)?;
     let file_size = file
         .metadata()
         .ok()
         .and_then(|meta| usize::try_from(meta.len()).ok());
-    if let Some(size) = file_size.filter(|&size| size < IN_MEMORY_THRESHOLD) {
-        // File::read_to_end would call fstat+lseek internally to size its buffer;
-        // reuse the size already obtained from metadata() above and read with
-        // read_exact to skip that extra syscall pair.
-        let mut contents = vec![0u8; size];
-        file.read_exact(&mut contents)?;
-        writer.write_all(&contents)?;
-        return Ok(());
+    match file_size {
+        #[cfg(feature = "memmap")]
+        Some(size) if MMAP_THRESHOLD < size => {
+            let mmap = utils::mmap::Mmap::map_with_size(file, size)?;
+            writer.write_all(&mmap[..])
+        }
+        size => copy_buffered(file, writer, size),
     }
-    #[cfg(feature = "memmap")]
-    if let Some(size) = file_size {
-        let mmap = utils::mmap::Mmap::map_with_size(file, size)?;
-        writer.write_all(&mmap[..])?;
-        return Ok(());
-    }
-    // Fallback for large files without memmap, or when size is unknown
-    copy_buffered(file, writer)
 }
 
 pub(crate) fn create_entry(
@@ -1245,46 +1294,6 @@ pub(crate) fn collect_extra_chunks(
     Ok(chunks)
 }
 
-pub(crate) fn split_to_parts(
-    mut entry_part: EntryPart<&[u8]>,
-    first: usize,
-    max: usize,
-) -> io::Result<Vec<EntryPart<&[u8]>>> {
-    let mut parts = vec![];
-    let mut split_size = first;
-    loop {
-        match entry_part.try_split(split_size) {
-            Ok((write_part, Some(remaining_part))) => {
-                parts.push(write_part);
-                entry_part = remaining_part;
-                split_size = max;
-            }
-            Ok((write_part, None)) => {
-                parts.push(write_part);
-                break;
-            }
-            Err(unsplit_part) => {
-                if split_size < max && parts.is_empty() {
-                    // The entry's first chunk doesn't fit in remaining space (`first`),
-                    // but it might fit in a fresh archive with full capacity (`max`).
-                    // Retry with max size - the caller will handle creating a new archive
-                    // when it sees the returned part exceeds remaining space.
-                    entry_part = unsplit_part;
-                    split_size = max;
-                    continue;
-                }
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    format!(
-                        "A chunk was detected that could not be divided into chunks smaller than the given size {max}"
-                    ),
-                ));
-            }
-        }
-    }
-    Ok(parts)
-}
-
 pub(crate) struct TransformContext<'a> {
     password: Option<&'a [u8]>,
     read_options: ReadOptions,
@@ -1369,21 +1378,20 @@ impl TransformStrategy for TransformStrategyKeepSolid {
         match read_entry? {
             ReadEntry::Solid(s) => {
                 let header = s.header();
-                let mut builder = SolidEntryBuilder::new(
-                    WriteOptions::builder()
-                        .compression(header.compression())
-                        .encryption(header.encryption())
-                        .cipher_mode(header.cipher_mode())
-                        .password(context.password)
-                        .build(),
-                )?;
-                for n in s.entries(&context.read_options)? {
-                    if let Some(entry) = transformer(n.map(Into::into))? {
-                        builder.add_entry(entry)?;
+                let option = WriteOptions::builder()
+                    .compression(header.compression())
+                    .encryption(header.encryption())
+                    .cipher_mode(header.cipher_mode())
+                    .password(context.password)
+                    .build();
+                archive.write_solid_with(option, |solid| {
+                    for n in s.entries(&context.read_options)? {
+                        if let Some(entry) = transformer(n.map(Into::into))? {
+                            solid.add_entry(entry)?;
+                        }
                     }
-                }
-                archive.add_entry(builder.build()?)?;
-                Ok(())
+                    Ok(())
+                })
             }
             ReadEntry::Normal(n) => {
                 if let Some(entry) = transformer(Ok(n))? {
@@ -1395,7 +1403,48 @@ impl TransformStrategy for TransformStrategyKeepSolid {
     }
 }
 
-pub(crate) fn run_across_archive<R, F>(
+/// Reports a stream that ends at a part boundary as a missing subsequent archive.
+fn map_missing_next_archive(e: io::Error) -> io::Error {
+    if e.kind() == io::ErrorKind::UnexpectedEof {
+        io::Error::new(
+            io::ErrorKind::NotFound,
+            "Archive is split, but no subsequent archives are found",
+        )
+    } else {
+        e
+    }
+}
+
+/// Advances a split archive to its next part, continuing on the current reader
+/// when the provider has no further archive to hand out.
+fn next_archive_part_reader<R: Read>(
+    archive: Archive<R>,
+    next: Option<R>,
+) -> io::Result<Archive<R>> {
+    match next {
+        Some(reader) => archive.read_next_archive(reader),
+        None => archive
+            .read_next_archive_in_stream()
+            .map_err(map_missing_next_archive),
+    }
+}
+
+/// Advances a split archive to its next part, continuing in the current bytes
+/// when the provider has no further archive to hand out.
+#[cfg(feature = "memmap")]
+fn next_archive_part_bytes<'d>(
+    archive: Archive<&'d [u8]>,
+    next: Option<&'d [u8]>,
+) -> io::Result<Archive<&'d [u8]>> {
+    match next {
+        Some(bytes) => archive.read_next_archive_from_slice(bytes),
+        None => archive
+            .read_next_archive_in_stream_from_slice()
+            .map_err(map_missing_next_archive),
+    }
+}
+
+pub(crate) fn run_across_archive_readers<R, F>(
     provider: impl IntoIterator<Item = R>,
     mut processor: F,
     allow_concatenated_archives: bool,
@@ -1409,13 +1458,7 @@ where
     loop {
         processor(&mut archive)?;
         if archive.has_next_archive() {
-            let next_reader = iter.next().ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "Archive is split, but no subsequent archives are found",
-                )
-            })?;
-            archive = archive.read_next_archive(next_reader)?;
+            archive = next_archive_part_reader(archive, iter.next())?;
             continue;
         }
         if !allow_concatenated_archives {
@@ -1431,7 +1474,7 @@ where
     Ok(())
 }
 
-fn run_across_archive_stoppable<R, F>(
+fn run_across_archive_readers_stoppable<R, F>(
     provider: impl IntoIterator<Item = R>,
     mut processor: F,
     allow_concatenated_archives: bool,
@@ -1447,13 +1490,7 @@ where
             break;
         }
         if archive.has_next_archive() {
-            let next_reader = iter.next().ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "Archive is split, but no subsequent archives are found",
-                )
-            })?;
-            archive = archive.read_next_archive(next_reader)?;
+            archive = next_archive_part_reader(archive, iter.next())?;
             continue;
         }
         if !allow_concatenated_archives {
@@ -1469,7 +1506,7 @@ where
     Ok(())
 }
 
-pub(crate) fn run_process_archive<F>(
+pub(crate) fn run_process_archive_readers<F>(
     archive_provider: impl IntoIterator<Item = impl Read>,
     read_options: &ReadOptions,
     mut processor: F,
@@ -1478,7 +1515,7 @@ pub(crate) fn run_process_archive<F>(
 where
     F: FnMut(io::Result<NormalEntry>) -> io::Result<()>,
 {
-    run_read_entries(
+    run_read_entries_readers(
         archive_provider,
         |entry| match entry? {
             ReadEntry::Solid(solid) => solid.entries(read_options)?.try_for_each(&mut processor),
@@ -1488,7 +1525,7 @@ where
     )
 }
 
-pub(crate) fn run_process_archive_stoppable<F>(
+pub(crate) fn run_process_archive_readers_stoppable<F>(
     archive_provider: impl IntoIterator<Item = impl Read>,
     read_options: &ReadOptions,
     mut processor: F,
@@ -1497,7 +1534,7 @@ pub(crate) fn run_process_archive_stoppable<F>(
 where
     F: FnMut(io::Result<NormalEntry>) -> io::Result<ProcessAction>,
 {
-    run_read_entries_stoppable(
+    run_read_entries_readers_stoppable(
         archive_provider,
         |entry| match entry? {
             ReadEntry::Solid(solid) => {
@@ -1516,7 +1553,7 @@ where
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_across_archive_mem<'d, F>(
+pub(crate) fn run_across_archive_bytes<'d, F>(
     archives: impl IntoIterator<Item = &'d [u8]>,
     mut processor: F,
     allow_concatenated_archives: bool,
@@ -1530,13 +1567,7 @@ where
     loop {
         processor(&mut archive)?;
         if archive.has_next_archive() {
-            let next_reader = iter.next().ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "Archive is split, but no subsequent archives are found",
-                )
-            })?;
-            archive = archive.read_next_archive_from_slice(next_reader)?;
+            archive = next_archive_part_bytes(archive, iter.next())?;
             continue;
         }
         if !allow_concatenated_archives {
@@ -1553,7 +1584,7 @@ where
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_read_entries_mem<'d, F>(
+pub(crate) fn run_read_entries_bytes<'d, F>(
     archives: impl IntoIterator<Item = &'d [u8]>,
     mut processor: F,
     allow_concatenated_archives: bool,
@@ -1561,7 +1592,7 @@ pub(crate) fn run_read_entries_mem<'d, F>(
 where
     F: FnMut(io::Result<ReadEntry<Cow<'d, [u8]>>>) -> io::Result<()>,
 {
-    run_across_archive_mem(
+    run_across_archive_bytes(
         archives,
         |archive| archive.entries_slice().try_for_each(&mut processor),
         allow_concatenated_archives,
@@ -1569,7 +1600,7 @@ where
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_entries<'d, F>(
+pub(crate) fn run_process_archive_bytes<'d, F>(
     archives: impl IntoIterator<Item = &'d [u8]>,
     read_options: &ReadOptions,
     mut processor: F,
@@ -1577,7 +1608,7 @@ pub(crate) fn run_entries<'d, F>(
 where
     F: FnMut(io::Result<NormalEntry<Cow<'d, [u8]>>>) -> io::Result<()>,
 {
-    run_read_entries_mem(
+    run_read_entries_bytes(
         archives,
         |entry| match entry? {
             ReadEntry::Solid(s) => s
@@ -1590,7 +1621,7 @@ where
 }
 
 #[cfg(feature = "memmap")]
-fn run_across_archive_mem_stoppable<'d, F>(
+fn run_across_archive_bytes_stoppable<'d, F>(
     archives: impl IntoIterator<Item = &'d [u8]>,
     mut processor: F,
     allow_concatenated_archives: bool,
@@ -1605,13 +1636,7 @@ where
             break;
         }
         if archive.has_next_archive() {
-            let next_reader = iter.next().ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "Archive is split, but no subsequent archives are found",
-                )
-            })?;
-            archive = archive.read_next_archive_from_slice(next_reader)?;
+            archive = next_archive_part_bytes(archive, iter.next())?;
             continue;
         }
         if !allow_concatenated_archives {
@@ -1628,7 +1653,7 @@ where
 }
 
 #[cfg(feature = "memmap")]
-fn run_read_entries_mem_stoppable<'d, F>(
+fn run_read_entries_bytes_stoppable<'d, F>(
     archives: impl IntoIterator<Item = &'d [u8]>,
     mut processor: F,
     allow_concatenated_archives: bool,
@@ -1636,7 +1661,7 @@ fn run_read_entries_mem_stoppable<'d, F>(
 where
     F: FnMut(io::Result<ReadEntry<Cow<'d, [u8]>>>) -> io::Result<ProcessAction>,
 {
-    run_across_archive_mem_stoppable(
+    run_across_archive_bytes_stoppable(
         archives,
         |archive| {
             for entry in archive.entries_slice() {
@@ -1652,7 +1677,7 @@ where
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_entries_stoppable<'d, F>(
+pub(crate) fn run_process_archive_bytes_stoppable<'d, F>(
     archives: impl IntoIterator<Item = &'d [u8]>,
     read_options: &ReadOptions,
     mut processor: F,
@@ -1660,7 +1685,7 @@ pub(crate) fn run_entries_stoppable<'d, F>(
 where
     F: FnMut(io::Result<NormalEntry<Cow<'d, [u8]>>>) -> io::Result<ProcessAction>,
 {
-    run_read_entries_mem_stoppable(
+    run_read_entries_bytes_stoppable(
         archives,
         |entry| match entry? {
             ReadEntry::Solid(s) => {
@@ -1679,7 +1704,7 @@ where
 }
 
 #[cfg(feature = "memmap")]
-fn run_transform_entry<'d, 'p, W, Provider, F, Transform>(
+fn run_transform_entries_bytes<'d, 'p, W, Provider, F, Transform>(
     writer: W,
     archives: impl IntoIterator<Item = &'d [u8]>,
     mut password_provider: Provider,
@@ -1697,7 +1722,7 @@ where
     let password = password_provider();
     let context = TransformContext::new(password);
     let mut out_archive = Archive::write_header(writer)?;
-    run_read_entries_mem(
+    run_read_entries_bytes(
         archives,
         |entry| Transform::transform(&mut out_archive, &context, entry, &mut processor),
         false,
@@ -1706,7 +1731,7 @@ where
     Ok(())
 }
 
-pub(crate) fn run_read_entries<F>(
+pub(crate) fn run_read_entries_readers<F>(
     archive_provider: impl IntoIterator<Item = impl Read>,
     mut processor: F,
     allow_concatenated_archives: bool,
@@ -1714,14 +1739,14 @@ pub(crate) fn run_read_entries<F>(
 where
     F: FnMut(io::Result<ReadEntry>) -> io::Result<()>,
 {
-    run_across_archive(
+    run_across_archive_readers(
         archive_provider,
         |archive| archive.entries().try_for_each(&mut processor),
         allow_concatenated_archives,
     )
 }
 
-pub(crate) fn run_read_entries_stoppable<F>(
+pub(crate) fn run_read_entries_readers_stoppable<F>(
     archive_provider: impl IntoIterator<Item = impl Read>,
     mut processor: F,
     allow_concatenated_archives: bool,
@@ -1729,7 +1754,7 @@ pub(crate) fn run_read_entries_stoppable<F>(
 where
     F: FnMut(io::Result<ReadEntry>) -> io::Result<ProcessAction>,
 {
-    run_across_archive_stoppable(
+    run_across_archive_readers_stoppable(
         archive_provider,
         |archive| {
             for entry in archive.entries() {
@@ -1744,8 +1769,9 @@ where
     )
 }
 
-#[cfg(not(feature = "memmap"))]
-fn run_transform_entry<'p, W, Provider, F, Transform>(
+// Kept available in memmap builds for non-file sources introduced by the stdio stack.
+#[cfg_attr(feature = "memmap", allow(dead_code))]
+fn run_transform_entries_readers<'d, 'p, W, Provider, F, Transform>(
     writer: W,
     archives: impl IntoIterator<Item = impl Read>,
     mut password_provider: Provider,
@@ -1755,15 +1781,24 @@ fn run_transform_entry<'p, W, Provider, F, Transform>(
 where
     W: Write,
     Provider: FnMut() -> Option<&'p [u8]>,
-    F: FnMut(io::Result<NormalEntry>) -> io::Result<Option<NormalEntry>>,
+    F: FnMut(
+        io::Result<NormalEntry<Cow<'d, [u8]>>>,
+    ) -> io::Result<Option<NormalEntry<Cow<'d, [u8]>>>>,
     Transform: TransformStrategy,
 {
     let password = password_provider();
     let context = TransformContext::new(password);
     let mut out_archive = Archive::write_header(writer)?;
-    run_read_entries(
+    run_read_entries_readers(
         archives,
-        |entry| Transform::transform(&mut out_archive, &context, entry, &mut processor),
+        |entry| {
+            Transform::transform(
+                &mut out_archive,
+                &context,
+                entry.map(ReadEntry::<Cow<'d, [u8]>>::from),
+                &mut processor,
+            )
+        },
         false,
     )?;
     out_archive.finalize()?;
@@ -1797,73 +1832,37 @@ where
     P: AsRef<Path>,
 {
     let archive = archive.as_ref();
-    let first_item_path = get_part_path(archive, 1);
-    let first_item_path = first_item_path.as_ref();
-    let file = utils::fs::file_create(first_item_path, overwrite)?;
-    let buffered = io::BufWriter::with_capacity(64 * 1024, file);
-    write_split_archive_writer(
-        buffered,
+    let parts = write_split_archive_writer(
         entries,
         |n| {
-            let file = utils::fs::file_create(get_part_path(archive, n), overwrite)?;
+            let file = utils::fs::file_create(get_part_path(archive, n).as_ref(), overwrite)?;
             Ok(io::BufWriter::with_capacity(64 * 1024, file))
         },
         max_file_size,
-        |n| {
-            if n == 1 {
-                fs::rename(first_item_path, archive)?;
-            };
-            Ok(())
-        },
-    )
+    )?;
+    if parts == 1 {
+        fs::rename(get_part_path(archive, 1).as_ref(), archive)?;
+    }
+    Ok(())
 }
 
-pub(crate) fn write_split_archive_writer<W, F, C>(
-    initial_writer: W,
+/// Returns the number of parts written. `get_next_writer` takes a 1-based part number.
+pub(crate) fn write_split_archive_writer<W, F>(
     entries: impl Iterator<Item = io::Result<impl Entry + Sized>>,
     mut get_next_writer: F,
     max_file_size: usize,
-    mut on_complete: C,
-) -> anyhow::Result<()>
+) -> anyhow::Result<usize>
 where
     W: Write,
     F: FnMut(usize) -> io::Result<W>,
-    C: FnMut(usize) -> io::Result<()>,
 {
-    if max_file_size < MIN_SPLIT_PART_BYTES {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!(
-                "Split size must be at least {MIN_SPLIT_PART_BYTES} bytes to accommodate headers"
-            ),
-        )
-        .into());
-    }
-    let mut part_num = 1;
-    let mut writer = Archive::write_header(initial_writer)?;
-
-    let max_file_size = max_file_size - SPLIT_ARCHIVE_OVERHEAD_BYTES;
-    let mut written_entry_size = 0;
+    // `Archive::write_split_header` numbers parts from 0.
+    let mut archive =
+        Archive::write_split_header(max_file_size, |n| get_next_writer(n as usize + 1))?;
     for entry in entries {
-        let p = EntryPart::from(entry?);
-        let parts = split_to_parts(
-            p.as_ref(),
-            max_file_size - written_entry_size,
-            max_file_size,
-        )?;
-        for part in parts {
-            if written_entry_size + part.bytes_len() > max_file_size {
-                part_num += 1;
-                let file = get_next_writer(part_num)?;
-                writer = writer.split_to_next_archive(file)?;
-                written_entry_size = 0;
-            }
-            written_entry_size += writer.add_entry_part(part)?;
-        }
+        archive.add_entry(entry?)?;
     }
-    writer.finalize()?;
-    on_complete(part_num)?;
-    Ok(())
+    Ok(archive.finalize()?.parts() as usize)
 }
 
 #[inline]
@@ -1939,7 +1938,7 @@ pub(crate) fn transform_archive_entries<R: io::Read>(
     let mut results = Vec::new();
     let mut reencrypt_options = HashMap::new();
     let read_options = ReadOptions::with_password(password);
-    run_process_archive(
+    run_process_archive_readers(
         std::iter::once(reader),
         &read_options,
         |entry| {
@@ -1971,7 +1970,6 @@ pub(crate) fn transform_archive_entries<R: io::Read>(
 /// This function auto-detects the format of the source:
 /// - PNA archive: Copies entries with optional transformation
 /// - mtree manifest: Reads files from filesystem with metadata overrides (Unix only)
-#[cfg(unix)]
 pub(crate) fn read_archive_source(
     source: &ArchiveSource,
     create_options: &CreateOptions,
@@ -2001,9 +1999,15 @@ pub(crate) fn read_archive_source(
                 password,
                 allow_concatenated_archives,
             ),
+            #[cfg(unix)]
             SourceFormat::Mtree => {
                 mtree::transform_mtree_entries(reader, create_options, filter, time_filters)
             }
+            #[cfg(not(unix))]
+            SourceFormat::Mtree => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "mtree manifests are not supported on this platform",
+            )),
         }
         .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", source_name, e)))
     }
@@ -2034,48 +2038,6 @@ pub(crate) fn read_archive_source(
                 password,
                 allow_concatenated_archives,
             )
-        }
-    }
-}
-
-/// Reads entries from an archive source (file or stdin) and transforms them.
-///
-/// On non-Unix platforms, only PNA format is supported. mtree format is not available.
-#[cfg(not(unix))]
-pub(crate) fn read_archive_source(
-    source: &ArchiveSource,
-    create_options: &CreateOptions,
-    filter: &PathFilter<'_>,
-    time_filters: &TimeFilters,
-    password: Option<&[u8]>,
-    allow_concatenated_archives: bool,
-) -> io::Result<Vec<io::Result<Option<NormalEntry>>>> {
-    match source {
-        ArchiveSource::File(path) => {
-            let file = fs::File::open(path)
-                .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", path.display(), e)))?;
-            let reader = io::BufReader::with_capacity(64 * 1024, file);
-            transform_archive_entries(
-                reader,
-                create_options,
-                filter,
-                time_filters,
-                password,
-                allow_concatenated_archives,
-            )
-            .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", path.display(), e)))
-        }
-        ArchiveSource::Stdin => {
-            let reader = io::BufReader::new(io::stdin().lock());
-            transform_archive_entries(
-                reader,
-                create_options,
-                filter,
-                time_filters,
-                password,
-                allow_concatenated_archives,
-            )
-            .map_err(|e| io::Error::new(e.kind(), format!("<stdin>: {}", e)))
         }
     }
 }
@@ -2158,7 +2120,6 @@ fn transform_normal_entry(
             },
     } = &keep_options.owner_strategy
     {
-        // Only apply if at least one override is specified
         let own = crate::ext::ResolvedOwnership::from_metadata(&metadata);
         if (uid.is_some() || gid.is_some() || uname.is_some() || gname.is_some()) && !own.is_empty()
         {
@@ -2279,7 +2240,6 @@ fn re_encrypt_entry_with_name(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cli::MissingTimePolicy;
     use std::collections::HashSet;
 
     const EMPTY_PATTERNS: [&str; 0] = [];
@@ -2302,11 +2262,55 @@ mod tests {
     }
 
     #[test]
+    fn keep_solid_transform_propagates_transformer_error_mid_block() {
+        let bytes = {
+            let mut archive = Archive::write_header(Vec::new()).unwrap();
+            let mut builder = pna::SolidEntryBuilder::new(WriteOptions::store()).unwrap();
+            builder
+                .add_entry(
+                    FileEntryBuilder::new("a.txt".into())
+                        .unwrap()
+                        .build()
+                        .unwrap(),
+                )
+                .unwrap();
+            builder
+                .add_entry(
+                    FileEntryBuilder::new("b.txt".into())
+                        .unwrap()
+                        .build()
+                        .unwrap(),
+                )
+                .unwrap();
+            archive.add_entry(builder.build().unwrap()).unwrap();
+            archive.finalize().unwrap()
+        };
+
+        let mut src = Archive::read_header(&bytes[..]).unwrap();
+        let read_entry = src.entries().next().unwrap();
+        let mut out = Archive::write_header(Vec::new()).unwrap();
+        let context = TransformContext::new(None);
+        let mut seen = 0;
+        let err = TransformStrategyKeepSolid::transform(&mut out, &context, read_entry, |entry| {
+            let entry = entry?;
+            seen += 1;
+            if seen == 2 {
+                return Err(io::Error::other("boom"));
+            }
+            Ok(Some(entry))
+        })
+        .unwrap_err();
+
+        assert_eq!(seen, 2);
+        assert_eq!(err.to_string(), "boom");
+    }
+
+    #[test]
     fn gcm_reencrypt_options_are_reused_for_matching_entries() {
         let source_options = WriteOptions::builder()
             .encryption(pna::Encryption::AES)
             .cipher_mode(pna::CipherMode::GCM)
-            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
             .password(Some("password"))
             .build();
         let mut source =
@@ -2343,8 +2347,8 @@ mod tests {
         }
     }
 
-    /// Deliberately runs with an algorithm, a mode and a compression the source
-    /// does not use: all three must come from the source entry, or a rename
+    /// Deliberately runs with an algorithm, a mode, and a compression, none of
+    /// which the source uses: all three must come from the source entry, or a rename
     /// silently re-encodes it under whatever this run happens to be writing.
     #[test]
     fn gcm_reencrypt_takes_the_cipher_and_compression_from_the_source_entry() {
@@ -2352,7 +2356,7 @@ mod tests {
             .compression(pna::Compression::ZSTANDARD)
             .encryption(pna::Encryption::AES)
             .cipher_mode(pna::CipherMode::GCM)
-            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
             .password(Some("password"))
             .build();
         let mut source =
@@ -2363,7 +2367,7 @@ mod tests {
             .compression(pna::Compression::NO)
             .encryption(pna::Encryption::CAMELLIA)
             .cipher_mode(pna::CipherMode::CTR)
-            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
             .password(Some("password"))
             .build();
         let mut cache = ReencryptOptionsCache::new();
@@ -2399,7 +2403,7 @@ mod tests {
         let camellia_options = WriteOptions::builder()
             .encryption(pna::Encryption::CAMELLIA)
             .cipher_mode(pna::CipherMode::GCM)
-            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
             .password(Some("password"))
             .build();
         let mut aes_source =
@@ -2442,7 +2446,7 @@ mod tests {
         let source_options = WriteOptions::builder()
             .encryption(pna::Encryption::AES)
             .cipher_mode(pna::CipherMode::GCM)
-            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
             .password(Some("password"))
             .build();
         let mut source =
@@ -2452,7 +2456,7 @@ mod tests {
         let create_options = WriteOptions::builder()
             .encryption(pna::Encryption::AES)
             .cipher_mode(pna::CipherMode::GCM)
-            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(2)))
+            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1001)))
             .password(Some("password"))
             .build();
         let mut cache = ReencryptOptionsCache::new();
@@ -2470,15 +2474,15 @@ mod tests {
         archive.add_entry(renamed).unwrap();
         let bytes = archive.finalize().unwrap();
         let text = String::from_utf8_lossy(&bytes);
-        assert!(text.contains("$pbkdf2-sha256$i=2"), "{text}");
-        assert!(!text.contains("$pbkdf2-sha256$i=1"), "{text}");
+        assert!(text.contains("$pbkdf2-sha256$i=1001"), "{text}");
+        assert!(!text.contains("$pbkdf2-sha256$i=1000"), "{text}");
     }
 
     fn gcm_write_options() -> WriteOptions {
         WriteOptions::builder()
             .encryption(pna::Encryption::AES)
             .cipher_mode(pna::CipherMode::GCM)
-            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
             .password(Some("password"))
             .build()
     }
@@ -2827,6 +2831,59 @@ mod tests {
         use super::*;
 
         #[test]
+        #[cfg(not(target_family = "wasm"))]
+        fn rewrite_destination_resolves_the_contract_matrix() {
+            let dir = std::env::temp_dir().join("pna_rewrite_destination_test");
+            let _ = fs::remove_dir_all(&dir);
+            fs::create_dir_all(&dir).unwrap();
+            let existing = dir.join("existing.pna");
+            fs::write(&existing, b"sentinel").unwrap();
+            let missing = dir.join("missing.pna");
+            let _ = fs::remove_file(&missing);
+            let archive = dir.join("input.pna");
+
+            // Omitted output always rewrites in place, regardless of --overwrite.
+            for overwrite in [false, true] {
+                let destination = resolve_rewrite_output(&archive, None, overwrite).unwrap();
+                assert_eq!(
+                    destination,
+                    RewriteDestination {
+                        path: archive.clone(),
+                        overwrite: true,
+                    }
+                );
+            }
+
+            // Explicit output without --overwrite arms the commit-time guard,
+            // and refuses an existing destination up front.
+            let destination =
+                resolve_rewrite_output(&archive, Some(missing.clone()), false).unwrap();
+            assert_eq!(
+                destination,
+                RewriteDestination {
+                    path: missing.clone(),
+                    overwrite: false,
+                }
+            );
+            let error =
+                resolve_rewrite_output(&archive, Some(existing.clone()), false).unwrap_err();
+            assert!(error.to_string().contains("already exists"));
+
+            // Explicit output with --overwrite replaces unconditionally.
+            let destination =
+                resolve_rewrite_output(&archive, Some(existing.clone()), true).unwrap();
+            assert_eq!(
+                destination,
+                RewriteDestination {
+                    path: existing.clone(),
+                    overwrite: true,
+                }
+            );
+
+            let _ = fs::remove_dir_all(&dir);
+        }
+
+        #[test]
         fn at_alone_is_stdin() {
             let result = ItemSource::parse("@");
             assert!(matches!(result, ItemSource::Archive(ArchiveSource::Stdin)));
@@ -2896,7 +2953,7 @@ mod tests {
                 ItemSource::Archive(ArchiveSource::Stdin),
                 ItemSource::Archive(ArchiveSource::File(PathBuf::from("archive.pna"))),
             ];
-            assert!(super::validate_no_duplicate_stdin(&sources).is_ok());
+            assert!(validate_no_duplicate_stdin(&sources).is_ok());
         }
 
         #[test]
@@ -2905,17 +2962,17 @@ mod tests {
                 ItemSource::Archive(ArchiveSource::Stdin),
                 ItemSource::Archive(ArchiveSource::Stdin),
             ];
-            assert!(super::validate_no_duplicate_stdin(&sources).is_err());
+            assert!(validate_no_duplicate_stdin(&sources).is_err());
         }
 
         #[test]
         fn validate_no_duplicate_stdin_empty() {
             let sources: Vec<ItemSource> = vec![];
-            assert!(super::validate_no_duplicate_stdin(&sources).is_ok());
+            assert!(validate_no_duplicate_stdin(&sources).is_ok());
         }
     }
 
-    mod detect_format_tests {
+    mod detect_format {
         use super::*;
         use std::io::Cursor;
 

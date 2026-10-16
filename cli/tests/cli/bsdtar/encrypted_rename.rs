@@ -19,7 +19,7 @@ fn create_encrypted_archive(
     let options = pna::WriteOptions::builder()
         .encryption(pna::Encryption::AES)
         .cipher_mode(cipher_mode)
-        .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+        .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
         .password(Some(PASSWORD))
         .build();
     let file = File::create(path).unwrap();

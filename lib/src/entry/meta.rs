@@ -8,7 +8,9 @@ use std::ops::Deref;
 use std::str;
 
 /// Metadata information about an entry.
+///
 /// # Examples
+///
 /// ```rust
 /// # use std::time::SystemTimeError;
 /// # fn main() -> Result<(), SystemTimeError> {
@@ -22,7 +24,6 @@ use std::str;
 /// # Ok(())
 /// # }
 /// ```
-#[allow(deprecated)]
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Metadata {
     pub(crate) raw_file_size: Option<u128>,
@@ -30,7 +31,6 @@ pub struct Metadata {
     pub(crate) created: Option<Duration>,
     pub(crate) modified: Option<Duration>,
     pub(crate) accessed: Option<Duration>,
-    pub(crate) permission: Option<Permission>,
     pub(crate) link_target_type: Option<LinkTargetType>,
     pub(crate) owner_uid: Option<OwnerUid>,
     pub(crate) owner_gid: Option<OwnerGid>,
@@ -101,7 +101,6 @@ impl Metadata {
             created: None,
             modified: None,
             accessed: None,
-            permission: None,
             link_target_type: None,
             owner_uid: None,
             owner_gid: None,
@@ -117,6 +116,7 @@ impl Metadata {
     /// Sets the created time as the duration since the Unix epoch.
     ///
     /// # Examples
+    ///
     /// ```rust
     /// # use std::time::SystemTimeError;
     /// # fn main() -> Result<(), SystemTimeError> {
@@ -136,6 +136,7 @@ impl Metadata {
     /// Sets the modified time as the duration since the Unix epoch.
     ///
     /// # Examples
+    ///
     /// ```rust
     /// # use std::time::SystemTimeError;
     /// # fn main() -> Result<(), SystemTimeError> {
@@ -155,6 +156,7 @@ impl Metadata {
     /// Sets the accessed time as the duration since the Unix epoch.
     ///
     /// # Examples
+    ///
     /// ```rust
     /// # use std::time::SystemTimeError;
     /// # fn main() -> Result<(), SystemTimeError> {
@@ -168,18 +170,6 @@ impl Metadata {
     #[inline]
     pub const fn with_accessed(mut self, accessed: Option<Duration>) -> Self {
         self.accessed = accessed;
-        self
-    }
-
-    /// Sets the permission of the entry.
-    #[deprecated(
-        since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks; use Metadata::with_owner_uid/with_owner_gid/with_owner_user_name/with_owner_group_name/with_owner_user_sid/with_owner_group_sid/with_permission_mode"
-    )]
-    #[allow(deprecated)]
-    #[inline]
-    pub fn with_permission(mut self, permission: Option<Permission>) -> Self {
-        self.permission = permission;
         self
     }
 
@@ -249,7 +239,8 @@ impl Metadata {
     pub const fn raw_file_size(&self) -> Option<u128> {
         self.raw_file_size
     }
-    /// Returns the compressed size of this entry's data in bytes.
+    /// Returns the size of this entry's stored data in bytes, after compression
+    /// and encryption.
     #[inline]
     pub const fn compressed_size(&self) -> usize {
         self.compressed_size
@@ -268,16 +259,6 @@ impl Metadata {
     #[inline]
     pub const fn accessed(&self) -> Option<Duration> {
         self.accessed
-    }
-    /// Returns the owner, group, and permission bits for the entry.
-    #[deprecated(
-        since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks; use Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode"
-    )]
-    #[allow(deprecated)]
-    #[inline]
-    pub const fn permission(&self) -> Option<&Permission> {
-        self.permission.as_ref()
     }
     /// Returns the owner user id facet (`fUId`), if recorded.
     #[inline]
@@ -317,7 +298,7 @@ impl Metadata {
 
     /// Returns the link target type for this entry, if present.
     ///
-    /// - `None`: fLTP chunk was absent.
+    /// - `None`: target type is absent or unrecognized.
     /// - `Some(Unknown)`: fLTP chunk present but target type undetermined.
     /// - `Some(File)` / `Some(Directory)`: known target type.
     #[inline]
@@ -339,13 +320,16 @@ impl Default for Metadata {
     }
 }
 
-/// Owner, group, and permission bits for an archive entry.
-#[deprecated(
-    since = "0.34.0",
-    note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
-)]
+// Decoded legacy `fPRM` chunk body: owner, group, and permission bits for
+// an archive entry.
+//
+// This is purely a decode target for the reader — it exists only so
+// `NormalEntry::parse_chunks` can fold a legacy `fPRM` chunk
+// into the owner facets it supplies (see the rationale in that method). The
+// only way to construct one is `Permission::try_from_bytes`, and no
+// public getter exposes it.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct Permission {
+pub(crate) struct Permission {
     uid: u64,
     uname: String,
     gid: u64,
@@ -353,145 +337,25 @@ pub struct Permission {
     permission: u16,
 }
 
-#[allow(deprecated)]
 impl Permission {
-    /// Creates a new [`Permission`] with the given user, group, and permission bits.
-    ///
-    /// The `uid`/`gid` are numeric POSIX IDs, `uname`/`gname` are the
-    /// corresponding names, and `permission` holds the file mode bits (e.g. `0o755`).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # #![allow(deprecated)]
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user".into(), 100, "group".into(), 0o755);
-    /// ```
-    #[deprecated(
-        since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
-    )]
-    #[inline]
-    pub const fn new(uid: u64, uname: String, gid: u64, gname: String, permission: u16) -> Self {
-        Self {
-            uid,
-            uname,
-            gid,
-            gname,
-            permission,
-        }
-    }
-    /// Returns the user ID associated with this permission.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # #![allow(deprecated)]
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-    /// assert_eq!(perm.uid(), 1000);
-    /// ```
-    #[deprecated(
-        since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
-    )]
-    #[inline]
-    pub const fn uid(&self) -> u64 {
+    pub(crate) const fn uid(&self) -> u64 {
         self.uid
     }
 
-    /// Returns the user name associated with this permission.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # #![allow(deprecated)]
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-    /// assert_eq!(perm.uname(), "user1");
-    /// ```
-    #[deprecated(
-        since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
-    )]
-    #[inline]
-    pub fn uname(&self) -> &str {
+    pub(crate) fn uname(&self) -> &str {
         &self.uname
     }
 
-    /// Returns the group ID associated with this permission.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # #![allow(deprecated)]
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-    /// assert_eq!(perm.gid(), 100);
-    /// ```
-    #[deprecated(
-        since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
-    )]
-    #[inline]
-    pub const fn gid(&self) -> u64 {
+    pub(crate) const fn gid(&self) -> u64 {
         self.gid
     }
 
-    /// Returns the group name associated with this permission.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # #![allow(deprecated)]
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-    /// assert_eq!(perm.gname(), "group1");
-    /// ```
-    #[deprecated(
-        since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
-    )]
-    #[inline]
-    pub fn gname(&self) -> &str {
+    pub(crate) fn gname(&self) -> &str {
         &self.gname
     }
 
-    /// Returns the permission bits associated with this permission.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # #![allow(deprecated)]
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-    /// assert_eq!(perm.permissions(), 0o644);
-    /// ```
-    #[deprecated(
-        since = "0.34.0",
-        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching Metadata::with_* setters)"
-    )]
-    #[inline]
-    pub const fn permissions(&self) -> u16 {
+    pub(crate) const fn permissions(&self) -> u16 {
         self.permission
-    }
-
-    pub(crate) fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(20 + self.uname.len() + self.gname.len());
-        bytes.extend_from_slice(&self.uid.to_be_bytes());
-        bytes.extend_from_slice(&(self.uname.len() as u8).to_be_bytes());
-        bytes.extend_from_slice(self.uname.as_bytes());
-        bytes.extend_from_slice(&self.gid.to_be_bytes());
-        bytes.extend_from_slice(&(self.gname.len() as u8).to_be_bytes());
-        bytes.extend_from_slice(self.gname.as_bytes());
-        bytes.extend_from_slice(&self.permission.to_be_bytes());
-        bytes
     }
 
     pub(crate) fn try_from_bytes(mut bytes: &[u8]) -> io::Result<Self> {
@@ -570,7 +434,6 @@ impl OwnerUserName {
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
         let b = self.0.as_str().as_bytes();
         let mut v = Vec::with_capacity(1 + b.len());
-        // Type guarantees b.len() <= 255 (BoundedString<255> invariant).
         v.push(b.len() as u8);
         v.extend_from_slice(b);
         v
@@ -637,7 +500,6 @@ impl OwnerGroupName {
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
         let b = self.0.as_str().as_bytes();
         let mut v = Vec::with_capacity(1 + b.len());
-        // Type guarantees b.len() <= 255 (BoundedString<255> invariant).
         v.push(b.len() as u8);
         v.extend_from_slice(b);
         v
@@ -704,7 +566,6 @@ impl OwnerUserSid {
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
         let b = self.0.as_str().as_bytes();
         let mut v = Vec::with_capacity(1 + b.len());
-        // Type guarantees b.len() <= 255 (BoundedString<255> invariant).
         v.push(b.len() as u8);
         v.extend_from_slice(b);
         v
@@ -771,7 +632,6 @@ impl OwnerGroupSid {
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
         let b = self.0.as_str().as_bytes();
         let mut v = Vec::with_capacity(1 + b.len());
-        // Type guarantees b.len() <= 255 (BoundedString<255> invariant).
         v.push(b.len() as u8);
         v.extend_from_slice(b);
         v
@@ -924,7 +784,7 @@ impl From<u16> for PermissionMode {
 /// - `Directory` (2): Target is a directory.
 /// - Values 3–63 are reserved for future public extensions.
 /// - Values 64–255 are reserved for private extensions.
-/// - Both ranges are currently unrecognized and fall back to `None`.
+/// - Unrecognized values are ignored when reading entry metadata.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
 pub enum LinkTargetType {
@@ -973,23 +833,26 @@ mod tests {
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
-    #[allow(deprecated)]
     #[test]
-    fn permission() {
-        let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-        assert_eq!(perm, Permission::try_from_bytes(&perm.to_bytes()).unwrap());
+    fn permission_decodes_an_fprm_body() {
+        let perm =
+            Permission::try_from_bytes(&fprm_body(1000, "user1", 100, "group1", 0o644)).unwrap();
+        assert_eq!(perm.uid(), 1000);
+        assert_eq!(perm.uname(), "user1");
+        assert_eq!(perm.gid(), 100);
+        assert_eq!(perm.gname(), "group1");
+        assert_eq!(perm.permissions(), 0o644);
     }
 
     #[test]
     fn owner_string_newtype_bound_and_codec() {
-        use crate::entry::OwnerUserName;
-        assert!(OwnerUserName::new("").is_ok());
-        assert!(OwnerUserName::new("alice").is_ok());
-        assert!(OwnerUserName::new("a".repeat(255)).is_ok());
-        assert!(OwnerUserName::new("a".repeat(256)).is_err());
+        assert_eq!(OwnerUserName::new("").unwrap().as_str(), "");
+        assert_eq!(OwnerUserName::new("alice").unwrap().as_str(), "alice");
+        assert_eq!(OwnerUserName::new("a".repeat(255)).unwrap().len(), 255);
+        let over = OwnerUserName::new("a".repeat(256)).unwrap_err();
+        assert_eq!((over.max(), over.actual()), (255, 256));
         let n = OwnerUserName::new("alice").unwrap();
         assert_eq!(n.to_bytes(), vec![5, b'a', b'l', b'i', b'c', b'e']);
-        assert_eq!(OwnerUserName::try_from_bytes(&n.to_bytes()).unwrap(), n);
         assert_eq!(OwnerUserName::try_from_bytes(&[0]).unwrap().as_str(), "");
         assert_eq!(
             OwnerUserName::try_from_bytes(&[3, b'a', b'b', b'c', 0xFF])
@@ -997,31 +860,47 @@ mod tests {
                 .as_str(),
             "abc"
         );
-        assert!(OwnerUserName::try_from_bytes(&[]).is_err());
-        assert!(OwnerUserName::try_from_bytes(&[5, b'a']).is_err());
-        assert!(OwnerUserName::try_from_bytes(&[1, 0xFF]).is_err());
+        assert_eq!(
+            OwnerUserName::try_from_bytes(&[]).unwrap_err().kind(),
+            io::ErrorKind::UnexpectedEof
+        );
+        assert_eq!(
+            OwnerUserName::try_from_bytes(&[5, b'a'])
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::UnexpectedEof
+        );
+        assert_eq!(
+            OwnerUserName::try_from_bytes(&[1, 0xFF])
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidData
+        );
     }
 
     #[test]
     fn owner_uid_and_permission_mode_codec() {
-        use crate::entry::{OwnerUid, PermissionMode};
         let u = OwnerUid::from(1000u64);
         assert_eq!(u.get(), 1000);
         assert_eq!(u.to_bytes(), 1000u64.to_be_bytes());
-        assert_eq!(OwnerUid::try_from_bytes(&u.to_bytes()).unwrap(), u);
-        assert!(OwnerUid::try_from_bytes(&[0, 0, 0]).is_err());
+        assert_eq!(
+            OwnerUid::try_from_bytes(&[0, 0, 0]).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
         assert_eq!(PermissionMode::from(0o7777u16).get(), 0o7777);
         assert_eq!(PermissionMode::from(0o170755u16).get(), 0o0755);
         let m = PermissionMode::from(0o644u16);
         assert_eq!(m.to_bytes(), 0o644u16.to_be_bytes());
-        assert_eq!(PermissionMode::try_from_bytes(&m.to_bytes()).unwrap(), m);
         assert_eq!(
             PermissionMode::try_from_bytes(&0o170644u16.to_be_bytes())
                 .unwrap()
                 .get(),
             0o0644
         );
-        assert!(PermissionMode::try_from_bytes(&[0]).is_err());
+        assert_eq!(
+            PermissionMode::try_from_bytes(&[0]).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
     }
 
     #[test]
@@ -1038,7 +917,6 @@ mod tests {
 
     #[test]
     fn owner_id_facets_round_trip_via_entry() {
-        use crate::entry::{OwnerGid, OwnerUid};
         use crate::{Archive, FileEntryBuilder};
         let mut buf = Vec::new();
         {
@@ -1062,7 +940,6 @@ mod tests {
 
     #[test]
     fn owner_name_facets_round_trip_via_entry() {
-        use crate::entry::{OwnerGroupName, OwnerUserName};
         use crate::{Archive, FileEntryBuilder};
         let mut buf = Vec::new();
         {
@@ -1086,7 +963,6 @@ mod tests {
 
     #[test]
     fn owner_sid_facets_round_trip_via_entry() {
-        use crate::entry::{OwnerGroupSid, OwnerUserSid};
         use crate::{Archive, FileEntryBuilder};
         let mut buf = Vec::new();
         {
@@ -1116,7 +992,6 @@ mod tests {
 
     #[test]
     fn fosi_length_prefixed_round_trip_and_empty() {
-        use crate::entry::{OwnerGroupSid, OwnerUserSid};
         use crate::{Archive, FileEntryBuilder};
         let mut buf = Vec::new();
         {
@@ -1141,7 +1016,6 @@ mod tests {
 
     #[test]
     fn permission_mode_facet_round_trip_via_entry() {
-        use crate::entry::PermissionMode;
         use crate::{Archive, FileEntryBuilder};
         let mut buf = Vec::new();
         {
@@ -1161,30 +1035,18 @@ mod tests {
     }
 
     #[test]
-    fn link_target_type_roundtrip_unknown() {
-        let ltp = LinkTargetType::Unknown;
-        assert_eq!(
-            Some(ltp),
-            LinkTargetType::try_from_bytes(&ltp.to_bytes()).unwrap()
-        );
-    }
-
-    #[test]
-    fn link_target_type_roundtrip_file() {
-        let ltp = LinkTargetType::File;
-        assert_eq!(
-            Some(ltp),
-            LinkTargetType::try_from_bytes(&ltp.to_bytes()).unwrap()
-        );
-    }
-
-    #[test]
-    fn link_target_type_roundtrip_directory() {
-        let ltp = LinkTargetType::Directory;
-        assert_eq!(
-            Some(ltp),
-            LinkTargetType::try_from_bytes(&ltp.to_bytes()).unwrap()
-        );
+    fn link_target_type_to_bytes_is_the_spec_code() {
+        let cases = [
+            (LinkTargetType::Unknown, 0x00),
+            (LinkTargetType::File, 0x01),
+            (LinkTargetType::Directory, 0x02),
+        ];
+        for (ltp, code) in cases {
+            assert_eq!(ltp.to_bytes(), [code]);
+        }
+        match LinkTargetType::Unknown {
+            LinkTargetType::Unknown | LinkTargetType::File | LinkTargetType::Directory => {}
+        }
     }
 
     #[test]
@@ -1195,7 +1057,10 @@ mod tests {
 
     #[test]
     fn link_target_type_empty_bytes() {
-        assert!(LinkTargetType::try_from_bytes(&[]).is_err());
+        assert_eq!(
+            LinkTargetType::try_from_bytes(&[]).unwrap_err().kind(),
+            io::ErrorKind::UnexpectedEof
+        );
     }
 
     #[test]
@@ -1209,7 +1074,10 @@ mod tests {
             LinkTargetType::try_from(2u8).unwrap(),
             LinkTargetType::Directory
         );
-        assert!(LinkTargetType::try_from(3u8).is_err());
+        assert_eq!(
+            LinkTargetType::try_from(3u8).unwrap_err().to_string(),
+            "unknown value 3"
+        );
     }
 
     #[test]
@@ -1221,28 +1089,45 @@ mod tests {
         );
     }
 
-    #[allow(deprecated)]
+    // Raw `fPRM` chunk body: `uid(8) | uname_len(1) | uname | gid(8) |
+    // gname_len(1) | gname | mode(2)`, all big-endian (mirrors
+    // `Permission::try_from_bytes`). Asserts both names fit the 1-byte
+    // length prefix before the `as u8` cast, so a name too long for the
+    // format fails loudly here instead of silently truncating the length
+    // byte and producing a malformed chunk.
+    fn fprm_body(uid: u64, uname: &str, gid: u64, gname: &str, mode: u16) -> Vec<u8> {
+        assert!(uname.len() <= u8::MAX as usize);
+        assert!(gname.len() <= u8::MAX as usize);
+        let mut body = Vec::new();
+        body.extend_from_slice(&uid.to_be_bytes());
+        body.push(uname.len() as u8);
+        body.extend_from_slice(uname.as_bytes());
+        body.extend_from_slice(&gid.to_be_bytes());
+        body.push(gname.len() as u8);
+        body.extend_from_slice(gname.as_bytes());
+        body.extend_from_slice(&mode.to_be_bytes());
+        body
+    }
+
+    // A pre-existing archive can carry both a legacy `fPRM` chunk and owner
+    // facets — third-party writers and archives from 0.34 through 0.37 can
+    // do this even though libpna itself no longer writes `fPRM`. The
+    // all-or-nothing fill must leave every facet alone when even one of
+    // them is already set, so all 7 facets set here must survive untouched
+    // by the `fPRM` chunk written alongside them.
     #[test]
-    fn all_owner_facets_and_fprm_coexist_round_trip() {
+    fn owner_facets_survive_an_fprm_chunk_written_alongside_them() {
         use crate::entry::{
             OwnerGid, OwnerGroupName, OwnerGroupSid, OwnerUid, OwnerUserName, OwnerUserSid,
             PermissionMode,
         };
-        use crate::{Archive, FileEntryBuilder};
+        use crate::{Archive, ChunkType, FileEntryBuilder, RawChunk};
         let mut buf = Vec::new();
         {
             let mut archive = Archive::write_header(&mut buf).unwrap();
             let mut b = FileEntryBuilder::new("f".into()).unwrap();
             b.metadata(
                 Metadata::new()
-                    // Legacy fPRM (Permission uses plain String uname/gname on this branch).
-                    .with_permission(Some(Permission::new(
-                        7,
-                        "legacy".to_string(),
-                        8,
-                        "grp".to_string(),
-                        0o600,
-                    )))
                     // All 7 new owner facets.
                     .with_owner_uid(Some(OwnerUid::from(1)))
                     .with_owner_gid(Some(OwnerGid::from(2)))
@@ -1252,6 +1137,13 @@ mod tests {
                     .with_owner_group_sid(Some(OwnerGroupSid::new("S-1-2").unwrap()))
                     .with_permission_mode(Some(PermissionMode::from(0o644))),
             );
+            // A raw fPRM extra chunk stands in for a pre-existing/third-party
+            // archive: libpna itself never writes fPRM anymore, so this is
+            // the only way left to construct one.
+            b.add_extra_chunk(RawChunk::from_data(
+                ChunkType::fPRM,
+                fprm_body(7, "legacy", 8, "grp", 0o600),
+            ));
             let entry = b.build().unwrap();
             archive.add_entry(entry).unwrap();
             archive.finalize().unwrap();
@@ -1267,15 +1159,6 @@ mod tests {
         assert_eq!(m.owner_user_sid().map(|v| v.as_str()), Some("S-1-1"));
         assert_eq!(m.owner_group_sid().map(|v| v.as_str()), Some("S-1-2"));
         assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o644));
-        // Legacy fPRM still round-trips intact, independently of the new owner facets.
-        let p = m
-            .permission()
-            .expect("fPRM permission must still be present");
-        assert_eq!(p.uid(), 7);
-        assert_eq!(p.uname(), "legacy");
-        assert_eq!(p.gid(), 8);
-        assert_eq!(p.gname(), "grp");
-        assert_eq!(p.permissions(), 0o600);
     }
 
     #[test]

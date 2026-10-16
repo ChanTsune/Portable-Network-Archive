@@ -5,19 +5,38 @@ mod slice;
 use crate::{
     archive::{Archive, ArchiveHeader},
     chunk::{Chunk, ChunkType, RawChunk},
-    entry::{Entry, NormalEntry, RawEntry, ReadEntry, ReadOptions},
+    entry::{Entry, NormalEntry, RawEntry, ReadEntry, ReadOptions, SolidIntoEntries},
 };
 use std::{
     io::{self, Read, Seek},
     mem::swap,
 };
 
+/// Verifies that `next` is the archive that follows `current` as its next part.
+fn verify_next_archive_number(current: &ArchiveHeader, next: &ArchiveHeader) -> io::Result<()> {
+    let expected = current
+        .archive_number
+        .checked_add(1)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "archive number overflow"))?;
+    if expected != next.archive_number {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "next archive number must be {expected} (expected previous + 1, detected: {})",
+                next.archive_number
+            ),
+        ));
+    }
+    Ok(())
+}
+
 impl<R: Read> Archive<R> {
-    /// Reads the archive header from the provided reader and returns a new [`Archive`].
+    /// Reads the archive header and creates a reader for its entries.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading the header from the reader.
+    /// Returns an error if the archive signature or header is invalid or incomplete,
+    /// or if reading fails.
     #[inline]
     pub fn read_header(reader: R) -> io::Result<Self> {
         Self::read_header_with_buffer(reader, Default::default())
@@ -79,6 +98,7 @@ impl<R: Read> Archive<R> {
     /// Returns an iterator over raw entries in the archive.
     ///
     /// # Examples
+    ///
     /// ```no_run
     /// # use std::io;
     /// use libpna::Archive;
@@ -99,8 +119,10 @@ impl<R: Read> Archive<R> {
         RawEntries(self)
     }
 
-    /// Returns an iterator over entries including those in solid mode, using
-    /// the supplied read options for decryption.
+    /// Returns an iterator over normal entries, including those in solid entries.
+    ///
+    /// Solid entries are decoded using `options`. Normal entry payloads are not
+    /// decoded.
     #[inline]
     pub fn entries_with_options<'a>(
         &'a mut self,
@@ -109,29 +131,43 @@ impl<R: Read> Archive<R> {
         self.entries().extract_solid_entries(options)
     }
 
-    /// Reads the next archive from the provided reader and returns a new [`Archive`].
+    /// Reads the next part of a split archive from `reader`.
+    ///
+    /// Read entries to the end of the current part before calling this method.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading from the reader.
+    /// Returns an error if the next part has an invalid or incomplete header, its
+    /// archive number does not follow this part, or reading fails.
     #[inline]
     pub fn read_next_archive<OR: Read>(self, reader: OR) -> io::Result<Archive<OR>> {
-        let current_header = self.header;
         let mut next = Archive::<OR>::read_header_with_buffer(reader, self.buf)?;
         next.max_chunk_size = self.max_chunk_size;
-        let next_number = current_header
-            .archive_number
-            .checked_add(1)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "archive number overflow"))?;
-        if next_number != next.header.archive_number {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    "next archive number must be {next_number} (expected previous + 1, detected: {})",
-                    next.header.archive_number
-                ),
-            ));
-        }
+        verify_next_archive_number(&self.header, &next.header)?;
+        Ok(next)
+    }
+
+    /// Reads the next part of a split archive from the same reader.
+    ///
+    /// Read entries to the end of the current part before calling this method.
+    /// Use [`Self::read_next_archive`] when each part has a separate reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the next part has an invalid or incomplete header, its
+    /// archive number does not follow this part, or reading fails.
+    #[inline]
+    pub fn read_next_archive_in_stream(self) -> io::Result<Self> {
+        let Self {
+            inner,
+            header,
+            max_chunk_size,
+            buf,
+            ..
+        } = self;
+        let mut next = Self::read_header_with_buffer(inner, buf)?;
+        next.max_chunk_size = max_chunk_size;
+        verify_next_archive_number(&header, &next.header)?;
         Ok(next)
     }
 }
@@ -140,6 +176,7 @@ impl<R> Archive<R> {
     /// Returns an iterator over the entries in the archive.
     ///
     /// # Examples
+    ///
     /// ```no_run
     /// use libpna::{Archive, ReadEntry};
     /// use std::fs;
@@ -169,12 +206,13 @@ impl<R> Archive<R> {
 
 #[cfg(feature = "unstable-async")]
 impl<R: futures_io::AsyncRead + Unpin> Archive<R> {
-    /// Reads the archive header from the provided reader and returns a new [`Archive`].
+    /// Reads the archive header and creates a reader for its entries.
     /// This API is unstable.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading the header from the reader.
+    /// Returns an error if the archive signature or header is invalid or incomplete,
+    /// or if reading fails.
     #[inline]
     pub async fn read_header_async(reader: R) -> io::Result<Self> {
         Self::read_header_with_buffer_async(reader, Default::default()).await
@@ -215,12 +253,15 @@ impl<R: futures_io::AsyncRead + Unpin> Archive<R> {
         Ok(Some(RawEntry(chunks)))
     }
 
-    /// Reads a [`ReadEntry`] from the archive.
+    /// Reads the next entry from the archive.
+    ///
+    /// Returns `Ok(None)` at the end of the current archive part.
     /// This API is unstable.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading from the archive.
+    /// Returns an error if the entry is invalid or incomplete, a chunk exceeds
+    /// the configured size limit, or reading fails.
     #[inline]
     pub async fn read_entry_async(&mut self) -> io::Result<Option<ReadEntry>> {
         self.next_raw_item_async()
@@ -268,9 +309,13 @@ impl<'r, R> Entries<'r, R> {
         Self { reader }
     }
 
-    /// Returns an iterator that extracts solid entries from the archive and returns them as normal entries.
+    /// Returns an iterator over normal entries, including those in solid entries.
+    ///
+    /// Solid entries are decoded using `options`. Normal entry payloads are not
+    /// decoded.
     ///
     /// # Examples
+    ///
     /// ```no_run
     /// use libpna::{Archive, ReadEntry, ReadOptions};
     /// use std::fs;
@@ -333,20 +378,12 @@ impl<R: futures_io::AsyncRead + Unpin> futures_util::Stream for Entries<'_, R> {
 }
 
 /// An iterator over the entries in the archive.
-pub struct NormalEntries<'r, R> {
-    reader: &'r mut Archive<R>,
-    read_options: ReadOptions,
-    solid_iter: Option<crate::entry::SolidIntoEntries>,
-}
+pub struct NormalEntries<'r, R>(ExtractSolidEntries<Entries<'r, R>, Vec<u8>>);
 
 impl<'r, R> NormalEntries<'r, R> {
     #[inline]
     pub(crate) fn new(reader: &'r mut Archive<R>, options: &ReadOptions) -> Self {
-        Self {
-            reader,
-            read_options: options.clone(),
-            solid_iter: None,
-        }
+        Self(ExtractSolidEntries::new(Entries::new(reader), options))
     }
 }
 
@@ -355,26 +392,57 @@ impl<R: Read> Iterator for NormalEntries<'_, R> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
+    }
+}
+
+/// An iterator adapter that yields normal entries from an entry source,
+/// decoding each solid entry into its inner entries on the fly.
+pub(crate) struct ExtractSolidEntries<I, T: AsRef<[u8]>> {
+    entries: I,
+    read_options: ReadOptions,
+    solid_iter: Option<SolidIntoEntries<T>>,
+}
+
+impl<I, T: AsRef<[u8]>> ExtractSolidEntries<I, T> {
+    #[inline]
+    pub(crate) fn new(entries: I, options: &ReadOptions) -> Self {
+        Self {
+            entries,
+            read_options: options.clone(),
+            solid_iter: None,
+        }
+    }
+}
+
+impl<I, T> Iterator for ExtractSolidEntries<I, T>
+where
+    I: Iterator<Item = io::Result<ReadEntry<T>>>,
+    T: AsRef<[u8]>,
+    NormalEntry<T>: From<NormalEntry>,
+{
+    type Item = io::Result<NormalEntry<T>>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(iter) = &mut self.solid_iter {
                 if let Some(item) = iter.next() {
-                    return Some(item);
+                    return Some(item.map(Into::into));
                 }
                 self.solid_iter = None;
             }
 
-            match self.reader.read_entry() {
-                Ok(Some(ReadEntry::Normal(entry))) => return Some(Ok(entry)),
-                Ok(Some(ReadEntry::Solid(entry))) => {
+            match self.entries.next()? {
+                Ok(ReadEntry::Normal(entry)) => return Some(Ok(entry)),
+                Ok(ReadEntry::Solid(entry)) => {
                     match entry.into_entries_with_options(&self.read_options) {
                         Ok(iter) => {
                             self.solid_iter = Some(iter);
-                            continue;
                         }
                         Err(e) => return Some(Err(e)),
                     }
                 }
-                Ok(None) => return None,
                 Err(e) => return Some(Err(e)),
             }
         }
@@ -382,22 +450,26 @@ impl<R: Read> Iterator for NormalEntries<'_, R> {
 }
 
 impl<R: Read + Seek> Archive<R> {
-    /// Seeks the cursor to the start of the end-of-archive marker.
+    /// Seeks to the start of the end-of-archive marker.
+    ///
+    /// Chunk data and CRC values are not validated.
     ///
     /// # Errors
-    /// Returns an error if seeking fails, a chunk type is invalid, or the
-    /// archive ends before the trailing CRC of a chunk. Chunk data and CRC
-    /// values are not validated while seeking.
+    ///
+    /// Returns an error if reading or seeking fails, a chunk type is invalid,
+    /// or a chunk is incomplete.
     ///
     /// # Examples
-    /// For appending entry to the existing archive.
+    ///
+    /// Appends an entry to an existing archive.
+    ///
     /// ```no_run
-    /// # use std::fs::File;
+    /// # use std::fs::OpenOptions;
     /// # use std::io;
     /// # use libpna::*;
     ///
     /// # fn main() -> io::Result<()> {
-    /// let file = File::open("foo.pna")?;
+    /// let file = OpenOptions::new().read(true).write(true).open("foo.pna")?;
     /// let mut archive = Archive::read_header(file)?;
     /// archive.seek_to_end()?;
     /// archive.add_entry({
@@ -492,6 +564,48 @@ mod tests {
     }
 
     #[test]
+    fn read_next_archive_in_stream_reads_the_part_that_follows() {
+        use crate::{Metadata, WriteOptions};
+        use std::{io::Write, num::NonZeroU32};
+
+        let mut bytes = Vec::new();
+        let first = Archive::write_header(&mut bytes).unwrap();
+        let mut second = first.split_to_next_archive(Vec::new()).unwrap();
+        second
+            .write_file(
+                "a".into(),
+                Metadata::new(),
+                WriteOptions::store(),
+                |writer| writer.write_all(b"12345678"),
+            )
+            .unwrap();
+        let second_bytes = second.finalize().unwrap();
+        bytes.extend_from_slice(&second_bytes);
+
+        let mut first = Archive::read_header(&bytes[..]).unwrap();
+        first.set_max_chunk_size(NonZeroU32::new(7).unwrap());
+        assert!(first.entries().next().is_none());
+        assert!(first.has_next_archive());
+
+        let mut second = first.read_next_archive_in_stream().unwrap();
+        assert_eq!(
+            second.entries().next().unwrap().unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+    }
+
+    #[test]
+    fn read_next_archive_in_stream_rejects_non_consecutive_number() {
+        let mut bytes = archive_bytes(ArchiveHeader::new(0, 0, 0));
+        bytes.extend_from_slice(&archive_bytes(ArchiveHeader::new(0, 0, 0)));
+
+        let mut first = Archive::read_header(&bytes[..]).unwrap();
+        assert!(first.entries().next().is_none());
+        let err = first.read_next_archive_in_stream().err().unwrap();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+    }
+
+    #[test]
     fn read_next_archive_rejects_number_overflow() {
         let first_bytes = archive_bytes(ArchiveHeader::new(0, 0, u32::MAX));
         let first = Archive::read_header(&first_bytes[..]).unwrap();
@@ -546,7 +660,6 @@ mod tests {
     #[cfg(feature = "unstable-async")]
     #[tokio::test]
     async fn extract_async() -> io::Result<()> {
-        use crate::ReadOptions;
         use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
         let input = include_bytes!("../../../resources/test/zstd.pna");

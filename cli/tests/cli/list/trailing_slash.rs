@@ -72,6 +72,7 @@ fn list_bsdtar_directory_no_duplicate_trailing_slash() {
 
     let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
+        .env("TZ", "UTC")
         .args([
             "list",
             "--format",
@@ -99,6 +100,7 @@ fn list_long_classify_directory_no_duplicate_trailing_slash() {
 
     let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
+        .env("TZ", "UTC")
         .args([
             "list",
             "-l",

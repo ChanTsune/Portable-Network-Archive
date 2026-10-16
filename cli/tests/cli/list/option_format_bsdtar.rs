@@ -11,6 +11,7 @@ fn list_format_bsdtar() {
 
     let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
+        .env("TZ", "UTC")
         .args([
             "list",
             "--format",
@@ -51,6 +52,7 @@ fn list_format_bsdtar_with_filter() {
 
     let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
+        .env("TZ", "UTC")
         .args([
             "list",
             "--format",
@@ -79,6 +81,7 @@ fn list_format_bsdtar_with_directory_filter() {
 
     let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
+        .env("TZ", "UTC")
         .args([
             "list",
             "--format",
@@ -108,6 +111,7 @@ fn list_format_bsdtar_solid() {
 
     let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
+        .env("TZ", "UTC")
         .args([
             "list",
             "--format",

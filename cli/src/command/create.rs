@@ -1,16 +1,15 @@
 use crate::{
     cli::{
-        CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileArgs, HashAlgorithmArgs,
-        MissingTimePolicy, PasswordArgs,
+        ArchiveFileArgs, CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileOperands,
+        HashAlgorithmArgs, MissingTimePolicy, PasswordArgs,
     },
     command::{
         Command, ask_password,
         core::{
             AclStrategy, CollectOptions, CollectedItem, CreateOptions, EntryResult, FflagsStrategy,
-            KeepOptions, MIN_SPLIT_PART_BYTES, MacMetadataStrategy, PathFilter, PathTransformers,
-            PathnameEditor, PermissionStrategyResolver, TimeFilterResolver, TimeFilters,
-            TimestampStrategyResolver, XattrStrategy, collect_items_from_paths,
-            drain_entry_results, entry_option,
+            KeepOptions, MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
+            PermissionStrategyResolver, TimeFilterResolver, TimeFilters, TimestampStrategyResolver,
+            XattrStrategy, collect_items_from_paths, drain_entry_results, entry_option,
             iter::ReorderByIndex,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin, spawn_entry_results, write_split_archive,
@@ -21,7 +20,7 @@ use crate::{
 use anyhow::ensure;
 use bytesize::ByteSize;
 use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
-use pna::{Archive, SolidEntryBuilder, WriteOptions};
+use pna::{Archive, MIN_SPLIT_PART_BYTES, SolidEntryBuilder, WriteOptions};
 use std::{
     fs,
     io::{self, prelude::*},
@@ -351,8 +350,6 @@ pub(crate) struct CreateCommand {
     exclude_from: Option<PathBuf>,
     #[arg(
         long,
-        requires = "unstable",
-        help_heading = "Unstable Options",
         help = "Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)"
     )]
     exclude_vcs: bool,
@@ -383,7 +380,7 @@ pub(crate) struct CreateCommand {
         value_name = "PATTERN",
         requires = "unstable",
         help_heading = "Unstable Options",
-        help = "Modify file or archive member names according to pattern that like BSD tar -s option"
+        help = "Modify file or archive member names according to a pattern like the BSD tar -s option"
     )]
     substitutions: Option<Vec<SubstitutionRule>>,
     #[arg(
@@ -392,7 +389,7 @@ pub(crate) struct CreateCommand {
         value_name = "PATTERN",
         requires = "unstable",
         help_heading = "Unstable Options",
-        help = "Modify file or archive member names according to pattern that like GNU tar -transform option"
+        help = "Modify file or archive member names according to a pattern like the GNU tar --transform option"
     )]
     transforms: Option<Vec<TransformRule>>,
     #[command(flatten)]
@@ -404,7 +401,9 @@ pub(crate) struct CreateCommand {
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
-    pub(crate) file: FileArgs,
+    pub(crate) archive: ArchiveFileArgs,
+    #[command(flatten)]
+    pub(crate) files: FileOperands,
 }
 
 impl Command for CreateCommand {
@@ -418,7 +417,7 @@ impl Command for CreateCommand {
 fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let start = Instant::now();
-    let archive = &args.file.archive;
+    let archive = &args.archive.file;
     let max_file_size = args
         .split
         .map(|opt| {
@@ -437,7 +436,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         anyhow::bail!("{} already exists", archive.display());
     }
     log::info!("Create an archive: {}", archive.display());
-    let mut files = args.file.files;
+    let mut files = args.files.files;
     if args.files_from_stdin {
         files.extend(read_paths_stdin(args.null)?);
     } else if let Some(path) = args.files_from {
@@ -466,8 +465,8 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: MissingTimePolicy::Include,
-        missing_mtime: MissingTimePolicy::Include,
+        missing_ctime: MissingTimePolicy::default(),
+        missing_mtime: MissingTimePolicy::default(),
     }
     .resolve()?;
     let collect_options = CollectOptions {
@@ -492,7 +491,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     }
     let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
         keep_permission: args.keep_permission,
-        same_owner: true, // Must be `true` for creation
+        same_owner: true, // Creation always stores ownership; same_owner only matters for extraction.
         uname: args.uname,
         gname: args.gname,
         uid: args.uid,
@@ -574,7 +573,7 @@ pub(crate) struct CreationContext {
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn create_archive_file<W, F>(
-    mut get_writer: F,
+    get_writer: F,
     CreationContext {
         write_option,
         keep_options,
@@ -590,7 +589,7 @@ pub(crate) fn create_archive_file<W, F>(
 ) -> anyhow::Result<()>
 where
     W: Write,
-    F: FnMut() -> io::Result<W> + Send,
+    F: FnOnce() -> io::Result<W>,
 {
     let option = if solid {
         WriteOptions::store()

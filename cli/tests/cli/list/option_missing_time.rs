@@ -46,9 +46,9 @@ fn list_missing_time_exclude_hides_entry() {
 
 /// Precondition: Archive entry has no mtime.
 /// Action: Run `pna list` with a newer-mtime filter and no `--missing-time`.
-/// Expectation: Default `include` policy shows the mtime-missing entry.
+/// Expectation: The mtime-missing entry is hidden.
 #[test]
-fn list_missing_time_default_shows_entry() {
+fn list_missing_time_default_hides_entry() {
     setup();
     create_archive("list_missing_time_default", "--no-keep-timestamp");
 
@@ -63,7 +63,7 @@ fn list_missing_time_default_shows_entry() {
     ])
     .assert()
     .success()
-    .stdout("list_missing_time_default/file.txt\n");
+    .stdout("");
 }
 
 /// Precondition: Archive entry has no mtime.
@@ -132,6 +132,53 @@ fn list_missing_time_requires_time_filter() {
     ])
     .assert()
     .failure();
+}
+
+/// Precondition: Archive entry has no ctime.
+/// Action: Run `pna list` with a newer-ctime filter and no `--missing-time`.
+/// Expectation: The ctime-missing entry is hidden.
+#[test]
+fn list_missing_time_default_hides_ctime_missing_entry() {
+    setup();
+    create_archive("list_missing_time_default_ctime", "--no-keep-timestamp");
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    cmd.args([
+        "list",
+        "-f",
+        "list_missing_time_default_ctime/archive.pna",
+        "--unstable",
+        "--newer-ctime",
+        "@1000000000",
+    ])
+    .assert()
+    .success()
+    .stdout("");
+}
+
+/// Precondition: Archive entry has no ctime.
+/// Action: Run `pna list` with an older-ctime filter and no `--missing-time`.
+/// Expectation: The ctime-missing entry is shown.
+#[test]
+fn list_missing_time_default_shows_ctime_missing_entry_with_older_filter() {
+    setup();
+    create_archive(
+        "list_missing_time_default_ctime_older",
+        "--no-keep-timestamp",
+    );
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    cmd.args([
+        "list",
+        "-f",
+        "list_missing_time_default_ctime_older/archive.pna",
+        "--unstable",
+        "--older-ctime",
+        "@1000000000",
+    ])
+    .assert()
+    .success()
+    .stdout("list_missing_time_default_ctime_older/file.txt\n");
 }
 
 /// Precondition: Archive entry has no ctime.

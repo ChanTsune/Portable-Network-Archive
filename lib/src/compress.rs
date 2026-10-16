@@ -10,14 +10,7 @@ pub(crate) mod deflate;
 pub(crate) mod xz;
 pub(crate) mod zstandard;
 
-/// An enum representing different compression writers for PNA archives.
-///
-/// This enum provides different compression implementations for writing data to a PNA archive.
-/// It supports multiple compression algorithms:
-/// - No compression (raw data)
-/// - Deflate (zlib)
-/// - Zstandard
-/// - XZ (LZMA2)
+/// A compression writer for a PNA datastream.
 pub(crate) enum CompressionWriter<W: Write> {
     /// No compression, data is written as-is.
     No(W),
@@ -75,14 +68,7 @@ impl<W: Write> TryIntoInner<W> for CompressionWriter<W> {
     }
 }
 
-/// An enum representing different decompression readers for PNA archives.
-///
-/// This enum provides different decompression implementations for reading data from a PNA archive.
-/// It supports multiple compression algorithms:
-/// - No compression (raw data)
-/// - Deflate (zlib)
-/// - Zstandard
-/// - XZ (LZMA2)
+/// A decompression reader for a PNA datastream.
 pub(crate) enum DecompressReader<R: Read> {
     /// No decompression, data is read as-is.
     No(BufReader<R>),

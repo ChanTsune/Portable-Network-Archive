@@ -1,3 +1,5 @@
+#[cfg(unix)]
+use crate::utils::fs_supports_xattr;
 use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use portable_network_archive::cli;
@@ -27,23 +29,13 @@ fn archive_xattr_set() {
     .execute()
     .unwrap();
 
-    archive::for_each_entry("xattr_set/zstd.pna", |entry| {
-        if entry.name() == "raw/empty.txt" {
-            assert_eq!(
-                entry.metadata().xattrs(),
-                &[archive::xattr("user.name", b"pna developers!")]
-            );
-        } else {
-            // Non-target entries should remain unaffected (no xattrs)
-            assert!(
-                entry.metadata().xattrs().is_empty(),
-                "Entry {} should have no xattrs but has {:?}",
-                entry.name(),
-                entry.metadata().xattrs()
-            );
-        }
-    })
-    .unwrap();
+    assert_eq!(
+        archive::xattrs_by_entry("xattr_set/zstd.pna", None),
+        vec![(
+            "raw/empty.txt".to_string(),
+            vec![archive::xattr("user.name", b"pna developers!")]
+        )]
+    );
 }
 
 /// Precondition: An archive with multiple entries exists.
@@ -89,26 +81,16 @@ fn xattr_long_key_value() {
     .execute()
     .unwrap();
 
-    archive::for_each_entry("xattr_long/zstd.pna", |entry| {
-        if entry.name() == "raw/empty.txt" {
-            assert_eq!(
-                entry.metadata().xattrs(),
-                &[
-                    archive::xattr(long_name.as_str(), long_value.as_bytes()),
-                    archive::xattr("user.special", "\0\n\r\x7f\u{1F600}".as_bytes()),
-                ]
-            );
-        } else {
-            // Non-target entries should remain unaffected (no xattrs)
-            assert!(
-                entry.metadata().xattrs().is_empty(),
-                "Entry {} should have no xattrs but has {:?}",
-                entry.name(),
-                entry.metadata().xattrs()
-            );
-        }
-    })
-    .unwrap();
+    assert_eq!(
+        archive::xattrs_by_entry("xattr_long/zstd.pna", None),
+        vec![(
+            "raw/empty.txt".to_string(),
+            vec![
+                archive::xattr(long_name.as_str(), long_value.as_bytes()),
+                archive::xattr("user.special", "\0\n\r\x7f\u{1F600}".as_bytes()),
+            ]
+        )]
+    );
 }
 
 /// Precondition: An archive with multiple entries exists.
@@ -136,20 +118,13 @@ fn xattr_empty_key() {
     .execute()
     .unwrap();
 
-    archive::for_each_entry("xattr_empty_key/zstd.pna", |entry| {
-        if entry.name() == "raw/empty.txt" {
-            assert_eq!(entry.metadata().xattrs(), &[archive::xattr("", b"value")]);
-        } else {
-            // Non-target entries should remain unaffected (no xattrs)
-            assert!(
-                entry.metadata().xattrs().is_empty(),
-                "Entry {} should have no xattrs but has {:?}",
-                entry.name(),
-                entry.metadata().xattrs()
-            );
-        }
-    })
-    .unwrap();
+    assert_eq!(
+        archive::xattrs_by_entry("xattr_empty_key/zstd.pna", None),
+        vec![(
+            "raw/empty.txt".to_string(),
+            vec![archive::xattr("", b"value")]
+        )]
+    );
 }
 
 /// Precondition: An archive with multiple entries exists.
@@ -177,23 +152,13 @@ fn xattr_empty_value() {
     .execute()
     .unwrap();
 
-    archive::for_each_entry("xattr_empty_value/zstd.pna", |entry| {
-        if entry.name() == "raw/empty.txt" {
-            assert_eq!(
-                entry.metadata().xattrs(),
-                &[archive::xattr("user.empty", b"")]
-            );
-        } else {
-            // Non-target entries should remain unaffected (no xattrs)
-            assert!(
-                entry.metadata().xattrs().is_empty(),
-                "Entry {} should have no xattrs but has {:?}",
-                entry.name(),
-                entry.metadata().xattrs()
-            );
-        }
-    })
-    .unwrap();
+    assert_eq!(
+        archive::xattrs_by_entry("xattr_empty_value/zstd.pna", None),
+        vec![(
+            "raw/empty.txt".to_string(),
+            vec![archive::xattr("user.empty", b"")]
+        )]
+    );
 }
 
 /// Precondition: An archive with multiple entries exists.
@@ -221,18 +186,13 @@ fn xattr_set_preserved_in_archive() {
     .execute()
     .unwrap();
 
-    let mut found = false;
-    archive::for_each_entry("xattr_set_preserved/zstd.pna", |entry| {
-        if entry.name() == "raw/empty.txt" {
-            found = true;
-            assert_eq!(
-                entry.metadata().xattrs(),
-                &[archive::xattr("user.roundtrip", b"preserved_value")]
-            );
-        }
-    })
-    .unwrap();
-    assert!(found, "raw/empty.txt entry not found in archive");
+    assert_eq!(
+        archive::xattrs_by_entry("xattr_set_preserved/zstd.pna", None),
+        vec![(
+            "raw/empty.txt".to_string(),
+            vec![archive::xattr("user.roundtrip", b"preserved_value")]
+        )]
+    );
 }
 
 /// Precondition: An archive entry has extended attributes set.
@@ -242,11 +202,8 @@ fn xattr_set_preserved_in_archive() {
 #[cfg(unix)]
 fn xattr_round_trip_preservation() {
     setup();
-    if !xattr::SUPPORTED_PLATFORM {
-        eprintln!("Skipping xattr_round_trip_preservation: platform does not support xattr");
-        return;
-    }
     TestResources::extract_in("zstd.pna", "xattr_roundtrip/").unwrap();
+    skip_unless!("xattr", fs_supports_xattr("xattr_roundtrip/zstd.pna"));
 
     cli::Cli::try_parse_from([
         "pna",
@@ -280,16 +237,12 @@ fn xattr_round_trip_preservation() {
     .execute()
     .unwrap();
 
-    // If the filesystem does not support xattrs, the extract above could not
-    // have preserved them; skip the round-trip verification.
-    match xattr::get("xattr_roundtrip/out/raw/empty.txt", "user.roundtrip") {
-        Ok(Some(_)) => {}
-        Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
-            eprintln!("Skipping xattr round-trip verification: filesystem does not support xattrs");
-            return;
-        }
-        other => panic!("Unexpected xattr::get result: {:?}", other),
-    }
+    assert_eq!(
+        xattr::get("xattr_roundtrip/out/raw/empty.txt", "user.roundtrip")
+            .unwrap()
+            .as_deref(),
+        Some(b"preserved_value".as_slice())
+    );
 
     cli::Cli::try_parse_from([
         "pna",
@@ -305,20 +258,17 @@ fn xattr_round_trip_preservation() {
     .execute()
     .unwrap();
 
-    let mut found = false;
-    archive::for_each_entry("xattr_roundtrip/roundtrip.pna", |entry| {
-        if entry.name().as_str().ends_with("raw/empty.txt") {
-            found = true;
-            assert!(
-                entry
-                    .metadata()
-                    .xattrs()
-                    .contains(&archive::xattr("user.roundtrip", b"preserved_value")),
-                "round-tripped entry is missing user.roundtrip xattr: {:?}",
-                entry.metadata().xattrs()
-            );
-        }
-    })
-    .unwrap();
-    assert!(found, "raw/empty.txt entry not found in round-trip archive");
+    let mut xattrs_by_entry = archive::xattrs_by_entry("xattr_roundtrip/roundtrip.pna", None);
+    for (_, xattrs) in &mut xattrs_by_entry {
+        xattrs.retain(|x| x.name() != "com.apple.provenance");
+    }
+    xattrs_by_entry.retain(|(_, xattrs)| !xattrs.is_empty());
+
+    assert_eq!(
+        xattrs_by_entry,
+        vec![(
+            "xattr_roundtrip/out/raw/empty.txt".to_string(),
+            vec![archive::xattr("user.roundtrip", b"preserved_value")]
+        )]
+    );
 }

@@ -46,7 +46,7 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y libacl1-dev
-      - uses: ./.github/actions/setup-rust
+      - uses: $/.github/actions/setup-rust
         with:
           channel: nightly
       - name: Run rust-bench
@@ -95,7 +95,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-rust
+      - uses: $/.github/actions/setup-rust
       - name: Install dependencies
         run: |
           sudo apt update

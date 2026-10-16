@@ -4,7 +4,7 @@ use crate::{
         MissingTimePolicy, NameIdPair, PasswordArgs,
     },
     command::{
-        Command,
+        Command, ExitCodeError,
         append::{open_archive_then_seek_to_end, run_append_archive},
         ask_password,
         core::{
@@ -16,10 +16,10 @@ use crate::{
             collect_split_archives,
             path_lock::OrderedPathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
-            read_paths, run_across_archive, validate_no_duplicate_stdin,
+            read_paths, run_across_archive_readers, validate_no_duplicate_stdin,
         },
         create::{CreationContext, create_archive_file},
-        extract::{OutputOption, OverwriteStrategy, run_extract_archive_reader},
+        extract::{Outcome, OutputOption, OverwriteStrategy, run_extract_archive_reader},
         list::{Format, LineEnding, ListOptions, TimeField, TimeFormat},
         update::run_update_archive,
     },
@@ -182,7 +182,7 @@ pub(crate) struct BsdtarCommand {
         visible_alias = "unlink",
         requires_all = ["extract", "unstable"],
         help_heading = "Unstable Options",
-        help = "Unlink files before creating them; also removes intervening directory symlinks (extract mode only)"
+        help = "(extract mode only) Unlink files before creating them; also removes intervening directory symlinks."
     )]
     unlink_first: bool,
     #[arg(
@@ -230,7 +230,7 @@ pub(crate) struct BsdtarCommand {
         visible_alias = "preserve-permissions",
         requires = "unstable",
         help_heading = "Unstable Options",
-        help = "Restore file permissions (mode, ACLs, xattrs, fflags, mac-metadata, but NOT ownership) (extract only)"
+        help = "Restore file permissions (mode, ACLs, xattrs, fflags, mac-metadata, but NOT ownership; extract only)"
     )]
     same_permissions: bool,
     #[arg(
@@ -339,8 +339,6 @@ pub(crate) struct BsdtarCommand {
     exclude_from: Option<PathBuf>,
     #[arg(
         long,
-        requires = "unstable",
-        help_heading = "Unstable Options",
         help = "Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)"
     )]
     exclude_vcs: bool,
@@ -543,7 +541,7 @@ pub(crate) struct BsdtarCommand {
         value_name = "PATTERN",
         requires = "unstable",
         help_heading = "Unstable Options",
-        help = "Modify file or archive member names according to pattern that like BSD tar -s option"
+        help = "Modify file or archive member names according to a pattern like the BSD tar -s option"
     )]
     substitutions: Option<Vec<SubstitutionRule>>,
     #[arg(
@@ -552,7 +550,7 @@ pub(crate) struct BsdtarCommand {
         value_name = "PATTERN",
         requires = "unstable",
         help_heading = "Unstable Options",
-        help = "Modify file or archive member names according to pattern that like GNU tar -transform option"
+        help = "Modify file or archive member names according to a pattern like the GNU tar --transform option"
     )]
     transforms: Option<Vec<TransformRule>>,
     #[arg(
@@ -581,13 +579,13 @@ pub(crate) struct BsdtarCommand {
     to_stdout: bool,
     #[arg(
         long,
-        help = "Allow extracting symbolic links and hard links that contain root or parent paths (default)",
+        help = "Allow extracting symbolic or hard links containing root or parent paths (default)",
         default_value_t = true
     )]
     allow_unsafe_links: bool,
     #[arg(
         long,
-        help = "Do not allow extracting symbolic links and hard links that contain root or parent paths"
+        help = "Do not allow extracting symbolic links or hard links if either contains root or parent paths"
     )]
     no_allow_unsafe_links: bool,
     #[arg(
@@ -691,7 +689,7 @@ fn run_bsdtar(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Result<()> {
     } else if args.append {
         run_append(args)
     } else if args.update {
-        run_update(args)
+        run_update(args, ctx.umask())
     } else {
         unreachable!()
     }
@@ -763,10 +761,7 @@ impl CreationPermissionStrategyResolver {
     }
 }
 
-/// Resolves permission strategies for bsdtar extraction operations.
-/// Extraction defaults: root preserves exact permissions, non-root applies umask (bsdtar behavior).
-/// -p/--same-permissions enables mode + ACL + xattr + fflags + mac-metadata (but NOT owner)
-/// Flag priority: --no-same-permissions > -p > individual flags; individual --no-* always wins
+/// CLI flags needed to resolve bsdtar-compatible extraction permission strategies.
 struct ExtractionPermissionStrategyResolver {
     same_permissions: bool,
     no_same_permissions: bool,
@@ -798,8 +793,10 @@ type ExtractionPermissionStrategies = (
 );
 
 impl ExtractionPermissionStrategyResolver {
+    /// Extraction defaults: root preserves exact permissions, non-root applies umask (bsdtar behavior).
+    /// `-p`/`--same-permissions` enables mode + ACL + xattr + fflags + mac-metadata (but NOT owner).
+    /// Flag priority: `--no-same-permissions` > `-p` > individual flags; individual `--no-*` always wins.
     fn resolve(self) -> ExtractionPermissionStrategies {
-        // bsdtar behavior: root defaults to -p (Preserve), non-root defaults to Masked
         let default_mode_strategy = if self.is_root {
             ModeStrategy::Preserve
         } else {
@@ -835,7 +832,6 @@ impl ExtractionPermissionStrategyResolver {
             OwnerStrategy::Never
         };
 
-        // -p enables these unless --no-same-permissions is set; individual --no-* always wins
         let p_enables = !self.no_same_permissions && self.same_permissions;
 
         (
@@ -887,8 +883,8 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: MissingTimePolicy::Include,
-        missing_mtime: MissingTimePolicy::Include,
+        missing_ctime: MissingTimePolicy::default(),
+        missing_mtime: MissingTimePolicy::default(),
     }
     .resolve()?;
     if let Some(working_dir) = args.working_dir {
@@ -1035,8 +1031,8 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: MissingTimePolicy::Include,
-        missing_mtime: MissingTimePolicy::Include,
+        missing_ctime: MissingTimePolicy::default(),
+        missing_mtime: MissingTimePolicy::default(),
     }
     .resolve()?;
     let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
@@ -1125,7 +1121,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
         env::set_current_dir(working_dir)?;
     }
     apply_chroot(args.chroot)?;
-    if let Some(archives) = archives {
+    let outcome = if let Some(archives) = archives {
         run_extract_archive_reader(
             archives
                 .into_iter()
@@ -1136,18 +1132,22 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
             args.no_recursive,
             args.fast_read,
             args.ignore_zeros,
-        )
+        )?
     } else {
         run_extract_archive_reader(
-            std::iter::repeat_with(|| io::stdin().lock()),
+            std::iter::once_with(|| io::stdin().lock()),
             files,
             || password.as_deref(),
             out_option,
             args.no_recursive,
             args.fast_read,
             args.ignore_zeros,
-        )
+        )?
+    };
+    if outcome == Outcome::Warn {
+        return Err(anyhow::Error::from(ExitCodeError::silent(1)));
     }
+    Ok(())
 }
 
 #[hooq::hooq(anyhow)]
@@ -1162,8 +1162,8 @@ fn run_list_archive(args: BsdtarCommand) -> anyhow::Result<()> {
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: MissingTimePolicy::Include,
-        missing_mtime: MissingTimePolicy::Include,
+        missing_ctime: MissingTimePolicy::default(),
+        missing_mtime: MissingTimePolicy::default(),
     }
     .resolve()?;
 
@@ -1211,7 +1211,7 @@ fn run_list_archive(args: BsdtarCommand) -> anyhow::Result<()> {
         args.include.iter().map(|s| s.as_str()),
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
-    // NOTE: "-" will use stdout
+    // NOTE: "-" will use stdin
     let mut file = args.file;
     file.take_if(|it| it == "-");
     if let Some(path) = &file {
@@ -1229,7 +1229,7 @@ fn run_list_archive(args: BsdtarCommand) -> anyhow::Result<()> {
         )
     } else {
         crate::command::list::run_list_archive(
-            std::iter::repeat_with(|| io::stdin().lock()),
+            std::iter::once_with(|| io::stdin().lock()),
             password.as_deref(),
             files_globs,
             filter,
@@ -1329,8 +1329,8 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: MissingTimePolicy::Include,
-        missing_mtime: MissingTimePolicy::Include,
+        missing_ctime: MissingTimePolicy::default(),
+        missing_mtime: MissingTimePolicy::default(),
     }
     .resolve()?;
     if let Some(working_dir) = args.working_dir {
@@ -1368,7 +1368,7 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
     } else {
         let target_items = collect_items_from_sources(sources, &collect_options, &mut resolver)?;
         let mut output_archive = Archive::write_header(io::stdout().lock())?;
-        run_across_archive(
+        run_across_archive_readers(
             std::iter::once(io::stdin().lock()),
             #[hooq::skip_all]
             |input_archive| {
@@ -1403,7 +1403,7 @@ fn resolve_name_id(
     }
 }
 
-fn run_update(args: BsdtarCommand) -> anyhow::Result<()> {
+fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     let password = password.as_deref();
@@ -1513,8 +1513,8 @@ fn run_update(args: BsdtarCommand) -> anyhow::Result<()> {
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: MissingTimePolicy::Include,
-        missing_mtime: MissingTimePolicy::Include,
+        missing_ctime: MissingTimePolicy::default(),
+        missing_mtime: MissingTimePolicy::default(),
     }
     .resolve()?;
     let collect_options = CollectOptions {
@@ -1533,7 +1533,7 @@ fn run_update(args: BsdtarCommand) -> anyhow::Result<()> {
 
     let archives = collect_split_archives(&archive_path)?;
 
-    let mut staged = StagedArchive::new(archive_path.remove_part())?;
+    let mut staged = StagedArchive::new(archive_path.remove_part(), umask, true)?;
     let mut out_archive = Archive::write_header(staged.as_file_mut())?;
 
     let mut source = SplitArchiveReader::new(archives)?;
@@ -1543,7 +1543,7 @@ fn run_update(args: BsdtarCommand) -> anyhow::Result<()> {
         &create_options,
         target_items,
         false,
-        MissingTimePolicy::Include,
+        MissingTimePolicy::default(),
         &mut out_archive,
         TransformStrategyUnSolid,
         args.verbose,
@@ -1552,7 +1552,7 @@ fn run_update(args: BsdtarCommand) -> anyhow::Result<()> {
     out_archive.finalize()?;
     drop(source);
 
-    staged.commit(None)?;
+    staged.commit()?;
 
     Ok(())
 }

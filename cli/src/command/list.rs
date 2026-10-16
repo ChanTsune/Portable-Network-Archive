@@ -1,17 +1,17 @@
 use crate::{
     chunk,
-    cli::{ColorChoice, DateTime, FileArgs, MissingTimePolicy, PasswordArgs},
+    cli::{ArchiveFileArgs, ColorChoice, DateTime, FileOperands, MissingTimePolicy, PasswordArgs},
     command::{
         Command, ask_password,
         core::{
             PathFilter, ProcessAction, SplitArchiveReader, TimeFilterResolver, TimeFilters,
-            collect_split_archives, read_paths, run_read_entries, run_read_entries_stoppable,
+            collect_split_archives, read_paths, run_read_entries_readers,
+            run_read_entries_readers_stoppable,
         },
     },
     ext::*,
     utils::{BsdGlobMatcher, VCS_FILES},
 };
-use base64::Engine;
 use clap::{
     ArgAction, ArgGroup, Parser, ValueEnum, ValueHint,
     builder::{
@@ -21,14 +21,14 @@ use clap::{
 };
 use jiff::{Timestamp, Zoned, tz::TimeZone};
 use pna::{
-    Compression, DataKind, Encryption, EntryContent, ExtendedAttribute, NormalEntry, RawChunk,
-    ReadEntry, ReadOptions, SolidHeader, prelude::*,
+    ChunkType, Compression, DataKind, Encryption, EntryContent, ExtendedAttribute, NormalEntry,
+    RawChunk, ReadEntry, ReadOptions, SolidHeader, prelude::*,
 };
 use rayon::prelude::*;
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 use std::{
     borrow::Cow,
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeMap, HashMap},
     fmt::{self, Display, Formatter},
     io::{self, prelude::*},
     path::PathBuf,
@@ -165,7 +165,7 @@ pub(crate) struct ListCommand {
         long,
         requires_all = ["unstable", "time-filter"],
         help_heading = "Unstable Options",
-        help = "Behavior for entries missing a timestamp needed by the time filters (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]"
+        help = "Behavior for entries missing a timestamp needed by the time filters (unstable). Values: include, exclude, now, epoch, or a datetime. [default: epoch]"
     )]
     missing_time: Option<MissingTimePolicy>,
     #[arg(
@@ -223,8 +223,6 @@ pub(crate) struct ListCommand {
     exclude_from: Option<PathBuf>,
     #[arg(
         long,
-        requires = "unstable",
-        help_heading = "Unstable Options",
         help = "Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)"
     )]
     exclude_vcs: bool,
@@ -236,7 +234,9 @@ pub(crate) struct ListCommand {
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
-    pub(crate) file: FileArgs,
+    pub(crate) archive: ArchiveFileArgs,
+    #[command(flatten)]
+    pub(crate) files: FileOperands,
     #[arg(long, action = clap::ArgAction::Help, help = "Print help")]
     help: (),
 }
@@ -365,7 +365,7 @@ struct TableRow {
     entry_type: EntryType,
     xattrs: Vec<ExtendedAttribute>,
     acl: HashMap<chunk::AcePlatform, Vec<chunk::Ace>>,
-    privates: Vec<RawChunk>,
+    privates: Vec<(ChunkType, usize)>,
     fflags: Vec<String>,
 }
 
@@ -386,7 +386,6 @@ impl TableRow {
     where
         T: AsRef<[u8]> + Clone,
         RawChunk<T>: Chunk,
-        RawChunk: From<RawChunk<T>>,
     {
         let metadata = entry.metadata();
         // Only parse ACL if needed
@@ -462,7 +461,7 @@ impl TableRow {
                     .extra_chunks()
                     .iter()
                     .filter(|it| it.ty() != chunk::faCe && it.ty() != chunk::faCl)
-                    .map(|it| (*it).clone().into())
+                    .map(|it| (it.ty(), it.data().len()))
                     .collect()
             } else {
                 Vec::new()
@@ -498,8 +497,8 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: args.missing_time.unwrap_or(MissingTimePolicy::Include),
-        missing_mtime: args.missing_time.unwrap_or(MissingTimePolicy::Include),
+        missing_ctime: args.missing_time.unwrap_or_default(),
+        missing_mtime: args.missing_time.unwrap_or_default(),
     }
     .resolve()?;
 
@@ -527,8 +526,8 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
         time_filters,
         line_ending: LineEnding::default(),
     };
-    let archive = args.file.archive;
-    let files = args.file.files;
+    let archive = args.archive.file;
+    let files = args.files.files;
     let files_globs =
         BsdGlobMatcher::new(files.iter().map(|it| it.as_str())).with_no_recursive(!args.recursive);
 
@@ -659,7 +658,7 @@ pub(crate) fn run_list_archive<'a>(
 
     if !fast_read || files_globs.is_empty() {
         let mut entries = Vec::new();
-        run_read_entries(
+        run_read_entries_readers(
             archive_provider,
             |entry| {
                 match entry? {
@@ -695,7 +694,7 @@ pub(crate) fn run_list_archive<'a>(
     let mut entries = Vec::new();
     let mut globs = files_globs;
     let filter_ref = &filter;
-    run_read_entries_stoppable(
+    run_read_entries_readers_stoppable(
         archive_provider,
         |entry| {
             match entry? {
@@ -1024,12 +1023,12 @@ fn detail_list_entries_to(
             }
         }
         if options.show_private {
-            for c in &content.privates {
+            for &(ty, length) in &content.privates {
                 builder.push_record([
                     String::new(),
                     String::new(),
-                    format!("chunk:{}", c.ty()),
-                    c.data().len().to_string(),
+                    format!("chunk:{ty}"),
+                    length.to_string(),
                 ]);
             }
         }
@@ -1307,8 +1306,8 @@ impl fmt::Display for PermissionDisplay {
 struct FileInfo<'a> {
     filename: &'a str,
     permissions: String,
-    owner: String,
-    group: String,
+    owner: &'a str,
+    group: &'a str,
     raw_size: u128,
     size: usize,
     encryption: &'a str,
@@ -1330,10 +1329,28 @@ struct AclEntry {
     entries: Vec<String>,
 }
 
+#[derive(Debug)]
+struct Base64Value<'a> {
+    value: &'a [u8],
+}
+
+impl Serialize for Base64Value<'_> {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.collect_str(&base64::display::Base64Display::new(
+            self.value,
+            &base64::engine::general_purpose::STANDARD,
+        ))
+    }
+}
+
 #[derive(Serialize, Debug)]
 struct XAttr<'a> {
     key: &'a str,
-    value: String,
+    value: Base64Value<'a>,
 }
 
 fn json_line_entries_to(
@@ -1349,8 +1366,8 @@ fn json_line_entries_to(
         .par_iter()
         .map(|it| {
             let permission_mode = it.permission_mode();
-            let owner = it.ownership.uname.clone().unwrap_or_default();
-            let group = it.ownership.gname.clone().unwrap_or_default();
+            let owner = it.ownership.uname.as_deref().unwrap_or("");
+            let group = it.ownership.gname.as_deref().unwrap_or("");
             FileInfo {
                 filename: it.entry_type.name(),
                 permissions: PermissionDisplay::new(
@@ -1390,7 +1407,7 @@ fn json_line_entries_to(
                         .iter()
                         .map(|x| XAttr {
                             key: x.name(),
-                            value: base64::engine::general_purpose::STANDARD.encode(x.value()),
+                            value: Base64Value { value: x.value() },
                         })
                         .collect()
                 }),
@@ -1504,16 +1521,59 @@ fn delimited_entries_to(
     Ok(())
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-struct TreeEntry<'s> {
-    name: &'s str,
-    kind: DataKind,
+#[derive(Default)]
+struct FileTree<'s> {
+    kind: Option<DataKind>,
+    children: BTreeMap<&'s str, FileTree<'s>>,
 }
 
-impl<'s> TreeEntry<'s> {
+impl<'s> FileTree<'s> {
     #[inline]
-    const fn new(name: &'s str, kind: DataKind) -> Self {
-        Self { name, kind }
+    fn insert(&mut self, path: &'s str, kind: DataKind) {
+        let mut parts = path.split('/').filter(|p| !p.is_empty());
+        let Some(first) = parts.next() else { return };
+        let mut node = self.children.entry(first).or_default();
+        for part in parts {
+            node = node.children.entry(part).or_default();
+        }
+        node.kind = Some(kind);
+    }
+}
+
+struct TreeLabel<'a> {
+    name: &'a str,
+    kind: DataKind,
+    classify: bool,
+    hide_control_chars: bool,
+}
+
+impl TreeLabel<'_> {
+    #[inline]
+    fn root() -> Self {
+        Self {
+            name: ".",
+            kind: DataKind::FILE,
+            classify: false,
+            hide_control_chars: false,
+        }
+    }
+}
+
+impl Display for TreeLabel<'_> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        use core::fmt::Write as _;
+        if self.hide_control_chars {
+            Display::fmt(&hide_control_chars(self.name), f)?;
+        } else {
+            f.write_str(self.name)?;
+        }
+        match self.kind {
+            DataKind::DIRECTORY if self.classify => f.write_char('/')?,
+            DataKind::SYMBOLIC_LINK if self.classify => f.write_char('@')?,
+            _ => {}
+        }
+        Ok(())
     }
 }
 
@@ -1522,84 +1582,39 @@ fn tree_entries_to(
     options: &ListOptions,
     mut out: impl Write,
 ) -> io::Result<()> {
-    let entries = entries.iter().map(|it| match &it.entry_type {
-        EntryType::File(name) => (name.as_str(), DataKind::FILE),
-        EntryType::Directory(name) => (name.as_str(), DataKind::DIRECTORY),
-        EntryType::SymbolicLink(name, _) => (name.as_str(), DataKind::SYMBOLIC_LINK),
-        EntryType::HardLink(name, _) => (name.as_str(), DataKind::HARD_LINK),
-        EntryType::Unknown(name, kind) => (name.as_str(), *kind),
-    });
-    let map = build_tree_map(entries);
-    let tree = build_term_tree(&map, Cow::Borrowed(""), None, DataKind::DIRECTORY, options);
+    let mut files = FileTree::default();
+    for it in &entries {
+        let (name, kind) = match &it.entry_type {
+            EntryType::File(name) => (name.as_str(), DataKind::FILE),
+            EntryType::Directory(name) => (name.as_str(), DataKind::DIRECTORY),
+            EntryType::SymbolicLink(name, _) => (name.as_str(), DataKind::SYMBOLIC_LINK),
+            EntryType::HardLink(name, _) => (name.as_str(), DataKind::HARD_LINK),
+            EntryType::Unknown(name, kind) => (name.as_str(), *kind),
+        };
+        files.insert(name, kind);
+    }
+    let mut tree = termtree::Tree::new(TreeLabel::root());
+    append_tree_children(&mut tree, &files, options);
     writeln!(out, "{tree}")
 }
 
-fn build_tree_map<'s>(
-    paths: impl IntoIterator<Item = (&'s str, DataKind)>,
-) -> HashMap<&'s str, BTreeSet<TreeEntry<'s>>> {
-    let mut tree: HashMap<_, BTreeSet<_>> = HashMap::new();
-
-    for (path, kind) in paths {
-        let indices = path
-            .char_indices()
-            .filter(|(_, c)| *c == '/')
-            .map(|(idx, _)| (idx, DataKind::DIRECTORY))
-            .chain([(path.len(), kind)]);
-        let mut start = 0;
-        for (end, k) in indices {
-            let key = &path[..start];
-            let value = &path[start..end];
-            let value = value.strip_prefix('/').unwrap_or(value);
-            tree.entry(key)
-                .or_default()
-                .insert(TreeEntry::new(value, k));
-            start = end;
-        }
-    }
-    tree
-}
-
-fn build_term_tree<'a>(
-    tree: &HashMap<&'a str, BTreeSet<TreeEntry<'a>>>,
-    root: Cow<'a, str>,
-    name: Option<&'a str>,
-    kind: DataKind,
+fn append_tree_children<'a, 's>(
+    parent: &mut termtree::Tree<TreeLabel<'a>>,
+    node: &'a FileTree<'s>,
     options: &ListOptions,
-) -> termtree::Tree<Cow<'a, str>> {
-    let label = match name {
-        None => Cow::Borrowed("."),
-        Some(n) => format_name(n, kind, options),
-    };
-    let mut node = termtree::Tree::new(label);
-    if let Some(children) = tree.get(root.as_ref()) {
-        for entry in children {
-            let child_root = if root.is_empty() {
-                Cow::Borrowed(entry.name)
-            } else {
-                Cow::Owned(format!("{}/{}", root, entry.name))
-            };
-            node.push(build_term_tree(
-                tree,
-                child_root,
-                Some(entry.name),
-                entry.kind,
-                options,
-            ));
-        }
-    }
-    node
-}
-
-fn format_name<'a>(name: &'a str, kind: DataKind, options: &ListOptions) -> Cow<'a, str> {
-    let name = match kind {
-        DataKind::DIRECTORY if options.classify => Cow::Owned(format!("{name}/")),
-        DataKind::SYMBOLIC_LINK if options.classify => Cow::Owned(format!("{name}@")),
-        _ => Cow::Borrowed(name),
-    };
-    if options.hide_control_chars {
-        Cow::Owned(hide_control_chars(&name).to_string())
-    } else {
-        name
+) where
+    's: 'a,
+{
+    for (name, child) in &node.children {
+        let kind = child.kind.unwrap_or(DataKind::DIRECTORY);
+        let mut term = termtree::Tree::new(TreeLabel {
+            name,
+            kind,
+            classify: options.classify,
+            hide_control_chars: options.hide_control_chars,
+        });
+        append_tree_children(&mut term, child, options);
+        parent.push(term);
     }
 }
 
@@ -1711,5 +1726,33 @@ mod tests {
     #[test]
     fn line_ending_default_is_lf() {
         assert_eq!(LineEnding::default(), LineEnding::Lf);
+    }
+
+    #[test]
+    fn xattr_json_serializes_empty_value() {
+        let xattr = XAttr {
+            key: "user.empty",
+            value: Base64Value { value: b"" },
+        };
+
+        assert_eq!(
+            serde_json::to_string(&xattr).unwrap(),
+            r#"{"key":"user.empty","value":""}"#
+        );
+    }
+
+    #[test]
+    fn xattr_json_serializes_arbitrary_bytes_with_stable_fields() {
+        let xattr = XAttr {
+            key: r#"user."quoted"\path"#,
+            value: Base64Value {
+                value: &[0, 1, 2, 0xff],
+            },
+        };
+
+        assert_eq!(
+            serde_json::to_string(&xattr).unwrap(),
+            r#"{"key":"user.\"quoted\"\\path","value":"AAEC/w=="}"#
+        );
     }
 }

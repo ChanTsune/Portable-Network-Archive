@@ -61,34 +61,24 @@ fn split_archive() {
     assert_dirs_equal("split_archive/in/", "split_archive/out/");
 }
 
-/// Test that split works when an entry's first chunk exceeds remaining space in current archive
-/// but fits in a fresh archive with full capacity.
-///
-/// This tests the fix for the case where:
-/// 1. Current archive is partially filled
-/// 2. Next entry's first (unsplittable) chunk is larger than remaining space
-/// 3. But the chunk fits in max_file_size
-///
-/// Before the fix, this would fail with "A chunk was detected that could not be divided..."
-/// After the fix, it correctly creates a new archive part.
+/// Precondition: An entry's first, unsplittable chunk is larger than the space left
+/// in the current part but fits in a fresh one.
+/// Action: Run `pna split` with a max size that forces that boundary.
+/// Expectation: The entry starts a new part, every part stays within the max size,
+/// and the split archive round-trips.
 #[test]
 fn split_archive_first_chunk_exceeds_remaining() {
     setup();
 
-    // Create test directory with multiple files
     let test_dir = "split_first_chunk_test/in/";
     fs::create_dir_all(test_dir).unwrap();
 
-    // Create several files with varying sizes to fill the archive strategically
-    // File names affect FHED chunk size (header + name length)
     for i in 0..5 {
         let filename = format!("{}file{}.txt", test_dir, i);
         let mut file = fs::File::create(&filename).unwrap();
-        // Write enough content to make splitting necessary
         file.write_all(&[b'A' + i; 20]).unwrap();
     }
 
-    // Create archive from the test files
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -102,9 +92,7 @@ fn split_archive_first_chunk_exceeds_remaining() {
     .execute()
     .unwrap();
 
-    // Split with a small size to trigger the edge case
-    // MIN_SPLIT_PART_BYTES is 80 bytes, so use something just above that
-    // This forces multiple splits with tight boundaries
+    // Small enough to force tight part boundaries.
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -121,7 +109,6 @@ fn split_archive_first_chunk_exceeds_remaining() {
     .execute()
     .unwrap();
 
-    // Verify split parts were created and are within size limit
     let split_dir = fs::read_dir("split_first_chunk_test/split/").unwrap();
     let mut part_count = 0;
     for entry in split_dir {
@@ -141,7 +128,6 @@ fn split_archive_first_chunk_exceeds_remaining() {
         part_count
     );
 
-    // Extract and verify content matches original
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -158,7 +144,6 @@ fn split_archive_first_chunk_exceeds_remaining() {
     .execute()
     .unwrap();
 
-    // Verify extracted content matches original
     assert_dirs_equal(test_dir, "split_first_chunk_test/out/");
 }
 
@@ -265,5 +250,113 @@ fn split_fails_with_missing_archive() {
     assert!(
         result.is_err(),
         "split should fail with non-existent archive"
+    );
+}
+
+/// Precondition: A valid archive exists.
+/// Action: Run `pna split` with `--output` naming a different base path.
+/// Expectation: The split parts are created under the requested base path.
+#[test]
+fn split_output_renames_parts_for_file_input() {
+    setup();
+
+    let test_dir = "split_output/in/";
+    fs::create_dir_all(test_dir).unwrap();
+
+    for i in 0..5 {
+        let filename = format!("{test_dir}file{i}.txt");
+        let mut file = fs::File::create(&filename).unwrap();
+        file.write_all(&[b'A' + i; 20]).unwrap();
+    }
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "create",
+        "-f",
+        "split_output/input.pna",
+        "--overwrite",
+        test_dir,
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "split",
+        "-f",
+        "split_output/input.pna",
+        "--output",
+        "split_output/renamed.pna",
+        "--overwrite",
+        "--max-size",
+        "150",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    assert!(
+        fs::metadata("split_output/renamed.part1.pna").is_ok(),
+        "split with --output should create renamed parts"
+    );
+}
+
+/// Precondition: A valid archive exists.
+/// Action: Run `pna split` with a nested `--output` together with `--out-dir`.
+/// Expectation: The split parts resolve under `--out-dir` preserving the nested path.
+#[test]
+fn split_output_with_directory_resolves_under_out_dir() {
+    setup();
+
+    let test_dir = "split_output_nested/in/";
+    fs::create_dir_all(test_dir).unwrap();
+
+    for i in 0..5 {
+        let filename = format!("{test_dir}file{i}.txt");
+        let mut file = fs::File::create(&filename).unwrap();
+        file.write_all(&[b'A' + i; 20]).unwrap();
+    }
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "create",
+        "-f",
+        "split_output_nested/input.pna",
+        "--overwrite",
+        test_dir,
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "split",
+        "-f",
+        "split_output_nested/input.pna",
+        "--output",
+        "nested/named.pna",
+        "--out-dir",
+        "split_output_nested/parts",
+        "--overwrite",
+        "--max-size",
+        "150",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    assert!(
+        fs::metadata("split_output_nested/parts/nested/named.part1.pna").is_ok(),
+        "relative --output should resolve under --out-dir"
+    );
+    assert!(
+        fs::metadata("split_output_nested/parts/named.part1.pna").is_err(),
+        "part should not be created directly under --out-dir"
     );
 }

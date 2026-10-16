@@ -1,10 +1,10 @@
 use crate::utils::{
     archive, setup,
-    time::{confirm_time_older_than, wait_until_time_newer_than},
+    time::{birth_time, birth_time_recorded, create_file_born_after},
 };
 use clap::Parser;
 use portable_network_archive::cli;
-use std::{collections::HashSet, fs, thread, time::Duration};
+use std::{collections::HashSet, fs};
 
 /// Precondition: An archive exists with files to update, and the source tree contains a reference file and files with varying creation times.
 /// Action: Run `pna experimental update` with `--older-ctime-than` pointing to the reference file.
@@ -22,10 +22,7 @@ fn update_with_older_ctime_than() {
     fs::create_dir_all(base_dir).unwrap();
     fs::write(&file_to_update, "initial content").unwrap();
 
-    if fs::metadata(&file_to_update).unwrap().created().is_err() {
-        eprintln!("Skipping test: creation time (birth time) not supported on this filesystem");
-        return;
-    }
+    skip_unless!("birthtime", birth_time_recorded(&file_to_update));
 
     cli::Cli::try_parse_from([
         "pna",
@@ -40,25 +37,14 @@ fn update_with_older_ctime_than() {
     .execute()
     .unwrap();
 
-    // Recreate the file with updated content *before* creating the reference so its ctime stays older.
-    thread::sleep(Duration::from_millis(10));
     fs::write(&file_to_update, "updated content").unwrap();
 
-    thread::sleep(Duration::from_millis(10));
-    fs::write(&reference_file, "reference marker").unwrap();
-    let reference_ctime = fs::metadata(&reference_file).unwrap().created().unwrap();
-
-    thread::sleep(Duration::from_millis(10));
-    fs::write(&file_to_skip, "skip content").unwrap();
-
-    if !confirm_time_older_than(&file_to_update, reference_ctime, |m| m.created().ok())
-        || !wait_until_time_newer_than(&file_to_skip, reference_ctime, |m| m.created().ok())
-    {
-        eprintln!(
-            "Skipping test: unable to create deterministic creation times on this filesystem"
-        );
-        return;
-    }
+    let reference_ctime = create_file_born_after(
+        &reference_file,
+        "reference marker",
+        birth_time(&file_to_update),
+    );
+    create_file_born_after(&file_to_skip, "skip content", reference_ctime);
 
     cli::Cli::try_parse_from([
         "pna",
@@ -83,10 +69,7 @@ fn update_with_older_ctime_than() {
     })
     .unwrap();
 
-    assert!(
-        !seen.contains(&file_to_skip),
-        "file newer than reference should not have been added: {file_to_skip}"
-    );
+    assert_eq!(seen, HashSet::from([file_to_update.clone()]));
 
     cli::Cli::try_parse_from([
         "pna",

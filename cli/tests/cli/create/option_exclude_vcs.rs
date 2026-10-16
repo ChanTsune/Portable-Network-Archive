@@ -50,7 +50,6 @@ fn create_with_exclude_vcs() {
         "--overwrite",
         "create_with_exclude_vcs/in/",
         "--exclude-vcs",
-        "--unstable",
     ])
     .unwrap()
     .execute()

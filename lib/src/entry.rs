@@ -11,11 +11,10 @@ mod read;
 mod reference;
 mod write;
 
-#[allow(deprecated)]
 pub use self::{
     attr::*,
     builder::{
-        DirEntryBuilder, EntryBuilder, FileEntryBuilder, HardLinkEntryBuilder, OpaqueEntryBuilder,
+        DirEntryBuilder, FileEntryBuilder, HardLinkEntryBuilder, OpaqueEntryBuilder,
         SolidEntryBuilder, SymlinkEntryBuilder,
     },
     content::*,
@@ -30,6 +29,7 @@ use crate::{
     Duration,
     chunk::{Chunk, ChunkExt, ChunkType, MIN_CHUNK_BYTES_SIZE, RawChunk, chunk_data_split},
     ext::time::DurationExt,
+    io::WriteChunk,
     util::io::ChainReader,
     util::slice::skip_while,
 };
@@ -37,7 +37,7 @@ use std::{
     borrow::Cow,
     collections::VecDeque,
     convert::Infallible,
-    io::{self, Read, Write},
+    io::{self, Read},
 };
 
 mod private {
@@ -65,7 +65,7 @@ mod private {
             sink.0
         }
 
-        fn write_in<W: Write>(self, writer: &mut W) -> io::Result<usize>
+        fn write_in<W: WriteChunk>(self, writer: &mut W) -> io::Result<usize>
         where
             Self: Sized,
         {
@@ -106,7 +106,7 @@ struct EntryChunkWriter<'w, W> {
     written_len: usize,
 }
 
-impl<W: Write> EntryChunkSink for EntryChunkWriter<'_, W> {
+impl<W: WriteChunk> EntryChunkSink for EntryChunkWriter<'_, W> {
     type Error = io::Error;
 
     #[inline]
@@ -114,12 +114,11 @@ impl<W: Write> EntryChunkSink for EntryChunkWriter<'_, W> {
     where
         C: Chunk + Into<RawChunk>,
     {
-        self.written_len += crate::io::write_chunk(self.writer, chunk)?;
+        self.written_len += self.writer.write_chunk(chunk)?;
         Ok(())
     }
 }
 
-#[allow(deprecated)]
 fn try_for_each_metadata_facet<E>(
     metadata: &Metadata,
     mut f: impl FnMut(ChunkType, Cow<[u8]>) -> Result<(), E>,
@@ -144,9 +143,6 @@ fn try_for_each_metadata_facet<E>(
         if nanos != 0 {
             f(ChunkType::aTNS, Cow::Borrowed(&nanos.to_be_bytes()))?;
         }
-    }
-    if let Some(value) = &metadata.permission {
-        f(ChunkType::fPRM, Cow::Owned(value.to_bytes()))?;
     }
     if let Some(value) = metadata.owner_uid {
         f(ChunkType::fUId, Cow::Borrowed(&value.to_bytes()))?;
@@ -178,13 +174,13 @@ fn try_for_each_metadata_facet<E>(
     Ok(())
 }
 
-pub(crate) fn write_metadata_facets<W: Write>(
+pub(crate) fn write_metadata_facets<W: WriteChunk>(
     writer: &mut W,
     metadata: &Metadata,
 ) -> io::Result<usize> {
     let mut total = 0;
     try_for_each_metadata_facet(metadata, |ty, data| {
-        total += crate::io::write_chunk(writer, (ty, data))?;
+        total += writer.write_chunk((ty, data))?;
         Ok::<(), io::Error>(())
     })?;
     Ok(total)
@@ -233,7 +229,35 @@ impl<'a> From<RawEntry<&'a [u8]>> for RawEntry<Cow<'a, [u8]>> {
     }
 }
 
-/// Reader for Entry data.
+impl From<RawEntry<Vec<u8>>> for RawEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: RawEntry<Vec<u8>>) -> Self {
+        Self(value.0.into_iter().map(Into::into).collect())
+    }
+}
+
+impl<'a> From<RawEntry<Cow<'a, [u8]>>> for RawEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: RawEntry<Cow<'a, [u8]>>) -> Self {
+        Self(value.0.into_iter().map(Into::into).collect())
+    }
+}
+
+impl<'a> From<RawEntry<&'a [u8]>> for RawEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: RawEntry<&'a [u8]>) -> Self {
+        Self(value.0.into_iter().map(Into::into).collect())
+    }
+}
+
+impl From<RawEntry<Box<[u8]>>> for RawEntry<Vec<u8>> {
+    #[inline]
+    fn from(value: RawEntry<Box<[u8]>>) -> Self {
+        Self(value.0.into_iter().map(Into::into).collect())
+    }
+}
+
+/// A reader over decoded entry data.
 pub struct EntryDataReader<'r>(EntryReader<EncodedDataReader<'r>>);
 
 impl<'r> Read for EntryDataReader<'r> {
@@ -295,9 +319,7 @@ fn encoded_data_reader<T: AsRef<[u8]>>(data: &[T]) -> EncodedDataReader<'_> {
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum ReadEntry<T = Vec<u8>> {
-    /// A solid mode entry that contains multiple files compressed together.
-    /// This type of entry provides better compression ratios but requires
-    /// sequential access to the contained files.
+    /// A solid mode entry. See [`SolidEntry`] for the compression/access tradeoffs.
     Solid(SolidEntry<T>),
     /// A normal entry that represents a single file in the archive.
     /// This type of entry allows random access to the file data.
@@ -394,7 +416,48 @@ impl<'a> From<ReadEntry<&'a [u8]>> for ReadEntry<Cow<'a, [u8]>> {
     }
 }
 
-pub(crate) struct EntryIterator<'s>(EntryReader<EncodedDataReader<'s>>);
+impl From<ReadEntry<Vec<u8>>> for ReadEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: ReadEntry<Vec<u8>>) -> Self {
+        match value {
+            ReadEntry::Solid(s) => Self::Solid(s.into()),
+            ReadEntry::Normal(r) => Self::Normal(r.into()),
+        }
+    }
+}
+
+impl<'a> From<ReadEntry<Cow<'a, [u8]>>> for ReadEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: ReadEntry<Cow<'a, [u8]>>) -> Self {
+        match value {
+            ReadEntry::Solid(s) => Self::Solid(s.into()),
+            ReadEntry::Normal(r) => Self::Normal(r.into()),
+        }
+    }
+}
+
+impl<'a> From<ReadEntry<&'a [u8]>> for ReadEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: ReadEntry<&'a [u8]>) -> Self {
+        match value {
+            ReadEntry::Solid(s) => Self::Solid(s.into()),
+            ReadEntry::Normal(r) => Self::Normal(r.into()),
+        }
+    }
+}
+
+impl From<ReadEntry<Box<[u8]>>> for ReadEntry<Vec<u8>> {
+    #[inline]
+    fn from(value: ReadEntry<Box<[u8]>>) -> Self {
+        match value {
+            ReadEntry::Solid(s) => Self::Solid(s.into()),
+            ReadEntry::Normal(r) => Self::Normal(r.into()),
+        }
+    }
+}
+
+/// An iterator over normal entries decoded from a solid entry's data stream.
+pub(crate) struct EntryIterator<R: Read>(EntryReader<R>);
 
 #[inline]
 fn read_next_normal_entry_from_stream<R: Read>(reader: &mut R) -> Option<io::Result<NormalEntry>> {
@@ -419,10 +482,10 @@ fn read_next_normal_entry_from_stream<R: Read>(reader: &mut R) -> Option<io::Res
             Err(e) => return Some(Err(e)),
         }
     }
-    Some(RawEntry(chunks).try_into())
+    Some(NormalEntry::parse_chunks(chunks))
 }
 
-impl Iterator for EntryIterator<'_> {
+impl<R: Read> Iterator for EntryIterator<R> {
     type Item = io::Result<NormalEntry>;
 
     #[inline]
@@ -430,31 +493,15 @@ impl Iterator for EntryIterator<'_> {
         read_next_normal_entry_from_stream(&mut self.0)
     }
 }
-
-type BytesCursor = io::Cursor<Vec<u8>>;
 
 /// An iterator that moves out of a solid entry.
-///
-/// This struct is created by the `into_entries` method on [`SolidEntry`].
-pub(crate) struct SolidIntoEntries(
-    EntryReader<ChainReader<std::vec::IntoIter<BytesCursor>, BytesCursor>>,
-);
-
-impl Iterator for SolidIntoEntries {
-    type Item = io::Result<NormalEntry>;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        read_next_normal_entry_from_stream(&mut self.0)
-    }
-}
+pub(crate) type SolidIntoEntries<T = Vec<u8>> =
+    EntryIterator<ChainReader<std::vec::IntoIter<io::Cursor<T>>, io::Cursor<T>>>;
 
 /// A solid mode entry in a PNA archive.
 ///
 /// Solid entries contain multiple files compressed together as a single unit.
-/// This provides better compression ratios but requires sequential access to
-/// the contained files. The entry includes a header, optional password hash,
-/// data chunks, and any extra chunks.
+/// The contained entries are read sequentially.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct SolidEntry<T = Vec<u8>> {
     header: SolidHeader,
@@ -530,11 +577,15 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
         encoded_data_reader(&self.data)
     }
 
-    /// Returns an iterator over the entries in the [`SolidEntry`].
+    /// Returns an iterator over the entries in this solid entry.
+    ///
+    /// The iterator returns errors encountered while decoding or parsing entries.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading from the [`SolidEntry`].
+    /// Returns an error if the decryption or decompression reader cannot be
+    /// initialized, including unsupported methods, a missing or incorrect
+    /// password, or malformed encryption headers.
     ///
     /// # Examples
     ///
@@ -552,8 +603,8 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
     ///             let options = ReadOptions::with_password(Some(b"password"));
     ///             for entry in solid_entry.entries(&options)? {
     ///                 let entry = entry?;
-    ///                 let mut reader = entry.reader(ReadOptions::builder().build());
-    ///                 // process the entry
+    ///                 let mut reader = entry.reader(ReadOptions::builder().build())?;
+    ///                 io::copy(&mut reader, &mut io::sink())?;
     ///             }
     ///         }
     ///         ReadEntry::Normal(_entry) => {
@@ -582,23 +633,19 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
 
         Ok(EntryIterator(EntryReader(reader)))
     }
-}
 
-impl<T> SolidEntry<T>
-where
-    T: Into<Vec<u8>>,
-{
     /// Consumes this solid entry and returns a streaming iterator of normal
-    /// entries, reusing derived keys cached in the supplied options.
+    /// entries without copying its encoded data, reusing derived keys cached in
+    /// the supplied options.
     #[inline]
     pub(crate) fn into_entries_with_options(
         self,
         options: &ReadOptions,
-    ) -> io::Result<SolidIntoEntries> {
+    ) -> io::Result<SolidIntoEntries<T>> {
         let bufs = self
             .data
             .into_iter()
-            .map(|v| io::Cursor::new(v.into()))
+            .map(io::Cursor::new)
             .collect::<Vec<_>>();
         let chain = ChainReader::new(bufs);
         let reader = decrypt_reader(
@@ -611,7 +658,7 @@ where
             &self.header.to_bytes(),
         )?;
         let reader = decompress_reader(reader, self.header.compression)?;
-        Ok(SolidIntoEntries(EntryReader(reader)))
+        Ok(EntryIterator(EntryReader(reader)))
     }
 }
 
@@ -663,6 +710,54 @@ impl From<SolidEntry<Vec<u8>>> for SolidEntry<Cow<'_, [u8]>> {
     }
 }
 
+impl From<SolidEntry<Vec<u8>>> for SolidEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: SolidEntry<Vec<u8>>) -> Self {
+        Self {
+            header: value.header,
+            phsf: value.phsf,
+            data: value.data.into_iter().map(Into::into).collect(),
+            extra: value.extra.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl<'a> From<SolidEntry<Cow<'a, [u8]>>> for SolidEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: SolidEntry<Cow<'a, [u8]>>) -> Self {
+        Self {
+            header: value.header,
+            phsf: value.phsf,
+            data: value.data.into_iter().map(Into::into).collect(),
+            extra: value.extra.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl<'a> From<SolidEntry<&'a [u8]>> for SolidEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: SolidEntry<&'a [u8]>) -> Self {
+        Self {
+            header: value.header,
+            phsf: value.phsf,
+            data: value.data.into_iter().map(Into::into).collect(),
+            extra: value.extra.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<SolidEntry<Box<[u8]>>> for SolidEntry<Vec<u8>> {
+    #[inline]
+    fn from(value: SolidEntry<Box<[u8]>>) -> Self {
+        Self {
+            header: value.header,
+            phsf: value.phsf,
+            data: value.data.into_iter().map(Into::into).collect(),
+            extra: value.extra.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 impl<T> TryFrom<RawEntry<T>> for SolidEntry<T>
 where
     RawChunk<T>: Chunk,
@@ -671,7 +766,28 @@ where
 
     #[inline]
     fn try_from(entry: RawEntry<T>) -> Result<Self, Self::Error> {
-        let mut chunks = entry.0.into_iter();
+        Self::parse_chunks(entry.0)
+    }
+}
+
+impl<T> SolidEntry<T>
+where
+    RawChunk<T>: Chunk,
+{
+    /// Parses a contiguous chunk sequence into a [`SolidEntry`].
+    ///
+    /// `chunks` must start with one solid entry's chunk range: `SHED`
+    /// through `SEND` (inclusive), with the header chunk first.
+    /// Parsing stops at the first `SEND`; any chunks after it are ignored.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the sequence is empty or does not start with a `SHED` chunk,
+    /// if no `SEND` terminator is present, if the entry version is unsupported,
+    /// if an unknown critical chunk type is present, or if a chunk body cannot be decoded.
+    #[inline]
+    pub fn parse_chunks(chunks: impl IntoIterator<Item = RawChunk<T>>) -> io::Result<Self> {
+        let mut chunks = chunks.into_iter();
         let header = if let Some(first_chunk) = chunks.next() {
             if first_chunk.ty != ChunkType::SHED {
                 return Err(io::Error::new(
@@ -703,9 +819,13 @@ where
         let mut extra = vec![];
         let mut data = vec![];
         let mut phsf = None;
+        let mut terminated = false;
         for chunk in chunks {
             match chunk.ty() {
-                ChunkType::SEND => break,
+                ChunkType::SEND => {
+                    terminated = true;
+                    break;
+                }
                 ChunkType::SDAT => data.push(chunk.data),
                 ChunkType::PHSF => {
                     phsf = Some(
@@ -724,6 +844,12 @@ where
                 }
             }
         }
+        if !terminated {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("unterminated entry: `{}` chunk not found", ChunkType::SEND),
+            ));
+        }
         Ok(Self {
             header,
             phsf,
@@ -735,9 +861,8 @@ where
 
 /// A normal entry in a PNA archive.
 ///
-/// Normal entries represent individual files in the archive, allowing for
-/// random access to the file data. Each entry includes a header, optional
-/// password hash, data chunks, metadata, extended attributes, and any extra chunks.
+/// Each entry stores its own data and metadata and can be decoded independently
+/// of other entries.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct NormalEntry<T = Vec<u8>> {
     pub(crate) header: EntryHeader,
@@ -753,10 +878,30 @@ where
 {
     type Error = io::Error;
 
-    #[allow(deprecated)]
     #[inline]
     fn try_from(entry: RawEntry<T>) -> Result<Self, Self::Error> {
-        let mut chunks = entry.0.into_iter();
+        Self::parse_chunks(entry.0)
+    }
+}
+
+impl<T> NormalEntry<T>
+where
+    RawChunk<T>: Chunk,
+{
+    /// Parses a contiguous chunk sequence into a [`NormalEntry`].
+    ///
+    /// `chunks` must start with one entry's chunk range: `FHED`
+    /// through `FEND` (inclusive), with the header chunk first.
+    /// Parsing stops at the first `FEND`; any chunks after it are ignored.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the sequence is empty or does not start with a `FHED` chunk,
+    /// if no `FEND` terminator is present, if the entry version is unsupported,
+    /// if an unknown critical chunk type is present, or if a chunk body cannot be decoded.
+    #[inline]
+    pub fn parse_chunks(chunks: impl IntoIterator<Item = RawChunk<T>>) -> io::Result<Self> {
+        let mut chunks = chunks.into_iter();
         let header = if let Some(first_chunk) = chunks.next() {
             if first_chunk.ty != ChunkType::FHED {
                 return Err(io::Error::new(
@@ -805,9 +950,13 @@ where
         let mut owner_user_sid = None;
         let mut owner_group_sid = None;
         let mut permission_mode = None;
+        let mut terminated = false;
         for chunk in chunks {
             match chunk.ty {
-                ChunkType::FEND => break,
+                ChunkType::FEND => {
+                    terminated = true;
+                    break;
+                }
                 ChunkType::PHSF => {
                     phsf = Some(
                         String::from_utf8(chunk.data().into())
@@ -856,9 +1005,38 @@ where
                 }
             }
         }
+        if !terminated {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("unterminated entry: `{}` chunk not found", ChunkType::FEND),
+            ));
+        }
         let ctime = ctime.map(|s| Duration::from_seconds_nanos(s, ctime_ns.unwrap_or(0)));
         let mtime = mtime.map(|s| Duration::from_seconds_nanos(s, mtime_ns.unwrap_or(0)));
         let atime = atime.map(|s| Duration::from_seconds_nanos(s, atime_ns.unwrap_or(0)));
+
+        // A legacy `fPRM` chunk supplies five owner facets (all but the two
+        // SIDs, which it doesn't carry). If none of them arrived as their own
+        // chunk, treat the fPRM values as those facets. This must run after
+        // the chunk loop above, not inside the `fPRM` match arm: chunk order
+        // within an entry isn't guaranteed, so a facet chunk can arrive
+        // either side of `fPRM`, and the fill must not depend on which.
+        if let Some(p) = &permission
+            && owner_uid.is_none()
+            && owner_gid.is_none()
+            && owner_user_name.is_none()
+            && owner_group_name.is_none()
+            && permission_mode.is_none()
+        {
+            owner_uid = Some(OwnerUid::from(p.uid()));
+            owner_gid = Some(OwnerGid::from(p.gid()));
+            // fPRM's uname/gname are already bounded to 255 bytes on the
+            // wire (a 1-byte length prefix), so this can't fail in
+            // practice; `.ok()` just avoids a second, redundant bound.
+            owner_user_name = OwnerUserName::new(p.uname()).ok();
+            owner_group_name = OwnerGroupName::new(p.gname()).ok();
+            permission_mode = Some(PermissionMode::from(p.permissions()));
+        }
 
         Ok(Self {
             header,
@@ -870,7 +1048,6 @@ where
                 created: ctime,
                 modified: mtime,
                 accessed: atime,
-                permission,
                 link_target_type,
                 owner_uid,
                 owner_gid,
@@ -891,7 +1068,6 @@ where
     RawChunk<T>: Chunk + Into<RawChunk>,
     (ChunkType, T): Chunk + Into<RawChunk>,
 {
-    #[allow(deprecated)]
     #[inline]
     fn write_chunks_to<S: EntryChunkSink>(self, sink: &mut S) -> Result<(), S::Error> {
         sink.write_chunk((ChunkType::FHED, self.header.to_bytes()))?;
@@ -922,12 +1098,10 @@ impl<T> NormalEntry<T> {
         &self.header
     }
 
-    /// Returns the name of this entry.
+    /// Returns the unsanitized name of this entry.
     ///
-    /// # Warning
-    ///
-    /// The returned name is not sanitized. Using it directly as a filesystem
-    /// path may allow path traversal. Call [`EntryName::sanitize`] before
+    /// Using the name directly as a filesystem path may allow path traversal.
+    /// Call [`EntryName::sanitize`] before
     /// using it as a path.
     #[inline]
     pub fn name(&self) -> &EntryName {
@@ -964,32 +1138,28 @@ impl<T> NormalEntry<T> {
         &self.metadata
     }
 
-    /// Returns the extended attributes of this entry.
-    #[deprecated(
-        since = "0.36.0",
-        note = "xattrs are now a Metadata facet; use NormalEntry::metadata().xattrs()"
-    )]
-    #[inline]
-    pub fn xattrs(&self) -> &[ExtendedAttribute] {
-        self.metadata.xattrs()
-    }
-
     /// Returns the extra chunks of this entry.
     #[inline]
     pub fn extra_chunks(&self) -> &[RawChunk<T>] {
         &self.extra
     }
 
-    /// Applies metadata to the entry.
+    /// Replaces the metadata of this entry.
+    ///
+    /// The raw and compressed file sizes of the entry are preserved.
     ///
     /// # Examples
+    ///
     /// ```rust
     /// # use std::io;
-    /// use libpna::{DirEntryBuilder, Metadata};
+    /// use libpna::{DirEntryBuilder, Duration, Metadata};
     ///
     /// # fn main() -> io::Result<()> {
-    /// let mut entry = DirEntryBuilder::new("dir_entry".into()).build()?;
-    /// entry.with_metadata(Metadata::new());
+    /// let entry = DirEntryBuilder::new("dir_entry".into()).build()?;
+    /// let modified = Duration::seconds(1000);
+    /// let metadata = Metadata::new().with_modified(Some(modified));
+    /// let entry = entry.with_metadata(metadata);
+    /// assert_eq!(entry.metadata().modified(), Some(modified));
     /// # Ok(())
     /// # }
     /// ```
@@ -998,17 +1168,6 @@ impl<T> NormalEntry<T> {
         metadata.compressed_size = self.metadata.compressed_size;
         metadata.raw_file_size = self.metadata.raw_file_size;
         self.metadata = metadata;
-        self
-    }
-
-    /// Applies extended attributes to the entry.
-    #[deprecated(
-        since = "0.36.0",
-        note = "xattrs are now a Metadata facet; set them via Metadata::with_xattrs and NormalEntry::with_metadata"
-    )]
-    #[inline]
-    pub fn with_xattrs(mut self, xattrs: impl Into<Vec<ExtendedAttribute>>) -> Self {
-        self.metadata.xattrs = xattrs.into();
         self
     }
 
@@ -1025,40 +1184,37 @@ impl<T> NormalEntry<T> {
     /// [`NormalEntry::try_with_name`] for the fallible variant.
     ///
     /// # Examples
+    ///
     /// ```rust
     /// # use std::io;
     /// use libpna::DirEntryBuilder;
     ///
     /// # fn main() -> io::Result<()> {
     /// let entry = DirEntryBuilder::new("original/path".into()).build()?;
-    /// let renamed = entry.with_name("new/path".into());
+    /// let renamed = entry.try_with_name("new/path".into()).unwrap();
     /// assert_eq!(renamed.header().path().as_str(), "new/path");
     /// # Ok(())
     /// # }
     /// ```
+    #[deprecated(
+        since = "0.39.0",
+        note = "use `NormalEntry::try_with_name`, which refuses renames that would make encrypted data undecryptable instead of panicking"
+    )]
     #[inline]
     pub fn with_name(self, name: EntryName) -> Self {
         self.try_with_name(name)
             .unwrap_or_else(|_| panic!("renaming this entry would make its data undecryptable"))
     }
 
-    /// Returns this entry with a new name, refusing renames that
-    /// would make the entry's data undecryptable.
-    ///
-    /// [`CipherMode::GCM`] derives its stream key from the `FHED` bytes, so a
-    /// renamed entry can no longer be decrypted; this method returns an error
-    /// instead of producing one. Cipher modes this build does not implement are
-    /// refused as well, since their key derivation may bind the header too. See
-    /// [`NormalEntry::with_name`] for the panicking variant.
+    /// Returns this entry with a new name.
     ///
     /// # Errors
     ///
-    /// Returns the entry unchanged when it is encrypted in a cipher mode that
-    /// does not [allow a header rewrite](CipherMode::allows_header_rewrite), so
-    /// that a caller can copy it verbatim or re-encrypt it instead of having to
-    /// ask whether the rename is possible beforehand.
+    /// Returns the original entry in `Err` if it is encrypted in a cipher mode
+    /// that does not [allow a header rewrite](CipherMode::allows_header_rewrite).
     ///
     /// # Examples
+    ///
     /// ```rust
     /// # use std::io;
     /// use libpna::DirEntryBuilder;
@@ -1088,19 +1244,21 @@ impl<T> NormalEntry<T> {
 }
 
 impl<T: Clone> NormalEntry<T> {
-    /// Applies extra chunks to the entry.
+    /// Replaces the extra chunks of this entry.
     ///
     /// # Examples
+    ///
     /// ```rust
     /// # use std::io;
-    /// use libpna::{ChunkType, DirEntryBuilder, RawChunk};
+    /// use libpna::{Chunk, ChunkType, DirEntryBuilder, RawChunk};
     ///
     /// # fn main() -> io::Result<()> {
-    /// let mut entry = DirEntryBuilder::new("dir_entry".into()).build()?;
-    /// entry.with_extra_chunks(&[RawChunk::from_data(
+    /// let entry = DirEntryBuilder::new("dir_entry".into()).build()?;
+    /// let entry = entry.with_extra_chunks(&[RawChunk::from_data(
     ///     ChunkType::private(*b"myTy").unwrap(),
     ///     b"some data",
     /// )]);
+    /// assert_eq!(entry.extra_chunks()[0].data(), b"some data");
     /// # Ok(())
     /// # }
     /// ```
@@ -1122,11 +1280,16 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
         encoded_data_reader(&self.data)
     }
 
-    /// Returns the reader of this [`NormalEntry`].
+    /// Returns a reader over the decoded data of this entry.
+    ///
+    /// Decryption and decompression errors encountered after initialization
+    /// are returned by the reader.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading from the reader.
+    /// Returns an error if the decryption or decompression reader cannot be
+    /// initialized, including unsupported methods, a missing or incorrect
+    /// password, or malformed encryption headers.
     ///
     /// # Examples
     ///
@@ -1215,10 +1378,64 @@ impl<'a> From<NormalEntry<&'a [u8]>> for NormalEntry<Cow<'a, [u8]>> {
     }
 }
 
+impl From<NormalEntry<Vec<u8>>> for NormalEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: NormalEntry<Vec<u8>>) -> Self {
+        Self {
+            header: value.header,
+            phsf: value.phsf,
+            extra: value.extra.into_iter().map(Into::into).collect(),
+            data: value.data.into_iter().map(Into::into).collect(),
+            metadata: value.metadata,
+        }
+    }
+}
+
+impl<'a> From<NormalEntry<Cow<'a, [u8]>>> for NormalEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: NormalEntry<Cow<'a, [u8]>>) -> Self {
+        Self {
+            header: value.header,
+            phsf: value.phsf,
+            extra: value.extra.into_iter().map(Into::into).collect(),
+            data: value.data.into_iter().map(Into::into).collect(),
+            metadata: value.metadata,
+        }
+    }
+}
+
+impl<'a> From<NormalEntry<&'a [u8]>> for NormalEntry<Box<[u8]>> {
+    #[inline]
+    fn from(value: NormalEntry<&'a [u8]>) -> Self {
+        Self {
+            header: value.header,
+            phsf: value.phsf,
+            extra: value.extra.into_iter().map(Into::into).collect(),
+            data: value.data.into_iter().map(Into::into).collect(),
+            metadata: value.metadata,
+        }
+    }
+}
+
+impl From<NormalEntry<Box<[u8]>>> for NormalEntry<Vec<u8>> {
+    #[inline]
+    fn from(value: NormalEntry<Box<[u8]>>) -> Self {
+        Self {
+            header: value.header,
+            phsf: value.phsf,
+            extra: value.extra.into_iter().map(Into::into).collect(),
+            data: value.data.into_iter().map(Into::into).collect(),
+            metadata: value.metadata,
+        }
+    }
+}
+
 /// A structure representing the split [`Entry`] for archive splitting.
+#[deprecated(since = "0.38.0", note = "use Archive::write_split_header instead")]
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EntryPart<T = Vec<u8>>(pub(crate) Vec<RawChunk<T>>);
 
+#[allow(deprecated)]
 impl<T> EntryPart<T>
 where
     RawChunk<T>: Chunk,
@@ -1237,10 +1454,12 @@ where
     }
 }
 
+#[allow(deprecated)]
 impl EntryPart<&[u8]> {
     /// Splits this [`EntryPart`] into two parts if its length exceeds the given value.
     ///
     /// # Errors
+    ///
     /// If it can't split into smaller than the given value,
     /// it returns an error containing the original value.
     #[inline]
@@ -1278,6 +1497,7 @@ impl EntryPart<&[u8]> {
 }
 
 #[doc(hidden)]
+#[allow(deprecated)]
 impl<T: SealedEntryExt> From<T> for EntryPart {
     #[inline]
     fn from(value: T) -> Self {
@@ -1318,8 +1538,37 @@ fn u128_from_be_bytes_last(bytes: &[u8]) -> u128 {
 }
 
 #[cfg(test)]
+pub(crate) mod test_support {
+    use super::*;
+
+    /// Serializes `entry` through the production writer and returns the wire bytes.
+    pub(crate) fn entry_bytes(entry: impl SealedEntryExt) -> Vec<u8> {
+        let mut buf = Vec::new();
+        entry
+            .write_in(&mut buf)
+            .expect("writing to a Vec is infallible");
+        buf
+    }
+
+    /// Serializes `entry` and parses the wire bytes back into chunks.
+    pub(crate) fn entry_chunks(entry: impl SealedEntryExt) -> Vec<RawChunk> {
+        let bytes = entry_bytes(entry);
+        let mut reader = io::Cursor::new(&bytes[..]);
+        let mut chunks = Vec::new();
+        while (reader.position() as usize) < bytes.len() {
+            chunks.push(
+                crate::io::read_chunk(&mut reader, u32::MAX).expect("entry bytes must parse"),
+            );
+        }
+        chunks
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
+    use crate::entry::test_support::entry_chunks;
+    use std::io::Write;
     use std::sync::LazyLock;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
@@ -1331,21 +1580,25 @@ mod tests {
         check_impl::<NormalEntry<Cow<[u8]>>>();
         check_impl::<NormalEntry<&[u8]>>();
         check_impl::<NormalEntry<[u8; 1]>>();
+        check_impl::<NormalEntry<Box<[u8]>>>();
 
         check_impl::<SolidEntry<Vec<u8>>>();
         check_impl::<SolidEntry<Cow<[u8]>>>();
         check_impl::<SolidEntry<&[u8]>>();
         check_impl::<SolidEntry<[u8; 1]>>();
+        check_impl::<SolidEntry<Box<[u8]>>>();
 
         check_impl::<ReadEntry<Vec<u8>>>();
         check_impl::<ReadEntry<Cow<[u8]>>>();
         check_impl::<ReadEntry<&[u8]>>();
         check_impl::<ReadEntry<[u8; 1]>>();
+        check_impl::<ReadEntry<Box<[u8]>>>();
 
         check_impl::<RawEntry<Vec<u8>>>();
         check_impl::<RawEntry<Cow<[u8]>>>();
         check_impl::<RawEntry<&[u8]>>();
         check_impl::<RawEntry<[u8; 1]>>();
+        check_impl::<RawEntry<Box<[u8]>>>();
     }
 
     #[test]
@@ -1359,6 +1612,225 @@ mod tests {
         assert_eq!(u128::MAX, u128_from_be_bytes_last(&u128::MAX.to_be_bytes()));
     }
 
+    mod owner_facet_fill_from_legacy_fprm {
+        use super::*;
+
+        #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+        use wasm_bindgen_test::wasm_bindgen_test as test;
+
+        /// Raw `fPRM` chunk body: `uid(8) | uname_len(1) | uname | gid(8) |
+        /// gname_len(1) | gname | mode(2)`, all big-endian (mirrors
+        /// `Permission::try_from_bytes`). Asserts both names fit the 1-byte
+        /// length prefix before the `as u8` cast, so a name too long for the
+        /// format fails loudly here instead of silently truncating the length
+        /// byte and producing a malformed chunk.
+        fn fprm_body(uid: u64, uname: &str, gid: u64, gname: &str, mode: u16) -> Vec<u8> {
+            assert!(uname.len() <= u8::MAX as usize);
+            assert!(gname.len() <= u8::MAX as usize);
+            let mut body = Vec::new();
+            body.extend_from_slice(&uid.to_be_bytes());
+            body.push(uname.len() as u8);
+            body.extend_from_slice(uname.as_bytes());
+            body.extend_from_slice(&gid.to_be_bytes());
+            body.push(gname.len() as u8);
+            body.extend_from_slice(gname.as_bytes());
+            body.extend_from_slice(&mode.to_be_bytes());
+            body
+        }
+
+        /// Builds a `NormalEntry` from `FHED` + the given chunks (in the
+        /// given order) + `FEND`, decodes it, and returns its metadata. Lets
+        /// tests place `fPRM` before or after a facet chunk to prove the fill
+        /// doesn't depend on chunk arrival order.
+        fn metadata_from_chunks(chunks: Vec<RawChunk<Vec<u8>>>) -> Metadata {
+            let mut all = vec![RawChunk::from_data(
+                ChunkType::FHED,
+                EntryHeader::for_file(Compression::NO, Encryption::NO, CipherMode::CTR, "f".into())
+                    .to_bytes(),
+            )];
+            all.extend(chunks);
+            all.push(RawChunk::from_data(ChunkType::FEND, vec![]));
+            let entry: NormalEntry = NormalEntry::parse_chunks(all).unwrap();
+            entry.metadata().clone()
+        }
+
+        #[test]
+        fn fprm_only_fills_all_five_owner_facets() {
+            let metadata = metadata_from_chunks(vec![RawChunk::from_data(
+                ChunkType::fPRM,
+                fprm_body(111, "alice", 222, "staff", 0o600),
+            )]);
+
+            assert_eq!(metadata.owner_uid().map(|v| v.get()), Some(111));
+            assert_eq!(metadata.owner_gid().map(|v| v.get()), Some(222));
+            assert_eq!(
+                metadata.owner_user_name().map(|v| v.as_str()),
+                Some("alice")
+            );
+            assert_eq!(
+                metadata.owner_group_name().map(|v| v.as_str()),
+                Some("staff")
+            );
+            assert_eq!(metadata.permission_mode().map(|v| v.get()), Some(0o600));
+        }
+
+        /// The fill reads `p.uname()` straight into `OwnerUserName::new` via
+        /// `.ok()`, discarding a `LengthExceeded` error silently. That can't
+        /// happen today — `fPRM`'s uname is already bounded to 255 bytes by
+        /// its own 1-byte length prefix — but nothing enforces that the two
+        /// bounds (`fPRM`'s and `OwnerUserName`'s) stay in sync. Pin the
+        /// boundary: a name at the limit must still survive the fill.
+        #[test]
+        fn owner_name_at_the_255_byte_boundary_survives_the_fill() {
+            let long_name = "a".repeat(255);
+            let metadata = metadata_from_chunks(vec![RawChunk::from_data(
+                ChunkType::fPRM,
+                fprm_body(0, &long_name, 0, "g", 0o644),
+            )]);
+
+            assert_eq!(
+                metadata.owner_user_name().map(|v| v.as_str()),
+                Some(long_name.as_str())
+            );
+        }
+
+        #[test]
+        fn owner_facet_before_fprm_suppresses_the_fill() {
+            // `fPRM` is the LAST chunk here. A fill implemented inside the
+            // `fPRM` match arm would see `owner_uid` already set and could
+            // still be tempted to fill the other four from fPRM; folding the
+            // decision until after the full loop is what rules that out.
+            let metadata = metadata_from_chunks(vec![
+                RawChunk::from_data(ChunkType::fUId, OwnerUid::from(999u64).to_bytes().to_vec()),
+                RawChunk::from_data(
+                    ChunkType::fPRM,
+                    fprm_body(111, "alice", 222, "staff", 0o600),
+                ),
+            ]);
+
+            assert_eq!(
+                metadata.owner_uid().map(|v| v.get()),
+                Some(999),
+                "the entry's own facet must win, not fPRM's"
+            );
+            assert!(metadata.owner_gid().is_none());
+            assert!(metadata.owner_user_name().is_none());
+            assert!(metadata.owner_group_name().is_none());
+            assert!(metadata.permission_mode().is_none());
+        }
+
+        #[test]
+        fn owner_facet_after_fprm_still_suppresses_the_fill() {
+            // Same two chunks as above, reversed: `fPRM` is now FIRST. A fill
+            // implemented inside the `fPRM` match arm would see no facet set
+            // yet and fill all five from fPRM, then have the later `fUId`
+            // chunk merely overwrite one of them — the outcome must match the
+            // reversed order above regardless.
+            let metadata = metadata_from_chunks(vec![
+                RawChunk::from_data(
+                    ChunkType::fPRM,
+                    fprm_body(111, "alice", 222, "staff", 0o600),
+                ),
+                RawChunk::from_data(ChunkType::fUId, OwnerUid::from(999u64).to_bytes().to_vec()),
+            ]);
+
+            assert_eq!(metadata.owner_uid().map(|v| v.get()), Some(999));
+            assert!(metadata.owner_gid().is_none());
+            assert!(metadata.owner_user_name().is_none());
+            assert!(metadata.owner_group_name().is_none());
+            assert!(metadata.permission_mode().is_none());
+        }
+
+        #[test]
+        fn sid_only_facet_does_not_count_for_the_all_or_nothing_rule() {
+            let metadata = metadata_from_chunks(vec![
+                RawChunk::from_data(
+                    ChunkType::fOSi,
+                    OwnerUserSid::new("S-1-5-21-1").unwrap().to_bytes(),
+                ),
+                RawChunk::from_data(
+                    ChunkType::fPRM,
+                    fprm_body(111, "alice", 222, "staff", 0o600),
+                ),
+            ]);
+
+            assert_eq!(
+                metadata.owner_user_sid().map(|v| v.as_str()),
+                Some("S-1-5-21-1"),
+                "guard: the SID must still be present for the five facets below to be meaningful"
+            );
+            assert_eq!(metadata.owner_uid().map(|v| v.get()), Some(111));
+            assert_eq!(metadata.owner_gid().map(|v| v.get()), Some(222));
+            assert_eq!(
+                metadata.owner_user_name().map(|v| v.as_str()),
+                Some("alice")
+            );
+            assert_eq!(
+                metadata.owner_group_name().map(|v| v.as_str()),
+                Some("staff")
+            );
+            assert_eq!(metadata.permission_mode().map(|v| v.get()), Some(0o600));
+        }
+
+        #[test]
+        fn fprm_mode_is_masked_to_0o7777_by_the_fill() {
+            let metadata = metadata_from_chunks(vec![RawChunk::from_data(
+                ChunkType::fPRM,
+                fprm_body(0, "", 0, "", 0o100644),
+            )]);
+
+            assert_eq!(
+                metadata.permission_mode().map(|v| v.get()),
+                Some(0o644),
+                "the filled fMOd must mask off the file-type bits fPRM used to carry"
+            );
+        }
+
+        #[test]
+        fn no_fprm_leaves_facets_untouched() {
+            let metadata = metadata_from_chunks(vec![RawChunk::from_data(
+                ChunkType::fUId,
+                OwnerUid::from(1u64).to_bytes().to_vec(),
+            )]);
+
+            assert_eq!(metadata.owner_uid().map(|v| v.get()), Some(1));
+            assert!(metadata.owner_gid().is_none());
+        }
+
+        /// An entry decoded from a legacy `fPRM` chunk must be indistinguishable
+        /// from one that carried the same values as owner facets all along —
+        /// including under `Metadata`'s `Eq`/`Hash` derive, which see every
+        /// field. If `Metadata` still stored the decoded `fPRM` value in a
+        /// field no public getter exposes, this would fail: the two `Metadata`
+        /// values would compare unequal despite agreeing on every observable
+        /// facet.
+        #[test]
+        fn fprm_filled_metadata_equals_facet_only_metadata() {
+            let from_fprm = metadata_from_chunks(vec![RawChunk::from_data(
+                ChunkType::fPRM,
+                fprm_body(111, "alice", 222, "staff", 0o600),
+            )]);
+            let from_facets = metadata_from_chunks(vec![
+                RawChunk::from_data(ChunkType::fUId, OwnerUid::from(111u64).to_bytes().to_vec()),
+                RawChunk::from_data(ChunkType::fGId, OwnerGid::from(222u64).to_bytes().to_vec()),
+                RawChunk::from_data(
+                    ChunkType::fONm,
+                    OwnerUserName::new("alice").unwrap().to_bytes(),
+                ),
+                RawChunk::from_data(
+                    ChunkType::fGNm,
+                    OwnerGroupName::new("staff").unwrap().to_bytes(),
+                ),
+                RawChunk::from_data(
+                    ChunkType::fMOd,
+                    PermissionMode::from(0o600u16).to_bytes().to_vec(),
+                ),
+            ]);
+
+            assert_eq!(from_fprm, from_facets);
+        }
+    }
+
     static TEST_ENTRY: LazyLock<RawEntry> = LazyLock::new(|| {
         RawEntry(vec![
             RawChunk::from_data(
@@ -1370,6 +1842,7 @@ mod tests {
         ])
     });
 
+    #[allow(deprecated)]
     mod entry_part_try_split {
         use super::*;
         #[cfg(all(target_family = "wasm", target_os = "unknown"))]
@@ -1485,7 +1958,7 @@ mod tests {
     fn normal_entry_with_name_updates_path() {
         let entry = DirEntryBuilder::new("original".into()).build().unwrap();
         let _ = entry.header().path(); // Force cache population
-        let renamed = entry.with_name("new".into());
+        let renamed = entry.try_with_name("new".into()).unwrap();
         assert_eq!(renamed.header().path().as_str(), "new");
         assert_eq!(renamed.name().as_str(), "new");
     }
@@ -1503,20 +1976,21 @@ mod tests {
             RawChunk::from_slice(ChunkType::FHED, &header),
             RawChunk::from_slice(ChunkType::FEND, &[]),
         ]);
-        let entry: NormalEntry<&[u8]> = raw.try_into().unwrap();
+        let entry: NormalEntry<&[u8]> = NormalEntry::parse_chunks(raw.0).unwrap();
 
-        let renamed = entry.with_name("renamed".into());
+        let renamed = entry.try_with_name("renamed".into()).unwrap();
 
         assert_eq!(renamed.header().path().as_str(), "renamed");
     }
 
     #[test]
     #[should_panic(expected = "renaming this entry would make its data undecryptable")]
+    #[allow(deprecated)]
     fn with_name_panics_on_gcm_encrypted_entry() {
         let options = WriteOptions::builder()
             .encryption(Encryption::AES)
             .cipher_mode(CipherMode::GCM)
-            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
             .password(Some("password"))
             .build();
         let mut builder =
@@ -1532,7 +2006,7 @@ mod tests {
         let options = WriteOptions::builder()
             .encryption(Encryption::AES)
             .cipher_mode(CipherMode::GCM)
-            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
             .password(Some("password"))
             .build();
         let mut builder =
@@ -1561,7 +2035,7 @@ mod tests {
         let options = WriteOptions::builder()
             .encryption(Encryption::AES)
             .cipher_mode(CipherMode::CBC)
-            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
             .password(Some("password"))
             .build();
         let mut builder =
@@ -1571,28 +2045,6 @@ mod tests {
 
         let renamed = entry.try_with_name("dir/renamed".into()).unwrap();
         assert_eq!(renamed.header().path().as_str(), "dir/renamed");
-        let mut reader = renamed
-            .reader(ReadOptions::with_password(Some("password")))
-            .unwrap();
-        let mut out = Vec::new();
-        reader.read_to_end(&mut out).unwrap();
-        assert_eq!(out, b"secret payload");
-    }
-
-    #[test]
-    fn cbc_entry_is_readable_after_rename() {
-        let options = WriteOptions::builder()
-            .encryption(Encryption::AES)
-            .cipher_mode(CipherMode::CBC)
-            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
-            .password(Some("password"))
-            .build();
-        let mut builder =
-            FileEntryBuilder::new_with_options("dir/original".into(), &options).unwrap();
-        builder.write_all(b"secret payload").unwrap();
-        let entry = builder.build().unwrap();
-
-        let renamed = entry.with_name("dir/renamed".into());
         let mut reader = renamed
             .reader(ReadOptions::with_password(Some("password")))
             .unwrap();
@@ -1655,7 +2107,7 @@ mod tests {
         let fend = RawChunk::from_data(ChunkType::FEND, vec![]);
 
         let raw_entry = RawEntry(vec![fhed, unknown_critical, fend]);
-        let result = NormalEntry::try_from(raw_entry);
+        let result = NormalEntry::parse_chunks(raw_entry.0);
 
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -1674,7 +2126,7 @@ mod tests {
         let send = RawChunk::from_data(ChunkType::SEND, vec![]);
 
         let raw_entry = RawEntry(vec![shed, unknown_critical, send]);
-        let result = SolidEntry::try_from(raw_entry);
+        let result = SolidEntry::parse_chunks(raw_entry.0);
 
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -1688,7 +2140,7 @@ mod tests {
         let send = RawChunk::from_data(ChunkType::SEND, vec![]);
 
         let raw_entry = RawEntry(vec![shed, send]);
-        let result = SolidEntry::try_from(raw_entry);
+        let result = SolidEntry::parse_chunks(raw_entry.0);
 
         assert_eq!(result.unwrap_err().kind(), io::ErrorKind::Unsupported);
     }
@@ -1699,7 +2151,7 @@ mod tests {
         let send = RawChunk::from_data(ChunkType::SEND, vec![]);
 
         let raw_entry = RawEntry(vec![shed, send]);
-        let result = SolidEntry::try_from(raw_entry);
+        let result = SolidEntry::parse_chunks(raw_entry.0);
 
         assert_eq!(result.unwrap_err().kind(), io::ErrorKind::Unsupported);
     }
@@ -1715,7 +2167,7 @@ mod tests {
         let fend = RawChunk::from_data(ChunkType::FEND, vec![]);
 
         let raw_entry = RawEntry(vec![fhed, unknown_ancillary, fend]);
-        let result = NormalEntry::try_from(raw_entry);
+        let result = NormalEntry::parse_chunks(raw_entry.0);
 
         // Ancillary chunks should be accepted and stored in extra
         assert!(result.is_ok());
@@ -1734,7 +2186,7 @@ mod tests {
         let send = RawChunk::from_data(ChunkType::SEND, vec![]);
 
         let raw_entry = RawEntry(vec![shed, unknown_ancillary, send]);
-        let result = SolidEntry::try_from(raw_entry);
+        let result = SolidEntry::parse_chunks(raw_entry.0);
 
         // Ancillary chunks should be accepted and stored in extra
         assert!(result.is_ok());
@@ -1753,12 +2205,49 @@ mod tests {
         );
 
         let raw_entry = RawEntry(vec![shed, send, trailing_critical]);
-        let result = SolidEntry::try_from(raw_entry);
+        let result = SolidEntry::parse_chunks(raw_entry.0);
 
         // Should succeed: SEND terminates parsing, trailing chunks are ignored
         assert!(result.is_ok());
         let entry = result.unwrap();
         assert_eq!(entry.extra.len(), 0);
+    }
+
+    #[test]
+    fn reject_unterminated_normal_entry() {
+        let fhed = RawChunk::from_data(ChunkType::FHED, vec![0, 0, 0, 0, 0, 0]);
+
+        let raw_entry = RawEntry(vec![fhed]);
+        let result = NormalEntry::parse_chunks(raw_entry.0);
+
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn reject_unterminated_solid_entry() {
+        let shed = RawChunk::from_data(ChunkType::SHED, vec![0, 0, 0, 0, 0]);
+
+        let raw_entry = RawEntry(vec![shed]);
+        let result = SolidEntry::parse_chunks(raw_entry.0);
+
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn parse_chunks_accepts_iterator_input() {
+        let fhed = RawChunk::from_data(ChunkType::FHED, vec![0, 0, 0, 0, 0, 0]);
+        let fend = RawChunk::from_data(ChunkType::FEND, vec![]);
+        // `Chain<Once, Once>` is an `IntoIterator` but not an `Into<Vec>`,
+        // so this only compiles with the widened bound.
+        let entry: NormalEntry =
+            NormalEntry::parse_chunks(std::iter::once(fhed).chain(std::iter::once(fend))).unwrap();
+        assert_eq!(entry.extra_chunks().len(), 0);
+
+        let shed = RawChunk::from_data(ChunkType::SHED, vec![0, 0, 0, 0, 0]);
+        let send = RawChunk::from_data(ChunkType::SEND, vec![]);
+        let entry: SolidEntry =
+            SolidEntry::parse_chunks(std::iter::once(shed).chain(std::iter::once(send))).unwrap();
+        assert_eq!(entry.extra_chunks().len(), 0);
     }
 
     fn sample_xattr() -> ExtendedAttribute {
@@ -1774,24 +2263,14 @@ mod tests {
         let mut builder = FileEntryBuilder::new("f".into()).unwrap();
         builder.metadata(Metadata::new().with_xattrs(vec![xattr.clone()]));
         let entry = builder.build().unwrap();
-        let restored = NormalEntry::try_from(RawEntry(entry.into_chunks())).unwrap();
+        let restored = NormalEntry::parse_chunks(entry_chunks(entry)).unwrap();
         assert_eq!(restored.metadata().xattrs(), &[xattr]);
     }
 
     #[test]
     fn empty_xattrs_emit_no_xatr_chunk() {
         let entry = FileEntryBuilder::new("f".into()).unwrap().build().unwrap();
-        assert!(entry.into_chunks().iter().all(|c| c.ty != ChunkType::xATR));
-    }
-
-    #[allow(deprecated)]
-    #[test]
-    fn deprecated_xattrs_accessor_delegates_to_metadata() {
-        let mut builder = FileEntryBuilder::new("f".into()).unwrap();
-        builder.metadata(Metadata::new().with_xattrs(vec![sample_xattr()]));
-        let entry = builder.build().unwrap();
-        assert_eq!(entry.xattrs(), entry.metadata().xattrs());
-        assert!(!entry.xattrs().is_empty());
+        assert!(entry_chunks(entry).iter().all(|c| c.ty != ChunkType::xATR));
     }
 
     #[test]
@@ -1805,12 +2284,71 @@ mod tests {
         );
         builder.write_all(b"data").unwrap();
         let entry = builder.build().unwrap();
-        let chunks = entry.into_chunks();
+        let chunks = entry_chunks(entry);
 
         let fdat_pos = chunks.iter().position(|c| c.ty == ChunkType::FDAT).unwrap();
         for ty in [ChunkType::cTIM, ChunkType::fMOd, ChunkType::xATR] {
             let pos = chunks.iter().position(|c| c.ty == ty).unwrap();
             assert!(pos < fdat_pos, "{ty:?} must appear before FDAT");
         }
+    }
+
+    /// Reads a 0.33.0 fixture whose entries carry only legacy `fPRM`, writes
+    /// every entry back out through the production writer, and checks that
+    /// the output carries no `fPRM` while every entry has the owner facets
+    /// derived from it. Counts both loops so a regression that drops entries
+    /// cannot leave a loop body unexecuted and still pass.
+    #[test]
+    fn zstd_keep_all_fixture_rewrites_owner_facets_without_fprm() {
+        use crate::{Archive, DataKind};
+
+        let src = include_bytes!("../../resources/test/0.33.0/zstd_keep_all.pna");
+        let read_options = ReadOptions::builder().build();
+
+        let mut out = Vec::new();
+        let mut read_count = 0;
+        {
+            let mut reader = Archive::read_header(src.as_slice()).unwrap();
+            let mut writer = Archive::write_header(&mut out).unwrap();
+            for entry in reader.entries_with_options(&read_options) {
+                let entry = entry.unwrap();
+                read_count += 1;
+                writer.add_entry(entry).unwrap();
+            }
+            writer.finalize().unwrap();
+        }
+        assert_eq!(read_count, 16, "fixture must have 16 entries");
+        assert!(
+            !out.windows(4).any(|w| w == b"fPRM"),
+            "the rewritten archive must carry no fPRM chunk"
+        );
+
+        let mut reread = Archive::read_header(out.as_slice()).unwrap();
+        let mut written_count = 0;
+        for entry in reread.entries_with_options(&read_options) {
+            let entry = entry.unwrap();
+            written_count += 1;
+            let metadata = entry.metadata();
+            assert_eq!(metadata.owner_uid().map(|v| v.get()), Some(0));
+            assert_eq!(metadata.owner_gid().map(|v| v.get()), Some(0));
+            assert_eq!(metadata.owner_user_name().map(|v| v.as_str()), Some("root"));
+            assert_eq!(
+                metadata.owner_group_name().map(|v| v.as_str()),
+                Some("root")
+            );
+            let expected_mode = if entry.header().data_kind() == DataKind::DIRECTORY {
+                0o755
+            } else {
+                0o644
+            };
+            assert_eq!(
+                metadata.permission_mode().map(|v| v.get()),
+                Some(expected_mode)
+            );
+        }
+        assert_eq!(
+            written_count, 16,
+            "no entry must be dropped by the round trip"
+        );
     }
 }

@@ -29,6 +29,7 @@ mod option_update;
 mod option_update_strip_components;
 mod option_version;
 mod path_traversal;
+mod split_archive_stdin;
 mod strip_components;
 mod symlink;
 mod unlink_first;

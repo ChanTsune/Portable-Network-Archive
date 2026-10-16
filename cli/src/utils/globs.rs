@@ -56,8 +56,7 @@ impl<'s> GlobPatterns<'s> {
 /// Tar-compatible glob matcher that mirrors libarchive/bsdtar semantics.
 ///
 /// Unlike `GlobPatterns`, this uses the project's `BsdGlobPattern` (which is
-/// derived from libarchive's path matching) and also tracks which patterns
-/// matched so we can surface the same "not found in archive" diagnostics.
+/// derived from libarchive's path matching).
 #[derive(Clone, Debug)]
 pub(crate) struct BsdGlobMatcher<'s> {
     patterns: Vec<BsdGlobPattern<'s>>,
@@ -100,11 +99,9 @@ impl<'s> BsdGlobMatcher<'s> {
 
     fn pattern_matches_path(&self, idx: usize, path: &str) -> bool {
         if self.no_recursive {
-            self.patterns[idx].match_inclusion(path)
+            self.patterns[idx].match_inclusion_exact(path)
         } else {
             self.patterns[idx].match_inclusion(path)
-                || (!has_glob_meta(self.raw_patterns[idx])
-                    && prefix_match(self.raw_patterns[idx], path))
         }
     }
 
@@ -124,8 +121,6 @@ impl<'s> BsdGlobMatcher<'s> {
         matched_any
     }
 
-    /// Returns true if any pattern matches the given path, regardless of
-    /// whether the pattern has already been satisfied.
     #[inline]
     pub(crate) fn matches_any_pattern(&self, path: impl AsRef<str>) -> bool {
         let path = path.as_ref();
@@ -161,16 +156,6 @@ impl<'s> BsdGlobMatcher<'s> {
         }
         Ok(())
     }
-}
-
-#[inline]
-fn has_glob_meta(pattern: &str) -> bool {
-    pattern.contains(['*', '?', '[', '{'])
-}
-
-#[inline]
-fn prefix_match(pattern: &str, path: &str) -> bool {
-    archive_pathmatch(pattern, path, PathMatch::NO_ANCHOR_END)
 }
 
 /// BSD tar command like globs.
@@ -232,7 +217,12 @@ impl<'a> BsdGlobPattern<'a> {
 
     #[inline]
     pub fn match_inclusion(&self, s: &str) -> bool {
-        archive_pathmatch(self.pattern, s, PathMatch::NO_ANCHOR_START)
+        archive_pathmatch(self.pattern, s, PathMatch::NO_ANCHOR_END)
+    }
+
+    #[inline]
+    pub fn match_inclusion_exact(&self, s: &str) -> bool {
+        archive_pathmatch(self.pattern, s, PathMatch::empty())
     }
 }
 
@@ -363,15 +353,7 @@ fn archive_pathmatch(mut p: &str, mut s: &str, mut flags: PathMatch) -> bool {
 
     /* If start is unanchored, try to match start of each path element. */
     if flags.contains(PathMatch::NO_ANCHOR_START) {
-        if s.starts_with('/') && !p.starts_with('/') {
-            // A relative pattern must not match an absolute path solely by
-            // dropping the leading '/'. Start searching after the first real
-            // path component instead, so "tmp/foo" does not match "/tmp/foo"
-            // but still matches "/a/tmp/foo".
-            let rooted = pm_slashskip(s);
-            let Some((_, _s)) = rooted.split_once('/') else {
-                return false;
-            };
+        if let Some(_s) = s.strip_prefix('/') {
             s = _s;
         }
         loop {
@@ -435,7 +417,10 @@ fn pm(mut p: &str, mut s: &str, flags: PathMatch) -> bool {
                  */
                 if let Some((l, r)) = split_once_unescaped(&p[1..]) {
                     /* We found [...], try to match it. */
-                    if s.chars().next().is_some_and(|c| !pm_list(l, c, flags)) {
+                    let Some(sc) = s.chars().next() else {
+                        return false;
+                    };
+                    if !pm_list(l, sc, flags) {
                         return false;
                     }
                     p = r;
@@ -452,7 +437,7 @@ fn pm(mut p: &str, mut s: &str, flags: PathMatch) -> bool {
             '\\' => {
                 /* Trailing '\\' matches itself. */
                 if p.len() == 1 {
-                    if s.chars().next().is_some_and(|c| c != '\\') {
+                    if !s.starts_with('\\') {
                         return false;
                     }
                 } else {
@@ -1015,15 +1000,30 @@ mod tests {
             "/a/b/c/d",
             PathMatch::NO_ANCHOR_START
         ));
+        // From tar/test/test_patterns.c Test 3a-3d (bsdtar inclusion level,
+        // Test 3a: Pattern tmp/foo/bar should not match /tmp/foo/bar
         assert!(!archive_pathmatch(
             "tmp/foo/bar",
             "/tmp/foo/bar",
-            PathMatch::NO_ANCHOR_START
+            PathMatch::NO_ANCHOR_END
         ));
+        // Test 3b: Pattern /tmp/foo/baz should not match tmp/foo/baz
+        assert!(!archive_pathmatch(
+            "/tmp/foo/baz",
+            "tmp/foo/baz",
+            PathMatch::NO_ANCHOR_END
+        ));
+        // Test 3c: ./tmp/foo/bar should not match /tmp/foo/bar
         assert!(!archive_pathmatch(
             "./tmp/foo/bar",
             "/tmp/foo/bar",
-            PathMatch::NO_ANCHOR_START
+            PathMatch::NO_ANCHOR_END
+        ));
+        // Test 3d: ./tmp/foo/baz should match tmp/foo/baz
+        assert!(archive_pathmatch(
+            "./tmp/foo/baz",
+            "tmp/foo/baz",
+            PathMatch::NO_ANCHOR_END
         ));
 
         /* Matches not anchored at end. */
@@ -1209,15 +1209,35 @@ mod tests {
     }
 
     #[test]
-    fn prefix_match_normalizes_leading_current_dir() {
-        assert!(prefix_match("./tmp/foo/baz", "tmp/foo/baz/bar"));
-        assert!(prefix_match("./tmp/foo/baz/", "tmp/foo/baz/bar"));
-        assert!(prefix_match("tmp/foo/baz", "./tmp/foo/baz/bar"));
+    fn inclusion_prefix_match_normalizes_leading_current_dir() {
+        assert!(BsdGlobPattern::new("./tmp/foo/baz").match_inclusion("tmp/foo/baz/bar"));
+        assert!(BsdGlobPattern::new("./tmp/foo/baz/").match_inclusion("tmp/foo/baz/bar"));
+        assert!(BsdGlobPattern::new("tmp/foo/baz").match_inclusion("./tmp/foo/baz/bar"));
     }
 
     #[test]
-    fn prefix_match_remains_start_anchored() {
-        assert!(!prefix_match("./tmp/foo/bar", "/tmp/foo/bar/baz"));
-        assert!(!prefix_match("tmp/foo/bar", "a/tmp/foo/bar/baz"));
+    fn inclusion_prefix_match_remains_start_anchored() {
+        assert!(!BsdGlobPattern::new("./tmp/foo/bar").match_inclusion("/tmp/foo/bar/baz"));
+        assert!(!BsdGlobPattern::new("tmp/foo/bar").match_inclusion("a/tmp/foo/bar/baz"));
+    }
+
+    #[test]
+    fn matcher_recursive_expands_directory_prefix() {
+        let mut m = BsdGlobMatcher::new(["raw/images"]);
+        assert!(m.matches("raw/images/icon.png"));
+    }
+
+    #[test]
+    fn matcher_no_recursive_matches_exact_only() {
+        let mut m = BsdGlobMatcher::new(["raw/images"]).with_no_recursive(true);
+        assert!(!m.matches("raw/images/icon.png"));
+        let mut m = BsdGlobMatcher::new(["raw/images"]).with_no_recursive(true);
+        assert!(m.matches("raw/images"));
+    }
+
+    #[test]
+    fn matcher_no_recursive_glob_still_works() {
+        let mut m = BsdGlobMatcher::new(["raw/images/*.png"]).with_no_recursive(true);
+        assert!(m.matches("raw/images/icon.png"));
     }
 }
