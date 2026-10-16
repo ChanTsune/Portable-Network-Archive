@@ -1,4 +1,5 @@
 name: opencode
+run-name: "${{ github.event.issue.title || github.event.pull_request.title }}"
 
 on:
   issue_comment:
@@ -18,6 +19,10 @@ jobs:
       contains(github.event.comment.body, ' /opencode') ||
       startsWith(github.event.comment.body, '/opencode')
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    concurrency:
+      group: opencode-${{ github.event.issue.number || github.event.pull_request.number }}
+      cancel-in-progress: false
     permissions:
       id-token: write # OIDC token for the opencode GitHub App
       contents: write # push commits/branches created by opencode

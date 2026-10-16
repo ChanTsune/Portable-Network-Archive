@@ -1,0 +1,91 @@
+name: Request deprecated API removals
+
+on:
+  push:
+    tags:
+      - 'libpna-[0-9]+.[0-9]+.[0-9]+'
+      - 'pna-[0-9]+.[0-9]+.[0-9]+'
+      - 'portable-network-archive-[0-9]+.[0-9]+.[0-9]+'
+  pull_request:
+    paths:
+      - .github/workflows/deprecation-requests.yml
+      - .github/workflows/opencode.yml
+      - .github/workflows/opencode-deprecation-tracking.yml
+      - .github/workflows/opencode-issue-to-pr.yml
+      - .github/actions/select-opencode-model/**
+      - .agents/skills/deprecation-requests/**
+      - .agents/skills/deprecation-tracking/**
+      - .github/workflows/deprecation-tracking.yml
+      - .github/ISSUE_TEMPLATE/deprecated-api-removal.md
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Issue number (empty selects all removal issues)"
+        type: string
+      dry_run:
+        description: "Preview without starting OpenCode"
+        type: boolean
+        default: true
+      retry:
+        description: "Retry a previously requested single issue"
+        type: boolean
+        default: false
+
+permissions: {}
+
+jobs:
+  test:
+    name: Test request selection
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read # checkout
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event_name == 'push' && github.event.repository.default_branch || github.sha }}
+      - name: Test removal requests
+        run: python3 -m unittest discover -s .agents/skills/deprecation-requests/scripts -p 'test_*.py'
+      - name: Test deprecation tracking
+        run: python3 -m unittest discover -s .agents/skills/deprecation-tracking/scripts -p 'test_*.py'
+
+  request:
+    name: Dispatch removal requests
+    needs: test
+    if: >-
+      (github.event_name == 'push' && !github.event.deleted) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: deprecation-requests
+      cancel-in-progress: false
+    permissions:
+      contents: read # checkout
+      actions: write # dispatch and inspect OpenCode runs
+      issues: write # read issues and record requests
+      pull-requests: read # find existing implementations
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+      - name: Request implementations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          RETRY: ${{ inputs.retry }}
+          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || '' }}
+        run: |
+          args=()
+          if [ -n "$RELEASE_TAG" ]; then
+            python3 .agents/skills/deprecation-tracking/scripts/deprecation_tracking.py --release-tag "$RELEASE_TAG"
+            args+=(--release-tag "$RELEASE_TAG")
+          fi
+          if [ -n "$ISSUE_NUMBER" ]; then args+=(--issue "$ISSUE_NUMBER"); fi
+          if [ "$RETRY" = true ]; then args+=(--retry); fi
+          if [ "$DRY_RUN" != true ]; then args+=(--apply); fi
+          python3 .agents/skills/deprecation-requests/scripts/deprecation_requests.py "${args[@]}"
