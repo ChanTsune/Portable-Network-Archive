@@ -120,14 +120,12 @@ jobs:
       - name: run test
         if: startsWith(matrix.target, 'x86_64-unknown-redox')
         run: |
-          export PATH=$PATH:/root/.redoxer/"$TARGET"/toolchain/bin
-          # an absolute folder path so redoxer can resolve the passed test binary path
-          # regardless of the package directory that cargo runs the runner from;
-          # the trailing "/" makes rsync copy the folder contents to /root
-          export CARGO_TARGET_X86_64_UNKNOWN_REDOX_RUNNER="redoxer exec --folder $PWD/"
-          rustup default nightly
-          rustup target add "$TARGET"
-          cargo test -p libpna -p pna --locked --lib --target "$TARGET" -- --test-threads=1
+          # use the bundled toolchain: its std/relibc match the pinned image's
+          # kernel, while rustup's nightly std is ahead of it and crashes the
+          # binaries it builds with
+          # "Using old SYS_OPENAT_INTO ... update relibc/base and rebuild"
+          export PATH="/root/.redoxer/$TARGET/toolchain/bin:$PATH"
+          export RUSTUP_TOOLCHAIN="/root/.redoxer/$TARGET/toolchain"
           cargo build -p portable-network-archive --locked --target "$TARGET"
           cp target/"$TARGET"/debug/pna pna-bin
           cargo clean
