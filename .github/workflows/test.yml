@@ -120,10 +120,15 @@ jobs:
       - name: run test
         if: startsWith(matrix.target, 'x86_64-unknown-redox')
         run: |
-          export PATH=$PATH:/root/.redoxer/"$TARGET"/toolchain/bin
-          rustup default nightly
-          rustup target add "$TARGET"
+          # use the bundled toolchain: its std/relibc match the pinned image's
+          # kernel, while rustup's nightly std is ahead of it and crashes the
+          # binaries it builds with
+          # "Using old SYS_OPENAT_INTO ... update relibc/base and rebuild"
+          export PATH="/root/.redoxer/$TARGET/toolchain/bin:$PATH"
+          export RUSTUP_TOOLCHAIN="/root/.redoxer/$TARGET/toolchain"
           cargo build -p portable-network-archive --locked --target "$TARGET"
+          cp target/"$TARGET"/debug/pna pna-bin
+          redoxer exec --folder . -- /root/pna-bin --version
         env:
           TARGET: ${{ matrix.target }}
           RUST_BACKTRACE: 1
