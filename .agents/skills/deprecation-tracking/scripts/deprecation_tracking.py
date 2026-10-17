@@ -10,11 +10,9 @@ import subprocess
 import sys
 from string import Template
 
-sys.path.insert(
-    0, str(Path(__file__).resolve().parents[2] / "deprecation-requests/scripts")
-)
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 
-from deprecation_requests import GitHub, release_tag_on_branch  # noqa: E402
+from github import GitHub, release_tag_on_branch  # noqa: E402
 
 
 START = "<!-- pna-deprecation-versions:start -->"
