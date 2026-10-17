@@ -921,10 +921,7 @@ mod tests {
         let mut reader = Archive::read_header(archive.as_slice()).unwrap();
         let entry = reader.entries().skip_solid().next().unwrap().unwrap();
         assert_eq!(entry.metadata().raw_file_size(), None);
-        assert_eq!(
-            entry.metadata().link_target_type(),
-            Some(LinkTargetType::Directory)
-        );
+        assert_eq!(entry.metadata().link_target_type(), None);
         assert_eq!(entry.extra_chunks().len(), 1);
         assert_eq!(entry.extra_chunks()[0].ty(), extra_type);
         assert_eq!(entry.extra_chunks()[0].data(), b"extra");
@@ -1327,6 +1324,8 @@ mod tests {
             .next()
             .expect("failed to get entry")
             .expect("failed to read entry");
+        assert!(!entry.data.is_empty());
+        assert!(entry.data.iter().all(|body| body.len() <= 8));
         let mut data_reader = entry
             .reader(ReadOptions::builder().build())
             .expect("failed to read entry data");

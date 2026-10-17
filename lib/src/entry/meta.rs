@@ -298,7 +298,9 @@ impl Metadata {
 
     /// Returns the link target type for this entry, if present.
     ///
-    /// - `None`: target type is absent or unrecognized.
+    /// - `None`: no recognized link target type was recorded. This includes an
+    ///   absent `fLTP`, an unrecognized code, or an `fLTP` ignored while decoding
+    ///   a non-link entry.
     /// - `Some(Unknown)`: fLTP chunk present but target type undetermined.
     /// - `Some(File)` / `Some(Directory)`: known target type.
     #[inline]
