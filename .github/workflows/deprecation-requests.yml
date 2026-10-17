@@ -15,6 +15,7 @@ on:
       - .github/actions/select-opencode-model/**
       - .agents/skills/deprecation-requests/**
       - .agents/skills/deprecation-tracking/**
+      - .agents/scripts/**
       - .github/workflows/deprecation-tracking.yml
       - .github/ISSUE_TEMPLATE/deprecated-api-removal.md
   workflow_dispatch:
