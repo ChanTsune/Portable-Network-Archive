@@ -313,7 +313,8 @@ fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
     let platforms = args.platform.into_iter().collect::<HashSet<_>>();
     let numeric_owner = args.numeric;
 
-    let mut source = SplitArchiveReader::new(collect_split_archives(args.archive.file)?)?;
+    let mut source =
+        SplitArchiveReader::new(collect_split_archives(args.archive.require_file()?)?)?;
     let read_options = ReadOptions::with_password(password.as_deref());
 
     source.for_each_entry(
@@ -372,9 +373,10 @@ fn archive_set_acl(args: SetAclCommand, umask: Umask) -> anyhow::Result<()> {
         }
     };
 
-    let destination = resolve_rewrite_output(&args.archive.file, args.output, args.overwrite)?;
+    let archive = args.archive.require_file()?;
+    let destination = resolve_rewrite_output(&archive, args.output, args.overwrite)?;
     execute_archive_transform(
-        &args.archive.file,
+        &archive,
         destination,
         umask,
         password.as_deref(),

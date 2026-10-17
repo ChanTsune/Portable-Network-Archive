@@ -356,7 +356,7 @@ pub(crate) enum StoreAs {
 }
 
 /// Source of an archive to include (file path or stdin).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ArchiveSource {
     File(PathBuf),
     Stdin,

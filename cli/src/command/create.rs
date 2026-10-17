@@ -417,7 +417,7 @@ impl Command for CreateCommand {
 fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let start = Instant::now();
-    let archive = &args.archive.file;
+    let archive = args.archive.require_file()?;
     let max_file_size = args
         .split
         .map(|opt| {
@@ -535,7 +535,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     };
     if let Some(size) = max_file_size {
         create_archive_with_split(
-            archive,
+            &archive,
             creation_context,
             target_items,
             size,
@@ -547,7 +547,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         )?;
     } else {
         create_archive_file(
-            || utils::fs::file_create(archive, args.overwrite),
+            || utils::fs::file_create(&archive, args.overwrite),
             creation_context,
             target_items,
             &filter,

@@ -75,9 +75,10 @@ fn archive_chown(args: ChownCommand, umask: Umask) -> anyhow::Result<()> {
     let owner = args
         .owner
         .lookup_platform_owner(args.numeric_owner, args.owner_lookup)?;
-    let destination = resolve_rewrite_output(&args.archive.file, args.output, args.overwrite)?;
+    let archive = args.archive.require_file()?;
+    let destination = resolve_rewrite_output(&archive, args.output, args.overwrite)?;
     execute_archive_transform(
-        &args.archive.file,
+        &archive,
         destination,
         umask,
         password.as_deref(),
