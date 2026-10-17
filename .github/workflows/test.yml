@@ -121,8 +121,13 @@ jobs:
         if: startsWith(matrix.target, 'x86_64-unknown-redox')
         run: |
           export PATH=$PATH:/root/.redoxer/"$TARGET"/toolchain/bin
+          # an absolute folder path so redoxer can resolve the passed test binary path
+          # regardless of the package directory that cargo runs the runner from;
+          # the trailing "/" makes rsync copy the folder contents to /root
+          export CARGO_TARGET_X86_64_UNKNOWN_REDOX_RUNNER="redoxer exec --folder $PWD/"
           rustup default nightly
           rustup target add "$TARGET"
+          cargo test -p libpna -p pna --locked --lib --target "$TARGET" -- --test-threads=1
           cargo build -p portable-network-archive --locked --target "$TARGET"
           cp target/"$TARGET"/debug/pna pna-bin
           cargo clean
@@ -133,7 +138,6 @@ jobs:
           AR_x86_64_unknown_redox: "x86_64-unknown-redox-ar"
           CC_x86_64_unknown_redox: "x86_64-unknown-redox-gcc"
           CARGO_TARGET_X86_64_UNKNOWN_REDOX_LINKER: "x86_64-unknown-redox-gcc"
-          CARGO_TARGET_X86_64_UNKNOWN_REDOX_RUNNER: "redoxer exec --folder ."
 
   tier3:
     name: Tier 3
