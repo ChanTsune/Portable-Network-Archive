@@ -40,14 +40,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
           PULL_NUMBER: ${{ inputs.pull_number || github.event.pull_request.number }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           [[ "$PULL_NUMBER" =~ ^[1-9][0-9]*$ ]] || { echo "PULL_NUMBER must be a positive PR number"; exit 1; }
-          pull=$(gh api "repos/$REPO/pulls/$PULL_NUMBER")
-          merged=$(jq -r --arg default_branch "$DEFAULT_BRANCH" \
-            '.merged and .base.ref == $default_branch' <<<"$pull")
+          # The job condition proves the automatic path is a merged default-branch
+          # PR; only the manually supplied PR number is re-verified here.
+          merged=true
+          if [ "$EVENT_NAME" = workflow_dispatch ]; then
+            pull=$(gh api "repos/$REPO/pulls/$PULL_NUMBER")
+            merged=$(jq -r --arg default_branch "$DEFAULT_BRANCH" \
+              '.merged and .base.ref == $default_branch' <<<"$pull")
+          fi
           files=$(gh api "repos/$REPO/pulls/$PULL_NUMBER/files?per_page=100" --paginate --slurp)
           candidate=$(jq -r '
             [ flatten[]
