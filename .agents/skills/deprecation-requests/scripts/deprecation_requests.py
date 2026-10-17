@@ -7,7 +7,6 @@ import os
 import re
 import subprocess
 import sys
-import uuid
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
@@ -149,37 +148,6 @@ class Requests:
         return "dispatched"
 
 
-def prepare_prompt(requests, number):
-    issue = requests.github.get(f"{requests.root}/issues/{number}")
-    if not target_version(issue) or requests.linked_pr(issue):
-        raise RuntimeError(
-            "Issue must be an open, version-confirmed removal without an implementation PR"
-        )
-    prompt = (
-        f"Use the issue-to-pr skill to implement issue #{number} in {requests.repo}. "
-        f"Prepare the removal for {target_version(issue)} and include Resolves #{number} in the PR body.\n\n"
-        "Issue requirements:\n"
-        + json.dumps(
-            {
-                "title": issue["title"],
-                "body": issue["body"],
-                "comments": [
-                    {
-                        "author": comment["user"]["login"],
-                        "body": comment.get("body") or "",
-                    }
-                    for comment in requests.github.list(
-                        f"{requests.root}/issues/{number}/comments?per_page=100"
-                    )
-                ],
-            }
-        )
-    )
-    delimiter = uuid.uuid4().hex
-    with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-        output.write(f"prompt<<{delimiter}\n{prompt}\n{delimiter}\n")
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY"))
@@ -193,24 +161,18 @@ def main():
         action="store_true",
         help="Dispatch; otherwise print a read-only preview",
     )
-    parser.add_argument(
-        "--prompt", type=int, help="Prepare the dispatch runner's issue prompt"
-    )
     args = parser.parse_args()
     if not args.repo or not re.fullmatch(r"[\w.-]+/[\w.-]+", args.repo):
         parser.error("--repo must be owner/name")
     if args.retry and not args.issue:
         parser.error("--retry requires a single --issue")
-    if any(number is not None and number <= 0 for number in (args.issue, args.prompt)):
+    if args.issue is not None and args.issue <= 0:
         parser.error("Issue numbers must be positive")
     if args.release_tag and not release_tag_on_branch(args.release_tag):
         print(json.dumps({"decision": "ineligible-tag"}))
         return
     github = GitHub()
     requests = Requests(github, args.repo)
-    if args.prompt:
-        prepare_prompt(requests, args.prompt)
-        return
     ref = github.get(requests.root)["default_branch"]
     issues = (
         [github.get(f"{requests.root}/issues/{args.issue}")]

@@ -2,7 +2,6 @@ import copy
 import functools
 import io
 import json
-import os
 import subprocess
 import tempfile
 import unittest
@@ -14,7 +13,6 @@ from deprecation_requests import (
     REQUEST_MARKER,
     Requests,
     main,
-    prepare_prompt,
     release_tag_on_branch,
     target_version,
 )
@@ -229,37 +227,6 @@ class TestDeprecationRequests(unittest.TestCase):
         self.api.issue["state"] = "closed"
         self.assertEqual(self.requests.dispatch(ISSUE, "main"), "ineligible")
         self.assertEqual(self.api.posts, [])
-
-    def test_prompt_contains_exact_issue_data_without_output_injection(self):
-        self.api.issue["body"] += "\nprompt=attacker\n$(touch injected)"
-        self.api.comments = [
-            {"user": {"login": "owner"}, "body": "Use the fallible replacement API."}
-        ]
-        with tempfile.TemporaryDirectory() as directory:
-            output = Path(directory) / "output"
-            with (
-                patch.dict(os.environ, {"GITHUB_OUTPUT": str(output)}),
-                patch("deprecation_requests.uuid.uuid4") as uuid,
-            ):
-                uuid.return_value.hex = "delimiter"
-                prepare_prompt(self.requests, 42)
-            prompt = output.read_text()
-        expected = "Use the issue-to-pr skill to implement issue #42 in owner/archive. Prepare the removal for 0.42.0 and include Resolves #42 in the PR body.\n\nIssue requirements:\n"
-        self.assertEqual(
-            prompt,
-            "prompt<<delimiter\n"
-            + expected
-            + json.dumps(
-                {
-                    "title": ISSUE["title"],
-                    "body": self.api.issue["body"],
-                    "comments": [
-                        {"author": "owner", "body": "Use the fallible replacement API."}
-                    ],
-                }
-            )
-            + "\ndelimiter\n",
-        )
 
     def test_pagination_reads_every_page(self):
         with patch("deprecation_requests.subprocess.run") as run:
