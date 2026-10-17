@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Inspect deprecation candidates and confirm their release versions."""
+"""List tracked removal issues and confirm their introduction versions."""
 
 import argparse
 import json
@@ -39,41 +39,6 @@ def git(*args):
     if result.returncode:
         raise RuntimeError(result.stderr.strip())
     return result.stdout.strip()
-
-
-def source_path(path):
-    return (
-        bool(re.fullmatch(r"(?:lib|pna|cli)/src/(?:[\w.-]+/)*[\w.-]+\.rs", path))
-        and ".." not in Path(path).parts
-    )
-
-
-def pull_context(api, repo, number):
-    root = f"repos/{repo}"
-    pull = api.get(f"{root}/pulls/{number}")
-    default = api.get(root)["default_branch"]
-    if not pull["merged"] or pull["base"]["ref"] != default:
-        raise ValueError("The PR must be merged into the default branch")
-    files = [
-        item
-        for item in api.list(f"{root}/pulls/{number}/files?per_page=100")
-        if source_path(item["filename"])
-    ]
-    return pull, files
-
-
-def candidate(files):
-    return any(
-        item.get("status") != "removed"
-        and (
-            "patch" not in item
-            or any(
-                line.startswith("+") and "deprecated" in line.lower()
-                for line in item["patch"].splitlines()
-            )
-        )
-        for item in files
-    )
 
 
 def versions(since, planned=None):
@@ -172,39 +137,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY"))
     mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--dispatch-pr", type=int)
     mode.add_argument("--list-issues", action="store_true")
     mode.add_argument("--release-tag")
-    parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()
     if not args.repo or not re.fullmatch(r"[\w.-]+/[\w.-]+", args.repo):
         parser.error("--repo must be owner/name")
-    if args.dispatch_pr is not None and args.dispatch_pr <= 0:
-        parser.error("PR numbers must be positive")
     api = GitHub()
     if args.list_issues:
         print(json.dumps(issues(api, args.repo)))
         return
-    if args.dispatch_pr:
-        _, files = pull_context(api, args.repo, args.dispatch_pr)
-        eligible = candidate(files)
-        if eligible and args.apply:
-            ref = api.get(f"repos/{args.repo}")["default_branch"]
-            api.post(
-                f"repos/{args.repo}/actions/workflows/opencode-deprecation-tracking.yml/dispatches",
-                {"ref": ref, "inputs": {"pull_number": str(args.dispatch_pr)}},
-            )
-        print(
-            json.dumps(
-                {
-                    "pull": args.dispatch_pr,
-                    "candidate": eligible,
-                    "applied": eligible and args.apply,
-                }
-            )
-        )
-    else:
-        synchronize(api, args.repo, args.release_tag)
+    synchronize(api, args.repo, args.release_tag)
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ description: Classify newly deprecated public interfaces in a merged PR and regi
 
 # Deprecation Tracking
 
-Run from the repository root. Candidate inspection and release confirmation stay in [scripts/deprecation_tracking.py](scripts/deprecation_tracking.py); grouping and duplicate judgment belong to the model.
+Run from the repository root. The release gate in `.github/workflows/deprecation-tracking.yml` decides whether a merged pull request introduces deprecations; [scripts/deprecation_tracking.py](scripts/deprecation_tracking.py) lists tracked issues and confirms their release versions. Grouping and duplicate judgment belong to the model.
 
 Read the merged PR diff, the before/after source, and `CONTRIBUTING.md`'s deprecation policy. Identify newly deprecated public library interfaces and user-facing CLI compatibility paths. Compare before and after: moves, formatting changes, and `TBD` replacement alone do not introduce a new deprecation.
 

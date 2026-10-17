@@ -10,9 +10,7 @@ from unittest.mock import patch
 
 from deprecation_tracking import (
     START,
-    candidate,
     main,
-    pull_context,
     synchronize,
     tracking,
 )
@@ -85,67 +83,6 @@ class API:
 class TestDeprecationTracking(unittest.TestCase):
     def setUp(self):
         self.api = API()
-
-    def test_new_attribute_and_cli_warning_are_candidates(self):
-        self.assertTrue(candidate(FILES))
-        self.assertTrue(
-            candidate(
-                [
-                    {
-                        "filename": "cli/src/command/xattr.rs",
-                        "patch": '+ "`--restore -` is deprecated; use --restore-from-stdin"',
-                    }
-                ]
-            )
-        )
-        self.assertTrue(
-            candidate([{"filename": "lib/src/entry.rs", "status": "modified"}])
-        )
-
-    def test_replacement_only_and_removed_code_do_not_start_opencode(self):
-        self.assertFalse(candidate([{"patch": '-since = "TBD"\n+since = "0.41.0"'}]))
-        self.assertFalse(
-            candidate([{"status": "removed", "patch": '-#[deprecated(since = "TBD")]'}])
-        )
-
-    def test_only_merged_default_branch_source_changes_are_inspected(self):
-        self.api.files += [
-            {"filename": "lib/tests/new.rs", "patch": "+deprecated"},
-            {"filename": "docs/deprecated.md", "patch": "+deprecated"},
-        ]
-        self.assertEqual(pull_context(self.api, REPO, 42), (PULL, FILES))
-        self.api.pull["merged"] = False
-        with self.assertRaises(ValueError):
-            pull_context(self.api, REPO, 42)
-        self.api.pull["merged"] = True
-        self.api.pull["base"]["ref"] = "maintenance"
-        with self.assertRaises(ValueError):
-            pull_context(self.api, REPO, 42)
-
-    def test_preview_and_applied_dispatch_use_existing_opencode(self):
-        arguments = ["tracking", "--repo", REPO, "--dispatch-pr", "42"]
-        with (
-            patch("deprecation_tracking.GitHub", return_value=self.api),
-            patch("sys.stdout", io.StringIO()) as output,
-        ):
-            with patch("sys.argv", arguments):
-                main()
-            self.assertEqual(
-                json.loads(output.getvalue()),
-                {"pull": 42, "candidate": True, "applied": False},
-            )
-            self.assertEqual(self.api.posts, [])
-            with patch("sys.argv", arguments + ["--apply"]):
-                main()
-        self.assertEqual(
-            self.api.posts,
-            [
-                (
-                    f"repos/{REPO}/actions/workflows/opencode-deprecation-tracking.yml/dispatches",
-                    {"ref": "main", "inputs": {"pull_number": "42"}},
-                )
-            ],
-        )
 
     def test_list_issues_outputs_tracking_issues_for_llm(self):
         self.api.issues = [

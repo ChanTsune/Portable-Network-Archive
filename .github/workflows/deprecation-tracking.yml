@@ -1,7 +1,7 @@
 name: Track deprecated interfaces
 
 on:
-  # Only merged default-branch PR metadata is read; checkout uses the trusted default branch.
+  # Only merged default-branch PR metadata is read; no pull request checkout.
   pull_request_target: # zizmor: ignore[dangerous-triggers]
     types: [closed]
     paths:
@@ -30,20 +30,41 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      contents: read # checkout trusted default branch
       pull-requests: read # inspect merged changes
       actions: write # dispatch OpenCode deprecation tracking
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          persist-credentials: false
+      # Re-checks the merged/default contract for manually supplied PR numbers,
+      # then looks for a deprecation introduction in Cargo source files. Files
+      # over the API patch cutoff have no patch and remain candidates.
       - name: Inspect merged deprecations
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
           PULL_NUMBER: ${{ inputs.pull_number || github.event.pull_request.number }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          args=()
-          if [ "$DRY_RUN" != true ]; then args+=(--apply); fi
-          python3 .agents/skills/deprecation-tracking/scripts/deprecation_tracking.py --dispatch-pr "$PULL_NUMBER" "${args[@]}"
+          [[ "$PULL_NUMBER" =~ ^[1-9][0-9]*$ ]] || { echo "PULL_NUMBER must be a positive PR number"; exit 1; }
+          default_branch=$(gh api "repos/$REPO" --jq .default_branch)
+          pull=$(gh api "repos/$REPO/pulls/$PULL_NUMBER")
+          merged=$(jq -r --arg default_branch "$default_branch" \
+            '.merged and .base.ref == $default_branch' <<<"$pull")
+          files=$(gh api "repos/$REPO/pulls/$PULL_NUMBER/files?per_page=100" --paginate --slurp)
+          candidate=$(jq -r '
+            [ flatten[]
+              | select((.filename | test("^(?:lib|pna|cli)/src/(?:[^/]+/)*[^/]+\\.rs$"))
+                       and ((.filename | split("/") | index("..")) == null))
+              | select(.status != "removed")
+              | select((has("patch") | not)
+                       or (.patch | split("\n") | any(test("^\\+.*deprecated"; "i"))))
+            ]
+            | length > 0
+          ' <<<"$files")
+          if [ "$merged" = true ] && [ "$candidate" = true ] && [ "$DRY_RUN" != true ]; then
+            gh workflow run opencode-deprecation-tracking.yml \
+              --repo "$REPO" --ref "$default_branch" -f pull_number="$PULL_NUMBER"
+            applied=true
+          fi
+          printf '{}\n' | jq --arg pull "$PULL_NUMBER" \
+            --argjson merged "$merged" --argjson candidate "$candidate" \
+            --argjson applied "${applied:-false}" \
+            '{pull: $pull, merged: $merged, candidate: $candidate, applied: $applied}'
