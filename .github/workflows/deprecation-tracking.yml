@@ -1,0 +1,76 @@
+name: Track deprecated interfaces
+
+on:
+  # Only merged default-branch PR metadata is read; no pull request checkout.
+  pull_request_target: # zizmor: ignore[dangerous-triggers]
+    types: [closed]
+    paths:
+      - 'lib/src/**/*.rs'
+      - 'pna/src/**/*.rs'
+      - 'cli/src/**/*.rs'
+  workflow_dispatch:
+    inputs:
+      pull_number:
+        description: "Merged PR to inspect"
+        required: true
+        type: string
+      dry_run:
+        description: "Preview without starting OpenCode"
+        type: boolean
+        default: true
+
+permissions: {}
+
+jobs:
+  track:
+    name: Inspect merged deprecations
+    if: >-
+      (github.event_name == 'pull_request_target' && github.event.pull_request.merged && github.event.pull_request.base.ref == github.event.repository.default_branch) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read # inspect merged changes
+      actions: write # dispatch OpenCode deprecation tracking
+    steps:
+      # Re-checks the merged/default contract for manually supplied PR numbers,
+      # then looks for a deprecation introduction in Cargo source files. Files
+      # over the API patch cutoff have no patch and remain candidates.
+      - name: Inspect merged deprecations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          PULL_NUMBER: ${{ inputs.pull_number || github.event.pull_request.number }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          [[ "$PULL_NUMBER" =~ ^[1-9][0-9]*$ ]] || { echo "PULL_NUMBER must be a positive PR number"; exit 1; }
+          # The job condition proves the automatic path is a merged default-branch
+          # PR; only the manually supplied PR number is re-verified here.
+          merged=true
+          if [ "$EVENT_NAME" = workflow_dispatch ]; then
+            pull=$(gh api "repos/$REPO/pulls/$PULL_NUMBER")
+            merged=$(jq -r --arg default_branch "$DEFAULT_BRANCH" \
+              '.merged and .base.ref == $default_branch' <<<"$pull")
+          fi
+          files=$(gh api "repos/$REPO/pulls/$PULL_NUMBER/files?per_page=100" --paginate --slurp)
+          candidate=$(jq -r '
+            [ flatten[]
+              | select((.filename | test("^(?:lib|pna|cli)/src/(?:[^/]+/)*[^/]+\\.rs$"))
+                       and ((.filename | split("/") | index("..")) == null))
+              | select(.status != "removed")
+              | select((has("patch") | not)
+                       or (.patch | split("\n") | any(test("^\\+.*deprecated"; "i"))))
+            ]
+            | length > 0
+          ' <<<"$files")
+          if [ "$merged" = true ] && [ "$candidate" = true ] && [ "$DRY_RUN" != true ]; then
+            gh workflow run opencode-deprecation-tracking.yml \
+              --repo "$REPO" --ref "$DEFAULT_BRANCH" -f pull_number="$PULL_NUMBER"
+            applied=true
+          fi
+          printf '{}\n' | jq --arg pull "$PULL_NUMBER" \
+            --argjson merged "$merged" --argjson candidate "$candidate" \
+            --argjson applied "${applied:-false}" \
+            '{pull: $pull, merged: $merged, candidate: $candidate, applied: $applied}'

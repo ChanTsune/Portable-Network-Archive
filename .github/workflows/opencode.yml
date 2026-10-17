@@ -31,7 +31,7 @@ jobs:
 
       - name: Select model
         id: select
-        uses: ./.github/actions/select-opencode-model
+        uses: $/.github/actions/select-opencode-model
         with:
           api-key: ${{ secrets.OPENCODE_API_KEY }}
 
