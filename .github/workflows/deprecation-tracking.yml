@@ -41,12 +41,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           PULL_NUMBER: ${{ inputs.pull_number || github.event.pull_request.number }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           [[ "$PULL_NUMBER" =~ ^[1-9][0-9]*$ ]] || { echo "PULL_NUMBER must be a positive PR number"; exit 1; }
-          default_branch=$(gh api "repos/$REPO" --jq .default_branch)
           pull=$(gh api "repos/$REPO/pulls/$PULL_NUMBER")
-          merged=$(jq -r --arg default_branch "$default_branch" \
+          merged=$(jq -r --arg default_branch "$DEFAULT_BRANCH" \
             '.merged and .base.ref == $default_branch' <<<"$pull")
           files=$(gh api "repos/$REPO/pulls/$PULL_NUMBER/files?per_page=100" --paginate --slurp)
           candidate=$(jq -r '
@@ -61,7 +61,7 @@ jobs:
           ' <<<"$files")
           if [ "$merged" = true ] && [ "$candidate" = true ] && [ "$DRY_RUN" != true ]; then
             gh workflow run opencode-deprecation-tracking.yml \
-              --repo "$REPO" --ref "$default_branch" -f pull_number="$PULL_NUMBER"
+              --repo "$REPO" --ref "$DEFAULT_BRANCH" -f pull_number="$PULL_NUMBER"
             applied=true
           fi
           printf '{}\n' | jq --arg pull "$PULL_NUMBER" \
