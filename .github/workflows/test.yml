@@ -128,7 +128,6 @@ jobs:
           export RUSTUP_TOOLCHAIN="/root/.redoxer/$TARGET/toolchain"
           cargo build -p portable-network-archive --locked --target "$TARGET"
           cp target/"$TARGET"/debug/pna pna-bin
-          cargo clean
           redoxer exec --folder . -- /root/pna-bin --version
         env:
           TARGET: ${{ matrix.target }}
@@ -136,6 +135,7 @@ jobs:
           AR_x86_64_unknown_redox: "x86_64-unknown-redox-ar"
           CC_x86_64_unknown_redox: "x86_64-unknown-redox-gcc"
           CARGO_TARGET_X86_64_UNKNOWN_REDOX_LINKER: "x86_64-unknown-redox-gcc"
+          CARGO_TARGET_X86_64_UNKNOWN_REDOX_RUNNER: "redoxer exec --folder ."
 
   tier3:
     name: Tier 3
