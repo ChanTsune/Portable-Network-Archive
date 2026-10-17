@@ -128,6 +128,7 @@ jobs:
           export RUSTUP_TOOLCHAIN="/root/.redoxer/$TARGET/toolchain"
           cargo build -p portable-network-archive --locked --target "$TARGET"
           cp target/"$TARGET"/debug/pna pna-bin
+          cargo clean
           redoxer exec --folder . -- /root/pna-bin --version
         env:
           TARGET: ${{ matrix.target }}
