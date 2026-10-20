@@ -2,11 +2,9 @@
 
 #[cfg(feature = "unstable-async")]
 use crate::PNA_SIGNATURE;
-#[allow(deprecated)]
-use crate::entry::EntryPart;
 use crate::{
     archive::{Archive, ArchiveHeader, SolidArchive, SplitParts, write_archive_framing},
-    chunk::{Chunk, ChunkStreamWriter, ChunkType, RawChunk},
+    chunk::{ChunkStreamWriter, ChunkType},
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{
@@ -416,47 +414,6 @@ impl<W: WriteChunk> Archive<W> {
         entry.write_in(&mut self.inner)
     }
 
-    /// Adds an entry part to the archive and returns the number of bytes written.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if an I/O error occurs while writing the entry part.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use libpna::{Archive, EntryPart, FileEntryBuilder, WriteOptions};
-    /// # use std::fs::File;
-    /// # use std::io;
-    ///
-    /// # fn main() -> io::Result<()> {
-    /// let part1_file = File::create("example.part1.pna")?;
-    /// let mut archive_part1 = Archive::write_header(part1_file)?;
-    /// let entry =
-    ///     FileEntryBuilder::new_with_options("example.txt".into(), WriteOptions::builder().build())?
-    ///         .build()?;
-    /// archive_part1.add_entry_part(EntryPart::from(entry))?;
-    ///
-    /// let part2_file = File::create("example.part2.pna")?;
-    /// let archive_part2 = archive_part1.split_to_next_archive(part2_file)?;
-    /// archive_part2.finalize()?;
-    /// #    Ok(())
-    /// # }
-    /// ```
-    #[deprecated(since = "0.38.0", note = "use Archive::write_split_header instead")]
-    #[allow(deprecated)]
-    #[inline]
-    pub fn add_entry_part<T>(&mut self, entry_part: EntryPart<T>) -> io::Result<usize>
-    where
-        RawChunk<T>: Chunk,
-    {
-        let mut written_len = 0;
-        for chunk in entry_part.0 {
-            written_len += self.inner.write_chunk(chunk)?;
-        }
-        Ok(written_len)
-    }
-
     /// Writes the end-of-archive marker and returns the underlying writer.
     ///
     /// # Errors
@@ -839,6 +796,7 @@ mod tests {
     use crate::{
         CipherMode, Compression, Encryption, FileEntryBuilder, HashAlgorithm, LinkTargetType,
         Metadata, ReadOptions,
+        chunk::{Chunk, RawChunk},
     };
     use std::cell::Cell;
     use std::io::Read;
