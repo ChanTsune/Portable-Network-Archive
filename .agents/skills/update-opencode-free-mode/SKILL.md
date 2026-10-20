@@ -11,12 +11,12 @@ Maintain `.github/opencode-model-priority.txt`, the ordered fallback list used b
 
 Use the authenticated Zen model endpoint, not the documentation or the models.dev catalog. Those can list removed or stale entries, and a `-free` suffix is not proof that a model is still offered. A failed catalog fetch is never evidence that a model was removed.
 
-[scripts/fetch_model_catalog.py](scripts/fetch_model_catalog.py) performs the request, validates the response, normalizes IDs, and writes the result atomically. It reads the key from `OPENCODE_API_KEY` or `~/.local/share/opencode/auth.json` and never places the key on the command line. On any HTTP, JSON, or validation failure it exits non-zero without replacing the output file.
+[scripts/fetch-model-catalog.sh](scripts/fetch-model-catalog.sh) performs the request, validates the response, normalizes IDs, and writes the result atomically. It reads the key from `OPENCODE_API_KEY` or `~/.local/share/opencode/auth.json`, passes it through a mode-600 temporary curl config, and never places the key on the command line. On any HTTP, JSON, or validation failure it exits non-zero without replacing the output file. The script requires `bash`, `curl`, and `jq`.
 
 Run its tests with:
 
 ```bash
-python3 -m unittest discover -s .agents/skills/update-opencode-free-mode/scripts -p 'test_*.py'
+bash .agents/skills/update-opencode-free-mode/scripts/test_fetch_model_catalog.sh
 ```
 
 ## Procedure
@@ -25,7 +25,7 @@ python3 -m unittest discover -s .agents/skills/update-opencode-free-mode/scripts
 
    ```bash
    catalog="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/opencode-models.txt"
-   python3 .agents/skills/update-opencode-free-mode/scripts/fetch_model_catalog.py --output "$catalog"
+   bash .agents/skills/update-opencode-free-mode/scripts/fetch-model-catalog.sh --output "$catalog"
    ```
 
    If the script exits non-zero, stop. Retry or fix authentication; never edit the priority file from an empty or partial catalog.
