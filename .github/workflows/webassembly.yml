@@ -43,7 +43,7 @@ jobs:
           - wasm32-wasip2
         include:
           - target: wasm32-unknown-emscripten
-            container: emscripten/emsdk:6.0.2@sha256:644883f58ca15c38c8be59b3a727ba0eff347729bc31d50a3348a6c9ed92bc07
+            container: emscripten/emsdk:6.0.13@sha256:fb7864e398acfda863dfcea78b8bc8adad359fa60c6a0bbeb845931de64aa68a
             runner: ubuntu-latest
           - target: wasm32-unknown-unknown
             runner: ubuntu-24.04-arm
