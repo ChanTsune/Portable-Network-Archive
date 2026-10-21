@@ -111,7 +111,7 @@ jobs:
           - container: redoxos/redoxer:latest@sha256:573c8d3d074a168260003e6b1acf32bb8a312803e850ad5876732fb085332419
             target: x86_64-unknown-redox
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     container: ${{ matrix.container }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -126,6 +126,13 @@ jobs:
           # "Using old SYS_OPENAT_INTO ... update relibc/base and rebuild"
           export PATH="/root/.redoxer/$TARGET/toolchain/bin:$PATH"
           export RUSTUP_TOOLCHAIN="/root/.redoxer/$TARGET/toolchain"
+          # cargo runs the target runner from the package directory; point it at
+          # the workspace root so redoxer can rewrite the test binary path and
+          # copy the folder contents to /root (the trailing "/" is required)
+          export CARGO_TARGET_X86_64_UNKNOWN_REDOX_RUNNER="redoxer exec --folder $PWD/"
+          # version-sync reads compile-time host paths that do not exist in the
+          # VM; the host jobs already check these files
+          cargo test -p libpna --lib --locked --target "$TARGET" -- --test-threads=1 --skip tests::test_readme_deps --skip tests::test_html_root_url
           cargo build -p portable-network-archive --locked --target "$TARGET"
           cp target/"$TARGET"/debug/pna pna-bin
           cargo clean
@@ -133,10 +140,12 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
           RUST_BACKTRACE: 1
+          # redoxer defaults to -smp 4; the multi-core kernel intermittently
+          # crashes libtest's pthread_join, so use one CPU like upstream Redox CI
+          REDOXER_QEMU_ARGS: "-smp 1"
           AR_x86_64_unknown_redox: "x86_64-unknown-redox-ar"
           CC_x86_64_unknown_redox: "x86_64-unknown-redox-gcc"
           CARGO_TARGET_X86_64_UNKNOWN_REDOX_LINKER: "x86_64-unknown-redox-gcc"
-          CARGO_TARGET_X86_64_UNKNOWN_REDOX_RUNNER: "redoxer exec --folder ."
 
   tier3:
     name: Tier 3
