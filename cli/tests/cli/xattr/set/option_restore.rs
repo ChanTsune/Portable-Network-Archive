@@ -1,7 +1,9 @@
 use crate::utils::{EmbedExt, TestResources, archive, setup};
+#[cfg(not(target_family = "wasm"))]
 use assert_cmd::cargo::cargo_bin_cmd;
 use clap::Parser;
 use portable_network_archive::cli;
+#[cfg(not(target_family = "wasm"))]
 use predicates::prelude::*;
 use std::fs;
 
@@ -216,6 +218,7 @@ fn xattr_restore_from_file_merge() {
 /// Precondition: An archive exists and a file literally named `-` contains xattr definitions.
 /// Action: Run `pna xattr set --restore -` with a different dump on standard input.
 /// Expectation: The file named `-` is read and no deprecation warning is emitted.
+#[cfg(not(target_family = "wasm"))]
 #[test]
 fn xattr_restore_dash_reads_file_named_dash() {
     setup();
