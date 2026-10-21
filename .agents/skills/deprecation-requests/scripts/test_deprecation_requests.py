@@ -28,9 +28,30 @@ ISSUE = {
 }
 
 
+def make_issue(number, target, path=None, crate=None, quoted_path=True):
+    minor = int(target.split(".")[1])
+    body = (
+        f"Deprecated since `0.{minor - 4}.0`. Per the policy, "
+        f"removable starting at `{target}`."
+    )
+    if path:
+        source = f"`{path}`" if quoted_path else path
+        body += f"\n\n- [ ] `API` ({source})"
+    if crate:
+        body += f'\n<!-- pna-deprecation:{{"crate": "{crate}"}} -->'
+    return {
+        "number": number,
+        "state": "open",
+        "title": "Remove deprecated API",
+        "labels": [{"name": "deprecate"}],
+        "body": body,
+    }
+
+
 class FakeGitHub:
     def __init__(self):
         self.issue = copy.deepcopy(ISSUE)
+        self.issues = [self.issue]
         self.prs = []
         self.timeline = []
         self.comments = []
@@ -45,17 +66,25 @@ class FakeGitHub:
             return {"default_branch": "main"}
         if path.endswith("/permission"):
             return {"permission": self.permission}
+        if "/issues/" in path:
+            number = int(path.rsplit("/", 1)[1])
+            return next(issue for issue in self.issues if issue["number"] == number)
         return self.issue
 
     def list(self, path, key=None):
         if "/issues?" in path:
-            return [self.issue]
+            return self.issues
         if "/pulls?" in path:
             return self.prs
         if "/timeline?" in path:
             return self.timeline
         if "/comments?" in path:
-            return self.comments
+            number = int(path.split("/issues/")[1].split("/")[0])
+            return [
+                comment
+                for comment in self.comments
+                if comment.get("issue") in (None, number)
+            ]
         if "opencode.yml/runs?event=issue_comment" in path:
             return self.manual_runs
         if "opencode.yml/runs?event=workflow_dispatch" in path:
@@ -67,8 +96,10 @@ class FakeGitHub:
     def post(self, path, payload):
         self.posts.append((path, payload))
         if path.endswith("/comments"):
+            number = int(path.split("/issues/")[1].split("/")[0])
             self.comments.append(
                 {
+                    "issue": number,
                     "body": payload["body"],
                     "user": {"login": "github-actions[bot]", "type": "Bot"},
                 }
@@ -79,6 +110,80 @@ class TestDeprecationRequests(unittest.TestCase):
     def setUp(self):
         self.api = FakeGitHub()
         self.requests = Requests(self.api, REPO)
+
+    def run_requests(self, issues, tag=None):
+        self.api.issues = issues
+        arguments = ["deprecation_requests.py", "--repo", REPO, "--apply"]
+        if tag:
+            arguments += ["--release-tag", tag]
+        output = io.StringIO()
+        with (
+            patch("deprecation_requests.GitHub", return_value=self.api),
+            patch("deprecation_requests.release_tag_on_branch", return_value=True),
+            patch("sys.argv", arguments),
+            patch("sys.stdout", output),
+        ):
+            main()
+        return [json.loads(line) for line in output.getvalue().splitlines()]
+
+    def dispatched(self):
+        return [
+            int(payload["inputs"]["issue_number"])
+            for path, payload in self.api.posts
+            if path.endswith("/dispatches")
+        ]
+
+    def test_release_tag_requests_only_due_targets_for_the_tagged_crate(self):
+        issues = [
+            make_issue(1, "0.41.0", "lib/src/a.rs"),
+            make_issue(2, "0.42.0", "lib/src/b.rs"),
+            make_issue(3, "0.40.0", "lib/src/c.rs"),
+            make_issue(4, "0.41.0", "cli/src/d.rs"),
+        ]
+        decisions = self.run_requests(issues, "libpna-0.40.1")
+        self.assertEqual(
+            [decision["decision"] for decision in decisions],
+            ["dispatched", "not-due", "dispatched", "not-due"],
+        )
+        self.assertEqual(self.dispatched(), [1, 3])
+
+    def test_patch_tag_uses_next_minor_of_the_tagged_crate(self):
+        issues = [
+            make_issue(1, "0.41.0", "cli/src/a.rs"),
+            make_issue(2, "0.41.0", "lib/src/b.rs"),
+            make_issue(3, "0.42.0", "cli/src/c.rs"),
+        ]
+        decisions = self.run_requests(issues, "portable-network-archive-0.40.2")
+        self.assertEqual(
+            [decision["decision"] for decision in decisions],
+            ["dispatched", "not-due", "not-due"],
+        )
+        self.assertEqual(self.dispatched(), [1])
+
+    def test_tracking_marker_crate_enables_matching_issue(self):
+        issue = make_issue(1, "0.41.0", crate="libpna")
+        decisions = self.run_requests([issue], "libpna-0.40.1")
+        self.assertEqual(decisions[0]["decision"], "dispatched")
+        self.assertEqual(self.dispatched(), [1])
+
+    def test_tracking_marker_crate_overrides_conflicting_path(self):
+        issue = make_issue(1, "0.41.0", "lib/src/a.rs", crate="pna")
+        decisions = self.run_requests([issue], "libpna-0.40.1")
+        self.assertEqual(decisions[0]["decision"], "not-due")
+        self.assertEqual(self.dispatched(), [])
+
+    def test_unbackticked_source_path_is_detected(self):
+        issue = make_issue(1, "0.41.0", "cli/src/command.rs", quoted_path=False)
+        decisions = self.run_requests([issue], "portable-network-archive-0.40.1")
+        self.assertEqual(decisions[0]["decision"], "dispatched")
+        self.assertEqual(self.dispatched(), [1])
+
+    def test_unrelated_path_mention_does_not_change_crate(self):
+        issue = make_issue(1, "0.41.0", "lib/src/a.rs")
+        issue["body"] += "\n\nSee `cli/src/command.rs` for the replacement."
+        decisions = self.run_requests([issue], "libpna-0.40.1")
+        self.assertEqual(decisions[0]["decision"], "dispatched")
+        self.assertEqual(self.dispatched(), [1])
 
     def test_confirmed_patch_deprecation_uses_four_minor_policy(self):
         self.assertEqual(target_version(ISSUE), "0.42.0")

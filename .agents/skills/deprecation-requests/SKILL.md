@@ -24,6 +24,8 @@ Deprecated since `0.38.0`. Per the deprecation policy (`X.(Y+4).0`), removable s
 
 The script applies the four-minor-version rule to the `0.x` series. An unresolved `TBD`, missing version, or inconsistent removal version keeps an issue out of the queue. Both library APIs and CLI interfaces use the issue's recorded versions.
 
+Release-tag runs also gate on the pushed tag. The queue admits only issues for the tagged crate whose removal version is at or before the tag's next minor release (`X.(Y+1).0`). Issues removed later report `not-due`; this prevents a removal PR from being opened several minor releases early. The crate comes from the tracking marker when present, otherwise from the interface source path. Explicit runs without a release tag keep selecting all version-confirmed issues.
+
 - Reuse an open implementation PR linked with `Closes`, `Fixes`, or `Resolves`. Respect a closed implementation PR discovered in the issue timeline.
 - Treat previous authorized manual requests, recorded automatic requests, and dispatch runs as existing requests. A failure requires an explicit retry rather than repeated automatic dispatch.
 - Wait for active execution to finish before retrying. The script rechecks each issue immediately before dispatch.
@@ -42,7 +44,7 @@ For registration from a merged PR, select **Track deprecated interfaces** instea
 
 Stable release tag pushes also run the request workflow: `libpna-X.Y.Z`, `pna-X.Y.Z`, and `portable-network-archive-X.Y.Z`. Prerelease tags and build metadata are excluded. The tag must point to a commit in the default branch's history, and the tagged crate's package name and version must match its manifest at that tag. Tags identify release snapshots; publication runs separately.
 
-The coordinator checks out the default branch, confirms pending automatically tracked issues against stable crate tags, and scans all eligible removal issues. Confirmation selects the earliest stable crate tag containing the introduction commit and waits for `TBD` replacement in the tracked source files. User-authored issue content outside the managed version section is preserved. Each dispatch targets that branch. Shared concurrency and request history prevent duplicate requests when multiple crate tags arrive together. It invokes `opencode-issue-to-pr.yml` through `workflow_dispatch`, passing the issue number and asking OpenCode to use `issue-to-pr`.
+The coordinator checks out the default branch, confirms pending automatically tracked issues against stable crate tags, and scans removal issues due for the tag's crate and next minor release. Confirmation selects the earliest stable crate tag containing the introduction commit and waits for `TBD` replacement in the tracked source files. User-authored issue content outside the managed version section is preserved. Each dispatch targets that branch. Shared concurrency and request history prevent duplicate requests when multiple crate tags arrive together. It invokes `opencode-issue-to-pr.yml` through `workflow_dispatch`, passing the issue number and asking OpenCode to use `issue-to-pr`.
 
 The requesting workflow uses `GITHUB_TOKEN` for dispatch and request tracking. OpenCode's existing OIDC exchange supplies the GitHub App token for publishing. The issue receives an `OpenCode implementation request for this issue.` tracking comment; that comment is not a manual `/oc` trigger.
 

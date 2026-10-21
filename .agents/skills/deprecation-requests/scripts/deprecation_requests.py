@@ -11,12 +11,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 
-from github import GitHub, release_tag_on_branch  # noqa: E402
+from github import GitHub, release_tag_components, release_tag_on_branch  # noqa: E402
 
 
 REQUEST_MARKER = "OpenCode implementation request for this issue."
 WORKFLOW = "opencode-issue-to-pr.yml"
 COMMENT_WORKFLOW = "opencode.yml"
+CRATE_DIRECTORIES = {
+    "lib": "libpna",
+    "pna": "pna",
+    "cli": "portable-network-archive",
+}
+CRATES = set(CRATE_DIRECTORIES.values())
 
 
 def target_version(issue):
@@ -35,6 +41,38 @@ def target_version(issue):
     return expected if removal[1] == expected else None
 
 
+def release_window(tag):
+    components = release_tag_components(tag)
+    if not components:
+        return None
+    crate, version = components
+    major, minor, _ = (int(part) for part in version.split("."))
+    return crate, (major, minor + 1, 0)
+
+
+def issue_crate(body):
+    match = re.search(r"<!-- pna-deprecation:(\{[^\n]+\}) -->", body)
+    if match:
+        try:
+            metadata = json.loads(match[1])
+        except (TypeError, ValueError):
+            metadata = None
+        crate = metadata.get("crate") if isinstance(metadata, dict) else None
+        if crate in CRATES:
+            return crate
+    matches = re.findall(r"^- \[ \] .*?\((?:`)?(lib|pna|cli)/src/", body, re.M)
+    crates = {CRATE_DIRECTORIES[path] for path in matches}
+    return crates.pop() if len(crates) == 1 else None
+
+
+def due_for_release(issue, target, release):
+    crate, next_minor = release
+    body = issue.get("body") or ""
+    return issue_crate(body) == crate and tuple(
+        int(part) for part in target.split(".")
+    ) <= next_minor
+
+
 def resolves_issue(pr, repo, number):
     reference = rf"(?:#{number}|{re.escape(repo)}#{number}|https://github\.com/{re.escape(repo)}/issues/{number})\b"
     return bool(
@@ -47,9 +85,10 @@ def resolves_issue(pr, repo, number):
 
 
 class Requests:
-    def __init__(self, github, repo):
+    def __init__(self, github, repo, release=None):
         self.github = github
         self.repo = repo
+        self.release = release
         self.root = f"repos/{repo}"
         self.permissions = {}
 
@@ -101,8 +140,11 @@ class Requests:
         ]
 
     def inspect(self, issue, retry=False):
-        if not target_version(issue):
+        target = target_version(issue)
+        if not target:
             return "ineligible"
+        if self.release and not due_for_release(issue, target, self.release):
+            return "not-due"
         pr = self.linked_pr(issue)
         if pr:
             return f"existing-pr:{pr}"
@@ -171,8 +213,11 @@ def main():
     if args.release_tag and not release_tag_on_branch(args.release_tag):
         print(json.dumps({"decision": "ineligible-tag"}))
         return
+    release = release_window(args.release_tag) if args.release_tag else None
+    if args.release_tag and release is None:
+        raise RuntimeError("Invalid release tag")
     github = GitHub()
-    requests = Requests(github, args.repo)
+    requests = Requests(github, args.repo, release)
     ref = github.get(requests.root)["default_branch"]
     issues = (
         [github.get(f"{requests.root}/issues/{args.issue}")]

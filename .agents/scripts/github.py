@@ -6,13 +6,20 @@ import subprocess
 import tomllib
 
 
-def release_tag_on_branch(tag):
+def release_tag_components(tag):
     number = r"(?:0|[1-9][0-9]*)"
     match = re.fullmatch(
         rf"(libpna|pna|portable-network-archive)-({number}\.{number}\.{number})", tag
     )
-    if not match:
+    return (match[1], match[2]) if match else None
+
+
+def release_tag_on_branch(tag):
+    components = release_tag_components(tag)
+    if not components:
         return False
+    crate = components[0]
+    version = components[1]
     ref = f"refs/tags/{tag}"
     ancestry = subprocess.run(
         ["git", "merge-base", "--is-ancestor", ref, "HEAD"],
@@ -24,9 +31,9 @@ def release_tag_on_branch(tag):
         return False
     if ancestry.returncode:
         raise RuntimeError(ancestry.stderr.strip())
-    crate = {"libpna": "lib", "pna": "pna", "portable-network-archive": "cli"}[match[1]]
+    directory = {"libpna": "lib", "pna": "pna", "portable-network-archive": "cli"}[crate]
     manifest = subprocess.run(
-        ["git", "show", f"{ref}:{crate}/Cargo.toml"],
+        ["git", "show", f"{ref}:{directory}/Cargo.toml"],
         capture_output=True,
         text=True,
         timeout=30,
@@ -34,7 +41,7 @@ def release_tag_on_branch(tag):
     if manifest.returncode:
         raise RuntimeError(manifest.stderr.strip())
     package = tomllib.loads(manifest.stdout)["package"]
-    return package["name"] == match[1] and package["version"] == match[2]
+    return package["name"] == crate and package["version"] == version
 
 
 class GitHub:
