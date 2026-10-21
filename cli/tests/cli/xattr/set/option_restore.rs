@@ -1,6 +1,8 @@
 use crate::utils::{EmbedExt, TestResources, archive, setup};
+use assert_cmd::cargo::cargo_bin_cmd;
 use clap::Parser;
 use portable_network_archive::cli;
+use predicates::prelude::*;
 use std::fs;
 
 /// Precondition: An archive exists and a dump file contains xattr definitions.
@@ -207,6 +209,64 @@ fn xattr_restore_from_file_merge() {
                 archive::xattr("user.overwrite", b"new_value"),
                 archive::xattr("user.new", b"added"),
             ]
+        )]
+    );
+}
+
+/// Precondition: An archive exists and a file literally named `-` contains xattr definitions.
+/// Action: Run `pna xattr set --restore -` with a different dump on standard input.
+/// Expectation: The file named `-` is read and no deprecation warning is emitted.
+#[test]
+fn xattr_restore_dash_reads_file_named_dash() {
+    setup();
+    TestResources::extract_in("raw/", "xattr_restore_dash/in/").unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "xattr_restore_dash/archive.pna",
+        "--overwrite",
+        "xattr_restore_dash/in/",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    fs::write(
+        "xattr_restore_dash/-",
+        concat!(
+            "# file: xattr_restore_dash/in/raw/empty.txt\n",
+            "user.from_file=\"file\"\n",
+        ),
+    )
+    .unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    cmd.current_dir("xattr_restore_dash");
+    cmd.write_stdin(concat!(
+        "# file: xattr_restore_dash/in/raw/empty.txt\n",
+        "user.from_stdin=\"stdin\"\n",
+    ));
+    cmd.args([
+        "--quiet",
+        "xattr",
+        "set",
+        "-f",
+        "archive.pna",
+        "--restore",
+        "-",
+    ])
+    .assert()
+    .success()
+    .stderr(predicate::str::contains("deprecated").not());
+
+    assert_eq!(
+        archive::xattrs_by_entry("xattr_restore_dash/archive.pna", None),
+        vec![(
+            "xattr_restore_dash/in/raw/empty.txt".to_string(),
+            vec![archive::xattr("user.from_file", b"file")]
         )]
     );
 }
