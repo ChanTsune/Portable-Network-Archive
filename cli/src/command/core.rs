@@ -30,16 +30,16 @@ pub(crate) use path_filter::PathFilter;
 use path_slash::*;
 pub(crate) use path_transformer::PathTransformers;
 use pna::{
-    Archive, DataKind, DirEntryBuilder, EntryContent, FileEntryBuilder, HardLinkEntryBuilder,
-    LinkTargetType, Metadata, NormalEntry, OpaqueEntryBuilder, PNA_SIGNATURE, ReadEntry,
-    ReadOptions, SymlinkEntryBuilder, WriteOptions, prelude::*,
+    Archive, DataKind, DirEntryBuilder, EntryContent, EntryName, EntryReference, FileEntryBuilder,
+    HardLinkEntryBuilder, LinkTargetType, Metadata, NormalEntry, OpaqueEntryBuilder, PNA_SIGNATURE,
+    ReadEntry, ReadOptions, SymlinkEntryBuilder, WriteOptions, prelude::*,
 };
 use std::{
     borrow::Cow,
     collections::HashMap,
     fmt, fs,
     io::{self, prelude::*},
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     time::SystemTime,
 };
 pub(crate) use time_filter::{TimeFilter, TimeFilters, TimeRange};
@@ -80,6 +80,7 @@ pub(crate) struct CollectOptions<'a> {
     pub(crate) keep_dir: bool,
     pub(crate) gitignore: bool,
     pub(crate) nodump: bool,
+    pub(crate) enable_junction: bool,
     pub(crate) follow_links: bool,
     pub(crate) follow_command_links: bool,
     pub(crate) one_file_system: bool,
@@ -353,6 +354,7 @@ pub(crate) enum StoreAs {
     Dir,
     Symlink(LinkTargetType),
     Hardlink(PathBuf),
+    Junction(PathBuf),
 }
 
 /// Source of an archive to include (file path or stdin).
@@ -489,6 +491,7 @@ pub(crate) fn validate_no_duplicate_stdin(sources: &[ItemSource]) -> anyhow::Res
 ///
 /// This preserves the CLI argument order while separating filesystem items
 /// (which need entry building) from archive markers (which need entry copying).
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
 pub(crate) enum CollectedItem {
     /// A filesystem item with its path and storage strategy.
@@ -814,8 +817,20 @@ pub(crate) fn collect_items_with_state(
                 // Classify entry and maybe add it to output
                 let store = if is_symlink {
                     let meta = fs::symlink_metadata(entry_path)?;
-                    let link_target_type = detect_symlink_target_type(entry_path, &meta)?;
-                    Some((StoreAs::Symlink(link_target_type), meta))
+                    if options.enable_junction
+                        && let Some(target) = classify_junction(entry_path)
+                    {
+                        // Its target is outside this depth-0 walk, so a relative target would dangle.
+                        let target = if depth == 0 {
+                            target
+                        } else {
+                            relativize_junction_target(target, entry_path, walk_path)
+                        };
+                        Some((StoreAs::Junction(target), meta))
+                    } else {
+                        let link_target_type = detect_symlink_target_type(entry_path, &meta)?;
+                        Some((StoreAs::Symlink(link_target_type), meta))
+                    }
                 } else if is_file {
                     if let Some(linked) = hardlink_resolver.resolve(entry_path).ok().flatten() {
                         Some((StoreAs::Hardlink(linked), fs::symlink_metadata(entry_path)?))
@@ -916,6 +931,89 @@ fn detect_symlink_target_type(
     }
 }
 
+#[cfg(windows)]
+fn classify_junction(path: &Path) -> Option<PathBuf> {
+    match crate::utils::os::windows::fs::junction::detect_junction(path) {
+        Ok(v) => v,
+        Err(e) => {
+            log::warn!(
+                "Failed to inspect reparse point {}; storing it as a symbolic link: {e}",
+                path.display()
+            );
+            None
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn classify_junction(_path: &Path) -> Option<PathBuf> {
+    None
+}
+
+/// Keep in-tree targets relative so extracted trees remain relocatable.
+#[cfg(windows)]
+fn relativize_junction_target(target: PathBuf, link_path: &Path, walk_root: &Path) -> PathBuf {
+    let Some(link_parent) = link_path.parent() else {
+        return target;
+    };
+    let (Ok(root), Ok(base), Ok(resolved)) = (
+        fs::canonicalize(walk_root),
+        fs::canonicalize(link_parent),
+        fs::canonicalize(&target),
+    ) else {
+        return target;
+    };
+    if !resolved.starts_with(&root) {
+        return target;
+    }
+    let Some(rel) = relative_path_between(&base, &resolved) else {
+        return target;
+    };
+    // Do not normalize it: on POSIX, `\` is an ordinary character.
+    let mut segments = Vec::new();
+    for component in rel.components() {
+        match component.as_os_str().to_str() {
+            Some(s) => segments.push(s),
+            None => return target,
+        }
+    }
+    PathBuf::from(segments.join("/"))
+}
+
+#[cfg(not(windows))]
+fn relativize_junction_target(target: PathBuf, _link_path: &Path, _walk_root: &Path) -> PathBuf {
+    target
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
+fn relative_path_between(base: &Path, target: &Path) -> Option<PathBuf> {
+    let base: Vec<_> = base.components().collect();
+    let target: Vec<_> = target.components().collect();
+    let common = base
+        .iter()
+        .zip(target.iter())
+        .take_while(|(b, t)| b == t)
+        .count();
+    if base[common..]
+        .iter()
+        .chain(&target[common..])
+        .any(|c| matches!(c, Component::Prefix(_) | Component::RootDir))
+    {
+        return None;
+    }
+    let mut rel = PathBuf::new();
+    for _ in &base[common..] {
+        rel.push("..");
+    }
+    for component in &target[common..] {
+        rel.push(component);
+    }
+    if rel.as_os_str().is_empty() {
+        rel.push(".");
+    }
+    Some(rel)
+}
+
 pub(crate) fn collect_split_archives(first: impl AsRef<Path>) -> io::Result<Vec<fs::File>> {
     let first = first.as_ref();
     let mut archives = Vec::new();
@@ -967,6 +1065,14 @@ pub(crate) fn write_from_path(writer: &mut impl Write, path: impl AsRef<Path>) -
         }
         size => copy_buffered(file, writer, size),
     }
+}
+
+/// PNA has no junction kind, so junctions are encoded as directory hard links.
+pub(crate) fn is_encoded_junction(
+    data_kind: DataKind,
+    link_target_type: Option<LinkTargetType>,
+) -> bool {
+    data_kind == DataKind::HARD_LINK && link_target_type == Some(LinkTargetType::Directory)
 }
 
 pub(crate) fn create_entry(
@@ -1024,6 +1130,25 @@ pub(crate) fn create_entry(
         StoreAs::Dir => {
             let mut entry = DirEntryBuilder::new(entry_name);
             entry.metadata(build_entry_metadata(path, keep_options, metadata)?);
+            for chunk in collect_extra_chunks(path, keep_options, metadata)? {
+                entry.add_extra_chunk(chunk);
+            }
+            entry.build()
+        }
+        StoreAs::Junction(target) => {
+            // EntryReference is UTF-8, so invalid UTF-16 uses the symlink replacement behavior.
+            if target.to_str().is_none() {
+                log::warn!(
+                    "Junction target of {} contains non-Unicode data; it was replaced with U+FFFD in the archived target",
+                    path.display()
+                );
+            }
+            let reference = pathname_editor.edit_junction(target);
+            let mut entry = HardLinkEntryBuilder::new(entry_name, reference)?;
+            entry.metadata(
+                build_entry_metadata(path, keep_options, metadata)?
+                    .with_link_target_type(Some(LinkTargetType::Directory)),
+            );
             for chunk in collect_extra_chunks(path, keep_options, metadata)? {
                 entry.add_extra_chunk(chunk);
             }
@@ -2729,6 +2854,7 @@ mod tests {
             keep_dir: false,
             gitignore: false,
             nodump: false,
+            enable_junction: false,
             follow_links: false,
             follow_command_links: false,
             one_file_system: false,
@@ -3033,6 +3159,72 @@ mod tests {
             let mut reader = Cursor::new(&data[..]);
             let format = detect_format(&mut reader).unwrap();
             assert_eq!(format, SourceFormat::Mtree);
+        }
+    }
+
+    mod relative_path_between {
+        use super::super::relative_path_between;
+        use std::path::{Path, PathBuf};
+
+        #[test]
+        fn sibling_of_base() {
+            let rel = relative_path_between(Path::new("/root"), Path::new("/root/target"));
+            assert_eq!(rel, Some(PathBuf::from("target")));
+        }
+
+        #[test]
+        fn requires_ascending_from_base() {
+            let rel = relative_path_between(Path::new("/root/a"), Path::new("/root/target"));
+            assert_eq!(rel, Some(PathBuf::from("../target")));
+        }
+
+        #[test]
+        fn same_path_is_curdir() {
+            let rel = relative_path_between(Path::new("/root/a"), Path::new("/root/a"));
+            assert_eq!(rel, Some(PathBuf::from(".")));
+        }
+
+        #[test]
+        fn target_is_ancestor_of_base() {
+            let rel = relative_path_between(Path::new("/root/a/b"), Path::new("/root"));
+            assert_eq!(rel, Some(PathBuf::from("../..")));
+        }
+
+        #[test]
+        fn base_is_ancestor_of_target() {
+            let rel = relative_path_between(Path::new("/root"), Path::new("/root/a/b"));
+            assert_eq!(rel, Some(PathBuf::from("a/b")));
+        }
+
+        #[test]
+        fn absolute_and_relative_do_not_relate() {
+            assert_eq!(
+                relative_path_between(Path::new("/root"), Path::new("root/target")),
+                None
+            );
+            assert_eq!(
+                relative_path_between(Path::new("root"), Path::new("/root/target")),
+                None
+            );
+        }
+
+        #[cfg(windows)]
+        #[test]
+        fn different_drives_do_not_relate() {
+            assert_eq!(
+                relative_path_between(Path::new(r"C:\root"), Path::new(r"D:\root\target")),
+                None
+            );
+        }
+
+        #[cfg(windows)]
+        #[test]
+        fn verbatim_paths_relate_within_same_drive() {
+            let rel = relative_path_between(
+                Path::new(r"\\?\C:\root\a"),
+                Path::new(r"\\?\C:\root\target"),
+            );
+            assert_eq!(rel, Some(PathBuf::from("../target")));
         }
     }
 }
