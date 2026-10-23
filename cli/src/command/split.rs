@@ -1,13 +1,16 @@
 use crate::{
     cli::ArchiveFileArgs,
     command::{Command, core::write_split_archive},
-    utils::PathWithCwd,
+    utils::{PathPartExt, PathWithCwd},
 };
 use anyhow::{Context, ensure};
 use bytesize::ByteSize;
 use clap::{ArgAction, Parser, ValueHint};
 use pna::{Archive, MIN_SPLIT_PART_BYTES};
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct SplitCommand {
@@ -45,6 +48,31 @@ impl Command for SplitCommand {
     }
 }
 
+fn is_same_file(left: &Path, right: &Path) -> bool {
+    #[cfg(not(target_os = "wasi"))]
+    if let Ok(result) = same_file::is_same_file(left, right) {
+        return result;
+    }
+    matches!(
+        (resolved_path(left), resolved_path(right)),
+        (Some(left), Some(right)) if left == right
+    )
+}
+
+fn resolved_path(path: &Path) -> Option<PathBuf> {
+    if let Ok(path) = fs::canonicalize(path) {
+        return Some(path);
+    }
+    let file_name = path.file_name()?;
+    let parent = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    fs::canonicalize(parent)
+        .ok()
+        .map(|parent| parent.join(file_name))
+}
+
 #[hooq::hooq(anyhow)]
 fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
     let archive_path = args.archive.file;
@@ -55,6 +83,22 @@ fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
         "The value for --max-size must be at least {MIN_SPLIT_PART_BYTES} bytes ({}).",
         ByteSize::b(MIN_SPLIT_PART_BYTES as u64)
     );
+
+    let base_out_file_name = match (args.out_dir, args.output) {
+        (Some(out_dir), Some(output)) => out_dir.join(output),
+        (Some(out_dir), None) => out_dir.join(archive_path.file_name().unwrap_or_default()),
+        (None, Some(output)) => output,
+        (None, None) => archive_path.clone(),
+    };
+    ensure!(
+        !is_same_file(&base_out_file_name.with_part(1), &archive_path),
+        "splitting `{}` in place would overwrite the input; specify --out-dir or --output",
+        PathWithCwd::new(&archive_path)
+    );
+    if let Some(parent) = base_out_file_name.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
     let read_file = fs::File::open(&archive_path)?;
     #[cfg(not(feature = "memmap"))]
     let mut read_archive = Archive::read_header(read_file)?;
@@ -66,16 +110,6 @@ fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
     let mut read_archive = Archive::read_header_from_slice(&mapped_file[..])?;
     #[cfg(feature = "memmap")]
     let entries = read_archive.raw_entries_slice();
-
-    let base_out_file_name = match (args.out_dir, args.output) {
-        (Some(out_dir), Some(output)) => out_dir.join(output),
-        (Some(out_dir), None) => out_dir.join(archive_path.file_name().unwrap_or_default()),
-        (None, Some(output)) => output,
-        (None, None) => archive_path,
-    };
-    if let Some(parent) = base_out_file_name.parent() {
-        fs::create_dir_all(parent)?;
-    }
     write_split_archive(&base_out_file_name, entries, max_file_size, args.overwrite).with_context(
         || {
             format!(
