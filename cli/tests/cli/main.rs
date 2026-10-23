@@ -23,6 +23,7 @@ mod encrypt;
 mod extract;
 mod flag_pairs;
 mod hardlink;
+mod junction;
 mod keep_acl;
 mod keep_all;
 mod list;
