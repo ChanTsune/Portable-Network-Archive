@@ -14,7 +14,7 @@ use crate::{
             read_paths, read_paths_stdin, spawn_entry_results,
         },
     },
-    utils::{PathPartExt, VCS_FILES, fs::HardlinkResolver},
+    utils::{VCS_FILES, fs::HardlinkResolver},
 };
 use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
 use pna::{Archive, prelude::*};

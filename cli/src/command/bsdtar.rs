@@ -23,10 +23,11 @@ use crate::{
         list::{Format, LineEnding, ListOptions, TimeField, TimeFormat},
         update::run_update_archive,
     },
-    utils::{self, BsdGlobMatcher, PathPartExt, VCS_FILES, fs::HardlinkResolver},
+    utils::{self, BsdGlobMatcher, VCS_FILES, fs::HardlinkResolver},
 };
 use clap::{ArgGroup, Args, Parser, ValueHint};
 use pna::Archive;
+use pna::prelude::PathPartExt;
 use std::{
     env, io,
     path::{Path, PathBuf},
