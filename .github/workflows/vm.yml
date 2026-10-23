@@ -45,7 +45,7 @@ jobs:
           persist-credentials: false
       - name: Test in Solaris
         id: test
-        uses: vmactions/solaris-vm@87d3c436511cef802cd1637f86f73b1a97715c8c # v1.4.1
+        uses: vmactions/solaris-vm@1c166978f5a2c1f87f1c9d4d8dd85ae3d1eff6f7 # v1.4.2
         with:
           envs: "RUST_BACKTRACE PNA_TEST_REQUIRE"
           copyback: false
@@ -172,7 +172,7 @@ jobs:
           persist-credentials: false
       - name: Test in OpenBSD
         id: test
-        uses: vmactions/OpenBSD-vm@5f7b2c933b8846a138361d6843c52af4bef5d945 # v1.4.8
+        uses: vmactions/OpenBSD-vm@f1ca8bc8ecc5b6ef7218e5b914836e067e1546d3 # v1.4.9
         with:
           envs: "RUST_BACKTRACE PNA_TEST_REQUIRE"
           copyback: false
