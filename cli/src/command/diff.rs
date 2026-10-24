@@ -4,13 +4,12 @@ use crate::{
         Command, ExitCodeError, ask_password,
         core::{SplitArchiveReader, cmp_at_stored_precision, collect_split_archives},
     },
-    utils::{BsdGlobMatcher, io::streams_equal},
+    utils::{BsdGlobMatcher, fs::is_same_file, io::streams_equal},
 };
 use bitflags::bitflags;
 use clap::{Parser, ValueEnum};
 use pna::prelude::SystemTimeDurationExt;
 use pna::{DataKind, EntryContent, NormalEntry, ReadOptions};
-use same_file::is_same_file;
 use std::cmp::Ordering;
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
