@@ -1,12 +1,12 @@
 use crate::{
     cli::ArchiveFileArgs,
     command::{Command, core::write_split_archive},
-    utils::PathWithCwd,
+    utils::{PathPartExt, PathWithCwd},
 };
 use anyhow::{Context, ensure};
 use bytesize::ByteSize;
 use clap::{ArgAction, Parser, ValueHint};
-use pna::{Archive, MIN_SPLIT_PART_BYTES, prelude::PathPartExt};
+use pna::{Archive, MIN_SPLIT_PART_BYTES};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -140,6 +140,7 @@ fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
 }
 
 #[cfg(test)]
+#[cfg(not(target_family = "wasm"))]
 mod tests {
     use super::*;
 
