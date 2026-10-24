@@ -1,3 +1,4 @@
+#[cfg(not(all(target_os = "wasi", target_env = "p2")))]
 use std::collections::HashMap;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -15,6 +16,7 @@ use windows::{
     core::PCWSTR,
 };
 
+#[cfg(not(all(target_os = "wasi", target_env = "p2")))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct FileId(u64, u64); // (device, inode)
 
@@ -26,7 +28,7 @@ struct HardlinkInfo {
     archived_count: u64,
 }
 
-#[cfg(any(unix, windows, target_os = "wasi"))]
+#[cfg(any(unix, windows, all(target_os = "wasi", target_env = "p1")))]
 fn get_file_id_and_nlinks(path: &Path, follow_symlink: bool) -> io::Result<(FileId, u64)> {
     #[cfg(unix)]
     {
@@ -82,11 +84,6 @@ fn get_file_id_and_nlinks(path: &Path, follow_symlink: bool) -> io::Result<(File
     {
         get_file_id_and_nlinks_wasip1(path, follow_symlink)
     }
-
-    #[cfg(all(target_os = "wasi", target_env = "p2"))]
-    {
-        get_file_id_and_nlinks_wasip2(path, follow_symlink)
-    }
 }
 
 /// On wasip1 the preview1 `filestat` carries a device and inode, exposed
@@ -118,23 +115,6 @@ fn get_file_id_and_nlinks_wasip1(path: &Path, follow_symlink: bool) -> io::Resul
     Ok((FileId(stat.st_dev, stat.st_ino), stat.st_nlink))
 }
 
-/// On wasip2, `wasi:filesystem` deliberately does not expose device or inode
-/// numbers. The metadata hash is the closest stable identity a path has, and
-/// `descriptor-stat` still reports the link count.
-#[cfg(all(target_os = "wasi", target_env = "p2"))]
-fn get_file_id_and_nlinks_wasip2(path: &Path, follow_symlink: bool) -> io::Result<(FileId, u64)> {
-    preopen::Resolver::new().with_resolved(path, |descriptor, rel| {
-        let flags = path_flags(follow_symlink);
-        let hash = descriptor
-            .metadata_hash_at(flags, rel)
-            .map_err(preopen::wasi_error)?;
-        let stat = descriptor
-            .stat_at(flags, rel)
-            .map_err(preopen::wasi_error)?;
-        Ok((FileId(hash.lower, hash.upper), stat.link_count))
-    })
-}
-
 /// Returns whether two paths refer to the same filesystem object, following
 /// symbolic links. Errors mirror [`same_file::is_same_file`], in particular
 /// [`io::ErrorKind::NotFound`] when either path does not exist.
@@ -152,8 +132,8 @@ pub(crate) fn is_same_file(left: impl AsRef<Path>, right: impl AsRef<Path>) -> i
 #[cfg(all(target_os = "wasi", target_env = "p2"))]
 pub(crate) fn is_same_file(left: impl AsRef<Path>, right: impl AsRef<Path>) -> io::Result<bool> {
     let resolver = preopen::Resolver::new();
-    let left = resolver.open(left.as_ref())?;
-    let right = resolver.open(right.as_ref())?;
+    let left = resolver.open(left.as_ref(), true)?;
+    let right = resolver.open(right.as_ref(), true)?;
     Ok(left.is_same_object(&right))
 }
 
@@ -179,7 +159,7 @@ mod preopen {
     use std::path::Path;
     use wasi::filesystem::{
         preopens::get_directories,
-        types::{Descriptor, DescriptorFlags, ErrorCode, OpenFlags, PathFlags},
+        types::{Descriptor, DescriptorFlags, ErrorCode, OpenFlags},
     };
 
     pub(super) fn wasi_error(code: ErrorCode) -> io::Error {
@@ -263,11 +243,11 @@ mod preopen {
             Err(last_err)
         }
 
-        pub(super) fn open(&self, path: &Path) -> io::Result<Descriptor> {
+        pub(super) fn open(&self, path: &Path, follow_symlink: bool) -> io::Result<Descriptor> {
             self.with_resolved(path, |descriptor, rel| {
                 descriptor
                     .open_at(
-                        PathFlags::SYMLINK_FOLLOW,
+                        super::path_flags(follow_symlink),
                         rel,
                         OpenFlags::empty(),
                         DescriptorFlags::empty(),
@@ -281,8 +261,10 @@ mod preopen {
 #[cfg_attr(not(any(unix, windows, target_os = "wasi")), allow(unused_variables))]
 pub(crate) struct HardlinkResolver {
     follow_symlink: bool,
-    #[cfg(any(unix, windows, target_os = "wasi"))]
+    #[cfg(any(unix, windows, all(target_os = "wasi", target_env = "p1")))]
     seen: HashMap<FileId, HardlinkInfo>,
+    #[cfg(all(target_os = "wasi", target_env = "p2"))]
+    seen: Vec<(wasi::filesystem::types::Descriptor, HardlinkInfo)>,
     #[cfg(not(any(unix, windows, target_os = "wasi")))]
     seen: HashMap<FileId, PathBuf>,
 }
@@ -292,11 +274,16 @@ impl HardlinkResolver {
     pub(crate) fn new(follow_symlink: bool) -> Self {
         Self {
             follow_symlink,
+            #[cfg(any(unix, windows, all(target_os = "wasi", target_env = "p1")))]
+            seen: HashMap::new(),
+            #[cfg(all(target_os = "wasi", target_env = "p2"))]
+            seen: Vec::new(),
+            #[cfg(not(any(unix, windows, target_os = "wasi")))]
             seen: HashMap::new(),
         }
     }
 
-    #[cfg(any(unix, windows, target_os = "wasi"))]
+    #[cfg(any(unix, windows, all(target_os = "wasi", target_env = "p1")))]
     #[inline]
     pub(crate) fn resolve(&mut self, path: &Path) -> io::Result<Option<PathBuf>> {
         let (id, nlinks) = get_file_id_and_nlinks(path, self.follow_symlink)?;
@@ -317,6 +304,39 @@ impl HardlinkResolver {
         Ok(None)
     }
 
+    /// On wasip2, `wasi:filesystem` deliberately does not expose device or
+    /// inode numbers to key a map with, and `is-same-object` is a pairwise
+    /// comparison, so the resolver keeps the descriptor of each first-seen
+    /// file and compares new files against them.
+    #[cfg(all(target_os = "wasi", target_env = "p2"))]
+    #[inline]
+    pub(crate) fn resolve(&mut self, path: &Path) -> io::Result<Option<PathBuf>> {
+        let resolver = preopen::Resolver::new();
+        let flags = path_flags(self.follow_symlink);
+        let stat = resolver.with_resolved(path, |descriptor, rel| {
+            descriptor.stat_at(flags, rel).map_err(preopen::wasi_error)
+        })?;
+        if stat.link_count <= 1 {
+            return Ok(None);
+        }
+        let descriptor = resolver.open(path, self.follow_symlink)?;
+        for (seen_descriptor, info) in &mut self.seen {
+            if descriptor.is_same_object(seen_descriptor) {
+                info.archived_count += 1;
+                return Ok(Some(info.first_path.clone()));
+            }
+        }
+        self.seen.push((
+            descriptor,
+            HardlinkInfo {
+                first_path: path.to_path_buf(),
+                expected_nlinks: stat.link_count,
+                archived_count: 1,
+            },
+        ));
+        Ok(None)
+    }
+
     #[cfg(not(any(unix, windows, target_os = "wasi")))]
     #[inline]
     pub(crate) fn resolve(&mut self, _path: &Path) -> io::Result<Option<PathBuf>> {
@@ -325,9 +345,26 @@ impl HardlinkResolver {
 
     /// Returns an iterator over files with incomplete hardlink sets.
     /// Each item is (first_path, expected_nlinks, archived_count).
-    #[cfg(any(unix, windows, target_os = "wasi"))]
+    #[cfg(any(unix, windows, all(target_os = "wasi", target_env = "p1")))]
     pub(crate) fn incomplete_links(&self) -> impl Iterator<Item = (&Path, u64, u64)> {
         self.seen.values().filter_map(|info| {
+            if info.archived_count < info.expected_nlinks {
+                Some((
+                    info.first_path.as_path(),
+                    info.expected_nlinks,
+                    info.archived_count,
+                ))
+            } else {
+                None
+            }
+        })
+    }
+
+    /// Returns an iterator over files with incomplete hardlink sets.
+    /// Each item is (first_path, expected_nlinks, archived_count).
+    #[cfg(all(target_os = "wasi", target_env = "p2"))]
+    pub(crate) fn incomplete_links(&self) -> impl Iterator<Item = (&Path, u64, u64)> {
+        self.seen.iter().filter_map(|(_, info)| {
             if info.archived_count < info.expected_nlinks {
                 Some((
                     info.first_path.as_path(),
