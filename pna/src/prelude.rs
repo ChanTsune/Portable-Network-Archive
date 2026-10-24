@@ -8,7 +8,7 @@
 //! use pna::prelude::*;
 //! ```
 pub use crate::ext::{
-    ArchiveFsExt, EntryFsExt, MetadataFsExt, MetadataPathExt, MetadataTimeExt,
+    ArchiveFsExt, EntryFsExt, MetadataFsExt, MetadataPathExt, MetadataTimeExt, PathPartExt,
     SystemTimeDurationExt, SystemTimeOutOfRange,
 };
 pub use libpna::prelude::*;
