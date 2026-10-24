@@ -198,6 +198,16 @@ pub fn read_symlink_target(entry: &pna::NormalEntry) -> String {
     target.to_string()
 }
 
+pub fn read_hardlink_target(entry: &pna::NormalEntry) -> String {
+    let pna::EntryContent::HardLink(target) = entry
+        .content(pna::ReadOptions::with_password::<&[u8]>(None))
+        .unwrap()
+    else {
+        panic!("entry should contain a hard link target");
+    };
+    target.to_string()
+}
+
 /// Creates a simple archive with named text entries.
 pub fn create_test_archive(path: impl AsRef<Path>, entries: &[(&str, &str)]) {
     let path = path.as_ref();
