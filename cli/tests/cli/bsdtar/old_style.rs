@@ -48,6 +48,7 @@ fn bsdtar_extract_old_style_xf() {
     fs::write(format!("{src}/file.txt"), "data").unwrap();
 
     let archive_path = "old_style_xf.pna";
+    let _ = fs::remove_file(archive_path);
 
     cargo_bin_cmd!("pna")
         .args([
@@ -63,8 +64,17 @@ fn bsdtar_extract_old_style_xf() {
     fs::remove_dir_all(src).unwrap();
 
     let out_dir = "old_style_xf_out";
+    let _ = fs::remove_dir_all(out_dir);
     cargo_bin_cmd!("pna")
-        .args(["compat", "bsdtar", "xf", archive_path, "--out-dir", out_dir])
+        .args([
+            "compat",
+            "bsdtar",
+            "xf",
+            archive_path,
+            "--overwrite",
+            "--out-dir",
+            out_dir,
+        ])
         .assert()
         .success();
 
