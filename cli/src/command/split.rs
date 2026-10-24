@@ -1,12 +1,12 @@
 use crate::{
     cli::ArchiveFileArgs,
     command::{Command, core::write_split_archive},
-    utils::{PathPartExt, PathWithCwd},
+    utils::PathWithCwd,
 };
 use anyhow::{Context, ensure};
 use bytesize::ByteSize;
 use clap::{ArgAction, Parser, ValueHint};
-use pna::{Archive, MIN_SPLIT_PART_BYTES};
+use pna::{Archive, MIN_SPLIT_PART_BYTES, prelude::PathPartExt};
 use std::{
     fs,
     path::{Path, PathBuf},
