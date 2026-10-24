@@ -150,9 +150,11 @@ fn path_flags(follow_symlink: bool) -> wasi::filesystem::types::PathFlags {
 ///
 /// Guest paths are not directly usable with the descriptor-relative
 /// filesystem API, so each path is mapped to the preopen whose mount point
-/// prefixes it, plus the path relative to that mount point. Relative paths
-/// are first tried resolved against the current directory, then as-is
-/// against every preopen.
+/// prefixes it, plus the path relative to that mount point. Like wasi-libc,
+/// a path resolves through the single longest mount that prefixes it, and
+/// relative paths are anchored at the current directory; only when the
+/// current directory is unavailable is a relative path tried as-is against
+/// every preopen.
 #[cfg(all(target_os = "wasi", target_env = "p2"))]
 mod preopen {
     use super::io;
@@ -179,6 +181,44 @@ mod preopen {
         path.strip_prefix(mount)?.strip_prefix('/')
     }
 
+    /// The candidate for `spelling` under the longest mount that prefixes
+    /// it, if any. `mounts` must be ordered longest first. Shorter mounts
+    /// are never considered: wasi-libc resolves a path through exactly one
+    /// preopen, and falling through to another mount could resolve to a
+    /// different object.
+    fn longest_match(mounts: &[&str], spelling: &str) -> Option<(usize, String)> {
+        mounts.iter().enumerate().find_map(|(index, mount)| {
+            let rel = strip_mount(mount, spelling)?;
+            (!rel.is_empty()).then(|| (index, rel.to_string()))
+        })
+    }
+
+    /// All (preopen index, relative path) candidates for a path, most
+    /// preferred first. `mounts` must be ordered longest first. `cwd` is
+    /// the guest current directory, when it could be determined.
+    fn select_candidates(
+        mounts: &[&str],
+        path_str: &str,
+        is_absolute: bool,
+        cwd: Option<&Path>,
+    ) -> Vec<(usize, String)> {
+        if is_absolute {
+            return longest_match(mounts, path_str).into_iter().collect();
+        }
+        match cwd {
+            Some(cwd) => {
+                let joined = cwd.join(path_str).to_string_lossy().into_owned();
+                longest_match(mounts, &joined).into_iter().collect()
+            }
+            None => {
+                let mut candidates: Vec<(usize, String)> =
+                    longest_match(mounts, path_str).into_iter().collect();
+                candidates.extend((0..mounts.len()).map(|index| (index, path_str.to_string())));
+                candidates
+            }
+        }
+    }
+
     pub(super) struct Resolver {
         preopens: Vec<(Descriptor, String)>,
     }
@@ -192,40 +232,22 @@ mod preopen {
             Self { preopens }
         }
 
-        /// All (preopen index, relative path) pairs the path may resolve
-        /// through, most preferred first.
         fn candidates(&self, path: &Path) -> io::Result<Vec<(usize, String)>> {
             let path_str = path
                 .to_str()
                 .ok_or_else(|| io::Error::other("path is not valid UTF-8"))?;
-            let mut spellings = Vec::new();
-            if path.is_absolute() {
-                spellings.push(path_str.to_string());
-            } else {
-                if let Ok(cwd) = std::env::current_dir() {
-                    spellings.push(cwd.join(path).to_string_lossy().into_owned());
-                }
-                spellings.push(path_str.to_string());
-            }
-            let mut candidates = Vec::new();
-            for spelling in &spellings {
-                for (index, (_, mount)) in self.preopens.iter().enumerate() {
-                    if let Some(rel) = strip_mount(mount, spelling)
-                        && !rel.is_empty()
-                    {
-                        candidates.push((index, rel.to_string()));
-                    }
-                }
-                if spelling == path_str && !path.is_absolute() {
-                    // A relative path may be valid under any preopen; try
-                    // it verbatim against each of them, after the resolved
-                    // spellings above.
-                    for index in 0..self.preopens.len() {
-                        candidates.push((index, spelling.clone()));
-                    }
-                }
-            }
-            Ok(candidates)
+            let mounts: Vec<&str> = self
+                .preopens
+                .iter()
+                .map(|(_, mount)| mount.as_str())
+                .collect();
+            let cwd = std::env::current_dir().ok();
+            Ok(select_candidates(
+                &mounts,
+                path_str,
+                path.is_absolute(),
+                cwd.as_deref(),
+            ))
         }
 
         pub(super) fn with_resolved<T>(
@@ -254,6 +276,71 @@ mod preopen {
                     )
                     .map_err(wasi_error)
             })
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::select_candidates;
+        use std::path::Path;
+
+        #[test]
+        fn absolute_path_uses_longest_matching_mount_only() {
+            let mounts = ["/data/sub", "/data", "/"];
+            assert_eq!(
+                select_candidates(&mounts, "/data/sub/file.txt", true, None),
+                vec![(0, "file.txt".to_string())]
+            );
+            assert_eq!(
+                select_candidates(&mounts, "/data/file.txt", true, None),
+                vec![(1, "file.txt".to_string())]
+            );
+            assert_eq!(
+                select_candidates(&mounts, "/other/file.txt", true, None),
+                vec![(2, "other/file.txt".to_string())]
+            );
+        }
+
+        #[test]
+        fn mount_root_resolves_through_its_parent_mount() {
+            let mounts = ["/data", "/"];
+            assert_eq!(
+                select_candidates(&mounts, "/data", true, None),
+                vec![(1, "data".to_string())]
+            );
+        }
+
+        #[test]
+        fn relative_path_is_anchored_at_cwd() {
+            let mounts = ["/work", "/"];
+            assert_eq!(
+                select_candidates(
+                    &mounts,
+                    "in/file.txt",
+                    false,
+                    Some(Path::new("/work/project"))
+                ),
+                vec![(0, "project/in/file.txt".to_string())]
+            );
+        }
+
+        #[test]
+        fn relative_path_without_cwd_is_tried_against_every_preopen() {
+            let mounts = ["/a", "/b"];
+            assert_eq!(
+                select_candidates(&mounts, "file.txt", false, None),
+                vec![(0, "file.txt".to_string()), (1, "file.txt".to_string())]
+            );
+        }
+
+        #[test]
+        fn path_outside_every_mount_has_no_candidates() {
+            let mounts = ["/data"];
+            assert!(select_candidates(&mounts, "/elsewhere/file.txt", true, None).is_empty());
+            assert!(
+                select_candidates(&mounts, "file.txt", false, Some(Path::new("/elsewhere")))
+                    .is_empty()
+            );
         }
     }
 }
@@ -311,15 +398,13 @@ impl HardlinkResolver {
     #[cfg(all(target_os = "wasi", target_env = "p2"))]
     #[inline]
     pub(crate) fn resolve(&mut self, path: &Path) -> io::Result<Option<PathBuf>> {
-        let resolver = preopen::Resolver::new();
-        let flags = path_flags(self.follow_symlink);
-        let stat = resolver.with_resolved(path, |descriptor, rel| {
-            descriptor.stat_at(flags, rel).map_err(preopen::wasi_error)
-        })?;
-        if stat.link_count <= 1 {
+        // Open once so the link count and the identity being compared both
+        // come from the same resolved object.
+        let descriptor = preopen::Resolver::new().open(path, self.follow_symlink)?;
+        let nlinks = descriptor.stat().map_err(preopen::wasi_error)?.link_count;
+        if nlinks <= 1 {
             return Ok(None);
         }
-        let descriptor = resolver.open(path, self.follow_symlink)?;
         for (seen_descriptor, info) in &mut self.seen {
             if descriptor.is_same_object(seen_descriptor) {
                 info.archived_count += 1;
@@ -330,7 +415,7 @@ impl HardlinkResolver {
             descriptor,
             HardlinkInfo {
                 first_path: path.to_path_buf(),
-                expected_nlinks: stat.link_count,
+                expected_nlinks: nlinks,
                 archived_count: 1,
             },
         ));
