@@ -111,7 +111,7 @@ jobs:
           - container: redoxos/redoxer:latest@sha256:8b1abee9dfa4162a798e8519d1275f39a8ddbfbc7ec0ba4707ea6c07a0416aef
             target: x86_64-unknown-redox
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 150
     container: ${{ matrix.container }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -131,8 +131,98 @@ jobs:
           # redoxer's automatic test-binary copy (the trailing "/" is required)
           export CARGO_TARGET_X86_64_UNKNOWN_REDOX_RUNNER="redoxer exec --folder $PWD/:$PWD/ --folder $PWD/resources/test/:/root"
           # Redox does not enforce NAME_MAX or support filetime; the host jobs
-          # already check these tests
+          # already check these tests.
           cargo test -p libpna -p pna -p portable-network-archive --lib --locked --target "$TARGET" -- --test-threads=1 --skip command::core::staged_archive::tests::new_fails_when_the_mode_of_the_output_cannot_be_read --skip command::update::tests::is_newer_than_archive_
+
+          # Run the CLI integration suite one module at a time so a slow or
+          # hanging module cannot stall unrelated modules. Host-only xattr
+          # coverage, the very large combination matrix, the filetime-only
+          # keep_all test, and the bsdtar compatibility module stay on host
+          # jobs because they depend on host filesystem semantics.
+          set -- \
+            --skip append::atime:: \
+            --skip append::ctime:: \
+            --skip append::mtime:: \
+            --skip append::option_newer_mtime:: \
+            --skip append::option_newer_mtime_than:: \
+            --skip append::option_older_mtime:: \
+            --skip append::option_older_mtime_than:: \
+            --skip create::atime:: \
+            --skip create::ctime:: \
+            --skip create::mtime:: \
+            --skip create::option_newer_mtime:: \
+            --skip create::option_newer_mtime_than:: \
+            --skip create::option_older_mtime:: \
+            --skip create::option_older_mtime_than:: \
+            --skip create::symlink_metadata::roundtrip_symlink_metadata_preserved \
+            --skip diff::metadata:: \
+            --skip diff::option_compare:: \
+            --skip diff::option_format::diff_with_format_jsonl_and_metadata_differences \
+            --skip extract::option_keep_newer_files:: \
+            --skip extract::option_keep_permission::extract_encrypted_gcm_without_keep_permission_drops_setuid \
+            --skip extract::option_keep_timestamp:: \
+            --skip extract::option_mtime:: \
+            --skip extract::symlink_metadata:: \
+            --skip list::option_format_jsonl::list_format_jsonl_with_xattr \
+            --skip update::duplicate_targets:: \
+            --skip update::encryption:: \
+            --skip update::mtime_stored_precision:: \
+            --skip update::multipart:: \
+            --skip update::no_timestamp_archive:: \
+            --skip update::option_atime:: \
+            --skip update::option_ctime:: \
+            --skip update::option_exclude:: \
+            --skip update::option_include:: \
+            --skip update::option_keep_solid:: \
+            --skip update::option_mtime:: \
+            --skip update::option_newer_mtime:: \
+            --skip update::option_newer_mtime_than:: \
+            --skip update::option_older_mtime:: \
+            --skip update::option_older_mtime_than:: \
+            --skip update::option_output:: \
+            --skip update::option_sync::update_with_sync \
+            --skip update::option_unsolid:: \
+            --skip update::path_transform::
+          set +e
+          failed=0
+          for module in acl append bugreport chmod chown chunk complete concat create delete diff encrypt extract flag_pairs hardlink keep_acl list migrate multipart nodump restore_acl restore_acl_0_19_1 solid_mode sort split strip update verify utils; do
+            printf '===== cli tests: %s =====\n' "$module"
+            timeout -s TERM -k 30s 20m cargo test -p portable-network-archive --test cli --locked --target "$TARGET" -- --test-threads=1 "$module::" "$@"
+            status=$?
+            printf '===== cli tests: %s status=%s =====\n' "$module" "$status"
+            retry=0
+            if [ "$status" -eq 124 ] || [ "$status" -eq 137 ]; then
+              retry=1
+            fi
+            # The first CLI test binary invocation can report a runner
+            # failure even when the tests passed; retry acl once.
+            if [ "$module" = acl ] && [ "$status" -ne 0 ]; then
+              retry=1
+            fi
+            if [ "$retry" -eq 1 ]; then
+              pkill -9 -f 'redoxer exec' || true
+              printf '===== cli tests: %s retry =====\n' "$module"
+              timeout -s TERM -k 30s 20m cargo test -p portable-network-archive --test cli --locked --target "$TARGET" -- --test-threads=1 "$module::" "$@"
+              status=$?
+              printf '===== cli tests: %s retry status=%s =====\n' "$module" "$status"
+            fi
+            if [ "$status" -ne 0 ]; then
+              failed=1
+            fi
+          done
+          printf '===== cli tests: clap_configuration_remains_valid =====\n'
+          timeout -s TERM -k 30s 20m cargo test -p portable-network-archive --test cli --locked --target "$TARGET" -- --test-threads=1 clap_configuration_remains_valid
+          status=$?
+          printf '===== cli tests: clap_configuration_remains_valid status=%s =====\n' "$status"
+          if [ "$status" -ne 0 ]; then
+            failed=1
+            if [ "$status" -eq 124 ] || [ "$status" -eq 137 ]; then
+              pkill -9 -f 'redoxer exec' || true
+            fi
+          fi
+          if [ "$failed" -ne 0 ]; then
+            exit 1
+          fi
           cargo build -p portable-network-archive --locked --target "$TARGET"
           cp target/"$TARGET"/debug/pna pna-bin
           cargo clean
