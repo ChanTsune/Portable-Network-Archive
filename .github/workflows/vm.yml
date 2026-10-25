@@ -69,6 +69,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     name: Test on NetBSD
+    env:
+      PNA_TEST_REQUIRE: root,nodump
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -166,6 +168,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 80
     name: Test on OpenBSD
+    env:
+      PNA_TEST_REQUIRE: root,nodump
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
