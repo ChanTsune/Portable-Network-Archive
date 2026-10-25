@@ -108,5 +108,9 @@ jobs:
         run: |
           cargo install --locked --all-features --path cli
       - name: Run CLI tests
+        env:
+          # Ubuntu 26.04 mounts /tmp as a ~7.8 GiB tmpfs, which cannot hold the
+          # 5 GiB large-file fixture together with its archive and extraction.
+          RESOURCE_DIR: ${{ runner.temp }}/
         run: |
           bats tests/bats/ tests/bats/bsdtar_compat/ tests/bats/gnutar_compat/
