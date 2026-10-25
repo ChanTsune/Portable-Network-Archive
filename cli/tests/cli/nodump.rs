@@ -1,13 +1,48 @@
-#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd"))]
+#[cfg(any(
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd",
+    target_os = "dragonfly"
+))]
 use crate::utils::{archive, setup};
-#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd"))]
+#[cfg(any(
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd",
+    target_os = "dragonfly"
+))]
 use clap::Parser;
-#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd"))]
+#[cfg(any(
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd",
+    target_os = "dragonfly"
+))]
 use portable_network_archive::cli;
-#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd"))]
+#[cfg(any(
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd",
+    target_os = "dragonfly"
+))]
 use std::{fs, path::Path, process::Command as StdCommand};
 
-#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd"))]
+#[cfg(any(
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd",
+    target_os = "dragonfly"
+))]
 mod platform {
     use super::*;
 
@@ -40,7 +75,13 @@ mod platform {
         }
     }
 
-    #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+    #[cfg(any(
+        target_os = "macos",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd",
+        target_os = "dragonfly"
+    ))]
     fn try_set_nodump(path: &Path) -> Result<(), String> {
         match StdCommand::new("chflags").arg("nodump").arg(path).output() {
             Ok(output) if output.status.success() => Ok(()),
@@ -62,7 +103,13 @@ mod platform {
         assert!(status.success());
     }
 
-    #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+    #[cfg(any(
+        target_os = "macos",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd",
+        target_os = "dragonfly"
+    ))]
     fn set_nodump(path: &Path) {
         let status = StdCommand::new("chflags")
             .arg("nodump")
