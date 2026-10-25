@@ -65,6 +65,13 @@ pub(crate) struct CreateCommand {
     )]
     nodump: bool,
     #[arg(
+        long,
+        requires = "unstable",
+        help_heading = "Unstable Options",
+        help = "Enable experimental handling of Windows junctions (directory hard links)"
+    )]
+    enable_junction: bool,
+    #[arg(
         short,
         long,
         visible_alias = "recursion",
@@ -474,6 +481,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         keep_dir: args.keep_dir,
         gitignore: args.gitignore,
         nodump: args.nodump,
+        enable_junction: args.enable_junction,
         follow_links: args.follow_links,
         follow_command_links: args.follow_command_links,
         one_file_system: args.one_file_system,

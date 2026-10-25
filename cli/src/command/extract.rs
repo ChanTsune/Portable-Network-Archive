@@ -12,7 +12,7 @@ use crate::{
             OwnerOptions, OwnerStrategy, PathFilter, PathTransformers, PathnameEditor,
             PermissionStrategyResolver, ProcessAction, SafeWriter, TimeFilterResolver, TimeFilters,
             TimestampStrategy, TimestampStrategyResolver, Umask, XattrStrategy,
-            collect_split_archives,
+            collect_split_archives, is_encoded_junction,
             path::has_parent_dir_component,
             path_lock::OrderedPathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
@@ -358,17 +358,24 @@ pub(crate) struct ExtractCommand {
     #[arg(
         long,
         action = ArgAction::SetTrue,
-        help = "Allow extracting symbolic links and hard links that contain root or parent paths"
+        help = "Allow extracting symbolic links and hard links that contain root or parent paths; junctions also require --unstable --enable-junction"
     )]
     allow_unsafe_links: (),
     #[arg(
         long,
-        help = "Do not allow extracting symbolic links and hard links that contain root or parent paths (default)",
+        help = "Do not allow extracting symbolic links and hard links that contain root or parent paths, or Windows junctions (default)",
         default_value_t = true,
         default_value_if("allow_unsafe_links", ArgPredicate::Equals("true".into()), "false"),
         conflicts_with = "allow_unsafe_links"
     )]
     no_allow_unsafe_links: bool,
+    #[arg(
+        long,
+        requires = "unstable",
+        help_heading = "Unstable Options",
+        help = "Enable experimental handling of Windows junctions (directory hard links)"
+    )]
+    enable_junction: bool,
     #[arg(
         long,
         requires = "unstable",
@@ -486,6 +493,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let output_options = OutputOption {
         overwrite_strategy,
         allow_unsafe_links: !args.no_allow_unsafe_links,
+        enable_junction: args.enable_junction,
         out_dir: args.out_dir,
         to_stdout: false,
         filter,
@@ -581,6 +589,7 @@ impl OverwriteStrategy {
 pub(crate) struct OutputOption<'a> {
     pub(crate) overwrite_strategy: OverwriteStrategy,
     pub(crate) allow_unsafe_links: bool,
+    pub(crate) enable_junction: bool,
     pub(crate) out_dir: Option<PathBuf>,
     pub(crate) to_stdout: bool,
     pub(crate) filter: PathFilter<'a>,
@@ -1421,6 +1430,7 @@ pub(crate) fn extract_link_entry<'a, T>(
     OutputOption {
         overwrite_strategy,
         allow_unsafe_links,
+        enable_junction,
         out_dir,
         keep_options,
         pathname_editor,
@@ -1463,6 +1473,37 @@ where
             symlink_with_type(&original, &path, link_target_type)?;
         }
         EntryContent::HardLink(stored) => {
+            if is_encoded_junction(
+                item.header().data_kind(),
+                item.metadata().link_target_type(),
+            ) {
+                if !enable_junction {
+                    log::warn!(
+                        "Skipped extracting a Windows junction because junction support is disabled. Use `--unstable --enable-junction` to enable it."
+                    );
+                    return Ok(ExtractResult::SecuritySkipped);
+                }
+                let transformed = pathname_editor.edit_junction(Path::new(stored.as_str()));
+                let target_str = transformed.as_str();
+                if !allow_unsafe_links {
+                    log::warn!(
+                        "Skipped extracting a Windows junction: {} -> {}. If you need to extract it, use `--allow-unsafe-links`.",
+                        item.header().path(),
+                        target_str
+                    );
+                    return Ok(ExtractResult::SecuritySkipped);
+                }
+                if *safe_writes || remove_existing {
+                    utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
+                }
+                create_junction_or_fallback(&path, &transformed)?;
+
+                // Following metadata operations would modify the junction's external target.
+                restore_link_timestamps_no_follow(&path, item.metadata(), keep_options)?;
+                log::debug!("end: {}", path.display());
+                return Ok(ExtractResult::Extracted);
+            }
+
             let Some((original, had_root)) =
                 pathname_editor.edit_hardlink(Path::new(stored.as_str()))
             else {
@@ -2068,6 +2109,58 @@ fn symlink_with_type<P: AsRef<Path>, Q: AsRef<Path>>(
     _link_target_type: Option<LinkTargetType>,
 ) -> io::Result<()> {
     pna::fs::symlink(original, link)
+}
+
+/// Avoid resolving targets so dangling junctions remain extractable.
+fn create_junction_or_fallback(link: &Path, target: &EntryReference) -> io::Result<()> {
+    let target = target.as_str();
+    // Joining an empty target would point back to the link's parent.
+    if target.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("junction target for {} is empty", link.display()),
+        ));
+    }
+    #[cfg(windows)]
+    {
+        let raw = Path::new(target);
+        let absolute = if raw.is_absolute() {
+            raw.to_path_buf()
+        } else {
+            let base = link.parent().unwrap_or_else(|| Path::new("."));
+            std::path::absolute(base.join(raw))?
+        };
+        crate::utils::os::windows::fs::reparse::create_junction(link, &absolute)
+    }
+    #[cfg(not(windows))]
+    {
+        log::warn!(
+            "Creating symbolic link instead of Windows junction: {} -> {}",
+            link.display(),
+            target
+        );
+        pna::fs::symlink(target, link)
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
+#[inline]
+fn restore_link_timestamps_no_follow(
+    path: &Path,
+    metadata: &pna::Metadata,
+    keep_options: &KeepOptions,
+) -> io::Result<()> {
+    restore_path_timestamps(path, metadata, keep_options)
+}
+
+#[cfg(target_family = "wasm")]
+#[inline]
+fn restore_link_timestamps_no_follow(
+    _path: &Path,
+    _metadata: &pna::Metadata,
+    _keep_options: &KeepOptions,
+) -> io::Result<()> {
+    Ok(())
 }
 
 #[cfg(test)]

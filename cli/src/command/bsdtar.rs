@@ -133,6 +133,13 @@ pub(crate) struct BsdtarCommand {
         help = "Exclude files with the nodump flag"
     )]
     nodump: bool,
+    #[arg(
+        long,
+        requires = "unstable",
+        help_heading = "Unstable Options",
+        help = "Enable experimental handling of Windows junctions (directory hard links)"
+    )]
+    enable_junction: bool,
     #[arg(short = 'c', long, help = "Create archive")]
     create: bool,
     #[arg(short = 'x', long, help = "Extract archive")]
@@ -580,13 +587,13 @@ pub(crate) struct BsdtarCommand {
     to_stdout: bool,
     #[arg(
         long,
-        help = "Allow extracting symbolic or hard links containing root or parent paths (default)",
+        help = "Allow extracting symbolic links and hard links that contain root or parent paths (default); junctions also require --unstable --enable-junction",
         default_value_t = true
     )]
     allow_unsafe_links: bool,
     #[arg(
         long,
-        help = "Do not allow extracting symbolic links or hard links if either contains root or parent paths"
+        help = "Do not allow extracting symbolic links and hard links that contain root or parent paths, or Windows junctions"
     )]
     no_allow_unsafe_links: bool,
     #[arg(
@@ -912,6 +919,7 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
         keep_dir: !args.no_keep_dir,
         gitignore: args.gitignore,
         nodump: args.nodump,
+        enable_junction: args.enable_junction,
         follow_links: args.follow_links,
         follow_command_links: args.follow_command_links,
         one_file_system: args.one_file_system,
@@ -1081,6 +1089,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
     let out_option = OutputOption {
         overwrite_strategy,
         allow_unsafe_links: !args.no_allow_unsafe_links,
+        enable_junction: args.enable_junction,
         out_dir: args.out_dir,
         to_stdout: args.to_stdout,
         filter,
@@ -1374,6 +1383,7 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
         keep_dir: !args.no_keep_dir,
         gitignore: args.gitignore,
         nodump: args.nodump,
+        enable_junction: args.enable_junction,
         follow_links: args.follow_links,
         follow_command_links: args.follow_command_links,
         one_file_system: args.one_file_system,
@@ -1554,6 +1564,7 @@ fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
         keep_dir: !args.no_keep_dir,
         gitignore: args.gitignore,
         nodump: args.nodump,
+        enable_junction: args.enable_junction,
         follow_links: args.follow_links,
         follow_command_links: args.follow_command_links,
         one_file_system: args.one_file_system,
