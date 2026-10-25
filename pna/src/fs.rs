@@ -1,5 +1,7 @@
 //! PNA filesystem utilities.
-use std::{fs, io, os, path::Path};
+#[cfg(any(unix, windows, target_os = "wasi"))]
+use std::os;
+use std::{fs, io, path::Path};
 
 /// Creates a new symbolic link on the filesystem.
 ///
@@ -53,6 +55,13 @@ pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Resu
     #[cfg(target_os = "wasi")]
     fn inner(original: &Path, link: &Path) -> io::Result<()> {
         os::wasi::fs::symlink_path(original, link)
+    }
+    #[cfg(not(any(unix, windows, target_os = "wasi")))]
+    fn inner(_original: &Path, _link: &Path) -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "symlink is not supported on this platform",
+        ))
     }
     inner(original.as_ref(), link.as_ref())
 }
