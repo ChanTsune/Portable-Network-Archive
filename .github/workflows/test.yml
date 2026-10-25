@@ -180,7 +180,6 @@ jobs:
             --skip update::option_older_mtime:: \
             --skip update::option_older_mtime_than:: \
             --skip update::option_output:: \
-            --skip update::option_sync::update_with_sync \
             --skip update::option_unsolid:: \
             --skip update::path_transform::
           set +e
