@@ -4,7 +4,7 @@ mod missing_file;
 mod option_output;
 mod unsolid;
 
-use crate::utils::{EmbedExt, TestResources, archive, setup};
+use crate::utils::{EmbedExt, TestResources, archive, archive::SymlinkEntryDef, setup};
 use clap::Parser;
 use pna::Duration;
 use portable_network_archive::cli;
@@ -163,4 +163,123 @@ fn strip_keep_permission_preserves_owner_facets() {
     })
     .unwrap();
     assert_eq!(post_count, pre.len(), "strip should preserve all entries");
+}
+
+/// Precondition: An archive contains symlink entries with each link target type and one without, all carrying permission metadata.
+/// Action: Run `pna strip` with no preservation options.
+/// Expectation: Link target types are preserved exactly; permissions are removed.
+#[test]
+fn strip_preserves_link_target_type() {
+    setup();
+    let path = "strip_link_target_type.pna";
+    archive::create_archive_with_symlinks(
+        path,
+        &[],
+        &[
+            SymlinkEntryDef {
+                path: "link_to_file",
+                target: "file.txt",
+                permission: Some(0o777),
+                modified: None,
+                accessed: None,
+                created: None,
+                link_target_type: Some(pna::LinkTargetType::File),
+            },
+            SymlinkEntryDef {
+                path: "link_to_dir",
+                target: "dir",
+                permission: Some(0o777),
+                modified: None,
+                accessed: None,
+                created: None,
+                link_target_type: Some(pna::LinkTargetType::Directory),
+            },
+            SymlinkEntryDef {
+                path: "link_unknown",
+                target: "unknown",
+                permission: Some(0o777),
+                modified: None,
+                accessed: None,
+                created: None,
+                link_target_type: Some(pna::LinkTargetType::Unknown),
+            },
+            SymlinkEntryDef {
+                path: "link_without_type",
+                target: "untyped",
+                permission: Some(0o777),
+                modified: None,
+                accessed: None,
+                created: None,
+                link_target_type: None,
+            },
+        ],
+    )
+    .unwrap();
+
+    let mut pre = Vec::new();
+    archive::for_each_entry(path, |entry| {
+        pre.push((
+            entry.header().path().to_string(),
+            entry.metadata().link_target_type(),
+            entry.metadata().permission_mode().map(|m| m.get()),
+        ));
+    })
+    .unwrap();
+    assert_eq!(
+        pre,
+        [
+            (
+                "link_to_file".to_string(),
+                Some(pna::LinkTargetType::File),
+                Some(0o777),
+            ),
+            (
+                "link_to_dir".to_string(),
+                Some(pna::LinkTargetType::Directory),
+                Some(0o777),
+            ),
+            (
+                "link_unknown".to_string(),
+                Some(pna::LinkTargetType::Unknown),
+                Some(0o777),
+            ),
+            ("link_without_type".to_string(), None, Some(0o777)),
+        ]
+    );
+
+    cli::Cli::try_parse_from(["pna", "--quiet", "strip", "-f", path])
+        .unwrap()
+        .execute()
+        .unwrap();
+
+    let mut post = Vec::new();
+    archive::for_each_entry(path, |entry| {
+        post.push((
+            entry.header().path().to_string(),
+            entry.metadata().link_target_type(),
+            entry.metadata().permission_mode().map(|m| m.get()),
+        ));
+    })
+    .unwrap();
+    assert_eq!(
+        post,
+        [
+            (
+                "link_to_file".to_string(),
+                Some(pna::LinkTargetType::File),
+                None,
+            ),
+            (
+                "link_to_dir".to_string(),
+                Some(pna::LinkTargetType::Directory),
+                None,
+            ),
+            (
+                "link_unknown".to_string(),
+                Some(pna::LinkTargetType::Unknown),
+                None,
+            ),
+            ("link_without_type".to_string(), None, None),
+        ]
+    );
 }

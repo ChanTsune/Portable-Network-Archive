@@ -140,7 +140,7 @@ where
     T: Clone,
     RawChunk<T>: Chunk,
 {
-    let mut metadata = Metadata::new();
+    let mut metadata = Metadata::new().with_link_target_type(entry.metadata().link_target_type());
     if options.keep_permission {
         let own = crate::ext::ResolvedOwnership::from_metadata(entry.metadata());
         metadata =
