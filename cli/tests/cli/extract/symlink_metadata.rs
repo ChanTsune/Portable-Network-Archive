@@ -168,9 +168,10 @@ fn extract_symlink_with_keep_timestamp() {
         fs::read_link(&link_path).unwrap(),
         PathBuf::from("target.txt"),
     );
-    // WASM does not support path-based timestamp restoration (filetime crate
-    // limitation); restore_path_timestamps is gated out for wasm targets.
-    #[cfg(not(target_family = "wasm"))]
+    // WASM targets other than emscripten do not support path-based timestamp
+    // restoration (filetime crate limitation); restore_path_timestamps is
+    // gated out for those targets.
+    #[cfg(any(not(target_family = "wasm"), target_os = "emscripten"))]
     {
         use std::time::{Duration as StdDuration, SystemTime};
         let link_mtime = fs::symlink_metadata(&link_path)
@@ -291,9 +292,10 @@ fn extract_broken_symlink_with_keep_timestamp() {
         fs::read_link(&link_path).unwrap(),
         PathBuf::from("nonexistent"),
     );
-    // WASM does not support path-based timestamp restoration (filetime crate
-    // limitation); restore_path_timestamps is gated out for wasm targets.
-    #[cfg(not(target_family = "wasm"))]
+    // WASM targets other than emscripten do not support path-based timestamp
+    // restoration (filetime crate limitation); restore_path_timestamps is
+    // gated out for those targets.
+    #[cfg(any(not(target_family = "wasm"), target_os = "emscripten"))]
     {
         use std::time::{Duration as StdDuration, SystemTime};
         let link_mtime = fs::symlink_metadata(&link_path)
@@ -363,9 +365,10 @@ fn extract_symlink_with_partial_timestamps() {
     let link_path = PathBuf::from(format!("{base}/out/link.txt"));
     assert!(link_path.is_symlink());
 
-    // WASM does not support path-based timestamp restoration (filetime crate
-    // limitation); restore_path_timestamps is gated out for wasm targets.
-    #[cfg(not(target_family = "wasm"))]
+    // WASM targets other than emscripten do not support path-based timestamp
+    // restoration (filetime crate limitation); restore_path_timestamps is
+    // gated out for those targets.
+    #[cfg(any(not(target_family = "wasm"), target_os = "emscripten"))]
     {
         use std::time::{Duration as StdDuration, SystemTime};
         let link_meta = fs::symlink_metadata(&link_path).unwrap();
