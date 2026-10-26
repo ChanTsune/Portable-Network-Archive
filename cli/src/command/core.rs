@@ -1890,7 +1890,7 @@ pub(crate) fn read_paths_stdin(nul: bool) -> io::Result<Vec<String>> {
 ///
 /// On Unix systems (excluding Fuchsia), this changes the root directory to the
 /// current directory and resets the working directory to `/`.
-/// On other platforms, a warning is emitted since chroot is unsupported.
+/// On other platforms, an error is returned since chroot is unsupported.
 #[allow(unused_variables)]
 pub(crate) fn apply_chroot(chroot: bool) -> anyhow::Result<()> {
     if !chroot {
@@ -1904,12 +1904,16 @@ pub(crate) fn apply_chroot(chroot: bool) -> anyhow::Result<()> {
         )
         .with_context(|| "chroot into current directory")?;
         std::env::set_current_dir("/").with_context(|| "changing directory to / after chroot")?;
+        Ok(())
     }
     #[cfg(not(all(unix, not(target_os = "fuchsia"))))]
     {
-        log::warn!("chroot not supported on this platform");
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "chroot not supported on this platform",
+        )
+        .into())
     }
-    Ok(())
 }
 
 /// Transforms entries from a source archive, applying path and ownership transformations.
@@ -2259,6 +2263,17 @@ mod tests {
                 MissingTimePolicy::Include,
             ),
         }
+    }
+
+    #[cfg(not(all(unix, not(target_os = "fuchsia"))))]
+    #[test]
+    fn apply_chroot_is_unsupported_on_this_platform() {
+        assert!(apply_chroot(false).is_ok());
+
+        let err = apply_chroot(true).unwrap_err();
+        let io_err = err.downcast_ref::<io::Error>().unwrap();
+        assert_eq!(io_err.kind(), io::ErrorKind::Unsupported);
+        assert_eq!(io_err.to_string(), "chroot not supported on this platform");
     }
 
     #[test]
