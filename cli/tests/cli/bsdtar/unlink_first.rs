@@ -176,6 +176,49 @@ fn unlink_first_replaces_existing_regular_file_without_overwrite() {
     assert_eq!(fs::read_to_string(dist.join("file.txt")).unwrap(), "fresh");
 }
 
+/// Precondition: A regular file already exists at a parent path of the archive entry.
+/// Action: Extract with `-U -k` (unlink-first + keep-old-files).
+/// Expectation: The blocking regular file is replaced by a directory and the entry is extracted.
+#[test]
+fn unlink_first_with_keep_old_files_replaces_parent_file() {
+    setup();
+
+    let root = PathBuf::from("bsdtar_unlink_first_parent_file");
+    let archive_path = root.join("archive.pna");
+    build_single_file_archive(&archive_path, "dir/file.txt", "from_archive");
+
+    let dist = root.join("dist");
+    fs::create_dir_all(&dist).unwrap();
+    let blocking = dist.join("dir");
+    if blocking.symlink_metadata().is_ok() {
+        pna_fs::remove_path_all(&blocking).unwrap();
+    }
+    fs::write(&blocking, "existing").unwrap();
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "compat",
+            "bsdtar",
+            "--extract",
+            "--unstable",
+            "--unlink-first",
+            "--keep-old-files",
+            "--file",
+            archive_path.to_str().unwrap(),
+            "--out-dir",
+            dist.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    assert!(dist.join("dir").is_dir());
+    assert_eq!(
+        fs::read_to_string(dist.join("dir/file.txt")).unwrap(),
+        "from_archive",
+    );
+}
+
 /// Precondition: A regular file already exists at the extraction target.
 /// Action: Extract with `-U -k` (unlink-first + keep-old-files).
 /// Expectation: The existing file is replaced (bsdtar compat: unlink runs before keep-old check).

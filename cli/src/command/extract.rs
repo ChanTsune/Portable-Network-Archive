@@ -1156,6 +1156,33 @@ enum ExtractionDecision {
     Skip,
 }
 
+/// Finds an ancestor of `path` that blocks extraction because it exists as
+/// a non-directory. Symlink ancestors are left to
+/// [`ensure_directory_components`], which applies the secure-symlink policy,
+/// and roots are not probed for the same reason as there (a bare verbatim
+/// prefix does not address a directory).
+fn blocking_ancestor(path: &Path) -> io::Result<Option<PathBuf>> {
+    let Some(parent) = path.parent() else {
+        return Ok(None);
+    };
+    let mut ancestors = parent.ancestors().collect::<Vec<_>>();
+    ancestors.reverse();
+    for ancestor in ancestors {
+        if ancestor.as_os_str().is_empty() || ancestor.parent().is_none() {
+            continue;
+        }
+        match fs::symlink_metadata(ancestor) {
+            Ok(meta) if meta.is_dir() || meta.file_type().is_symlink() => {}
+            Ok(_) => return Ok(Some(ancestor.to_path_buf())),
+            Err(err)
+                if err.kind() == io::ErrorKind::NotFound
+                    || err.kind() == io::ErrorKind::NotADirectory => {}
+            Err(err) => return Err(err),
+        }
+    }
+    Ok(None)
+}
+
 /// Checks overwrite strategy and prepares the target path for extraction.
 ///
 /// This function:
@@ -1183,6 +1210,35 @@ where
         Err(err) if err.kind() == io::ErrorKind::NotADirectory => None,
         Err(err) => return Err(err),
     };
+
+    if metadata.is_none()
+        && let Some(blocking) = blocking_ancestor(path)?
+    {
+        match overwrite_strategy {
+            OverwriteStrategy::Never if !unlink_first => {
+                return Err(io::Error::new(
+                    io::ErrorKind::AlreadyExists,
+                    format!("{} already exists", blocking.display()),
+                ));
+            }
+            OverwriteStrategy::KeepOlder if !unlink_first => {
+                log::debug!(
+                    "Skipped extracting {}: existing one kept by --keep-older",
+                    path.display()
+                );
+                return Ok(ExtractionDecision::Skip);
+            }
+            OverwriteStrategy::KeepNewer if !unlink_first => {
+                log::debug!(
+                    "Skipped extracting {}: {} already exists and is not the entry itself",
+                    path.display(),
+                    blocking.display()
+                );
+                return Ok(ExtractionDecision::Skip);
+            }
+            _ => (),
+        }
+    }
 
     if let Some(existing) = &metadata {
         match overwrite_strategy {
@@ -1240,7 +1296,12 @@ where
     }
 
     if let Some(parent) = path.parent() {
-        ensure_directory_components(parent, unlink_first, secure_symlinks)?;
+        ensure_directory_components(
+            parent,
+            unlink_first,
+            secure_symlinks,
+            matches!(overwrite_strategy, OverwriteStrategy::Always),
+        )?;
     }
 
     // Handle type conflicts (symlink blocking file, file blocking directory)
@@ -1300,7 +1361,15 @@ where
         return Ok(false);
     };
 
-    ensure_directory_components(&path, args.unlink_first, secure_symlinks)?;
+    ensure_directory_components(
+        &path,
+        args.unlink_first,
+        secure_symlinks,
+        matches!(
+            args.overwrite_strategy,
+            OverwriteStrategy::Always | OverwriteStrategy::KeepNewer
+        ),
+    )?;
     Ok(true)
 }
 
@@ -1935,6 +2004,7 @@ fn ensure_directory_components(
     path: &Path,
     unlink_first: bool,
     secure_symlinks: bool,
+    replace_existing: bool,
 ) -> io::Result<()> {
     if path.as_os_str().is_empty() {
         return Ok(());
@@ -1992,7 +2062,7 @@ fn ensure_directory_components(
                 }
                 if unlink_first {
                     utils::fs::remove_path_all(&current)?;
-                } else {
+                } else if replace_existing {
                     match utils::fs::remove_path(&current) {
                         Ok(()) => {}
                         Err(e) if e.kind() == io::ErrorKind::NotFound => {}
@@ -2000,6 +2070,11 @@ fn ensure_directory_components(
                         Err(e) if e.kind() == io::ErrorKind::IsADirectory => continue,
                         Err(e) => return Err(e),
                     }
+                } else {
+                    return Err(io::Error::new(
+                        io::ErrorKind::AlreadyExists,
+                        format!("{} already exists", current.display()),
+                    ));
                 }
             }
             Err(err) if err.kind() == io::ErrorKind::NotFound => {}
