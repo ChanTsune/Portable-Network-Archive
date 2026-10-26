@@ -1,14 +1,15 @@
-/// Returns true if the current process is running as Unix root.
+/// Returns true if the current process is running as root or Administrator.
 ///
 /// - Unix: Returns true if effective UID is 0 (root)
-/// - Other platforms: Returns false (bsdtar compatibility)
-///
-/// bsdtar excludes root-specific permission defaults from non-POSIX builds
-/// via `#ifndef _WIN32` (see libarchive/tar/bsdtar.c).
+/// - Windows: Returns true if the process token is elevated
+/// - Other platforms: Returns false
 #[cfg(unix)]
 pub(crate) use crate::utils::os::unix::process::is_running_as_root;
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+pub(crate) use crate::utils::os::windows::process::is_running_as_root;
+
+#[cfg(not(any(unix, windows)))]
 pub(crate) fn is_running_as_root() -> bool {
     false
 }
