@@ -1560,11 +1560,13 @@ fn restore_timestamps(
 ///
 /// Uses `filetime::set_symlink_file_times` which does not follow symlinks,
 /// making it suitable for entries where an open file handle is not available.
+/// On emscripten, where that function always returns an error, `utimensat`
+/// is called directly instead (see `set_symlink_file_times` below).
 ///
 /// Note: creation time cannot be set via this API and is silently skipped.
 /// On macOS/Windows, this means non-file entries lose their creation timestamp
 /// — a limitation of the `filetime` crate's path-based interface.
-#[cfg(not(target_family = "wasm"))]
+#[cfg(any(not(target_family = "wasm"), target_os = "emscripten"))]
 #[inline]
 fn restore_path_timestamps(
     path: &Path,
@@ -1599,18 +1601,62 @@ fn restore_path_timestamps(
             } else {
                 (None, None)
             };
-            filetime::set_symlink_file_times(
-                path,
-                atime
-                    .or(fallback_atime)
-                    .unwrap_or(filetime::FileTime::zero()),
-                mtime
-                    .or(fallback_mtime)
-                    .unwrap_or(filetime::FileTime::zero()),
-            )?;
+            let atime = atime
+                .or(fallback_atime)
+                .unwrap_or(filetime::FileTime::zero());
+            let mtime = mtime
+                .or(fallback_mtime)
+                .unwrap_or(filetime::FileTime::zero());
+            #[cfg(not(target_os = "emscripten"))]
+            filetime::set_symlink_file_times(path, atime, mtime)?;
+            #[cfg(target_os = "emscripten")]
+            set_symlink_file_times(path, atime, mtime)?;
         }
     }
     Ok(())
+}
+
+/// Sets timestamps on a path without following symlinks, on emscripten.
+///
+/// `filetime::set_symlink_file_times` unconditionally returns an error on
+/// emscripten ("emscripten does not support utimensat for symlinks"), but
+/// `utimensat` with `AT_SYMLINK_NOFOLLOW` itself is supported there, so it
+/// is called directly with the same arguments `filetime` uses on the other
+/// unix targets.
+#[cfg(target_os = "emscripten")]
+fn set_symlink_file_times(
+    path: &Path,
+    atime: filetime::FileTime,
+    mtime: filetime::FileTime,
+) -> io::Result<()> {
+    use std::os::unix::ffi::OsStrExt;
+    let path = std::ffi::CString::new(path.as_os_str().as_bytes())?;
+    let times = [
+        libc::timespec {
+            tv_sec: atime.unix_seconds() as _,
+            tv_nsec: atime.nanoseconds() as _,
+        },
+        libc::timespec {
+            tv_sec: mtime.unix_seconds() as _,
+            tv_nsec: mtime.nanoseconds() as _,
+        },
+    ];
+    // SAFETY: `path` is a NUL-terminated C string that outlives the call and
+    // `times` points to an array of two valid `timespec`s, as `utimensat`
+    // requires for an `AT_FDCWD`-relative path update.
+    let rc = unsafe {
+        libc::utimensat(
+            libc::AT_FDCWD,
+            path.as_ptr(),
+            times.as_ptr(),
+            libc::AT_SYMLINK_NOFOLLOW,
+        )
+    };
+    if rc == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
 }
 
 /// Restores entry metadata according to the provided keep options.
@@ -1628,8 +1674,9 @@ fn restore_metadata<T>(
 where
     T: AsRef<[u8]>,
 {
-    // On WASM, path-based timestamp restoration is not supported (filetime limitation).
-    #[cfg(not(target_family = "wasm"))]
+    // On WASM targets other than emscripten, path-based timestamp restoration
+    // is not supported (filetime limitation).
+    #[cfg(any(not(target_family = "wasm"), target_os = "emscripten"))]
     if item.header().data_kind() != DataKind::FILE {
         restore_path_timestamps(path, item.metadata(), keep_options)?;
     }
