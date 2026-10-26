@@ -65,6 +65,7 @@ nix = { version = "0.31.3", features = ["user", "fs", "ioctl"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62.2", features = [
+  "Win32_NetworkManagement_NetManagement",
   "Win32_Storage_FileSystem",
   "Win32_Security_Authorization",
   "Win32_System_WindowsProgramming",
