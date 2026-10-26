@@ -1093,17 +1093,17 @@ pub(crate) fn build_entry_metadata(
         let uid = options.uid.unwrap_or(meta.uid());
         let gid = options.gid.unwrap_or(meta.gid());
         let uname = match &options.uname {
-            None => User::from_uid(uid.into())?
-                .name()
-                .unwrap_or_default()
-                .into(),
+            None => User::from_uid(uid.into())
+                .ok()
+                .and_then(|user| user.name().map(String::from))
+                .unwrap_or_default(),
             Some(uname) => uname.clone(),
         };
         let gname = match &options.gname {
-            None => Group::from_gid(gid.into())?
-                .name()
-                .unwrap_or_default()
-                .into(),
+            None => Group::from_gid(gid.into())
+                .ok()
+                .and_then(|group| group.name().map(String::from))
+                .unwrap_or_default(),
             Some(gname) => gname.clone(),
         };
         metadata = metadata
