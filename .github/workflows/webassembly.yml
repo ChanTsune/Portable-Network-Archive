@@ -48,10 +48,10 @@ jobs:
           - target: wasm32-unknown-unknown
             runner: ubuntu-24.04-arm
           - target: wasm32-wasip1
-            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-32@sha256:0bf7518ff1f5270bdc5834c9da8ca36c3d66b9cb54d3d9a9dac460138fec8d0c
+            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-33@sha256:60929fb57ac2d172560cc8fb2926831efac6b2a9ca88066bbfd91a15bbee2ed0
             runner: ubuntu-24.04-arm
           - target: wasm32-wasip2
-            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-32@sha256:0bf7518ff1f5270bdc5834c9da8ca36c3d66b9cb54d3d9a9dac460138fec8d0c
+            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-33@sha256:60929fb57ac2d172560cc8fb2926831efac6b2a9ca88066bbfd91a15bbee2ed0
             runner: ubuntu-24.04-arm
 
     runs-on: ${{ matrix.runner }}
