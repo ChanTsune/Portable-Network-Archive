@@ -307,56 +307,73 @@ pub(crate) fn set_flags(path: &Path, flags: &[String]) -> io::Result<()> {
     Ok(())
 }
 
-// FreeBSD file flags (same API as macOS, BSD heritage)
+// BSD file flags (same API as macOS, BSD heritage)
 // Reference: https://man.freebsd.org/cgi/man.cgi?query=chflags&sektion=2
-#[cfg(target_os = "freebsd")]
+#[cfg(any(
+    target_os = "freebsd",
+    target_os = "dragonfly",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
 pub(crate) fn get_flags(path: &Path) -> io::Result<Vec<String>> {
     use nix::sys::stat::lstat;
 
     let stat = lstat(path)?;
-    let flags = stat.st_flags as libc::c_ulong;
+    // `st_flags` is `u32` on all of these systems, while the `UF_*`/`SF_*`
+    // constants are `c_ulong` except on OpenBSD, where they are `c_uint`.
+    let flags = stat.st_flags;
 
     let mut flag_names = Vec::new();
 
-    if flags & libc::UF_NODUMP != 0 {
+    if flags & libc::UF_NODUMP as u32 != 0 {
         flag_names.push("nodump".to_string());
     }
-    if flags & libc::UF_IMMUTABLE != 0 {
+    if flags & libc::UF_IMMUTABLE as u32 != 0 {
         flag_names.push("uchg".to_string());
     }
-    if flags & libc::UF_APPEND != 0 {
+    if flags & libc::UF_APPEND as u32 != 0 {
         flag_names.push("uappnd".to_string());
     }
-    if flags & libc::UF_OPAQUE != 0 {
+    if flags & libc::UF_OPAQUE as u32 != 0 {
         flag_names.push("opaque".to_string());
     }
-    if flags & libc::UF_NOUNLINK != 0 {
+    #[cfg(any(target_os = "freebsd", target_os = "dragonfly"))]
+    if flags & libc::UF_NOUNLINK as u32 != 0 {
         flag_names.push("uunlnk".to_string());
     }
-    if flags & libc::SF_ARCHIVED != 0 {
+    if flags & libc::SF_ARCHIVED as u32 != 0 {
         flag_names.push("archived".to_string());
     }
-    if flags & libc::SF_IMMUTABLE != 0 {
+    if flags & libc::SF_IMMUTABLE as u32 != 0 {
         flag_names.push("schg".to_string());
     }
-    if flags & libc::SF_APPEND != 0 {
+    if flags & libc::SF_APPEND as u32 != 0 {
         flag_names.push("sappnd".to_string());
     }
-    if flags & libc::SF_NOUNLINK != 0 {
+    #[cfg(any(target_os = "freebsd", target_os = "dragonfly"))]
+    if flags & libc::SF_NOUNLINK as u32 != 0 {
         flag_names.push("sunlnk".to_string());
     }
 
     Ok(flag_names)
 }
 
-/// Sets file flags on FreeBSD.
+/// Sets file flags on BSD systems.
 ///
 /// Note: This implementation overwrites all existing flags rather than merging them, which
 /// matches libarchive/bsdtar behavior. libarchive directly calls `chflags()` on BSD systems;
 /// `chflags()` replaces all flags, while on Linux it uses ioctl to read current flags first
 /// and merge them. This cross-platform inconsistency exists in bsdtar itself.
 /// See: https://github.com/libarchive/libarchive/blob/master/libarchive/archive_write_disk_posix.c
-#[cfg(target_os = "freebsd")]
+///
+/// OpenBSD has no `lchflags()`, so it uses `chflagsat()` with
+/// `AT_SYMLINK_NOFOLLOW` to avoid following symlinks instead.
+#[cfg(any(
+    target_os = "freebsd",
+    target_os = "dragonfly",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
 pub(crate) fn set_flags(path: &Path, flags: &[String]) -> io::Result<()> {
     use std::os::unix::ffi::OsStrExt;
 
@@ -365,25 +382,38 @@ pub(crate) fn set_flags(path: &Path, flags: &[String]) -> io::Result<()> {
     }
 
     let c_path = std::ffi::CString::new(path.as_os_str().as_bytes())?;
-    let mut flag_bits: libc::c_ulong = 0;
+    let mut flag_bits: u32 = 0;
 
     for flag in flags {
         match flag.as_str() {
-            "nodump" => flag_bits |= libc::UF_NODUMP as libc::c_ulong,
-            "uchg" | "uimmutable" => flag_bits |= libc::UF_IMMUTABLE as libc::c_ulong,
-            "uappnd" | "uappend" => flag_bits |= libc::UF_APPEND as libc::c_ulong,
-            "opaque" => flag_bits |= libc::UF_OPAQUE as libc::c_ulong,
-            "uunlnk" => flag_bits |= libc::UF_NOUNLINK as libc::c_ulong,
-            "archived" => flag_bits |= libc::SF_ARCHIVED as libc::c_ulong,
-            "schg" | "simmutable" => flag_bits |= libc::SF_IMMUTABLE as libc::c_ulong,
-            "sappnd" | "sappend" => flag_bits |= libc::SF_APPEND as libc::c_ulong,
-            "sunlnk" => flag_bits |= libc::SF_NOUNLINK as libc::c_ulong,
+            "nodump" => flag_bits |= libc::UF_NODUMP as u32,
+            "uchg" | "uimmutable" => flag_bits |= libc::UF_IMMUTABLE as u32,
+            "uappnd" | "uappend" => flag_bits |= libc::UF_APPEND as u32,
+            "opaque" => flag_bits |= libc::UF_OPAQUE as u32,
+            #[cfg(any(target_os = "freebsd", target_os = "dragonfly"))]
+            "uunlnk" => flag_bits |= libc::UF_NOUNLINK as u32,
+            "archived" => flag_bits |= libc::SF_ARCHIVED as u32,
+            "schg" | "simmutable" => flag_bits |= libc::SF_IMMUTABLE as u32,
+            "sappnd" | "sappend" => flag_bits |= libc::SF_APPEND as u32,
+            #[cfg(any(target_os = "freebsd", target_os = "dragonfly"))]
+            "sunlnk" => flag_bits |= libc::SF_NOUNLINK as u32,
             // Ignore Linux-specific flags (noatime, compr, nocow)
             _ => {}
         }
     }
 
-    if unsafe { libc::lchflags(c_path.as_ptr(), flag_bits) } != 0 {
+    #[cfg(not(target_os = "openbsd"))]
+    let result = unsafe { libc::lchflags(c_path.as_ptr(), flag_bits as _) };
+    #[cfg(target_os = "openbsd")]
+    let result = unsafe {
+        libc::chflagsat(
+            libc::AT_FDCWD,
+            c_path.as_ptr(),
+            flag_bits,
+            libc::AT_SYMLINK_NOFOLLOW,
+        )
+    };
+    if result != 0 {
         return Err(io::Error::last_os_error());
     }
 

@@ -84,7 +84,10 @@ pub(crate) fn get_flags<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> {
         target_os = "macos",
         target_os = "linux",
         target_os = "android",
-        target_os = "freebsd"
+        target_os = "freebsd",
+        target_os = "dragonfly",
+        target_os = "netbsd",
+        target_os = "openbsd"
     ))]
     fn inner(path: &Path) -> io::Result<Vec<String>> {
         crate::utils::os::unix::fs::get_flags(path)
@@ -93,10 +96,16 @@ pub(crate) fn get_flags<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> {
         target_os = "macos",
         target_os = "linux",
         target_os = "android",
-        target_os = "freebsd"
+        target_os = "freebsd",
+        target_os = "dragonfly",
+        target_os = "netbsd",
+        target_os = "openbsd"
     )))]
     fn inner(_path: &Path) -> io::Result<Vec<String>> {
-        Ok(Vec::new())
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "file flags are not supported on this platform",
+        ))
     }
     inner(path.as_ref())
 }
@@ -106,7 +115,10 @@ pub(crate) fn set_flags<P: AsRef<Path>>(path: P, flags: &[String]) -> io::Result
         target_os = "macos",
         target_os = "linux",
         target_os = "android",
-        target_os = "freebsd"
+        target_os = "freebsd",
+        target_os = "dragonfly",
+        target_os = "netbsd",
+        target_os = "openbsd"
     ))]
     fn inner(path: &Path, flags: &[String]) -> io::Result<()> {
         crate::utils::os::unix::fs::set_flags(path, flags)
@@ -115,10 +127,16 @@ pub(crate) fn set_flags<P: AsRef<Path>>(path: P, flags: &[String]) -> io::Result
         target_os = "macos",
         target_os = "linux",
         target_os = "android",
-        target_os = "freebsd"
+        target_os = "freebsd",
+        target_os = "dragonfly",
+        target_os = "netbsd",
+        target_os = "openbsd"
     )))]
     fn inner(_path: &Path, _flags: &[String]) -> io::Result<()> {
-        Ok(())
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "file flags are not supported on this platform",
+        ))
     }
     inner(path.as_ref(), flags)
 }

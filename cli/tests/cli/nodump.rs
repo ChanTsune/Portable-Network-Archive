@@ -1,31 +1,74 @@
-#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd"))]
+#[cfg(any(
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd",
+    target_os = "dragonfly"
+))]
 use crate::utils::{archive, setup};
-#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd"))]
+#[cfg(any(
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd",
+    target_os = "dragonfly"
+))]
 use clap::Parser;
-#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd"))]
+#[cfg(any(
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd",
+    target_os = "dragonfly"
+))]
 use portable_network_archive::cli;
-#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd"))]
-use std::{fs, path::Path, process::Command as StdCommand};
+#[cfg(any(
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd",
+    target_os = "dragonfly"
+))]
+use std::{fs, path::Path, process::Command as StdCommand, sync::OnceLock};
 
-#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd"))]
+#[cfg(any(
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd",
+    target_os = "dragonfly"
+))]
 mod platform {
     use super::*;
 
     /// Checks if nodump is supported in the current working directory.
     /// Must be called after setup() to test in the actual test directory.
+    /// The probe runs once per process and the result is cached, so tests
+    /// running in parallel cannot race on the shared probe directory.
     fn is_nodump_supported() -> bool {
-        let test_dir = Path::new("pna_nodump_check");
-        let _ = fs::remove_dir_all(test_dir);
+        static NODUMP_SUPPORTED: OnceLock<bool> = OnceLock::new();
+        *NODUMP_SUPPORTED.get_or_init(|| {
+            let test_dir = Path::new("pna_nodump_check");
+            let _ = fs::remove_dir_all(test_dir);
 
-        let result = (|| -> std::io::Result<()> {
-            fs::create_dir_all(test_dir)?;
-            let test_file = test_dir.join("test.txt");
-            fs::write(&test_file, "test")?;
-            try_set_nodump(&test_file).map_err(std::io::Error::other)
-        })();
+            let result = (|| -> std::io::Result<()> {
+                fs::create_dir_all(test_dir)?;
+                let test_file = test_dir.join("test.txt");
+                fs::write(&test_file, "test")?;
+                try_set_nodump(&test_file).map_err(std::io::Error::other)
+            })();
 
-        let _ = fs::remove_dir_all(test_dir);
-        result.is_ok()
+            let _ = fs::remove_dir_all(test_dir);
+            if let Err(e) = &result {
+                eprintln!("nodump probe failed: {e}");
+            }
+            result.is_ok()
+        })
     }
 
     #[cfg(target_os = "linux")]
@@ -40,7 +83,13 @@ mod platform {
         }
     }
 
-    #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+    #[cfg(any(
+        target_os = "macos",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd",
+        target_os = "dragonfly"
+    ))]
     fn try_set_nodump(path: &Path) -> Result<(), String> {
         match StdCommand::new("chflags").arg("nodump").arg(path).output() {
             Ok(output) if output.status.success() => Ok(()),
@@ -62,7 +111,13 @@ mod platform {
         assert!(status.success());
     }
 
-    #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+    #[cfg(any(
+        target_os = "macos",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd",
+        target_os = "dragonfly"
+    ))]
     fn set_nodump(path: &Path) {
         let status = StdCommand::new("chflags")
             .arg("nodump")
