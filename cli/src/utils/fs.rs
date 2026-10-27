@@ -4,7 +4,7 @@ mod owner;
 
 #[cfg(windows)]
 use crate::utils::os::windows;
-pub(crate) use file_id::HardlinkResolver;
+pub(crate) use file_id::{HardlinkResolver, is_same_file};
 pub(crate) use nodump::is_nodump;
 pub(crate) use owner::*;
 pub(crate) use pna::fs::*;
