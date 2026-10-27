@@ -1666,6 +1666,10 @@ fn set_symlink_file_times(
 /// - Ownership is restored via `lchown` when `owner_strategy` is `Preserve` (does not follow symlinks)
 /// - Mode bits are restored when `mode_strategy` is `Preserve`, but skipped for symlinks since
 ///   `chmod()` follows symlinks and would corrupt the target's permissions
+/// - Directory metadata is restored only when the path is still a directory when the
+///   restoration runs; a directory entry whose path was replaced by a later entry (for
+///   example a symlink) has its deferred restoration skipped instead of applying the
+///   directory's metadata through the replacement, mirroring libarchive's fixup list
 fn restore_metadata<T>(
     item: &NormalEntry<T>,
     path: &Path,
@@ -1674,6 +1678,11 @@ fn restore_metadata<T>(
 where
     T: AsRef<[u8]>,
 {
+    if item.header().data_kind() == DataKind::DIRECTORY
+        && !matches!(fs::symlink_metadata(path), Ok(metadata) if metadata.is_dir())
+    {
+        return Ok(());
+    }
     // On WASM targets other than emscripten, path-based timestamp restoration
     // is not supported (filetime limitation).
     #[cfg(any(not(target_family = "wasm"), target_os = "emscripten"))]
