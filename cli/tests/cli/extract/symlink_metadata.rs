@@ -590,3 +590,69 @@ fn extract_deferred_directory_permission_does_not_leak_through_symlink_to_direct
         & 0o777;
     assert_eq!(target_mode, 0o700, "target dir should remain 0o700");
 }
+
+/// Precondition: Archive contains a file entry and a symlink entry pointing
+/// at it, each carrying its own extended attributes.
+/// Action: Extract with `--keep-xattr`.
+/// Expectation: Extraction succeeds. The file keeps its own xattr, the
+/// symlink entry's xattr does not appear on the file, and the symlink itself
+/// is extracted as a symlink to the file. On platforms such as Linux, where a
+/// symlink cannot carry `user.*` xattrs, failing to restore the symlink's
+/// xattrs must not fail the extraction.
+#[cfg(unix)]
+#[test]
+fn extract_symlink_xattr_does_not_fail_or_leak_to_target() {
+    use crate::utils::fs_supports_xattr;
+    use std::io::Write;
+
+    setup();
+    let base = "extract_symlink_xattr";
+    let archive_path = format!("{base}/{base}.pna");
+    fs::create_dir_all(base).unwrap();
+    fs::write(format!("{base}/probe"), b"probe").unwrap();
+    skip_unless!("xattr", fs_supports_xattr(format!("{base}/probe")));
+
+    let file = fs::File::create(&archive_path).unwrap();
+    let mut archive = pna::Archive::write_header(file).unwrap();
+    let mut file_builder = pna::FileEntryBuilder::new("target.txt".into()).unwrap();
+    file_builder.metadata(
+        pna::Metadata::new().with_xattrs(vec![archive::xattr("user.file", b"file-value")]),
+    );
+    file_builder.write_all(b"content").unwrap();
+    archive.add_entry(file_builder.build().unwrap()).unwrap();
+    let mut symlink_builder =
+        pna::SymlinkEntryBuilder::new("link.txt".into(), "target.txt".into()).unwrap();
+    symlink_builder.metadata(
+        pna::Metadata::new().with_xattrs(vec![archive::xattr("user.symlink", b"symlink-value")]),
+    );
+    archive.add_entry(symlink_builder.build().unwrap()).unwrap();
+    archive.finalize().unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        &archive_path,
+        "--overwrite",
+        "--out-dir",
+        &format!("{base}/out"),
+        "--keep-xattr",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let out_target = PathBuf::from(format!("{base}/out/target.txt"));
+    let out_link = PathBuf::from(format!("{base}/out/link.txt"));
+    assert!(out_link.is_symlink());
+    assert_eq!(
+        fs::read_link(&out_link).unwrap(),
+        PathBuf::from("target.txt")
+    );
+    assert_eq!(
+        xattr::get(&out_target, "user.file").unwrap().as_deref(),
+        Some(b"file-value".as_slice())
+    );
+    assert_eq!(xattr::get(&out_target, "user.symlink").unwrap(), None);
+}
