@@ -1796,6 +1796,19 @@ where
                     e
                 );
             }
+            // A symlink cannot carry `user.*` xattrs on Linux, where
+            // `lsetxattr` fails with EPERM. That must not fail extraction of
+            // the symlink entry itself.
+            Err(e)
+                if item.header().data_kind() == DataKind::SYMBOLIC_LINK
+                    && e.kind() == io::ErrorKind::PermissionDenied =>
+            {
+                log::warn!(
+                    "Permission denied restoring extended attributes for symlink '{}': {}",
+                    path.display(),
+                    e
+                );
+            }
             Err(e) => return Err(e),
         }
     }
