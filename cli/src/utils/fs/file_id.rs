@@ -137,15 +137,6 @@ pub(crate) fn is_same_file(left: impl AsRef<Path>, right: impl AsRef<Path>) -> i
     Ok(left.is_same_object(&right))
 }
 
-#[cfg(all(target_os = "wasi", target_env = "p2"))]
-fn path_flags(follow_symlink: bool) -> wasi::filesystem::types::PathFlags {
-    if follow_symlink {
-        wasi::filesystem::types::PathFlags::SYMLINK_FOLLOW
-    } else {
-        wasi::filesystem::types::PathFlags::empty()
-    }
-}
-
 /// Path resolution against `wasi:filesystem` preopens for wasip2.
 ///
 /// Guest paths are not directly usable with the descriptor-relative
@@ -158,10 +149,11 @@ fn path_flags(follow_symlink: bool) -> wasi::filesystem::types::PathFlags {
 #[cfg(all(target_os = "wasi", target_env = "p2"))]
 mod preopen {
     use super::io;
+    use std::borrow::Cow;
     use std::path::Path;
     use wasi::filesystem::{
         preopens::get_directories,
-        types::{Descriptor, DescriptorFlags, ErrorCode, OpenFlags},
+        types::{Descriptor, DescriptorFlags, ErrorCode, OpenFlags, PathFlags},
     };
 
     pub(super) fn wasi_error(code: ErrorCode) -> io::Error {
@@ -174,49 +166,70 @@ mod preopen {
         }
     }
 
-    fn strip_mount<'a>(mount: &str, path: &'a str) -> Option<&'a str> {
-        if mount == "/" {
-            return path.strip_prefix('/');
+    fn normalize_mount(mut path: &str) -> &str {
+        loop {
+            if let Some(rest) = path.strip_prefix('/') {
+                path = rest;
+            } else if let Some(rest) = path.strip_prefix("./") {
+                path = rest;
+            } else {
+                return if path == "." { "" } else { path };
+            }
         }
-        path.strip_prefix(mount)?.strip_prefix('/')
     }
 
-    /// The candidate for `spelling` under the longest mount that prefixes
-    /// it, if any. `mounts` must be ordered longest first. Shorter mounts
-    /// are never considered: wasi-libc resolves a path through exactly one
+    fn strip_mount<'a>(mount: &str, path: &'a str) -> Option<&'a str> {
+        let rest = path.strip_prefix(mount)?;
+        if mount.is_empty() || mount.ends_with('/') || rest.is_empty() || rest.starts_with('/') {
+            Some(rest.trim_start_matches('/'))
+        } else {
+            None
+        }
+    }
+
+    /// Select the longest matching mount, preferring the last registered
+    /// mount on ties, as wasi-libc does. Shorter mounts are never
+    /// considered: wasi-libc resolves a path through exactly one
     /// preopen, and falling through to another mount could resolve to a
     /// different object.
     fn longest_match(mounts: &[&str], spelling: &str) -> Option<(usize, String)> {
-        mounts.iter().enumerate().find_map(|(index, mount)| {
-            let rel = strip_mount(mount, spelling)?;
-            (!rel.is_empty()).then(|| (index, rel.to_string()))
-        })
+        let spelling = spelling.trim_start_matches('/');
+        mounts
+            .iter()
+            .enumerate()
+            .filter_map(|(index, mount)| {
+                let mount = normalize_mount(mount);
+                let rel = strip_mount(mount, spelling)?;
+                Some((mount.len(), index, rel))
+            })
+            .max_by_key(|(len, index, _)| (*len, *index))
+            .map(|(_, index, rel)| (index, if rel.is_empty() { "." } else { rel }.to_string()))
     }
 
     /// All (preopen index, relative path) candidates for a path, most
-    /// preferred first. `mounts` must be ordered longest first. `cwd` is
+    /// preferred first. `mounts` are in registration order. `cwd` is
     /// the guest current directory, when it could be determined.
     fn select_candidates(
         mounts: &[&str],
         path_str: &str,
-        is_absolute: bool,
         cwd: Option<&Path>,
     ) -> Vec<(usize, String)> {
-        if is_absolute {
-            return longest_match(mounts, path_str).into_iter().collect();
-        }
-        match cwd {
-            Some(cwd) => {
-                let joined = cwd.join(path_str).to_string_lossy().into_owned();
-                longest_match(mounts, &joined).into_iter().collect()
+        let is_absolute = Path::new(path_str).is_absolute();
+        let spelling = match (is_absolute, cwd) {
+            (false, Some(cwd)) => {
+                let absolute = match path_str {
+                    "" | "." | "./" => cwd.to_path_buf(),
+                    _ => cwd.join(path_str.strip_prefix("./").unwrap_or(path_str)),
+                };
+                Cow::Owned(absolute.to_string_lossy().into_owned())
             }
-            None => {
-                let mut candidates: Vec<(usize, String)> =
-                    longest_match(mounts, path_str).into_iter().collect();
-                candidates.extend((0..mounts.len()).map(|index| (index, path_str.to_string())));
-                candidates
-            }
+            _ => Cow::Borrowed(path_str),
+        };
+        let mut candidates: Vec<_> = longest_match(mounts, &spelling).into_iter().collect();
+        if !is_absolute && cwd.is_none() {
+            candidates.extend((0..mounts.len()).map(|index| (index, path_str.to_string())));
         }
+        candidates
     }
 
     pub(super) struct Resolver {
@@ -225,11 +238,9 @@ mod preopen {
 
     impl Resolver {
         pub(super) fn new() -> Self {
-            let mut preopens = get_directories();
-            // The longest mount point wins so nested preopens resolve to
-            // the innermost one.
-            preopens.sort_by_key(|(_, name)| std::cmp::Reverse(name.len()));
-            Self { preopens }
+            Self {
+                preopens: get_directories(),
+            }
         }
 
         fn candidates(&self, path: &Path) -> io::Result<Vec<(usize, String)>> {
@@ -242,40 +253,28 @@ mod preopen {
                 .map(|(_, mount)| mount.as_str())
                 .collect();
             let cwd = std::env::current_dir().ok();
-            Ok(select_candidates(
-                &mounts,
-                path_str,
-                path.is_absolute(),
-                cwd.as_deref(),
-            ))
-        }
-
-        pub(super) fn with_resolved<T>(
-            &self,
-            path: &Path,
-            f: impl Fn(&Descriptor, &str) -> io::Result<T>,
-        ) -> io::Result<T> {
-            let mut last_err = io::Error::from(io::ErrorKind::NotFound);
-            for (index, rel) in self.candidates(path)? {
-                match f(&self.preopens[index].0, &rel) {
-                    Ok(value) => return Ok(value),
-                    Err(e) => last_err = e,
-                }
-            }
-            Err(last_err)
+            Ok(select_candidates(&mounts, path_str, cwd.as_deref()))
         }
 
         pub(super) fn open(&self, path: &Path, follow_symlink: bool) -> io::Result<Descriptor> {
-            self.with_resolved(path, |descriptor, rel| {
-                descriptor
-                    .open_at(
-                        super::path_flags(follow_symlink),
-                        rel,
-                        OpenFlags::empty(),
-                        DescriptorFlags::empty(),
-                    )
-                    .map_err(wasi_error)
-            })
+            let path_flags = if follow_symlink {
+                PathFlags::SYMLINK_FOLLOW
+            } else {
+                PathFlags::empty()
+            };
+            let mut last_err = io::Error::from(io::ErrorKind::NotFound);
+            for (index, rel) in self.candidates(path)? {
+                match self.preopens[index].0.open_at(
+                    path_flags,
+                    &rel,
+                    OpenFlags::empty(),
+                    DescriptorFlags::empty(),
+                ) {
+                    Ok(descriptor) => return Ok(descriptor),
+                    Err(e) => last_err = wasi_error(e),
+                }
+            }
+            Err(last_err)
         }
     }
 
@@ -288,25 +287,65 @@ mod preopen {
         fn absolute_path_uses_longest_matching_mount_only() {
             let mounts = ["/data/sub", "/data", "/"];
             assert_eq!(
-                select_candidates(&mounts, "/data/sub/file.txt", true, None),
+                select_candidates(&mounts, "/data/sub/file.txt", None),
                 vec![(0, "file.txt".to_string())]
             );
             assert_eq!(
-                select_candidates(&mounts, "/data/file.txt", true, None),
+                select_candidates(&mounts, "/data/file.txt", None),
                 vec![(1, "file.txt".to_string())]
             );
             assert_eq!(
-                select_candidates(&mounts, "/other/file.txt", true, None),
+                select_candidates(&mounts, "/other/file.txt", None),
                 vec![(2, "other/file.txt".to_string())]
+            );
+            assert_eq!(
+                select_candidates(&mounts, "/data//file.txt", None),
+                vec![(1, "file.txt".to_string())]
+            );
+            assert_eq!(
+                select_candidates(&mounts, "//other/file.txt", None),
+                vec![(2, "other/file.txt".to_string())]
+            );
+            assert_eq!(
+                select_candidates(&mounts, "/./data/file.txt", None),
+                vec![(2, "./data/file.txt".to_string())]
+            );
+            assert_eq!(
+                select_candidates(&mounts, "/././data/file.txt", None),
+                vec![(2, "././data/file.txt".to_string())]
+            );
+            assert_eq!(
+                select_candidates(&["/data", "/data", "/"], "/data/file.txt", None),
+                vec![(1, "file.txt".to_string())]
+            );
+            assert_eq!(
+                select_candidates(&["/", "/data", "/data/sub"], "/data/sub/file.txt", None),
+                vec![(2, "file.txt".to_string())]
+            );
+            assert_eq!(
+                select_candidates(&["/data", "./data"], "/data/file.txt", None),
+                vec![(1, "file.txt".to_string())]
+            );
+            assert_eq!(
+                select_candidates(&["/./data", "/data"], "/data/file.txt", None),
+                vec![(1, "file.txt".to_string())]
+            );
+            assert_eq!(
+                select_candidates(&["/data/"], "/data/file.txt", None),
+                vec![(0, "file.txt".to_string())]
             );
         }
 
         #[test]
-        fn mount_root_resolves_through_its_parent_mount() {
+        fn mount_root_resolves_through_its_own_mount() {
             let mounts = ["/data", "/"];
             assert_eq!(
-                select_candidates(&mounts, "/data", true, None),
-                vec![(1, "data".to_string())]
+                select_candidates(&mounts, "/data", None),
+                vec![(0, ".".to_string())]
+            );
+            assert_eq!(
+                select_candidates(&["/"], "/", None),
+                vec![(0, ".".to_string())]
             );
         }
 
@@ -314,13 +353,56 @@ mod preopen {
         fn relative_path_is_anchored_at_cwd() {
             let mounts = ["/work", "/"];
             assert_eq!(
-                select_candidates(
-                    &mounts,
-                    "in/file.txt",
-                    false,
-                    Some(Path::new("/work/project"))
-                ),
+                select_candidates(&mounts, "in/file.txt", Some(Path::new("/work/project"))),
                 vec![(0, "project/in/file.txt".to_string())]
+            );
+            assert_eq!(
+                select_candidates(&["."], "file.txt", Some(Path::new("/"))),
+                vec![(0, "file.txt".to_string())]
+            );
+            assert_eq!(
+                select_candidates(&["data"], "data/file.txt", Some(Path::new("/"))),
+                vec![(0, "file.txt".to_string())]
+            );
+            assert_eq!(
+                select_candidates(&["/", "/data"], "./data/file.txt", Some(Path::new("/"))),
+                vec![(1, "file.txt".to_string())]
+            );
+            assert_eq!(
+                select_candidates(&["/", "/data"], "././data/file.txt", Some(Path::new("/"))),
+                vec![(0, "./data/file.txt".to_string())]
+            );
+            assert_eq!(
+                select_candidates(
+                    &["/work", "/work/data"],
+                    "./data/file.txt",
+                    Some(Path::new("/work"))
+                ),
+                vec![(1, "file.txt".to_string())]
+            );
+            assert_eq!(
+                select_candidates(
+                    &["/work", "/work/data"],
+                    "././data/file.txt",
+                    Some(Path::new("/work"))
+                ),
+                vec![(0, "./data/file.txt".to_string())]
+            );
+            assert_eq!(
+                select_candidates(&["/work/", "/work"], ".", Some(Path::new("/work"))),
+                vec![(1, ".".to_string())]
+            );
+            assert_eq!(
+                select_candidates(&["/work/", "/work"], "./", Some(Path::new("/work"))),
+                vec![(1, ".".to_string())]
+            );
+            assert_eq!(
+                select_candidates(&["/work/", "/work"], "", Some(Path::new("/work"))),
+                vec![(1, ".".to_string())]
+            );
+            assert_eq!(
+                select_candidates(&["/work/", "/work"], "./.", Some(Path::new("/work"))),
+                vec![(0, ".".to_string())]
             );
         }
 
@@ -328,7 +410,7 @@ mod preopen {
         fn relative_path_without_cwd_is_tried_against_every_preopen() {
             let mounts = ["/a", "/b"];
             assert_eq!(
-                select_candidates(&mounts, "file.txt", false, None),
+                select_candidates(&mounts, "file.txt", None),
                 vec![(0, "file.txt".to_string()), (1, "file.txt".to_string())]
             );
         }
@@ -336,10 +418,10 @@ mod preopen {
         #[test]
         fn path_outside_every_mount_has_no_candidates() {
             let mounts = ["/data"];
-            assert!(select_candidates(&mounts, "/elsewhere/file.txt", true, None).is_empty());
+            assert!(select_candidates(&mounts, "/elsewhere/file.txt", None).is_empty());
+            assert!(select_candidates(&mounts, "/database/file.txt", None).is_empty());
             assert!(
-                select_candidates(&mounts, "file.txt", false, Some(Path::new("/elsewhere")))
-                    .is_empty()
+                select_candidates(&mounts, "file.txt", Some(Path::new("/elsewhere"))).is_empty()
             );
         }
     }
