@@ -429,35 +429,8 @@ pub(crate) fn chunk_data_split(
 pub fn read_as_chunks<R: Read>(
     mut archive: R,
 ) -> io::Result<impl Iterator<Item = io::Result<impl Chunk>>> {
-    struct Chunks<R> {
-        reader: R,
-        done: bool,
-    }
-    impl<R: Read> Iterator for Chunks<R> {
-        type Item = io::Result<RawChunk>;
-        #[inline]
-        fn next(&mut self) -> Option<Self::Item> {
-            if self.done {
-                return None;
-            }
-            Some(match crate::io::read_chunk(&mut self.reader, u32::MAX) {
-                Ok(chunk) => {
-                    self.done = chunk.ty() == ChunkType::AEND;
-                    Ok(chunk)
-                }
-                Err(error) => {
-                    self.done = true;
-                    Err(error)
-                }
-            })
-        }
-    }
     crate::io::read_signature(&mut archive)?;
-
-    Ok(Chunks {
-        reader: archive,
-        done: false,
-    })
+    Ok(crate::io::read_chunks(archive, u32::MAX))
 }
 
 /// Returns an iterator over the chunks of a PNA archive in a byte slice.
@@ -497,36 +470,8 @@ pub fn read_as_chunks<R: Read>(
 pub fn read_chunks_from_slice<'a>(
     archive: &'a [u8],
 ) -> io::Result<impl Iterator<Item = io::Result<impl Chunk + 'a>>> {
-    struct Chunks<'a> {
-        reader: &'a [u8],
-        done: bool,
-    }
-    impl<'a> Iterator for Chunks<'a> {
-        type Item = io::Result<RawChunk<&'a [u8]>>;
-        #[inline]
-        fn next(&mut self) -> Option<Self::Item> {
-            if self.done {
-                return None;
-            }
-            Some(match crate::bytes::read_chunk(self.reader, u32::MAX) {
-                Ok((chunk, bytes)) => {
-                    self.done = chunk.ty() == ChunkType::AEND;
-                    self.reader = bytes;
-                    Ok(chunk)
-                }
-                Err(error) => {
-                    self.done = true;
-                    Err(error)
-                }
-            })
-        }
-    }
-    let archive = crate::bytes::read_signature(archive)?;
-
-    Ok(Chunks {
-        reader: archive,
-        done: false,
-    })
+    let rest = crate::bytes::read_signature(archive)?;
+    Ok(crate::bytes::read_chunks(rest, u32::MAX))
 }
 
 #[cfg(test)]
@@ -641,6 +586,46 @@ mod tests {
         *chunk.last_mut().unwrap() ^= 0xFF;
         archive.extend_from_slice(&chunk);
         archive
+    }
+
+    #[test]
+    fn read_as_chunks_validates_the_signature() {
+        assert!(read_as_chunks(b"xxxxxxxx".as_slice()).is_err());
+        assert!(read_as_chunks(&crate::PNA_SIGNATURE[..7]).is_err());
+    }
+
+    #[test]
+    fn read_as_chunks_yields_chunks_after_the_signature() {
+        let mut archive = crate::PNA_SIGNATURE.to_vec();
+        archive.extend_from_slice(&test_support::valid_chunk_bytes());
+        archive.extend_from_slice(&test_support::raw_chunk_bytes(*b"AEND", &[]));
+
+        let types: Vec<_> = read_as_chunks(archive.as_slice())
+            .unwrap()
+            .map(|chunk| chunk.unwrap().ty())
+            .collect();
+
+        assert_eq!(types, [ChunkType::FDAT, ChunkType::AEND]);
+    }
+
+    #[test]
+    fn read_chunks_from_slice_validates_the_signature() {
+        assert!(read_chunks_from_slice(b"xxxxxxxx").is_err());
+        assert!(read_chunks_from_slice(&crate::PNA_SIGNATURE[..7]).is_err());
+    }
+
+    #[test]
+    fn read_chunks_from_slice_yields_chunks_after_the_signature() {
+        let mut archive = crate::PNA_SIGNATURE.to_vec();
+        archive.extend_from_slice(&test_support::valid_chunk_bytes());
+        archive.extend_from_slice(&test_support::raw_chunk_bytes(*b"AEND", &[]));
+
+        let types: Vec<_> = read_chunks_from_slice(&archive)
+            .unwrap()
+            .map(|chunk| chunk.unwrap().ty())
+            .collect();
+
+        assert_eq!(types, [ChunkType::FDAT, ChunkType::AEND]);
     }
 
     #[test]
