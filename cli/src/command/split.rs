@@ -112,10 +112,10 @@ fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
         (None, Some(output)) => output.clone(),
         (None, None) => archive_path.clone(),
     };
-    ensure_not_self_overwrite(&archive_path, &base_out_file_name)?;
     if let Some(parent) = base_out_file_name.parent() {
         fs::create_dir_all(parent)?;
     }
+    ensure_not_self_overwrite(&archive_path, &base_out_file_name)?;
 
     let read_file = fs::File::open(&archive_path)?;
     #[cfg(not(feature = "memmap"))]
