@@ -305,12 +305,16 @@ fn split_output_renames_parts_for_file_input() {
 }
 
 /// Precondition: A valid archive exists.
-/// Action: Run `pna split` with a nested `--output` together with `--out-dir`.
+/// Action: Run `pna split` with a nested `--output` together with `--out-dir`,
+/// including a missing directory followed by a parent component.
 /// Expectation: The split parts resolve under `--out-dir` preserving the nested path.
 #[test]
 fn split_output_with_directory_resolves_under_out_dir() {
     setup();
 
+    if fs::exists("split_output_nested").unwrap() {
+        fs::remove_dir_all("split_output_nested").unwrap();
+    }
     let test_dir = "split_output_nested/in/";
     fs::create_dir_all(test_dir).unwrap();
 
@@ -358,6 +362,29 @@ fn split_output_with_directory_resolves_under_out_dir() {
     assert!(
         fs::metadata("split_output_nested/parts/named.part1.pna").is_err(),
         "part should not be created directly under --out-dir"
+    );
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "split",
+        "-f",
+        "split_output_nested/input.pna",
+        "--output",
+        "nested/parent.pna",
+        "--out-dir",
+        "split_output_nested/new/../parts",
+        "--overwrite",
+        "--max-size",
+        "150",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    assert!(
+        fs::metadata("split_output_nested/parts/nested/parent.part1.pna").is_ok(),
+        "parent components after missing directories should resolve under --out-dir"
     );
 }
 
