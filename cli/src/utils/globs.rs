@@ -495,7 +495,7 @@ fn pm(mut p: &str, mut s: &str, flags: PathMatch) -> bool {
 }
 
 fn split_once_unescaped(input: &str) -> Option<(&str, &str)> {
-    let chars = input.char_indices().peekable();
+    let chars = input.char_indices();
     let mut last_escape = false;
 
     for (i, c) in chars {
