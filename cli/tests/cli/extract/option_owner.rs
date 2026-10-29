@@ -105,8 +105,8 @@ fn create_archive_with_owner(
 }
 
 /// Precondition: An archive contains IDs without corresponding owner names.
-/// Action: Extract through the native interface with ownership preservation and the lookup bypass.
-/// Expectation: The extracted file has the archived numeric user and group IDs.
+/// Action: Extract through the native and bsdtar interfaces with ownership preservation.
+/// Expectation: Numeric IDs are restored when the native lookup bypass is enabled and in bsdtar mode.
 #[test]
 #[cfg(unix)]
 fn extract_unknown_numeric_owner() {
@@ -147,8 +147,24 @@ fn extract_unknown_numeric_owner() {
     .unwrap()
     .execute()
     .unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "compat",
+        "bsdtar",
+        "-x",
+        "-f",
+        "extract_unknown_numeric_owner/archive.pna",
+        "--same-owner",
+        "--out-dir",
+        "extract_unknown_numeric_owner/bsd",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
     let native = fs::metadata("extract_unknown_numeric_owner/native/test.txt").unwrap();
+    let bsd = fs::metadata("extract_unknown_numeric_owner/bsd/test.txt").unwrap();
     assert_eq!((native.uid(), native.gid()), (uid, gid));
+    assert_eq!((bsd.uid(), bsd.gid()), (uid, gid));
 }
 
 /// Precondition: An archive contains files with specific uid/gid.

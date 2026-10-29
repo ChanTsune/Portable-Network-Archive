@@ -828,7 +828,7 @@ impl ExtractionPermissionStrategyResolver {
                     },
                     uid: self.uid,
                     gid: self.gid,
-                    no_lookup: false,
+                    no_lookup: true,
                 },
             }
         } else {
