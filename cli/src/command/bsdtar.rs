@@ -755,6 +755,7 @@ impl CreationPermissionStrategyResolver {
                     },
                     uid: self.uid,
                     gid: self.gid,
+                    no_lookup: false,
                 },
             }
         };
@@ -827,6 +828,7 @@ impl ExtractionPermissionStrategyResolver {
                     },
                     uid: self.uid,
                     gid: self.gid,
+                    no_lookup: false,
                 },
             }
         } else {

@@ -206,6 +206,11 @@ pub(crate) struct ExtractCommand {
     numeric_owner: bool,
     #[arg(
         long,
+        help = "Allow restoring numeric user and group IDs without resolving them"
+    )]
+    no_owner_lookup: bool,
+    #[arg(
+        long,
         value_name = "DATETIME",
         requires = "unstable",
         help_heading = "Unstable Options",
@@ -453,7 +458,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         args.keep_old_files,
         OverwriteStrategy::Never,
     );
-    let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
+    let (mode_strategy, mut owner_strategy) = PermissionStrategyResolver {
         keep_permission: args.keep_permission,
         same_owner: args.same_owner,
         uname: args.uname,
@@ -463,6 +468,9 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         numeric_owner: args.numeric_owner,
     }
     .resolve();
+    if let OwnerStrategy::Preserve { options } = &mut owner_strategy {
+        options.no_lookup = args.no_owner_lookup;
+    }
     let keep_options = KeepOptions {
         timestamp_strategy: TimestampStrategyResolver {
             keep_timestamp: args.keep_timestamp,
@@ -1888,6 +1896,28 @@ fn should_restore_owner(ownership: &ResolvedOwnership, options: &OwnerOptions) -
     ownership.has_posix_owner_identity() || options.has_overrides()
 }
 
+#[cfg(unix)]
+fn resolve_numeric_owner(
+    ownership: &ResolvedOwnership,
+    options: &OwnerOptions,
+) -> (Option<u32>, Option<u32>) {
+    let uid = options.uid.or_else(|| {
+        let name = options.uname.as_deref().or(ownership.uname.as_deref());
+        name.and_then(|name| User::from_name(name).ok())
+            .and_then(|user| user.uid())
+            .or(ownership.uid)
+            .and_then(|uid| u32::try_from(uid).ok())
+    });
+    let gid = options.gid.or_else(|| {
+        let name = options.gname.as_deref().or(ownership.gname.as_deref());
+        name.and_then(|name| Group::from_name(name).ok())
+            .and_then(|group| group.gid())
+            .or(ownership.gid)
+            .and_then(|gid| u32::try_from(gid).ok())
+    });
+    (uid, gid)
+}
+
 /// Restores file ownership (uid/gid) for an extracted entry.
 /// Called when `OwnerStrategy::Preserve` is set.
 #[inline]
@@ -1896,6 +1926,17 @@ fn restore_owner(
     ownership: &ResolvedOwnership,
     options: &OwnerOptions,
 ) -> io::Result<()> {
+    #[cfg(unix)]
+    if options.no_lookup {
+        let (uid, gid) = resolve_numeric_owner(ownership, options);
+        return match std::os::unix::fs::lchown(path, uid, gid) {
+            Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
+                log::warn!("failed to restore owner of {}: {}", path.display(), e);
+                Ok(())
+            }
+            result => result,
+        };
+    }
     #[cfg(any(unix, windows))]
     {
         let (user, group) = resolve_owner(
@@ -2129,6 +2170,29 @@ fn symlink_with_type<P: AsRef<Path>, Q: AsRef<Path>>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(unix)]
+    fn numeric_owner_falls_back_to_archived_ids_without_lookup() {
+        let ownership = ResolvedOwnership {
+            uid: Some(1_000_001),
+            gid: Some(1_000_002),
+            ..Default::default()
+        };
+        assert_eq!(
+            resolve_numeric_owner(&ownership, &OwnerOptions::default()),
+            (Some(1_000_001), Some(1_000_002))
+        );
+        let options = OwnerOptions {
+            uid: Some(42),
+            gid: Some(43),
+            ..Default::default()
+        };
+        assert_eq!(
+            resolve_numeric_owner(&ownership, &options),
+            (Some(42), Some(43))
+        );
+    }
 
     #[test]
     fn mode_only_metadata_does_not_request_owner_restore() {
