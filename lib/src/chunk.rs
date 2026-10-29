@@ -430,7 +430,22 @@ pub fn read_as_chunks<R: Read>(
     mut archive: R,
 ) -> io::Result<impl Iterator<Item = io::Result<impl Chunk>>> {
     crate::io::read_signature(&mut archive)?;
-    Ok(crate::io::read_chunks(archive, u32::MAX))
+    let mut done = false;
+    Ok(std::iter::from_fn(move || {
+        if done {
+            return None;
+        }
+        Some(match crate::io::read_chunk(&mut archive, u32::MAX) {
+            Ok(chunk) => {
+                done = chunk.ty() == ChunkType::AEND;
+                Ok(chunk)
+            }
+            Err(error) => {
+                done = true;
+                Err(error)
+            }
+        })
+    }))
 }
 
 /// Returns an iterator over the chunks of a PNA archive in a byte slice.
