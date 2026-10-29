@@ -267,34 +267,53 @@ fn create_entry_from_mtree(
             )
         }
         None => {
-            let metadata = get_metadata(source_path)?;
-            if metadata.is_file() {
-                create_file_entry(
+            // Without a contents= source the entry path itself is the
+            // archived object, so classify it by its own type: a symlink
+            // is recorded as a symlink, as libarchive stats the object
+            // itself. A contents= source is a data source instead and
+            // keeps the following classification below.
+            if mtree_entry.contents().is_none()
+                && let Ok(link_meta) = fs::symlink_metadata(source_path)
+                && link_meta.file_type().is_symlink()
+            {
+                create_symlink_entry(
                     entry_name,
                     source_path,
                     mtree_entry,
-                    &metadata,
-                    option,
+                    pathname_editor,
+                    &link_meta,
                     keep_options,
                 )
-            } else if metadata.is_dir() {
-                create_dir_entry(entry_name, source_path, mtree_entry, keep_options)
             } else {
-                let link_meta = fs::symlink_metadata(source_path)?;
-                if link_meta.file_type().is_symlink() {
-                    create_symlink_entry(
+                let metadata = get_metadata(source_path)?;
+                if metadata.is_file() {
+                    create_file_entry(
                         entry_name,
                         source_path,
                         mtree_entry,
-                        pathname_editor,
-                        &link_meta,
+                        &metadata,
+                        option,
                         keep_options,
                     )
+                } else if metadata.is_dir() {
+                    create_dir_entry(entry_name, source_path, mtree_entry, keep_options)
                 } else {
-                    Err(io::Error::new(
-                        io::ErrorKind::Unsupported,
-                        format!("unsupported file type: {}", source_path.display()),
-                    ))
+                    let link_meta = fs::symlink_metadata(source_path)?;
+                    if link_meta.file_type().is_symlink() {
+                        create_symlink_entry(
+                            entry_name,
+                            source_path,
+                            mtree_entry,
+                            pathname_editor,
+                            &link_meta,
+                            keep_options,
+                        )
+                    } else {
+                        Err(io::Error::new(
+                            io::ErrorKind::Unsupported,
+                            format!("unsupported file type: {}", source_path.display()),
+                        ))
+                    }
                 }
             }
         }

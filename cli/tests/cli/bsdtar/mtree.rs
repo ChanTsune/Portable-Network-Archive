@@ -4,13 +4,37 @@
 //! archives from mtree manifest files.
 
 use crate::utils::{
-    archive::{for_each_entry, get_archive_entry_names},
+    archive::{for_each_entry, get_archive_entry_names, modes_by_entry, read_symlink_target},
     setup,
 };
 use assert_cmd::cargo::cargo_bin_cmd;
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+fn archive_entry_kinds(
+    path: &Path,
+) -> HashMap<String, (pna::DataKind, Option<String>, Option<pna::LinkTargetType>)> {
+    let mut entries = HashMap::new();
+    for_each_entry(path, |entry| {
+        let kind = entry.header().data_kind();
+        let link_target = match kind {
+            pna::DataKind::SYMBOLIC_LINK => Some(read_symlink_target(&entry)),
+            _ => None,
+        };
+        let prev = entries.insert(
+            entry.header().path().to_string(),
+            (kind, link_target, entry.metadata().link_target_type()),
+        );
+        assert!(
+            prev.is_none(),
+            "duplicate archive entry: {}",
+            entry.header().path()
+        );
+    })
+    .unwrap();
+    entries
+}
 
 /// Precondition: An mtree manifest specifies a single entry.
 /// Action: Create archive from the mtree manifest.
@@ -805,4 +829,234 @@ fn bsdtar_mtree_type_mismatch_link_is_file() {
         ])
         .assert()
         .failure();
+}
+
+/// Precondition: An mtree manifest lists a regular file, a directory, a symlink
+/// to a file, and a symlink to a directory, none with a type= keyword.
+/// Action: Create archive from the mtree manifest.
+/// Expectation: Each entry is recorded with the type of the filesystem object
+/// itself, so both symlinks are recorded as symbolic links with their targets.
+#[cfg(unix)]
+#[test]
+fn bsdtar_mtree_symlink_without_type() {
+    use std::os::unix::fs::PermissionsExt;
+
+    setup();
+
+    let base = PathBuf::from("bsdtar_mtree_symlink_without_type");
+    let _ = fs::remove_dir_all(&base);
+    fs::create_dir_all(base.join("subdir")).unwrap();
+    fs::write(base.join("target.txt"), "target content").unwrap();
+    fs::set_permissions(base.join("target.txt"), fs::Permissions::from_mode(0o644)).unwrap();
+    std::os::unix::fs::symlink("target.txt", base.join("link_to_file")).unwrap();
+    std::os::unix::fs::symlink("subdir", base.join("link_to_dir")).unwrap();
+
+    fs::write(
+        base.join("manifest.mtree"),
+        "#mtree\ntarget.txt\nlink_to_file\nlink_to_dir\nsubdir\n",
+    )
+    .unwrap();
+
+    let output_archive = base.join("output.pna");
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "compat",
+            "bsdtar",
+            "--create",
+            "--unstable",
+            "--overwrite",
+            "-f",
+            output_archive.to_str().unwrap(),
+            "-C",
+            base.to_str().unwrap(),
+            "@manifest.mtree",
+        ])
+        .assert()
+        .success();
+
+    let entries = archive_entry_kinds(&output_archive);
+    assert_eq!(
+        entries.get("target.txt"),
+        Some(&(pna::DataKind::FILE, None, None))
+    );
+    assert_eq!(
+        entries.get("link_to_file"),
+        Some(&(
+            pna::DataKind::SYMBOLIC_LINK,
+            Some("target.txt".to_string()),
+            None
+        ))
+    );
+    assert_eq!(
+        entries.get("link_to_dir"),
+        Some(&(
+            pna::DataKind::SYMBOLIC_LINK,
+            Some("subdir".to_string()),
+            None
+        ))
+    );
+    assert_eq!(
+        entries.get("subdir"),
+        Some(&(pna::DataKind::DIRECTORY, None, None))
+    );
+    assert_eq!(entries.len(), 4);
+
+    let modes: HashMap<String, Option<u16>> = modes_by_entry(&output_archive).into_iter().collect();
+    assert_eq!(modes.get("target.txt"), Some(&Some(0o644)));
+    assert_eq!(modes.get("link_to_file"), Some(&Some(0o777)));
+    assert_eq!(modes.get("link_to_dir"), Some(&Some(0o777)));
+}
+
+/// Precondition: An mtree manifest lists a dangling symlink without a type= keyword.
+/// Action: Create archive from the mtree manifest and extract it.
+/// Expectation: Creation succeeds, the entry is recorded as a symbolic link
+/// with its target, and extraction restores it as a symlink.
+#[cfg(unix)]
+#[test]
+fn bsdtar_mtree_dangling_symlink_without_type() {
+    setup();
+
+    let base = PathBuf::from("bsdtar_mtree_dangling_symlink_without_type");
+    let _ = fs::remove_dir_all(&base);
+    fs::create_dir_all(&base).unwrap();
+    std::os::unix::fs::symlink("missing.txt", base.join("dangling.txt")).unwrap();
+
+    fs::write(base.join("manifest.mtree"), "#mtree\ndangling.txt\n").unwrap();
+
+    let output_archive = base.join("output.pna");
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "compat",
+            "bsdtar",
+            "--create",
+            "--unstable",
+            "--overwrite",
+            "-f",
+            output_archive.to_str().unwrap(),
+            "-C",
+            base.to_str().unwrap(),
+            "@manifest.mtree",
+        ])
+        .assert()
+        .success();
+
+    let entries = archive_entry_kinds(&output_archive);
+    assert_eq!(
+        entries,
+        HashMap::from([(
+            "dangling.txt".to_string(),
+            (
+                pna::DataKind::SYMBOLIC_LINK,
+                Some("missing.txt".to_string()),
+                None
+            ),
+        )])
+    );
+
+    let out_dir = base.join("out");
+    fs::create_dir_all(&out_dir).unwrap();
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "compat",
+            "bsdtar",
+            "--extract",
+            "--unstable",
+            "--overwrite",
+            "-f",
+            output_archive.to_str().unwrap(),
+            "--out-dir",
+            out_dir.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    let extracted = out_dir.join("dangling.txt");
+    assert!(
+        fs::symlink_metadata(&extracted)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    assert_eq!(
+        fs::read_link(&extracted).unwrap(),
+        PathBuf::from("missing.txt")
+    );
+}
+
+/// Precondition: An mtree manifest entry without a type= keyword uses contents=
+/// to name a data source, and that source is a symlink to a regular file.
+/// Action: Create archive from the mtree manifest and extract it.
+/// Expectation: The contents= source keeps its data-source semantics, so the
+/// entry is recorded as a regular file and extraction restores the target
+/// file's bytes as a regular file.
+#[cfg(unix)]
+#[test]
+fn bsdtar_mtree_contents_symlink_source_without_type() {
+    setup();
+
+    let base = PathBuf::from("bsdtar_mtree_contents_symlink_source_without_type");
+    let _ = fs::remove_dir_all(&base);
+    fs::create_dir_all(base.join("build")).unwrap();
+    fs::write(base.join("build/app-v2"), "version 2 bytes").unwrap();
+    std::os::unix::fs::symlink("app-v2", base.join("build/current")).unwrap();
+
+    fs::write(
+        base.join("manifest.mtree"),
+        "#mtree\nusr/bin/app contents=build/current\n",
+    )
+    .unwrap();
+
+    let output_archive = base.join("output.pna");
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "compat",
+            "bsdtar",
+            "--create",
+            "--unstable",
+            "--overwrite",
+            "-f",
+            output_archive.to_str().unwrap(),
+            "-C",
+            base.to_str().unwrap(),
+            "@manifest.mtree",
+        ])
+        .assert()
+        .success();
+
+    let entries = archive_entry_kinds(&output_archive);
+    assert_eq!(
+        entries,
+        HashMap::from([("usr/bin/app".to_string(), (pna::DataKind::FILE, None, None))])
+    );
+
+    let out_dir = base.join("out");
+    fs::create_dir_all(&out_dir).unwrap();
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "compat",
+            "bsdtar",
+            "--extract",
+            "--unstable",
+            "--overwrite",
+            "-f",
+            output_archive.to_str().unwrap(),
+            "--out-dir",
+            out_dir.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    let extracted = out_dir.join("usr/bin/app");
+    assert!(
+        !fs::symlink_metadata(&extracted)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    assert_eq!(fs::read(&extracted).unwrap(), b"version 2 bytes");
 }
