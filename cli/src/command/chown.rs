@@ -112,41 +112,49 @@ impl EntryTransform for ChownTransform<'_> {
 fn transform_entry<T>(entry: NormalEntry<T>, owner: &Ownership) -> NormalEntry<T> {
     let metadata = entry.metadata().clone();
     let own = crate::ext::ResolvedOwnership::from_metadata(&metadata);
-    let (uid, uname): (Option<u64>, String) = match owner.user.as_ref() {
-        Some(OwnerSpecifier::Name(uname)) => (Some(u64::MAX), uname.clone()),
-        Some(OwnerSpecifier::ID(uid)) => (Some(*uid), String::new()),
+    let (uid, uname, user_sid): (Option<u64>, String, Option<String>) = match owner.user.as_ref() {
+        Some(OwnerSpecifier::Name(uname)) => (Some(u64::MAX), uname.clone(), None),
+        Some(OwnerSpecifier::ID(uid)) => (Some(*uid), String::new(), None),
         Some(OwnerSpecifier::System(user)) => (
             Some(user.uid().unwrap_or(u64::MAX)),
             user.name().unwrap_or_default().into(),
+            user.sid(),
         ),
-        None => (own.uid, own.uname.clone().unwrap_or_default()),
+        None => (
+            own.uid,
+            own.uname.clone().unwrap_or_default(),
+            own.user_sid.clone(),
+        ),
     };
-    let (gid, gname): (Option<u64>, String) = match owner.group.as_ref() {
-        Some(OwnerSpecifier::Name(gname)) => (Some(u64::MAX), gname.clone()),
-        Some(OwnerSpecifier::ID(gid)) => (Some(*gid), String::new()),
+    let (gid, gname, group_sid): (Option<u64>, String, Option<String>) = match owner.group.as_ref()
+    {
+        Some(OwnerSpecifier::Name(gname)) => (Some(u64::MAX), gname.clone(), None),
+        Some(OwnerSpecifier::ID(gid)) => (Some(*gid), String::new(), None),
         Some(OwnerSpecifier::System(group)) => (
             Some(group.gid().unwrap_or(u64::MAX)),
             group.name().unwrap_or_default().into(),
+            group.sid(),
         ),
-        None => (own.gid, own.gname.clone().unwrap_or_default()),
+        None => (
+            own.gid,
+            own.gname.clone().unwrap_or_default(),
+            own.group_sid.clone(),
+        ),
     };
-    let metadata =
-        metadata
-            .with_owner_uid(uid.map(pna::OwnerUid::from))
-            .with_owner_gid(gid.map(pna::OwnerGid::from))
-            .with_owner_user_name(crate::command::core::permission::owner_name_opt(&uname))
-            .with_owner_group_name(crate::command::core::permission::owner_group_name_opt(
-                &gname,
-            ))
-            .with_permission_mode(own.mode.map(pna::PermissionMode::from))
-            .with_owner_user_sid(
-                own.user_sid.clone().map(|s| {
-                    pna::OwnerUserSid::new(s).expect("rescued sid within owner-facet bound")
-                }),
-            )
-            .with_owner_group_sid(own.group_sid.clone().map(|s| {
-                pna::OwnerGroupSid::new(s).expect("rescued sid within owner-facet bound")
-            }));
+    let metadata = metadata
+        .with_owner_uid(uid.map(pna::OwnerUid::from))
+        .with_owner_gid(gid.map(pna::OwnerGid::from))
+        .with_owner_user_name(crate::command::core::permission::owner_name_opt(&uname))
+        .with_owner_group_name(crate::command::core::permission::owner_group_name_opt(
+            &gname,
+        ))
+        .with_permission_mode(own.mode.map(pna::PermissionMode::from))
+        .with_owner_user_sid(
+            user_sid.map(|s| pna::OwnerUserSid::new(s).expect("sid within owner-facet bound")),
+        )
+        .with_owner_group_sid(
+            group_sid.map(|s| pna::OwnerGroupSid::new(s).expect("sid within owner-facet bound")),
+        );
     entry.with_metadata(metadata)
 }
 
@@ -200,15 +208,7 @@ impl RawOwnership {
 
         let group = match self.group {
             _ if self.use_login_group => match &user {
-                Some(OwnerSpecifier::System(u)) => {
-                    let gid = u.primary_gid().ok_or_else(|| {
-                        io::Error::new(
-                            io::ErrorKind::Unsupported,
-                            "cannot get user's primary group",
-                        )
-                    })?;
-                    Some(OwnerSpecifier::System(Group::from_gid(gid)?))
-                }
+                Some(OwnerSpecifier::System(u)) => Some(OwnerSpecifier::System(u.primary_group()?)),
                 _ => None,
             },
             Some(group) if lookup => Some(OwnerSpecifier::System(if numeric_owner {
@@ -310,5 +310,66 @@ mod tests {
                 use_login_group: false,
             }
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn lookup_user_login_group() {
+        let ownership = RawOwnership::from_str("root:")
+            .unwrap()
+            .lookup_platform_owner(false, true)
+            .unwrap();
+        match ownership.group {
+            Some(OwnerSpecifier::System(group)) => {
+                assert_eq!(group.gid(), Some(0));
+            }
+            _ => panic!("login group must resolve to a system group"),
+        }
+    }
+
+    #[test]
+    fn transform_entry_replaces_sid_of_changed_side_only() {
+        let metadata = pna::Metadata::new()
+            .with_owner_uid(Some(pna::OwnerUid::from(1000)))
+            .with_owner_gid(Some(pna::OwnerGid::from(1000)))
+            .with_owner_user_name(Some(pna::OwnerUserName::new("user").unwrap()))
+            .with_owner_group_name(Some(pna::OwnerGroupName::new("group").unwrap()))
+            .with_owner_user_sid(Some(pna::OwnerUserSid::new("S-1-5-21-1111").unwrap()))
+            .with_owner_group_sid(Some(pna::OwnerGroupSid::new("S-1-5-21-2222").unwrap()))
+            .with_permission_mode(Some(pna::PermissionMode::from(0o644)));
+
+        let mut user_builder = pna::FileEntryBuilder::new("target.txt".into()).unwrap();
+        user_builder.metadata(metadata.clone());
+        let user_changed = transform_entry(
+            user_builder.build().unwrap(),
+            &Ownership {
+                user: Some(OwnerSpecifier::Name("new_user".into())),
+                group: None,
+            },
+        );
+        let m = user_changed.metadata();
+        assert_eq!(m.owner_user_name().unwrap().as_str(), "new_user");
+        assert_eq!(m.owner_uid().unwrap().get(), u64::MAX);
+        assert!(m.owner_user_sid().is_none());
+        assert_eq!(m.owner_group_name().unwrap().as_str(), "group");
+        assert_eq!(m.owner_gid().unwrap().get(), 1000);
+        assert_eq!(m.owner_group_sid().unwrap().as_str(), "S-1-5-21-2222");
+
+        let mut group_builder = pna::FileEntryBuilder::new("target.txt".into()).unwrap();
+        group_builder.metadata(metadata);
+        let group_changed = transform_entry(
+            group_builder.build().unwrap(),
+            &Ownership {
+                user: None,
+                group: Some(OwnerSpecifier::Name("new_group".into())),
+            },
+        );
+        let m = group_changed.metadata();
+        assert_eq!(m.owner_group_name().unwrap().as_str(), "new_group");
+        assert_eq!(m.owner_gid().unwrap().get(), u64::MAX);
+        assert!(m.owner_group_sid().is_none());
+        assert_eq!(m.owner_user_name().unwrap().as_str(), "user");
+        assert_eq!(m.owner_uid().unwrap().get(), 1000);
+        assert_eq!(m.owner_user_sid().unwrap().as_str(), "S-1-5-21-1111");
     }
 }
