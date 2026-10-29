@@ -30,7 +30,7 @@ use std::io::{self, Read};
 ///
 ///     pna_io::read_signature(&mut reader)?;
 ///
-///     for chunk in pna_io::read_chunks(reader, u32::MAX) {
+///     for chunk in pna_io::read_chunks(&mut reader, u32::MAX) {
 ///         let chunk = chunk?;
 ///         println!("{}", chunk.ty());
 ///     }
@@ -39,17 +39,17 @@ use std::io::{self, Read};
 /// }
 /// ```
 #[inline]
-pub fn read_chunks<R: Read>(
-    reader: R,
+pub fn read_chunks<'a, R: Read + ?Sized>(
+    reader: &'a mut R,
     max_data_len: u32,
-) -> impl Iterator<Item = io::Result<impl Chunk>> {
-    struct Chunks<R> {
-        reader: R,
+) -> impl Iterator<Item = io::Result<impl Chunk>> + 'a {
+    struct Chunks<'a, R: Read + ?Sized> {
+        reader: &'a mut R,
         max_data_len: u32,
         done: bool,
     }
 
-    impl<R: Read> Iterator for Chunks<R> {
+    impl<R: Read + ?Sized> Iterator for Chunks<'_, R> {
         type Item = io::Result<RawChunk>;
 
         #[inline]
@@ -90,7 +90,7 @@ mod tests {
         let mut input = valid_chunk_bytes();
         input.extend_from_slice(&raw_chunk_bytes(*b"AEND", &[]));
 
-        let types: Vec<_> = read_chunks(input.as_slice(), u32::MAX)
+        let types: Vec<_> = read_chunks(&mut input.as_slice(), u32::MAX)
             .map(|chunk| chunk.unwrap().ty())
             .collect();
 
@@ -102,7 +102,7 @@ mod tests {
         let mut input = raw_chunk_bytes(*b"AEND", &[]);
         input.extend_from_slice(&valid_chunk_bytes());
 
-        let types: Vec<_> = read_chunks(input.as_slice(), u32::MAX)
+        let types: Vec<_> = read_chunks(&mut input.as_slice(), u32::MAX)
             .map(|chunk| chunk.unwrap().ty())
             .collect();
 
@@ -115,9 +115,56 @@ mod tests {
         *input.last_mut().unwrap() ^= 0xFF;
         input.extend_from_slice(&raw_chunk_bytes(*b"AEND", &[]));
 
-        let mut chunks = read_chunks(input.as_slice(), u32::MAX);
+        let mut slice = input.as_slice();
+        let mut chunks = read_chunks(&mut slice, u32::MAX);
 
         assert!(chunks.next().unwrap().is_err());
+        assert!(chunks.next().is_none());
+    }
+
+    #[test]
+    fn read_chunks_accepts_a_dyn_reader() {
+        let mut input = valid_chunk_bytes();
+        input.extend_from_slice(&raw_chunk_bytes(*b"AEND", &[]));
+
+        let reader: &mut dyn io::Read = &mut io::Cursor::new(input);
+
+        let types: Vec<_> = read_chunks(reader, u32::MAX)
+            .map(|chunk| chunk.unwrap().ty())
+            .collect();
+
+        assert_eq!(types, [ChunkType::FDAT, ChunkType::AEND]);
+    }
+
+    #[test]
+    fn read_chunks_leaves_the_reader_after_aend() {
+        let mut input = valid_chunk_bytes();
+        input.extend_from_slice(&raw_chunk_bytes(*b"AEND", &[]));
+        input.extend_from_slice(b"tail");
+
+        let mut reader = io::Cursor::new(input);
+
+        let types: Vec<_> = read_chunks(&mut reader, u32::MAX)
+            .map(|chunk| chunk.unwrap().ty())
+            .collect();
+
+        assert_eq!(types, [ChunkType::FDAT, ChunkType::AEND]);
+
+        let mut rest = Vec::new();
+        reader.read_to_end(&mut rest).unwrap();
+        assert_eq!(rest, b"tail");
+    }
+
+    #[test]
+    fn read_chunks_yields_unexpected_eof_once_for_empty_input() {
+        let mut reader = io::Cursor::new(Vec::new());
+
+        let mut chunks = read_chunks(&mut reader, u32::MAX);
+
+        assert_eq!(
+            chunks.next().unwrap().err().unwrap().kind(),
+            io::ErrorKind::UnexpectedEof
+        );
         assert!(chunks.next().is_none());
     }
 
@@ -127,7 +174,7 @@ mod tests {
         let mut reader = io::Cursor::new(archive);
         read_signature(&mut reader).unwrap();
 
-        let types: Vec<_> = read_chunks(reader, u32::MAX)
+        let types: Vec<_> = read_chunks(&mut reader, u32::MAX)
             .map(|chunk| chunk.unwrap().ty())
             .collect();
 
