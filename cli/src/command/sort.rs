@@ -1,5 +1,8 @@
 use crate::{
-    cli::{ArchiveFileArgs, PasswordArgs},
+    cli::{
+        ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategy,
+        SolidEntriesTransformStrategyArgs,
+    },
     command::{
         Command, ask_password,
         core::{
@@ -9,7 +12,7 @@ use crate::{
     },
 };
 use clap::{ArgAction, Parser, ValueHint};
-use pna::{Archive, NormalEntry, ReadOptions};
+use pna::{Archive, NormalEntry, ReadEntry, ReadOptions, SolidEntryBuilder, WriteOptions};
 use std::{
     fmt::{self, Display, Formatter},
     path::PathBuf,
@@ -148,6 +151,8 @@ pub(crate) struct SortCommand {
     )]
     by: Vec<SortKey>,
     #[command(flatten)]
+    transform_strategy: SolidEntriesTransformStrategyArgs,
+    #[command(flatten)]
     password: PasswordArgs,
 }
 
@@ -164,18 +169,70 @@ fn sort_archive(args: SortCommand, umask: Umask) -> anyhow::Result<()> {
     let archives = collect_split_archives(&args.archive.file)?;
     let mut source = SplitArchiveReader::new(archives)?;
     let read_options = ReadOptions::with_password(password.as_deref());
+    let unsolid = args.transform_strategy.strategy() == SolidEntriesTransformStrategy::UnSolid;
     let mut entries = Vec::<NormalEntry<_>>::new();
-    source.for_each_entry(
-        &read_options,
+    let mut sorted = Vec::<ReadEntry<_>>::new();
+    source.for_each_read_entry(
         #[hooq::skip_all]
         |entry| {
-            entries.push(entry?);
+            match entry? {
+                ReadEntry::Normal(entry) => entries.push(entry),
+                ReadEntry::Solid(entry) => {
+                    if unsolid {
+                        for entry in entry.entries(&read_options)? {
+                            entries.push(entry?.into());
+                        }
+                    } else {
+                        sort_entries(&mut entries, &args.by);
+                        sorted.extend(entries.drain(..).map(ReadEntry::Normal));
+                        let mut inner = entry
+                            .entries(&read_options)?
+                            .collect::<std::io::Result<Vec<_>>>()?;
+                        sort_entries(&mut inner, &args.by);
+                        let header = entry.header();
+                        let options = WriteOptions::builder()
+                            .compression(header.compression())
+                            .encryption(header.encryption())
+                            .cipher_mode(header.cipher_mode())
+                            .password(password.as_deref())
+                            .build();
+                        let mut solid = SolidEntryBuilder::new(options)?;
+                        for chunk in entry.extra_chunks() {
+                            solid.add_extra_chunk(chunk.clone());
+                        }
+                        for entry in inner {
+                            solid.add_entry(entry)?;
+                        }
+                        sorted.push(ReadEntry::Solid(solid.build()?.into()));
+                    }
+                }
+            }
             Ok(())
         },
+        false,
     )?;
 
+    sort_entries(&mut entries, &args.by);
+    sorted.extend(entries.into_iter().map(ReadEntry::Normal));
+
+    let destination = resolve_rewrite_output(&args.archive.file, args.output, args.overwrite)?;
+    let mut staged = StagedArchive::new(destination.path, umask, destination.overwrite)?;
+    let mut archive = Archive::write_header(staged.as_file_mut())?;
+    for entry in sorted {
+        archive.add_entry(entry)?;
+    }
+    archive.finalize()?;
+
+    drop(source);
+
+    staged.commit()?;
+
+    Ok(())
+}
+
+fn sort_entries<T>(entries: &mut [NormalEntry<T>], keys: &[SortKey]) {
     entries.sort_by(|a, b| {
-        for key in &args.by {
+        for key in keys {
             let ord = match key.by {
                 SortBy::Name => a.name().cmp(b.name()),
                 SortBy::Ctime => a.metadata().created().cmp(&b.metadata().created()),
@@ -191,20 +248,6 @@ fn sort_archive(args: SortCommand, umask: Umask) -> anyhow::Result<()> {
         }
         std::cmp::Ordering::Equal
     });
-
-    let destination = resolve_rewrite_output(&args.archive.file, args.output, args.overwrite)?;
-    let mut staged = StagedArchive::new(destination.path, umask, destination.overwrite)?;
-    let mut archive = Archive::write_header(staged.as_file_mut())?;
-    for entry in entries {
-        archive.add_entry(entry)?;
-    }
-    archive.finalize()?;
-
-    drop(source);
-
-    staged.commit()?;
-
-    Ok(())
 }
 
 #[cfg(test)]
