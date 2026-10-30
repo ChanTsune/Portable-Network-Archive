@@ -110,7 +110,8 @@ impl<W: Write> Archive<W> {
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while splitting to the next archive.
+    /// Returns an error if an I/O error occurs while splitting to the next archive,
+    /// or if the archive number would overflow.
     ///
     /// # Examples
     ///
@@ -135,7 +136,10 @@ impl<W: Write> Archive<W> {
     /// ```
     #[inline]
     pub fn split_to_next_archive<OW: Write>(mut self, writer: OW) -> io::Result<Archive<OW>> {
-        let next_archive_number = self.header.archive_number + 1;
+        let next_archive_number =
+            self.header.archive_number.checked_add(1).ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidData, "archive number overflow")
+            })?;
         let header = ArchiveHeader::new(0, 0, next_archive_number);
         let max_chunk_size = self.max_chunk_size;
         self.add_next_archive_marker()?;
@@ -1378,6 +1382,29 @@ mod tests {
             .read_to_end(&mut data)
             .expect("failed to read data");
         assert_eq!(&data[..], large_data);
+    }
+
+    #[test]
+    fn split_to_next_archive_rejects_archive_number_overflow() {
+        let mut probe = Vec::new();
+        drop(Archive::write_header_with(&mut probe, ArchiveHeader::new(0, 0, u32::MAX)).unwrap());
+        let mut part1 = Vec::new();
+        let archive =
+            Archive::write_header_with(&mut part1, ArchiveHeader::new(0, 0, u32::MAX)).unwrap();
+        let mut part2 = Vec::new();
+        let err = archive.split_to_next_archive(&mut part2).err().unwrap();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        assert_eq!(part1, probe);
+        assert!(part2.is_empty());
+    }
+
+    #[test]
+    fn split_to_next_archive_accepts_archive_number_max_minus_one() {
+        let archive =
+            Archive::write_header_with(Vec::new(), ArchiveHeader::new(0, 0, u32::MAX - 1)).unwrap();
+        let next = archive.split_to_next_archive(Vec::new()).unwrap();
+        let err = next.split_to_next_archive(Vec::new()).err().unwrap();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
     }
 
     #[cfg(feature = "unstable-async")]
