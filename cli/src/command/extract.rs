@@ -21,12 +21,12 @@ use crate::{
     },
     utils::{
         self, BsdGlobMatcher, PathWithCwd, VCS_FILES,
-        fmt::DurationDisplay,
         fs::{Group, User},
     },
 };
 use anyhow::Context;
 use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
+use jiff::{SignedDuration, Unit};
 use pna::{
     DataKind, EntryContent, EntryName, EntryReference, LinkTargetType, NormalEntry, ReadOptions,
     prelude::*,
@@ -538,8 +538,11 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     )
     .with_context(|| format!("extracting entries from '{}'", PathWithCwd::new(&archive)))?;
     log::info!(
-        "Successfully extracted an archive in {}",
-        DurationDisplay(start.elapsed())
+        "Successfully extracted an archive in {:#}",
+        SignedDuration::try_from(start.elapsed())
+            .unwrap_or_default()
+            .round(Unit::Millisecond)
+            .unwrap_or_default()
     );
     if outcome == Outcome::Warn {
         return Err(anyhow::Error::from(ExitCodeError::silent(1)));

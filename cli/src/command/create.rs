@@ -15,11 +15,12 @@ use crate::{
             read_paths, read_paths_stdin, spawn_entry_results, write_split_archive,
         },
     },
-    utils::{self, VCS_FILES, fmt::DurationDisplay, fs::HardlinkResolver},
+    utils::{self, VCS_FILES, fs::HardlinkResolver},
 };
 use anyhow::ensure;
 use bytesize::ByteSize;
 use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
+use jiff::{SignedDuration, Unit};
 use pna::{Archive, MIN_SPLIT_PART_BYTES, SolidEntryBuilder, WriteOptions};
 use std::{
     fs,
@@ -558,8 +559,11 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         )?;
     }
     log::info!(
-        "Successfully created an archive in {}",
-        DurationDisplay(start.elapsed())
+        "Successfully created an archive in {:#}",
+        SignedDuration::try_from(start.elapsed())
+            .unwrap_or_default()
+            .round(Unit::Millisecond)
+            .unwrap_or_default()
     );
     Ok(())
 }
