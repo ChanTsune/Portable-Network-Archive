@@ -321,6 +321,7 @@ impl PermissionStrategyResolver {
                         },
                         uid: self.uid,
                         gid: self.gid,
+                        no_lookup: false,
                     },
                 }
             } else {
@@ -2121,6 +2122,7 @@ fn transform_normal_entry(
                 gid,
                 uname,
                 gname,
+                ..
             },
     } = &keep_options.owner_strategy
     {

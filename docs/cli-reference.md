@@ -703,6 +703,9 @@ Extract files from archive
 * `--numeric-owner` — This is equivalent to --uname "" --gname "". It causes user and group names in the archive to be ignored in favor of the numeric user and group ids.
 
   Default value: `false`
+* `--no-owner-lookup` — Allow restoring numeric user and group IDs without resolving them
+
+  Default value: `false`
 * `--older-ctime <DATETIME>` — Only include files and directories older than the specified date. This compares ctime entries.
 * `--older-mtime <DATETIME>` — Only include files and directories older than the specified date. This compares mtime entries.
 * `--newer-ctime <DATETIME>` — Only include files and directories newer than the specified date. This compares ctime entries.

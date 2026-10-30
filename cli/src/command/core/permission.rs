@@ -7,6 +7,7 @@ pub(crate) struct OwnerOptions {
     pub(crate) gname: Option<String>,
     pub(crate) uid: Option<u32>,
     pub(crate) gid: Option<u32>,
+    pub(crate) no_lookup: bool,
 }
 
 /// Unix permission mask representing bits to clear from file mode.
