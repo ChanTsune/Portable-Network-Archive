@@ -1114,6 +1114,12 @@ Sort entries in archive
 * `--by <KEY>` — Sort key in format KEY[:ORDER] (e.g., name, mtime:desc) [keys: name, ctime, mtime, atime] [orders: asc, desc]
 
   Default value: `name`
+* `--unsolid` — Convert solid entries to regular entries
+
+  Default value: `false`
+* `--keep-solid` — Preserve solid entries without conversion
+
+  Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
