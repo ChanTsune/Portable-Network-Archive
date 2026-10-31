@@ -108,7 +108,7 @@ jobs:
       matrix:
         include:
           # no versioned tag is published upstream; pinned to the current `latest` digest
-          - container: redoxos/redoxer:latest@sha256:8b1abee9dfa4162a798e8519d1275f39a8ddbfbc7ec0ba4707ea6c07a0416aef
+          - container: redoxos/redoxer:latest@sha256:f4d086738b938fda17bb1af267f6f400377ea779ecdcbb4f7ab83edb77d34328
             target: x86_64-unknown-redox
     runs-on: ubuntu-latest
     timeout-minutes: 150
