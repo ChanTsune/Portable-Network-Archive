@@ -8,7 +8,7 @@ use crate::{
         StreamHeader, derive_stream_key,
     },
     compress::DecompressReader,
-    entry::{KeyCache, ReadOption},
+    entry::{KdfCostLimits, KeyCache, ReadOption},
     error::AeadError,
     hash::derive_password_hash,
 };
@@ -24,13 +24,18 @@ use std::io::{self, Read};
 // The KDF runs outside the cache lock: concurrent readers may derive the
 // same key more than once on first contact, but the result is
 // deterministic so the race is benign.
-fn resolve_key(phsf: &str, password: &[u8], key_cache: Option<&KeyCache>) -> io::Result<Output> {
+fn resolve_key(
+    phsf: &str,
+    password: &[u8],
+    key_cache: Option<&KeyCache>,
+    limits: KdfCostLimits,
+) -> io::Result<Output> {
     if let Some(cache) = key_cache
         && let Some(key) = cache.get(phsf)
     {
         return Ok(key);
     }
-    let key = derive_password_hash(phsf, password)?;
+    let key = derive_password_hash(phsf, password, limits)?;
     if let Some(cache) = key_cache {
         cache.insert(phsf, key);
     }
@@ -42,10 +47,11 @@ fn derive_key(
     phsf: &str,
     password: Option<&[u8]>,
     key_cache: Option<&KeyCache>,
+    limits: KdfCostLimits,
 ) -> io::Result<Output> {
     let password = password
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "password was not provided"))?;
-    resolve_key(phsf, password, key_cache)
+    resolve_key(phsf, password, key_cache, limits)
 }
 
 /// Decrypt reader according to an encryption type.
@@ -64,6 +70,7 @@ pub(crate) fn decrypt_reader<R: Read, O: ReadOption>(
 ) -> io::Result<DecryptReader<R>> {
     let password = options.password();
     let key_cache = options.key_cache();
+    let limits = options.kdf_cost_limits();
     Ok(match encryption {
         Encryption::NO => DecryptReader::No(reader),
         encryption @ (Encryption::AES | Encryption::CAMELLIA) => {
@@ -72,19 +79,19 @@ pub(crate) fn decrypt_reader<R: Read, O: ReadOption>(
             })?;
             match (encryption, cipher_mode) {
                 (Encryption::AES, CipherMode::CBC) => {
-                    let key = derive_key(s, password, key_cache)?;
+                    let key = derive_key(s, password, key_cache, limits)?;
                     let mut iv = vec![0; Aes256::block_size()];
                     reader.read_exact(&mut iv)?;
                     DecryptReader::CbcAes(DecryptCbcAes256Reader::new(reader, key.as_bytes(), &iv)?)
                 }
                 (Encryption::AES, CipherMode::CTR) => {
-                    let key = derive_key(s, password, key_cache)?;
+                    let key = derive_key(s, password, key_cache, limits)?;
                     let mut iv = vec![0u8; Aes256::block_size()];
                     reader.read_exact(&mut iv)?;
                     DecryptReader::CtrAes(Ctr128BEReader::new(reader, key.as_bytes(), &iv)?)
                 }
                 (Encryption::CAMELLIA, CipherMode::CBC) => {
-                    let key = derive_key(s, password, key_cache)?;
+                    let key = derive_key(s, password, key_cache, limits)?;
                     let mut iv = vec![0; Camellia256::block_size()];
                     reader.read_exact(&mut iv)?;
                     DecryptReader::CbcCamellia(DecryptCbcCamellia256Reader::new(
@@ -94,7 +101,7 @@ pub(crate) fn decrypt_reader<R: Read, O: ReadOption>(
                     )?)
                 }
                 (Encryption::CAMELLIA, CipherMode::CTR) => {
-                    let key = derive_key(s, password, key_cache)?;
+                    let key = derive_key(s, password, key_cache, limits)?;
                     let mut iv = vec![0u8; Camellia256::block_size()];
                     reader.read_exact(&mut iv)?;
                     DecryptReader::CtrCamellia(Ctr128BEReader::new(reader, key.as_bytes(), &iv)?)
@@ -113,7 +120,7 @@ pub(crate) fn decrypt_reader<R: Read, O: ReadOption>(
                     // paying for the deliberately expensive KDF that `PHSF`
                     // records.
                     let header = StreamHeader::try_from_bytes(&header)?;
-                    let k_master = derive_key(s, password, key_cache)?;
+                    let k_master = derive_key(s, password, key_cache, limits)?;
                     if k_master.as_bytes().len() != 32 {
                         return Err(AeadError::Malformed("K_master is not 32 bytes").into());
                     }

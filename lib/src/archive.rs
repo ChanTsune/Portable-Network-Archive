@@ -492,6 +492,50 @@ mod tests {
         assert_eq!(read_options.cached_key_count(), 1);
     }
 
+    /// Precondition: an archive created with Argon2 parameters whose
+    /// parallelism cost exceeds the default KDF cost limits for reading.
+    /// Action: read it with default ReadOptions, then with unbounded limits.
+    /// Expectation: the default read fails with InvalidData, and the
+    /// unbounded read round-trips the contents.
+    #[test]
+    fn read_options_kdf_cost_limits_gate_expensive_archive() {
+        let archived = create_archive(
+            b"plain text",
+            WriteOptions::builder()
+                .encryption(Encryption::AES)
+                .hash_algorithm(HashAlgorithm::argon2id_with(Some(1), Some(136), Some(17)))
+                .password(Some("password"))
+                .build(),
+        )
+        .unwrap();
+
+        let mut archive_reader = Archive::read_header(archived.as_slice()).unwrap();
+        let item = archive_reader
+            .entries()
+            .skip_solid()
+            .next()
+            .unwrap()
+            .unwrap();
+        let Err(err) = item.reader(ReadOptions::with_password(Some("password"))) else {
+            panic!("reading over the default KDF cost limits must fail");
+        };
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+
+        let mut builder = ReadOptions::with_password(Some("password")).into_builder();
+        builder.kdf_cost_limits(crate::KdfCostLimits::unbounded());
+        let mut archive_reader = Archive::read_header(archived.as_slice()).unwrap();
+        let item = archive_reader
+            .entries()
+            .skip_solid()
+            .next()
+            .unwrap()
+            .unwrap();
+        let mut reader = item.reader(builder.build()).unwrap();
+        let mut dist = Vec::new();
+        io::copy(&mut reader, &mut dist).unwrap();
+        assert_eq!(b"plain text", dist.as_slice());
+    }
+
     /// Precondition: encryption-enabled WriteOptions built once.
     /// Action: create multiple archives reusing the same options.
     /// Expectation: every archive round-trips with the original password.
