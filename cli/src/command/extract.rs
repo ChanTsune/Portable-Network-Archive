@@ -2,7 +2,7 @@
 use crate::command::core::{run_process_archive_bytes, run_process_archive_bytes_stoppable};
 use crate::ext::*;
 #[cfg(any(unix, windows))]
-use crate::utils::fs::lchown;
+use crate::utils::fs::{GroupId, UserId, lchown};
 use crate::{
     cli::{ArchiveFileArgs, DateTime, FileOperands, MissingTimePolicy, PasswordArgs},
     command::{
@@ -1940,32 +1940,88 @@ fn restore_acls(
     Ok(())
 }
 
-/// Resolves the user and group to use for ownership restoration.
-///
-/// Priority:
-/// 1. Override uid/gid if specified
-/// 2. Override uname/gname if specified, searching by name
-/// 3. Archive's uname/gname with fallback to archive's uid/gid
+/// Resolves the user and group identifiers to use for ownership restoration.
+#[cfg(any(unix, windows))]
 fn resolve_owner(
     ownership: &ResolvedOwnership,
-    uname_override: Option<&str>,
-    gname_override: Option<&str>,
+    options: &OwnerOptions,
+) -> io::Result<(Option<UserId>, Option<GroupId>)> {
+    Ok((
+        resolve_user_id(ownership, options.uname.as_deref(), options.uid)?,
+        resolve_group_id(ownership, options.gname.as_deref(), options.gid)?,
+    ))
+}
+
+#[cfg(unix)]
+fn resolve_user_id(
+    ownership: &ResolvedOwnership,
+    name_override: Option<&str>,
     uid_override: Option<u32>,
+) -> io::Result<Option<UserId>> {
+    if let Some(uid) = uid_override {
+        return UserId::from_uid(uid.into()).map(Some);
+    }
+    let name = name_override.or(ownership.uname.as_deref());
+    if let Some(name) = name
+        && !name.is_empty()
+        && let Ok(user) = User::from_name(name)
+    {
+        return UserId::try_from(user).map(Some);
+    }
+    ownership.uid.map(UserId::from_uid).transpose()
+}
+
+#[cfg(unix)]
+fn resolve_group_id(
+    ownership: &ResolvedOwnership,
+    name_override: Option<&str>,
     gid_override: Option<u32>,
-) -> (Option<User>, Option<Group>) {
+) -> io::Result<Option<GroupId>> {
+    if let Some(gid) = gid_override {
+        return GroupId::from_gid(gid.into()).map(Some);
+    }
+    let name = name_override.or(ownership.gname.as_deref());
+    if let Some(name) = name
+        && !name.is_empty()
+        && let Ok(group) = Group::from_name(name)
+    {
+        return GroupId::try_from(group).map(Some);
+    }
+    ownership.gid.map(GroupId::from_gid).transpose()
+}
+
+#[cfg(windows)]
+fn resolve_user_id(
+    ownership: &ResolvedOwnership,
+    name_override: Option<&str>,
+    uid_override: Option<u32>,
+) -> io::Result<Option<UserId>> {
     let user = if let Some(uid) = uid_override {
-        User::from_uid(uid.into()).ok()
+        User::from_uid(u64::from(uid)).ok()
     } else {
-        let name = uname_override.or(ownership.uname.as_deref()).unwrap_or("");
-        search_owner(name, ownership.uid.unwrap_or(0)).ok()
+        name_override
+            .or(ownership.uname.as_deref())
+            .filter(|name| !name.is_empty())
+            .and_then(|name| User::from_name(name).ok())
     };
+    user.map(UserId::try_from).transpose()
+}
+
+#[cfg(windows)]
+fn resolve_group_id(
+    ownership: &ResolvedOwnership,
+    name_override: Option<&str>,
+    gid_override: Option<u32>,
+) -> io::Result<Option<GroupId>> {
     let group = if let Some(gid) = gid_override {
-        Group::from_gid(gid.into()).ok()
+        Group::from_gid(u64::from(gid)).ok()
     } else {
-        let name = gname_override.or(ownership.gname.as_deref()).unwrap_or("");
-        search_group(name, ownership.gid.unwrap_or(0)).ok()
+        name_override
+            .or(ownership.gname.as_deref())
+            .filter(|name| !name.is_empty())
+            .and_then(|name| Group::from_name(name).ok())
     };
-    (user, group)
+    group.map(GroupId::try_from).transpose()
 }
 
 #[inline]
@@ -1983,26 +2039,21 @@ fn restore_owner(
 ) -> io::Result<()> {
     #[cfg(any(unix, windows))]
     {
-        let (user, group) = resolve_owner(
-            ownership,
-            options.uname.as_deref(),
-            options.gname.as_deref(),
-            options.uid,
-            options.gid,
-        );
+        let (user, group) = resolve_owner(ownership, options)?;
         match lchown(path, user, group) {
             Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
-                log::warn!("failed to restore owner of {}: {}", path.display(), e)
+                log::warn!("failed to restore owner of {}: {}", path.display(), e);
+                Ok(())
             }
-            r => r?,
+            result => result,
         }
     }
     #[cfg(not(any(unix, windows)))]
     {
         let _ = (path, ownership, options);
         log::warn!("Currently ownership restoration is not supported on this platform.");
+        Ok(())
     }
-    Ok(())
 }
 
 /// Restores file mode bits (permissions like 0755) for an extracted entry.
@@ -2159,22 +2210,6 @@ fn ensure_directory_components(
         }
     }
     Ok(())
-}
-
-fn search_owner(name: &str, id: u64) -> io::Result<User> {
-    let user = User::from_name(name);
-    if user.is_ok() {
-        return user;
-    }
-    User::from_uid((id as u32).into())
-}
-
-fn search_group(name: &str, id: u64) -> io::Result<Group> {
-    let group = Group::from_name(name);
-    if group.is_ok() {
-        return group;
-    }
-    Group::from_gid((id as u32).into())
 }
 
 #[inline]

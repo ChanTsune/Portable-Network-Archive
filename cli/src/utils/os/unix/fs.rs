@@ -1,10 +1,7 @@
-#[cfg(not(target_os = "redox"))]
 pub(crate) mod owner;
-
-#[cfg(target_os = "redox")]
-pub(crate) use crate::utils::os::redox::fs::owner;
-use std::{fs, io, os::unix::fs::PermissionsExt, path::Path};
 pub(crate) mod xattrs;
+
+use std::{fs, io, os::unix::fs::PermissionsExt, path::Path};
 
 #[inline]
 pub(crate) fn chmod(path: &Path, mode: u16) -> io::Result<()> {

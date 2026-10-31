@@ -2,6 +2,7 @@ use nix::unistd::{Gid, Uid};
 use std::io;
 
 pub(crate) struct User(Uid);
+
 impl User {
     #[inline]
     pub(crate) fn from_uid(uid: Uid) -> io::Result<Self> {
@@ -31,6 +32,7 @@ impl User {
         None
     }
 }
+
 pub(crate) struct Group(Gid);
 
 impl Group {
