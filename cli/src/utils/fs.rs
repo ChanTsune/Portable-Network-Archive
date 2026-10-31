@@ -48,19 +48,19 @@ pub(crate) fn current_umask() -> u16 {
 #[cfg(any(windows, unix))]
 pub(crate) fn lchown<P: AsRef<Path>>(
     path: P,
-    owner: Option<User>,
-    group: Option<Group>,
+    owner: Option<UserId>,
+    group: Option<GroupId>,
 ) -> io::Result<()> {
     #[cfg(windows)]
-    fn inner(path: &Path, owner: Option<User>, group: Option<Group>) -> io::Result<()> {
+    fn inner(path: &Path, owner: Option<UserId>, group: Option<GroupId>) -> io::Result<()> {
         windows::fs::lchown(path, owner.map(|it| it.0), group.map(|it| it.0))
     }
     #[cfg(unix)]
-    fn inner(path: &Path, owner: Option<User>, group: Option<Group>) -> io::Result<()> {
+    fn inner(path: &Path, owner: Option<UserId>, group: Option<GroupId>) -> io::Result<()> {
         std::os::unix::fs::lchown(
             path,
-            owner.map(|it| it.0.as_raw()),
-            group.map(|it| it.0.as_raw()),
+            owner.map(|it| it.as_raw()),
+            group.map(|it| it.as_raw()),
         )
     }
     inner(path.as_ref(), owner, group)

@@ -2,7 +2,7 @@
 use crate::command::core::{run_process_archive_bytes, run_process_archive_bytes_stoppable};
 use crate::ext::*;
 #[cfg(any(unix, windows))]
-use crate::utils::fs::lchown;
+use crate::utils::fs::{Group, GroupId, User, UserId, lchown};
 use crate::{
     cli::{ArchiveFileArgs, DateTime, FileOperands, MissingTimePolicy, PasswordArgs},
     command::{
@@ -19,11 +19,7 @@ use crate::{
             read_paths, run_process_archive_readers, run_process_archive_readers_stoppable,
         },
     },
-    utils::{
-        self, BsdGlobMatcher, PathWithCwd, VCS_FILES,
-        fmt::DurationDisplay,
-        fs::{Group, User},
-    },
+    utils::{self, BsdGlobMatcher, PathWithCwd, VCS_FILES, fmt::DurationDisplay},
 };
 use anyhow::Context;
 use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
@@ -1855,32 +1851,90 @@ fn restore_acls(
     Ok(())
 }
 
-/// Resolves the user and group to use for ownership restoration.
-///
-/// Priority:
-/// 1. Override uid/gid if specified
-/// 2. Override uname/gname if specified, searching by name
-/// 3. Archive's uname/gname with fallback to archive's uid/gid
+/// Resolves the user and group identifiers to use for ownership restoration.
+#[cfg(any(unix, windows))]
 fn resolve_owner(
     ownership: &ResolvedOwnership,
-    uname_override: Option<&str>,
-    gname_override: Option<&str>,
+    options: &OwnerOptions,
+) -> io::Result<(Option<UserId>, Option<GroupId>)> {
+    Ok((
+        resolve_user_id(ownership, options.uname.as_deref(), options.uid)?,
+        resolve_group_id(ownership, options.gname.as_deref(), options.gid)?,
+    ))
+}
+
+#[cfg(unix)]
+fn resolve_user_id(
+    ownership: &ResolvedOwnership,
+    name_override: Option<&str>,
     uid_override: Option<u32>,
+) -> io::Result<Option<UserId>> {
+    if let Some(uid) = uid_override {
+        return UserId::from_uid(u64::from(uid)).map(Some);
+    }
+    let name = name_override
+        .or(ownership.uname.as_deref())
+        .filter(|name| !name.is_empty());
+    if let Some(name) = name
+        && let Ok(user) = User::from_name(name)
+    {
+        return UserId::try_from(user).map(Some);
+    }
+    ownership.uid.map(UserId::from_uid).transpose()
+}
+
+#[cfg(unix)]
+fn resolve_group_id(
+    ownership: &ResolvedOwnership,
+    name_override: Option<&str>,
     gid_override: Option<u32>,
-) -> (Option<User>, Option<Group>) {
+) -> io::Result<Option<GroupId>> {
+    if let Some(gid) = gid_override {
+        return GroupId::from_gid(u64::from(gid)).map(Some);
+    }
+    let name = name_override
+        .or(ownership.gname.as_deref())
+        .filter(|name| !name.is_empty());
+    if let Some(name) = name
+        && let Ok(group) = Group::from_name(name)
+    {
+        return GroupId::try_from(group).map(Some);
+    }
+    ownership.gid.map(GroupId::from_gid).transpose()
+}
+
+#[cfg(windows)]
+fn resolve_user_id(
+    ownership: &ResolvedOwnership,
+    name_override: Option<&str>,
+    uid_override: Option<u32>,
+) -> io::Result<Option<UserId>> {
     let user = if let Some(uid) = uid_override {
-        User::from_uid(uid.into()).ok()
+        User::from_uid(u64::from(uid)).ok()
     } else {
-        let name = uname_override.or(ownership.uname.as_deref()).unwrap_or("");
-        search_owner(name, ownership.uid.unwrap_or(0)).ok()
+        name_override
+            .or(ownership.uname.as_deref())
+            .filter(|name| !name.is_empty())
+            .and_then(|name| User::from_name(name).ok())
     };
+    user.map(UserId::try_from).transpose()
+}
+
+#[cfg(windows)]
+fn resolve_group_id(
+    ownership: &ResolvedOwnership,
+    name_override: Option<&str>,
+    gid_override: Option<u32>,
+) -> io::Result<Option<GroupId>> {
     let group = if let Some(gid) = gid_override {
-        Group::from_gid(gid.into()).ok()
+        Group::from_gid(u64::from(gid)).ok()
     } else {
-        let name = gname_override.or(ownership.gname.as_deref()).unwrap_or("");
-        search_group(name, ownership.gid.unwrap_or(0)).ok()
+        name_override
+            .or(ownership.gname.as_deref())
+            .filter(|name| !name.is_empty())
+            .and_then(|name| Group::from_name(name).ok())
     };
-    (user, group)
+    group.map(GroupId::try_from).transpose()
 }
 
 #[inline]
@@ -1898,26 +1952,21 @@ fn restore_owner(
 ) -> io::Result<()> {
     #[cfg(any(unix, windows))]
     {
-        let (user, group) = resolve_owner(
-            ownership,
-            options.uname.as_deref(),
-            options.gname.as_deref(),
-            options.uid,
-            options.gid,
-        );
+        let (user, group) = resolve_owner(ownership, options)?;
         match lchown(path, user, group) {
             Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
-                log::warn!("failed to restore owner of {}: {}", path.display(), e)
+                log::warn!("failed to restore owner of {}: {}", path.display(), e);
+                Ok(())
             }
-            r => r?,
+            result => result,
         }
     }
     #[cfg(not(any(unix, windows)))]
     {
         let _ = (path, ownership, options);
         log::warn!("Currently ownership restoration is not supported on this platform.");
+        Ok(())
     }
-    Ok(())
 }
 
 /// Restores file mode bits (permissions like 0755) for an extracted entry.
@@ -2070,22 +2119,6 @@ fn ensure_directory_components(
     Ok(())
 }
 
-fn search_owner(name: &str, id: u64) -> io::Result<User> {
-    let user = User::from_name(name);
-    if user.is_ok() {
-        return user;
-    }
-    User::from_uid((id as u32).into())
-}
-
-fn search_group(name: &str, id: u64) -> io::Result<Group> {
-    let group = Group::from_name(name);
-    if group.is_ok() {
-        return group;
-    }
-    Group::from_gid((id as u32).into())
-}
-
 #[inline]
 fn is_unsafe_link(reference: &EntryReference) -> bool {
     crate::command::core::path::is_unsafe_link_path(reference.as_str())
@@ -2129,6 +2162,130 @@ fn symlink_with_type<P: AsRef<Path>, Q: AsRef<Path>>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(all(unix, not(target_os = "redox")))]
+    fn owner_resolution_uses_numeric_ids_and_preserves_missing_sides() {
+        let mut uids = (1_000_000..1_010_000)
+            .filter(|&id| nix::unistd::User::from_uid(id.into()).unwrap().is_none());
+        let archived_uid = uids.next().expect("no unregistered uid in candidate range");
+        let override_uid = uids
+            .next()
+            .expect("no second unregistered uid in candidate range");
+        let mut gids = (1_000_000..1_010_000)
+            .filter(|&id| nix::unistd::Group::from_gid(id.into()).unwrap().is_none());
+        let archived_gid = gids.next().expect("no unregistered gid in candidate range");
+        let override_gid = gids
+            .next()
+            .expect("no second unregistered gid in candidate range");
+        let ownership = ResolvedOwnership {
+            uid: Some(u64::from(archived_uid)),
+            gid: Some(u64::from(archived_gid)),
+            uname: Some("pna-owner-name-that-does-not-exist".into()),
+            gname: Some("pna-group-name-that-does-not-exist".into()),
+            ..Default::default()
+        };
+
+        let resolved = resolve_owner(&ownership, &OwnerOptions::default()).unwrap();
+        assert_eq!(resolved.0.unwrap().as_raw(), archived_uid);
+        assert_eq!(resolved.1.unwrap().as_raw(), archived_gid);
+
+        let overrides = OwnerOptions {
+            uname: Some("root".into()),
+            gname: Some("root".into()),
+            uid: Some(override_uid),
+            gid: Some(override_gid),
+        };
+        let resolved = resolve_owner(&ownership, &overrides).unwrap();
+        assert_eq!(resolved.0.unwrap().as_raw(), override_uid);
+        assert_eq!(resolved.1.unwrap().as_raw(), override_gid);
+
+        let numeric_owner = ResolvedOwnership {
+            uname: Some("root".into()),
+            gname: Some("root".into()),
+            ..ownership.clone()
+        };
+        let ignore_names = OwnerOptions {
+            uname: Some(String::new()),
+            gname: Some(String::new()),
+            ..OwnerOptions::default()
+        };
+        let resolved = resolve_owner(&numeric_owner, &ignore_names).unwrap();
+        assert_eq!(resolved.0.unwrap().as_raw(), archived_uid);
+        assert_eq!(resolved.1.unwrap().as_raw(), archived_gid);
+
+        let root = User::from_name("root").unwrap();
+        let root_uid = root.uid().unwrap() as u32;
+        let root_gid = root.primary_gid().unwrap() as u32;
+        let root_group = Group::from_gid(u64::from(root_gid)).unwrap();
+        let named_ownership = ResolvedOwnership {
+            uid: Some(u64::from(if root_uid == 0 { 1_u32 } else { 0 })),
+            gid: Some(u64::from(if root_gid == 0 { 1_u32 } else { 0 })),
+            uname: Some(root.name().unwrap().to_owned()),
+            gname: Some(root_group.name().unwrap().to_owned()),
+            ..Default::default()
+        };
+        let resolved = resolve_owner(&named_ownership, &OwnerOptions::default()).unwrap();
+        assert_eq!(resolved.0.unwrap().as_raw(), root_uid);
+        assert_eq!(resolved.1.unwrap().as_raw(), root_gid);
+
+        let uid_only = ResolvedOwnership {
+            uid: Some(u64::from(archived_uid)),
+            ..Default::default()
+        };
+        let resolved = resolve_owner(&uid_only, &OwnerOptions::default()).unwrap();
+        assert_eq!(resolved.0.unwrap().as_raw(), archived_uid);
+        assert_eq!(resolved.1, None);
+
+        let gid_only = ResolvedOwnership {
+            gid: Some(u64::from(archived_gid)),
+            ..Default::default()
+        };
+        let resolved = resolve_owner(&gid_only, &OwnerOptions::default()).unwrap();
+        assert_eq!(resolved.0, None);
+        assert_eq!(resolved.1.unwrap().as_raw(), archived_gid);
+
+        let out_of_range_uid = ResolvedOwnership {
+            uid: Some(u64::from(u32::MAX) + 1),
+            ..Default::default()
+        };
+        assert_eq!(
+            resolve_owner(&out_of_range_uid, &OwnerOptions::default())
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput
+        );
+        let out_of_range_gid = ResolvedOwnership {
+            gid: Some(u64::from(u32::MAX) + 1),
+            ..Default::default()
+        };
+        assert_eq!(
+            resolve_owner(&out_of_range_gid, &OwnerOptions::default())
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput
+        );
+        let reserved_uid = ResolvedOwnership {
+            uid: Some(u64::from(u32::MAX)),
+            ..Default::default()
+        };
+        assert_eq!(
+            resolve_owner(&reserved_uid, &OwnerOptions::default())
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput
+        );
+        let reserved_gid = ResolvedOwnership {
+            gid: Some(u64::from(u32::MAX)),
+            ..Default::default()
+        };
+        assert_eq!(
+            resolve_owner(&reserved_gid, &OwnerOptions::default())
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput
+        );
+    }
 
     #[test]
     fn mode_only_metadata_does_not_request_owner_restore() {
