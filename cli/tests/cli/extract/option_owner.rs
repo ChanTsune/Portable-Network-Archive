@@ -104,6 +104,68 @@ fn create_archive_with_owner(
     Ok(())
 }
 
+/// Precondition: An archive contains IDs without corresponding owner names.
+/// Action: Extract through the native and bsdtar interfaces with ownership preservation.
+/// Expectation: Both interfaces restore the archived numeric IDs without account entries.
+#[test]
+#[cfg(all(unix, not(target_os = "redox")))]
+fn extract_unknown_numeric_owner() {
+    setup();
+    skip_unless!("root", nix::unistd::Uid::effective().is_root());
+    let uid = (1_000_000..1_010_000)
+        .find(|&id| nix::unistd::User::from_uid(id.into()).unwrap().is_none())
+        .expect("no unregistered uid in candidate range");
+    let gid = (1_000_000..1_010_000)
+        .find(|&id| nix::unistd::Group::from_gid(id.into()).unwrap().is_none())
+        .expect("no unregistered gid in candidate range");
+    fs::create_dir_all("extract_unknown_numeric_owner").unwrap();
+    create_archive_with_owner(
+        "extract_unknown_numeric_owner/archive.pna",
+        &[OwnerEntryDef {
+            path: "test.txt",
+            content: b"test",
+            uid: u64::from(uid),
+            uname: "",
+            gid: u64::from(gid),
+            gname: "",
+            permission: 0o644,
+        }],
+    )
+    .unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "x",
+        "-f",
+        "extract_unknown_numeric_owner/archive.pna",
+        "--overwrite",
+        "--out-dir",
+        "extract_unknown_numeric_owner/native",
+        "--keep-permission",
+        "--same-owner",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "compat",
+        "bsdtar",
+        "-x",
+        "-f",
+        "extract_unknown_numeric_owner/archive.pna",
+        "--same-owner",
+        "--out-dir",
+        "extract_unknown_numeric_owner/bsd",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+    let native = fs::metadata("extract_unknown_numeric_owner/native/test.txt").unwrap();
+    let bsd = fs::metadata("extract_unknown_numeric_owner/bsd/test.txt").unwrap();
+    assert_eq!((native.uid(), native.gid()), (uid, gid));
+    assert_eq!((bsd.uid(), bsd.gid()), (uid, gid));
+}
+
 /// Precondition: An archive contains files with specific uid/gid.
 /// Action: Extract the archive with `--no-same-owner`.
 /// Expectation: The extracted file is owned by the current user, not the archive's owner.
