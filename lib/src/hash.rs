@@ -176,10 +176,10 @@ pub(crate) fn derive_password_hash(
         derived
             .hash
             .ok_or_else(|| io::Error::other("argon2 returned no hash"))
-    } else if alg == pbkdf2::Algorithm::PBKDF2_SHA256_ID {
-        derive_pbkdf2(phsf, password, pbkdf2::Algorithm::Pbkdf2Sha256, limits)
-    } else if alg == pbkdf2::Algorithm::PBKDF2_SHA512_ID {
-        derive_pbkdf2(phsf, password, pbkdf2::Algorithm::Pbkdf2Sha512, limits)
+    } else if alg == pbkdf2::Algorithm::PBKDF2_SHA256_ID
+        || alg == pbkdf2::Algorithm::PBKDF2_SHA512_ID
+    {
+        derive_pbkdf2(phsf, password, limits)
     } else {
         Err(io::Error::new(
             io::ErrorKind::Unsupported,
@@ -188,13 +188,18 @@ pub(crate) fn derive_password_hash(
     }
 }
 
-fn derive_pbkdf2(
-    phsf: &str,
-    password: &[u8],
-    algorithm: pbkdf2::Algorithm,
-    limits: KdfCostLimits,
-) -> io::Result<Output> {
+fn derive_pbkdf2(phsf: &str, password: &[u8], limits: KdfCostLimits) -> io::Result<Output> {
     let pwhash = PasswordHash::new(phsf).map_err(invalid_data)?;
+    let algorithm = match pwhash.algorithm.as_str() {
+        pbkdf2::Algorithm::PBKDF2_SHA256_ID => pbkdf2::Algorithm::Pbkdf2Sha256,
+        pbkdf2::Algorithm::PBKDF2_SHA512_ID => pbkdf2::Algorithm::Pbkdf2Sha512,
+        alg => {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                format!("unsupported algorithm {alg:?}"),
+            ));
+        }
+    };
     let salt = pwhash
         .salt
         .ok_or_else(|| invalid_data("missing salt in password hash"))?;
