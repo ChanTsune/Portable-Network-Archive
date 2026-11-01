@@ -51,37 +51,33 @@ const MAX_ARGON2_MEMORY_TIME_COST: u64 = 2 * 1024 * 1024;
 /// algorithm (600,000 for SHA-256 and 210,000 for SHA-512).
 const MAX_PBKDF2_ROUNDS_FACTOR: u32 = 10;
 
-fn check_argon2_costs(
-    time_cost: u32,
-    memory_cost: u32,
-    parallelism_cost: u32,
-) -> Result<(), String> {
+fn check_argon2_costs(time_cost: u32, memory_cost: u32, parallelism_cost: u32) -> io::Result<()> {
     if memory_cost > MAX_ARGON2_MEMORY_COST {
-        return Err(format!(
+        return Err(invalid_data(format!(
             "argon2 memory cost {memory_cost} exceeds maximum {MAX_ARGON2_MEMORY_COST}"
-        ));
+        )));
     }
     if parallelism_cost > MAX_ARGON2_PARALLELISM_COST {
-        return Err(format!(
+        return Err(invalid_data(format!(
             "argon2 parallelism cost {parallelism_cost} exceeds maximum {MAX_ARGON2_PARALLELISM_COST}"
-        ));
+        )));
     }
     let total_work = u64::from(time_cost)
         * (u64::from(memory_cost) + ARGON2_SEGMENT_WORK * u64::from(parallelism_cost));
     if total_work > MAX_ARGON2_MEMORY_TIME_COST {
-        return Err(format!(
+        return Err(invalid_data(format!(
             "argon2 total work from time cost {time_cost}, memory cost {memory_cost} and parallelism cost {parallelism_cost} exceeds maximum {MAX_ARGON2_MEMORY_TIME_COST}"
-        ));
+        )));
     }
     Ok(())
 }
 
-fn check_pbkdf2_rounds(algorithm: pbkdf2::Algorithm, rounds: u32) -> Result<(), String> {
+fn check_pbkdf2_rounds(algorithm: pbkdf2::Algorithm, rounds: u32) -> io::Result<()> {
     let max_rounds = pbkdf2::Params::recommended_for(algorithm).rounds() * MAX_PBKDF2_ROUNDS_FACTOR;
     if rounds > max_rounds {
-        return Err(format!(
+        return Err(invalid_data(format!(
             "pbkdf2 rounds {rounds} exceed maximum {max_rounds}"
-        ));
+        )));
     }
     Ok(())
 }
@@ -161,8 +157,7 @@ pub(crate) fn derive_password_hash(
             .ok_or_else(|| invalid_data("missing salt in password hash"))?;
         let params = argon2::Params::try_from(&pwhash).map_err(invalid_data)?;
         if !limits.is_unbounded() {
-            check_argon2_costs(params.t_cost(), params.m_cost(), params.p_cost())
-                .map_err(invalid_data)?;
+            check_argon2_costs(params.t_cost(), params.m_cost(), params.p_cost())?;
         }
         let derived = Argon2::default()
             .hash_password_customized(
@@ -196,7 +191,7 @@ fn derive_pbkdf2(phsf: &str, password: &[u8], limits: KdfCostLimits) -> io::Resu
         .ok_or_else(|| invalid_data("missing salt in password hash"))?;
     let params = pbkdf2::Params::try_from(&pwhash).map_err(invalid_data)?;
     if !limits.is_unbounded() {
-        check_pbkdf2_rounds(algorithm, params.rounds()).map_err(invalid_data)?;
+        check_pbkdf2_rounds(algorithm, params.rounds())?;
     }
     let derived = pbkdf2::Pbkdf2::default()
         .hash_password_customized(
