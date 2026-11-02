@@ -1,0 +1,84 @@
+name: Redox CI stability investigation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - investigate/redox-cli-stability
+
+permissions:
+  contents: read
+
+jobs:
+  redox-diagnostics:
+    name: Redox CLI failure isolation
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container: redoxos/redoxer:latest@sha256:8b1abee9dfa4162a798e8519d1275f39a8ddbfbc7ec0ba4707ea6c07a0416aef
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Use bundled Redoxer assets
+        run: ln -s /root/.redoxer "$HOME/.redoxer"
+      - name: Record execution environment
+        run: |
+          set -eu
+          printf '=== host and runner ===\n'
+          uname -a
+          id
+          printf 'HOME=%s TARGET=%s\n' "$HOME" "$TARGET"
+          ls -ld "$HOME/.redoxer" /root/.redoxer/"$TARGET" /root/.redoxer/"$TARGET"/toolchain
+          printf '=== tools ===\n'
+          command -v redoxer
+          command -v qemu-system-x86_64
+          qemu-system-x86_64 --version | head -n 1
+          /root/.redoxer/"$TARGET"/toolchain/bin/rustc --version
+          /root/.redoxer/"$TARGET"/toolchain/bin/cargo --version
+          printf '=== virtualization access ===\n'
+          ls -l /dev/kvm /dev/fuse || true
+          printf '=== capacity ===\n'
+          df -h . /tmp
+          free -h || true
+          printf '=== Redoxer settings ===\n'
+          printf 'REDOXER_QEMU_ARGS=%s\n' "$REDOXER_QEMU_ARGS"
+        env:
+          TARGET: x86_64-unknown-redox
+          REDOXER_QEMU_ARGS: "-smp 1"
+      - name: Compare isolated test and module
+        timeout-minutes: 38
+        env:
+          TARGET: x86_64-unknown-redox
+          RUST_BACKTRACE: "1"
+          REDOXER_QEMU_ARGS: "-smp 1"
+          REDOXER_QEMU_BINARY: qemu-system-x86_64
+          AR_x86_64_unknown_redox: x86_64-unknown-redox-ar
+          CC_x86_64_unknown_redox: x86_64-unknown-redox-gcc
+          CARGO_TARGET_X86_64_UNKNOWN_REDOX_LINKER: x86_64-unknown-redox-gcc
+        run: |
+          export PATH="/root/.redoxer/$TARGET/toolchain/bin:$PATH"
+          export RUSTUP_TOOLCHAIN="/root/.redoxer/$TARGET/toolchain"
+          export CARGO_TARGET_X86_64_UNKNOWN_REDOX_RUNNER="redoxer exec --folder $PWD/:$PWD/ --folder $PWD/resources/test/:/root"
+
+          printf '=== CASE 1: delete_with_include alone ===\n'
+          set +e
+          timeout -s TERM -k 30s 7m cargo test -p portable-network-archive --test cli --locked --target "$TARGET" -- --test-threads=1 delete::option_include::delete_with_include --exact
+          solo=$?
+          printf 'PNA_DIAG solo status=%s\n' "$solo"
+
+          printf '=== CASE 2: all delete tests, original order ===\n'
+          timeout -s TERM -k 30s 8m cargo test -p portable-network-archive --test cli --locked --target "$TARGET" -- --test-threads=1 delete::
+          module=$?
+          printf 'PNA_DIAG module status=%s\n' "$module"
+
+          printf '=== CASE 3: all delete tests except delete_with_include ===\n'
+          timeout -s TERM -k 30s 8m cargo test -p portable-network-archive --test cli --locked --target "$TARGET" -- --test-threads=1 delete:: --skip delete::option_include::delete_with_include
+          excluded=$?
+          printf 'PNA_DIAG excluded status=%s\n' "$excluded"
+
+          printf '=== residual emulator processes ===\n'
+          ps -ef | grep -E 'qemu-system|redoxer exec' | grep -v grep || true
+          printf 'PNA_DIAG SUMMARY solo=%s module=%s excluded=%s\n' "$solo" "$module" "$excluded"
+          if [ "$solo" -ne 0 ] || [ "$module" -ne 0 ] || [ "$excluded" -ne 0 ]; then
+            exit 1
+          fi
