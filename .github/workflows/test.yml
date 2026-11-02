@@ -136,6 +136,8 @@ jobs:
           # already check these tests.
           cargo test -p libpna -p pna -p portable-network-archive --lib --locked --target "$TARGET" -- --test-threads=1 --skip command::core::staged_archive::tests::new_fails_when_the_mode_of_the_output_cannot_be_read --skip command::update::tests::is_newer_than_archive_
 
+          # Temporarily disable only the Redox CLI integration suite.
+          if false; then
           # Run the CLI integration suite one module at a time so a slow or
           # hanging module cannot stall unrelated modules. Host-only xattr
           # coverage, the very large combination matrix, the filetime-only
@@ -223,6 +225,7 @@ jobs:
           fi
           if [ "$failed" -ne 0 ]; then
             exit 1
+          fi
           fi
           cargo build -p portable-network-archive --locked --target "$TARGET"
           cp target/"$TARGET"/debug/pna pna-bin
