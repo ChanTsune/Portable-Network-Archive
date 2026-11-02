@@ -13,7 +13,7 @@ jobs:
   redox-diagnostics:
     name: Redox CLI failure isolation
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 39
     container: redoxos/redoxer:latest@sha256:8b1abee9dfa4162a798e8519d1275f39a8ddbfbc7ec0ba4707ea6c07a0416aef
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -45,8 +45,8 @@ jobs:
         env:
           TARGET: x86_64-unknown-redox
           REDOXER_QEMU_ARGS: "-smp 1"
-      - name: Reproduce preceding CLI workload
-        timeout-minutes: 43
+      - name: Compare cold boots and chmod with prior workload
+        timeout-minutes: 36
         env:
           TARGET: x86_64-unknown-redox
           RUST_BACKTRACE: "1"
@@ -59,7 +59,7 @@ jobs:
           export PATH="/root/.redoxer/$TARGET/toolchain/bin:$PATH"
           export RUSTUP_TOOLCHAIN="/root/.redoxer/$TARGET/toolchain"
           export CARGO_TARGET_X86_64_UNKNOWN_REDOX_RUNNER="redoxer exec --folder $PWD/:$PWD/ --folder $PWD/resources/test/:/root"
-          # Use the production job's exact skip arguments to preserve its test selection.
+          # Match production test exclusions without changing test contents.
           set -- \
             --skip append::atime:: \
             --skip append::ctime:: \
@@ -104,41 +104,41 @@ jobs:
             --skip update::option_unsolid:: \
             --skip update::path_transform::
 
-          monitor() {
-            while :; do
-              printf 'PNA_DIAG SAMPLE at=%s\n' "$(date -u +%FT%TZ)"
-              df -h /tmp | tail -n 1
-              ps -eo pid,ppid,stat,etime,pcpu,pmem,args | grep -E '[q]emu-system|[r]edoxer exec|[c]argo test|[t]imeout -s TERM' || true
-              sleep 30
-            done
-          }
-          monitor &
-          monitor_pid=$!
-          trap 'kill "$monitor_pid" 2>/dev/null || true' EXIT
-
-          for module in acl append bugreport chmod chown chunk complete concat create delete; do
-            printf 'PNA_DIAG START module=%s at=%s\n' "$module" "$(date -u +%FT%TZ)"
-            df -h /tmp
-            limit=5m
-            if [ "$module" = create ]; then limit=7m; fi
-            if [ "$module" = delete ]; then limit=9m; fi
+          printf 'PNA_DIAG prepare: compile test binary once\n'
+          cargo test -p portable-network-archive --test cli --no-run --locked --target "$TARGET"
+          failures=0
+          probe() {
+            label=$1
+            limit=$2
+            shift 2
+            printf 'PNA_DIAG BEGIN case=%s at=%s\n' "$label" "$(date -u +%FT%TZ)"
             set +e
-            timeout -s TERM -k 30s "$limit" cargo test -p portable-network-archive --test cli --locked --target "$TARGET" -- --test-threads=1 "$module::" "$@"
+            timeout -s TERM -k 20s "$limit" cargo test -p portable-network-archive --test cli --locked --target "$TARGET" -- "$@"
             status=$?
             set -e
-            printf 'PNA_DIAG RESULT module=%s status=%s at=%s\n' "$module" "$status" "$(date -u +%FT%TZ)"
-            df -h /tmp
-            ps -eo pid,ppid,stat,etime,pcpu,pmem,args | grep -E '[q]emu-system|[r]edoxer exec' || true
-            if [ "$status" -ne 0 ]; then
-              printf 'PNA_DIAG STOP first_failed=%s status=%s\n' "$module" "$status"
-              exit "$status"
-            fi
+            printf 'PNA_DIAG END case=%s status=%s at=%s\n' "$label" "$status" "$(date -u +%FT%TZ)"
+            printf 'PNA_DIAG CAPACITY case=%s\n' "$label"
+            df -h /tmp | tail -n 1
+            printf 'PNA_DIAG RESIDUAL case=%s\n' "$label"
+            ps -eo pid,ppid,stat,etime,pcpu,comm | grep -E 'qemu-system|redoxer' | grep -v grep || true
+            if [ "$status" -ne 0 ]; then failures=$((failures + 1)); fi
+          }
+
+          # Probe only guest startup and libtest initialization, with no tests selected.
+          for i in 1 2 3; do
+            probe "boot_$i" 2m --test-threads=1 __pna_redox_nonexistent_boot_probe__ --exact
           done
 
-          printf 'PNA_DIAG REPEAT delete after predecessor sequence\n'
-          set +e
-          timeout -s TERM -k 30s 9m cargo test -p portable-network-archive --test cli --locked --target "$TARGET" -- --test-threads=1 delete:: "$@"
-          repeated=$?
-          set -e
-          printf 'PNA_DIAG SUMMARY predecessors=success delete_first=0 delete_second=%s\n' "$repeated"
-          exit "$repeated"
+          # Repeated identical cold boots followed by the same chmod test module.
+          for i in 1 2 3; do
+            probe "chmod_alone_$i" 5m --test-threads=1 chmod:: "$@"
+          done
+
+          # Reproduce the immediate prefix from the previously failed run.
+          for module in acl append bugreport; do
+            probe "preceding_$module" 5m --test-threads=1 "$module::" "$@"
+          done
+          probe "chmod_after_prefix" 5m --test-threads=1 chmod:: "$@"
+
+          printf 'PNA_DIAG SUMMARY failures=%s cases=10\n' "$failures"
+          if [ "$failures" -ne 0 ]; then exit 1; fi
