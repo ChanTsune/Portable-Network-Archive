@@ -13,7 +13,7 @@ jobs:
   redox-diagnostics:
     name: Redox CLI failure isolation
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
     container: redoxos/redoxer:latest@sha256:8b1abee9dfa4162a798e8519d1275f39a8ddbfbc7ec0ba4707ea6c07a0416aef
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -45,40 +45,100 @@ jobs:
         env:
           TARGET: x86_64-unknown-redox
           REDOXER_QEMU_ARGS: "-smp 1"
-      - name: Compare isolated test and module
-        timeout-minutes: 38
+      - name: Reproduce preceding CLI workload
+        timeout-minutes: 43
         env:
           TARGET: x86_64-unknown-redox
           RUST_BACKTRACE: "1"
           REDOXER_QEMU_ARGS: "-smp 1"
-          REDOXER_QEMU_BINARY: qemu-system-x86_64
           AR_x86_64_unknown_redox: x86_64-unknown-redox-ar
           CC_x86_64_unknown_redox: x86_64-unknown-redox-gcc
           CARGO_TARGET_X86_64_UNKNOWN_REDOX_LINKER: x86_64-unknown-redox-gcc
         run: |
+          set -eu
           export PATH="/root/.redoxer/$TARGET/toolchain/bin:$PATH"
           export RUSTUP_TOOLCHAIN="/root/.redoxer/$TARGET/toolchain"
           export CARGO_TARGET_X86_64_UNKNOWN_REDOX_RUNNER="redoxer exec --folder $PWD/:$PWD/ --folder $PWD/resources/test/:/root"
+          # Use the production job's exact skip arguments to preserve its test selection.
+          set -- \
+            --skip append::atime:: \
+            --skip append::ctime:: \
+            --skip append::mtime:: \
+            --skip append::option_newer_mtime:: \
+            --skip append::option_newer_mtime_than:: \
+            --skip append::option_older_mtime:: \
+            --skip append::option_older_mtime_than:: \
+            --skip create::atime:: \
+            --skip create::ctime:: \
+            --skip create::mtime:: \
+            --skip create::option_newer_mtime:: \
+            --skip create::option_newer_mtime_than:: \
+            --skip create::option_older_mtime:: \
+            --skip create::option_older_mtime_than:: \
+            --skip create::symlink_metadata::roundtrip_symlink_metadata_preserved \
+            --skip diff::metadata:: \
+            --skip diff::option_compare:: \
+            --skip diff::option_format::diff_with_format_jsonl_and_metadata_differences \
+            --skip extract::option_keep_newer_files:: \
+            --skip extract::option_keep_permission::extract_encrypted_gcm_without_keep_permission_drops_setuid \
+            --skip extract::option_keep_timestamp:: \
+            --skip extract::option_mtime:: \
+            --skip extract::symlink_metadata:: \
+            --skip list::option_format_jsonl::list_format_jsonl_with_xattr \
+            --skip update::duplicate_targets:: \
+            --skip update::encryption:: \
+            --skip update::mtime_stored_precision:: \
+            --skip update::multipart:: \
+            --skip update::no_timestamp_archive:: \
+            --skip update::option_atime:: \
+            --skip update::option_ctime:: \
+            --skip update::option_exclude:: \
+            --skip update::option_include:: \
+            --skip update::option_keep_solid:: \
+            --skip update::option_mtime:: \
+            --skip update::option_newer_mtime:: \
+            --skip update::option_newer_mtime_than:: \
+            --skip update::option_older_mtime:: \
+            --skip update::option_older_mtime_than:: \
+            --skip update::option_output:: \
+            --skip update::option_unsolid:: \
+            --skip update::path_transform::
 
-          printf '=== CASE 1: delete_with_include alone ===\n'
+          monitor() {
+            while :; do
+              printf 'PNA_DIAG SAMPLE at=%s\n' "$(date -u +%FT%TZ)"
+              df -h /tmp | tail -n 1
+              ps -eo pid,ppid,stat,etime,pcpu,pmem,args | grep -E '[q]emu-system|[r]edoxer exec|[c]argo test|[t]imeout -s TERM' || true
+              sleep 30
+            done
+          }
+          monitor &
+          monitor_pid=$!
+          trap 'kill "$monitor_pid" 2>/dev/null || true' EXIT
+
+          for module in acl append bugreport chmod chown chunk complete concat create delete; do
+            printf 'PNA_DIAG START module=%s at=%s\n' "$module" "$(date -u +%FT%TZ)"
+            df -h /tmp
+            limit=5m
+            if [ "$module" = create ]; then limit=7m; fi
+            if [ "$module" = delete ]; then limit=9m; fi
+            set +e
+            timeout -s TERM -k 30s "$limit" cargo test -p portable-network-archive --test cli --locked --target "$TARGET" -- --test-threads=1 "$module::" "$@"
+            status=$?
+            set -e
+            printf 'PNA_DIAG RESULT module=%s status=%s at=%s\n' "$module" "$status" "$(date -u +%FT%TZ)"
+            df -h /tmp
+            ps -eo pid,ppid,stat,etime,pcpu,pmem,args | grep -E '[q]emu-system|[r]edoxer exec' || true
+            if [ "$status" -ne 0 ]; then
+              printf 'PNA_DIAG STOP first_failed=%s status=%s\n' "$module" "$status"
+              exit "$status"
+            fi
+          done
+
+          printf 'PNA_DIAG REPEAT delete after predecessor sequence\n'
           set +e
-          timeout -s TERM -k 30s 7m cargo test -p portable-network-archive --test cli --locked --target "$TARGET" -- --test-threads=1 delete::option_include::delete_with_include --exact
-          solo=$?
-          printf 'PNA_DIAG solo status=%s\n' "$solo"
-
-          printf '=== CASE 2: all delete tests, original order ===\n'
-          timeout -s TERM -k 30s 8m cargo test -p portable-network-archive --test cli --locked --target "$TARGET" -- --test-threads=1 delete::
-          module=$?
-          printf 'PNA_DIAG module status=%s\n' "$module"
-
-          printf '=== CASE 3: all delete tests except delete_with_include ===\n'
-          timeout -s TERM -k 30s 8m cargo test -p portable-network-archive --test cli --locked --target "$TARGET" -- --test-threads=1 delete:: --skip delete::option_include::delete_with_include
-          excluded=$?
-          printf 'PNA_DIAG excluded status=%s\n' "$excluded"
-
-          printf '=== residual emulator processes ===\n'
-          ps -ef | grep -E 'qemu-system|redoxer exec' | grep -v grep || true
-          printf 'PNA_DIAG SUMMARY solo=%s module=%s excluded=%s\n' "$solo" "$module" "$excluded"
-          if [ "$solo" -ne 0 ] || [ "$module" -ne 0 ] || [ "$excluded" -ne 0 ]; then
-            exit 1
-          fi
+          timeout -s TERM -k 30s 9m cargo test -p portable-network-archive --test cli --locked --target "$TARGET" -- --test-threads=1 delete:: "$@"
+          repeated=$?
+          set -e
+          printf 'PNA_DIAG SUMMARY predecessors=success delete_first=0 delete_second=%s\n' "$repeated"
+          exit "$repeated"
