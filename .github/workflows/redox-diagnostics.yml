@@ -13,7 +13,7 @@ jobs:
   redox-diagnostics:
     name: Redox CLI failure isolation
     runs-on: ubuntu-latest
-    timeout-minutes: 32
+    timeout-minutes: 34
     container: redoxos/redoxer:latest@sha256:8b1abee9dfa4162a798e8519d1275f39a8ddbfbc7ec0ba4707ea6c07a0416aef
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -45,47 +45,50 @@ jobs:
         env:
           TARGET: x86_64-unknown-redox
           REDOXER_QEMU_ARGS: "-smp 1"
-      - name: Compare minimal and workspace-loaded Redox boots
-        timeout-minutes: 28
+      - name: Compare Redox boots with QEMU CPU models
+        timeout-minutes: 31
         env:
           TARGET: x86_64-unknown-redox
           RUST_BACKTRACE: "1"
           REDOXER_QEMU_ARGS: "-smp 1"
-          AR_x86_64_unknown_redox: x86_64-unknown-redox-ar
-          CC_x86_64_unknown_redox: x86_64-unknown-redox-gcc
-          CARGO_TARGET_X86_64_UNKNOWN_REDOX_LINKER: x86_64-unknown-redox-gcc
         run: |
           set -eu
           export PATH="/root/.redoxer/$TARGET/toolchain/bin:$PATH"
           export RUSTUP_TOOLCHAIN="/root/.redoxer/$TARGET/toolchain"
-          export CARGO_TARGET_X86_64_UNKNOWN_REDOX_RUNNER="redoxer exec --folder $PWD/:$PWD/ --folder $PWD/resources/test/:/root"
-          cargo test -p portable-network-archive --test cli --no-run --locked --target "$TARGET"
+          printf 'PNA_DIAG EXPERIMENT baseline=-cpu_max alternative=-cpu_qemu64 smp=1\n'
+          qemu-system-x86_64 --version | head -n 1
+          qemu-system-x86_64 -cpu help | grep -E '^x86 (max|qemu64)[[:space:]]' || true
 
-          printf 'PNA_DIAG ENV runner=%s qemu_args=%s\n' "$CARGO_TARGET_X86_64_UNKNOWN_REDOX_RUNNER" "$REDOXER_QEMU_ARGS"
-          minimal_failures=0
-          loaded_failures=0
-          for i in 1 2 3 4 5; do
-            printf 'PNA_DIAG BEGIN minimal_%s at=%s\n' "$i" "$(date -u +%FT%TZ)"
-            set +e
-            timeout -s TERM -k 15s 90s redoxer exec -- /usr/bin/ion -c 'echo REDOX_MINIMAL_OK'
-            minimal_status=$?
-            set -e
-            printf 'PNA_DIAG END minimal_%s status=%s at=%s\n' "$i" "$minimal_status" "$(date -u +%FT%TZ)"
-            if [ "$minimal_status" -ne 0 ]; then minimal_failures=$((minimal_failures + 1)); fi
-
-            printf 'PNA_DIAG BEGIN workspace_%s at=%s\n' "$i" "$(date -u +%FT%TZ)"
-            set +e
-            timeout -s TERM -k 15s 90s cargo test -p portable-network-archive --test cli --locked --target "$TARGET" -- --test-threads=1 __pna_redox_nonexistent_boot_probe__ --exact
-            workspace_status=$?
-            set -e
-            printf 'PNA_DIAG END workspace_%s status=%s at=%s\n' "$i" "$workspace_status" "$(date -u +%FT%TZ)"
-            if [ "$workspace_status" -ne 0 ]; then loaded_failures=$((loaded_failures + 1)); fi
-
-            printf 'PNA_DIAG RESIDUAL iteration=%s\n' "$i"
-            ps -eo pid,ppid,stat,etime,comm | grep -E '[q]emu-system|[r]edoxer' || true
-            df -h /tmp | tail -n 1
+          baseline_failures=0
+          alternate_failures=0
+          baseline_successes=0
+          alternate_successes=0
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            # Alternate order to avoid consistently favoring the earlier model.
+            if [ $((i % 2)) -eq 1 ]; then modes="baseline alternate"; else modes="alternate baseline"; fi
+            for mode in $modes; do
+              if [ "$mode" = baseline ]; then
+                export REDOXER_QEMU_ARGS="-smp 1"
+              else
+                export REDOXER_QEMU_ARGS="-smp 1 -cpu qemu64"
+              fi
+              printf 'PNA_DIAG BEGIN pair=%s mode=%s args=%s at=%s\n' "$i" "$mode" "$REDOXER_QEMU_ARGS" "$(date -u +%FT%TZ)"
+              set +e
+              timeout -s TERM -k 15s 65s redoxer exec -- /usr/bin/ion -c 'echo REDOX_CPU_MODEL_OK'
+              status=$?
+              set -e
+              printf 'PNA_DIAG END pair=%s mode=%s status=%s at=%s\n' "$i" "$mode" "$status" "$(date -u +%FT%TZ)"
+              if [ "$mode" = baseline ]; then
+                if [ "$status" -eq 0 ]; then baseline_successes=$((baseline_successes + 1)); else baseline_failures=$((baseline_failures + 1)); fi
+              else
+                if [ "$status" -eq 0 ]; then alternate_successes=$((alternate_successes + 1)); else alternate_failures=$((alternate_failures + 1)); fi
+              fi
+              if [ "$status" -ne 0 ]; then
+                ps -eo pid,ppid,stat,etime,comm | grep -E '[q]emu-system|[r]edoxer' || true
+                df -h /tmp | tail -n 1
+              fi
+            done
           done
-
-          printf 'PNA_DIAG SUMMARY minimal_failures=%s workspace_failures=%s attempts_each=5\n' "$minimal_failures" "$loaded_failures"
-          # A failure is experimental evidence, not a reason to skip later attempts.
+          printf 'PNA_DIAG SUMMARY baseline_success=%s baseline_failure=%s alternate_success=%s alternate_failure=%s attempts_each=12\n' "$baseline_successes" "$baseline_failures" "$alternate_successes" "$alternate_failures"
+          # Failure rates are the result of this experiment, not a reason to stop.
           exit 0
