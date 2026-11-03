@@ -13,7 +13,7 @@ jobs:
   redox-diagnostics:
     name: Redox CLI failure isolation
     runs-on: ubuntu-latest
-    timeout-minutes: 34
+    timeout-minutes: 48
     container: redoxos/redoxer:latest@sha256:8b1abee9dfa4162a798e8519d1275f39a8ddbfbc7ec0ba4707ea6c07a0416aef
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -45,50 +45,62 @@ jobs:
         env:
           TARGET: x86_64-unknown-redox
           REDOXER_QEMU_ARGS: "-smp 1"
-      - name: Compare Redox boots with QEMU CPU models
-        timeout-minutes: 31
+      - name: Compare real CLI tests across QEMU CPU models
+        timeout-minutes: 45
         env:
           TARGET: x86_64-unknown-redox
           RUST_BACKTRACE: "1"
           REDOXER_QEMU_ARGS: "-smp 1"
+          AR_x86_64_unknown_redox: x86_64-unknown-redox-ar
+          CC_x86_64_unknown_redox: x86_64-unknown-redox-gcc
+          CARGO_TARGET_X86_64_UNKNOWN_REDOX_LINKER: x86_64-unknown-redox-gcc
         run: |
           set -eu
           export PATH="/root/.redoxer/$TARGET/toolchain/bin:$PATH"
           export RUSTUP_TOOLCHAIN="/root/.redoxer/$TARGET/toolchain"
-          printf 'PNA_DIAG EXPERIMENT baseline=-cpu_max alternative=-cpu_qemu64 smp=1\n'
-          qemu-system-x86_64 --version | head -n 1
-          qemu-system-x86_64 -cpu help | grep -E '^x86 (max|qemu64)[[:space:]]' || true
+          export CARGO_TARGET_X86_64_UNKNOWN_REDOX_RUNNER="redoxer exec --folder $PWD/:$PWD/ --folder $PWD/resources/test/:/root"
 
-          baseline_failures=0
-          alternate_failures=0
-          baseline_successes=0
-          alternate_successes=0
-          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-            # Alternate order to avoid consistently favoring the earlier model.
-            if [ $((i % 2)) -eq 1 ]; then modes="baseline alternate"; else modes="alternate baseline"; fi
-            for mode in $modes; do
-              if [ "$mode" = baseline ]; then
-                export REDOXER_QEMU_ARGS="-smp 1"
+          printf 'PNA_DIAG EXPERIMENT real_cli=chmod,delete repetitions_each=3 cpu=max,qemu64\n'
+          cargo test -p portable-network-archive --test cli --locked --no-run --target "$TARGET"
+
+          max_ok=0
+          max_fail=0
+          qemu64_ok=0
+          qemu64_fail=0
+          pair_index=0
+          for module in chmod delete; do
+            for repetition in 1 2 3; do
+              pair_index=$((pair_index + 1))
+              # Balance the ordering between CPU models across the six pairs.
+              if [ $((pair_index % 2)) -eq 1 ]; then
+                order="max qemu64"
               else
-                export REDOXER_QEMU_ARGS="-smp 1 -cpu qemu64"
+                order="qemu64 max"
               fi
-              printf 'PNA_DIAG BEGIN pair=%s mode=%s args=%s at=%s\n' "$i" "$mode" "$REDOXER_QEMU_ARGS" "$(date -u +%FT%TZ)"
-              set +e
-              timeout -s TERM -k 15s 65s redoxer exec -- /usr/bin/ion -c 'echo REDOX_CPU_MODEL_OK'
-              status=$?
-              set -e
-              printf 'PNA_DIAG END pair=%s mode=%s status=%s at=%s\n' "$i" "$mode" "$status" "$(date -u +%FT%TZ)"
-              if [ "$mode" = baseline ]; then
-                if [ "$status" -eq 0 ]; then baseline_successes=$((baseline_successes + 1)); else baseline_failures=$((baseline_failures + 1)); fi
-              else
-                if [ "$status" -eq 0 ]; then alternate_successes=$((alternate_successes + 1)); else alternate_failures=$((alternate_failures + 1)); fi
-              fi
-              if [ "$status" -ne 0 ]; then
-                ps -eo pid,ppid,stat,etime,comm | grep -E '[q]emu-system|[r]edoxer' || true
-                df -h /tmp | tail -n 1
-              fi
+              for cpu in $order; do
+                case "$cpu" in
+                  max) export REDOXER_QEMU_ARGS="-smp 1" ;;
+                  qemu64) export REDOXER_QEMU_ARGS="-smp 1 -cpu qemu64" ;;
+                esac
+                printf 'PNA_DIAG BEGIN module=%s repetition=%s cpu=%s at=%s\n' "$module" "$repetition" "$cpu" "$(date -u +%FT%TZ)"
+                set +e
+                timeout -s TERM -k 15s 3m cargo test -p portable-network-archive --test cli --locked --target "$TARGET" -- --test-threads=1 "$module::"
+                status=$?
+                set -e
+                printf 'PNA_DIAG END module=%s repetition=%s cpu=%s status=%s at=%s\n' "$module" "$repetition" "$cpu" "$status" "$(date -u +%FT%TZ)"
+                if [ "$cpu" = max ]; then
+                  if [ "$status" -eq 0 ]; then max_ok=$((max_ok + 1)); else max_fail=$((max_fail + 1)); fi
+                else
+                  if [ "$status" -eq 0 ]; then qemu64_ok=$((qemu64_ok + 1)); else qemu64_fail=$((qemu64_fail + 1)); fi
+                fi
+                if [ "$status" -ne 0 ]; then
+                  printf 'PNA_DIAG FAILURE module=%s cpu=%s status=%s\n' "$module" "$cpu" "$status"
+                  ps -eo pid,ppid,stat,etime,comm | grep -E '[q]emu-system|[r]edoxer' || true
+                  df -h /tmp | tail -n 1
+                fi
+              done
             done
           done
-          printf 'PNA_DIAG SUMMARY baseline_success=%s baseline_failure=%s alternate_success=%s alternate_failure=%s attempts_each=12\n' "$baseline_successes" "$baseline_failures" "$alternate_successes" "$alternate_failures"
-          # Failure rates are the result of this experiment, not a reason to stop.
+          printf 'PNA_DIAG SUMMARY max_ok=%s max_fail=%s qemu64_ok=%s qemu64_fail=%s attempts_each=6\n' "$max_ok" "$max_fail" "$qemu64_ok" "$qemu64_fail"
+          # Record evidence of flaky boots without failing before later probes.
           exit 0
