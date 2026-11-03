@@ -16,6 +16,13 @@ libfuzzer-sys = "0.4"
 libpna = { path = "../lib" }
 crc32fast = "1.5.0"
 
+[lints.cargo]
+# cargo-fuzz requires `[[bin]] name` to match `fuzz_targets/<name>.rs` file stem,
+# which uses snake_case. Kebab-case would break `cargo fuzz run <target>` and
+# target detection in `.github/workflows/fuzz.yml`.
+# Ref: rust-lang/cargo#15586, rust-lang/cargo#16524, rust-lang/cargo#16553
+non_kebab_case_bins = "allow"
+
 
 [[bin]]
 name = "aes_cbc"
