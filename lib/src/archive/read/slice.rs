@@ -248,44 +248,107 @@ mod tests {
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
+    fn fixture_contents() -> [(&'static str, &'static [u8]); 9] {
+        [
+            (
+                "raw/empty.txt",
+                include_bytes!("../../../../resources/test/raw/empty.txt").as_slice(),
+            ),
+            (
+                "raw/first/second/third/pna.txt",
+                include_bytes!("../../../../resources/test/raw/first/second/third/pna.txt")
+                    .as_slice(),
+            ),
+            (
+                "raw/images/icon.bmp",
+                include_bytes!("../../../../resources/test/raw/images/icon.bmp").as_slice(),
+            ),
+            (
+                "raw/images/icon.png",
+                include_bytes!("../../../../resources/test/raw/images/icon.png").as_slice(),
+            ),
+            (
+                "raw/images/icon.svg",
+                include_bytes!("../../../../resources/test/raw/images/icon.svg").as_slice(),
+            ),
+            (
+                "raw/parent/child.txt",
+                include_bytes!("../../../../resources/test/raw/parent/child.txt").as_slice(),
+            ),
+            (
+                "raw/pna/empty.pna",
+                include_bytes!("../../../../resources/test/raw/pna/empty.pna").as_slice(),
+            ),
+            (
+                "raw/pna/nest.pna",
+                include_bytes!("../../../../resources/test/raw/pna/nest.pna").as_slice(),
+            ),
+            (
+                "raw/text.txt",
+                include_bytes!("../../../../resources/test/raw/text.txt").as_slice(),
+            ),
+        ]
+    }
+
     #[test]
     fn decode() {
+        use std::io::Read;
+
         let bytes = include_bytes!("../../../../resources/test/zstd.pna");
         let mut archive = Archive::read_header_from_slice(bytes).unwrap();
-        let mut entries = archive.entries_slice();
-        assert!(entries.next().is_some());
-        assert!(entries.next().is_some());
-        assert!(entries.next().is_some());
-        assert!(entries.next().is_some());
-        assert!(entries.next().is_some());
-        assert!(entries.next().is_some());
-        assert!(entries.next().is_some());
-        assert!(entries.next().is_some());
-        assert!(entries.next().is_some());
-        assert!(entries.next().is_none());
+        let entries = archive
+            .entries_slice()
+            .map(|entry| match entry.unwrap() {
+                ReadEntry::Normal(entry) => entry,
+                ReadEntry::Solid(_) => panic!("expected a normal entry"),
+            })
+            .collect::<Vec<_>>();
+        let mut actual = Vec::new();
+        for entry in entries {
+            let mut body = Vec::new();
+            entry
+                .reader(ReadOptions::builder().build())
+                .unwrap()
+                .read_to_end(&mut body)
+                .unwrap();
+            actual.push((entry.name().as_str().to_owned(), body));
+        }
+        actual.sort_by(|a, b| a.0.cmp(&b.0));
+        let actual: Vec<_> = actual
+            .iter()
+            .map(|(name, body)| (name.as_str(), body.as_slice()))
+            .collect();
+        assert_eq!(actual, fixture_contents());
     }
 
     #[test]
     fn decode_solid() {
+        use std::io::Read;
+
         let bytes = include_bytes!("../../../../resources/test/solid_zstd.pna");
         let mut archive = Archive::read_header_from_slice(bytes).unwrap();
         let mut entries = archive.entries_slice();
-        let solid_entry = entries.next().unwrap().unwrap();
-        if let ReadEntry::Solid(solid_entry) = solid_entry {
-            let mut entries = solid_entry.entries(ReadOptions::builder().build()).unwrap();
-            assert!(entries.next().is_some());
-            assert!(entries.next().is_some());
-            assert!(entries.next().is_some());
-            assert!(entries.next().is_some());
-            assert!(entries.next().is_some());
-            assert!(entries.next().is_some());
-            assert!(entries.next().is_some());
-            assert!(entries.next().is_some());
-            assert!(entries.next().is_some());
-            assert!(entries.next().is_none());
-        } else {
-            panic!()
+        let ReadEntry::Solid(solid) = entries.next().unwrap().unwrap() else {
+            panic!("expected a solid entry");
+        };
+        assert!(entries.next().is_none());
+        let mut actual = Vec::new();
+        for entry in solid.entries(ReadOptions::builder().build()).unwrap() {
+            let entry = entry.unwrap();
+            let mut body = Vec::new();
+            entry
+                .reader(ReadOptions::builder().build())
+                .unwrap()
+                .read_to_end(&mut body)
+                .unwrap();
+            actual.push((entry.name().as_str().to_owned(), body));
         }
+        actual.sort_by(|a, b| a.0.cmp(&b.0));
+        let actual: Vec<_> = actual
+            .iter()
+            .map(|(name, body)| (name.as_str(), body.as_slice()))
+            .collect();
+        assert_eq!(actual, fixture_contents());
     }
 
     fn archive_with_eight_byte_data() -> Vec<u8> {

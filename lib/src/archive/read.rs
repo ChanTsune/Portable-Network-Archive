@@ -665,23 +665,63 @@ mod tests {
         let input = include_bytes!("../../../resources/test/zstd.pna");
         let file = io::Cursor::new(input).compat();
         let mut archive = Archive::read_header_async(file).await?;
+        let mut actual = Vec::new();
         while let Some(entry) = archive.read_entry_async().await? {
-            match entry {
-                ReadEntry::Solid(solid_entry) => {
-                    for entry in solid_entry.entries(ReadOptions::builder().build())? {
-                        let entry = entry?;
-                        let mut file = io::Cursor::new(Vec::new());
-                        let mut reader = entry.reader(ReadOptions::builder().build())?.compat();
-                        tokio::io::copy(&mut reader, &mut file).await?;
-                    }
-                }
-                ReadEntry::Normal(entry) => {
-                    let mut file = io::Cursor::new(Vec::new());
-                    let mut reader = entry.reader(ReadOptions::builder().build())?.compat();
-                    tokio::io::copy(&mut reader, &mut file).await?;
-                }
-            }
+            let ReadEntry::Normal(entry) = entry else {
+                panic!("expected a normal entry");
+            };
+            let mut body = Vec::new();
+            let mut reader = entry.reader(ReadOptions::builder().build())?.compat();
+            tokio::io::copy(&mut reader, &mut body).await?;
+            actual.push((entry.name().as_str().to_owned(), body));
         }
+        actual.sort_by(|a, b| a.0.cmp(&b.0));
+        let actual: Vec<_> = actual
+            .iter()
+            .map(|(name, body)| (name.as_str(), body.as_slice()))
+            .collect();
+        assert_eq!(
+            actual,
+            [
+                (
+                    "raw/empty.txt",
+                    include_bytes!("../../../resources/test/raw/empty.txt").as_slice()
+                ),
+                (
+                    "raw/first/second/third/pna.txt",
+                    include_bytes!("../../../resources/test/raw/first/second/third/pna.txt")
+                        .as_slice()
+                ),
+                (
+                    "raw/images/icon.bmp",
+                    include_bytes!("../../../resources/test/raw/images/icon.bmp").as_slice()
+                ),
+                (
+                    "raw/images/icon.png",
+                    include_bytes!("../../../resources/test/raw/images/icon.png").as_slice()
+                ),
+                (
+                    "raw/images/icon.svg",
+                    include_bytes!("../../../resources/test/raw/images/icon.svg").as_slice()
+                ),
+                (
+                    "raw/parent/child.txt",
+                    include_bytes!("../../../resources/test/raw/parent/child.txt").as_slice()
+                ),
+                (
+                    "raw/pna/empty.pna",
+                    include_bytes!("../../../resources/test/raw/pna/empty.pna").as_slice()
+                ),
+                (
+                    "raw/pna/nest.pna",
+                    include_bytes!("../../../resources/test/raw/pna/nest.pna").as_slice()
+                ),
+                (
+                    "raw/text.txt",
+                    include_bytes!("../../../resources/test/raw/text.txt").as_slice()
+                ),
+            ]
+        );
         Ok(())
     }
 
