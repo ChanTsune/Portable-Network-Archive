@@ -52,7 +52,7 @@ fn chown_user_only_preserves_missing_gid() {
         match entry.header().path().as_str() {
             "mode_only.txt" => {
                 assert_eq!(m.owner_user_name().unwrap().as_str(), "new_user");
-                assert_eq!(m.owner_uid().unwrap().get(), u64::MAX);
+                assert!(m.owner_uid().is_none());
                 assert!(
                     m.owner_gid().is_none(),
                     "un-overridden gid must stay absent, not synthesized to 0"
@@ -65,7 +65,7 @@ fn chown_user_only_preserves_missing_gid() {
             }
             "bare.txt" => {
                 assert_eq!(m.owner_user_name().unwrap().as_str(), "new_user");
-                assert_eq!(m.owner_uid().unwrap().get(), u64::MAX);
+                assert!(m.owner_uid().is_none());
                 assert!(m.owner_gid().is_none());
                 assert!(m.owner_group_name().is_none());
                 assert!(m.permission_mode().is_none());
@@ -120,7 +120,7 @@ fn chown_group_only_preserves_missing_uid() {
         match entry.header().path().as_str() {
             "mode_only.txt" => {
                 assert_eq!(m.owner_group_name().unwrap().as_str(), "new_grp");
-                assert_eq!(m.owner_gid().unwrap().get(), u64::MAX);
+                assert!(m.owner_gid().is_none());
                 assert!(
                     m.owner_uid().is_none(),
                     "un-overridden uid must stay absent, not synthesized to 0"
@@ -130,7 +130,7 @@ fn chown_group_only_preserves_missing_uid() {
             }
             "bare.txt" => {
                 assert_eq!(m.owner_group_name().unwrap().as_str(), "new_grp");
-                assert_eq!(m.owner_gid().unwrap().get(), u64::MAX);
+                assert!(m.owner_gid().is_none());
                 assert!(m.owner_uid().is_none());
                 assert!(m.owner_user_name().is_none());
                 assert!(m.permission_mode().is_none());
