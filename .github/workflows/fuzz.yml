@@ -1,0 +1,83 @@
+name: Fuzzing with cargo fuzz
+
+permissions:
+  contents: read # checkout
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "lib/**"
+      - "pna/**"
+      - "cli/**"
+      - "fuzz/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".cargo/config.toml"
+      - "rust-toolchain.toml"
+      - ".github/workflows/fuzz.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "lib/**"
+      - "pna/**"
+      - "cli/**"
+      - "fuzz/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".cargo/config.toml"
+      - "rust-toolchain.toml"
+      - ".github/workflows/fuzz.yml"
+
+jobs:
+  fuzz_target:
+    name: Detect fuzz target
+    runs-on: ubuntu-slim
+    timeout-minutes: 60
+    outputs:
+      fuzz_target: ${{ steps.fuzz_target.outputs.fuzz_target }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: fuzz_target
+        name: Detect fuzz target
+        run: |
+          echo "fuzz_target=$(find fuzz/fuzz_targets -maxdepth 1 -name '*.rs' -exec basename {} .rs \; | sort | jq -nRc '[inputs]')" >> "$GITHUB_OUTPUT"
+
+  fuzz:
+    name: Run cargo fuzz
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: fuzz_target
+    strategy:
+      fail-fast: false
+      matrix:
+        fuzz_target: ${{ fromJSON(needs.fuzz_target.outputs.fuzz_target) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          toolchain: nightly
+          cache-save-if: ${{ github.ref_name == github.event.repository.default_branch }}
+      - name: Install cargo-fuzz
+        uses: baptiste0928/cargo-install@8195d4f734a149db85385bb4102b42efcd373759 # v3.5.0
+        with:
+          crate: cargo-fuzz
+      - name: Run fuzzing
+        env:
+          FUZZ_TARGET: ${{ matrix.fuzz_target }}
+        run: |
+          cargo fuzz run --release "$FUZZ_TARGET" -- -max_total_time=300 -timeout=25
+      - name: Upload crash artifacts
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-${{ matrix.fuzz_target }}-crashes
+          path: fuzz/artifacts
+          if-no-files-found: ignore

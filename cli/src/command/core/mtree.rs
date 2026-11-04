@@ -1,0 +1,640 @@
+//! mtree format support for @archive syntax.
+//!
+//! This module provides support for reading mtree manifest files via the `@file`
+//! syntax, allowing users to specify files to archive with metadata overrides.
+
+use crate::command::core::{
+    CreateOptions, KeepOptions, OwnerStrategy, PathFilter, PathnameEditor, TimeFilters,
+    TimestampStrategy,
+};
+use mtree2::{Entry as MtreeEntry, FileType as MtreeFileType, MTree};
+use pna::prelude::*;
+use pna::{
+    DirEntryBuilder, FileEntryBuilder, Metadata, NormalEntry, SymlinkEntryBuilder, WriteOptions,
+};
+use std::{
+    fs,
+    io::{self, BufRead, Read},
+    path::{Path, PathBuf},
+};
+
+/// Transforms mtree entries into archive entries.
+///
+/// For each entry in the mtree file:
+/// 1. Reads the file from filesystem (using `contents` path if specified)
+/// 2. Applies metadata overrides from mtree
+/// 3. Creates a `NormalEntry`
+///
+/// Entries marked as `optional` are skipped if the file doesn't exist.
+pub(crate) fn transform_mtree_entries<R: Read>(
+    reader: R,
+    create_options: &CreateOptions,
+    filter: &PathFilter<'_>,
+    time_filters: &TimeFilters,
+) -> io::Result<Vec<io::Result<Option<NormalEntry>>>> {
+    // Use empty cwd to avoid mtree2 joining paths with current working directory
+    let mtree = MTree::from_reader_with_cwd(MtreeNormalizer::new(reader), PathBuf::new());
+    let mut results = Vec::new();
+
+    for entry_result in mtree {
+        match entry_result {
+            Ok(entry) => {
+                let entry_path = entry.path();
+                if filter.excluded(entry_path.to_string_lossy()) {
+                    continue;
+                }
+                let source_path = entry.contents().unwrap_or(entry_path);
+                // When nochange is set, always use filesystem mtime (bsdtar behavior)
+                // Reference: libarchive's parse_file() in archive_read_support_format_mtree.c
+                let mtime = if entry.no_change() {
+                    fs::symlink_metadata(source_path)
+                        .and_then(|m| m.modified())
+                        .ok()
+                } else {
+                    entry.time().or_else(|| {
+                        fs::symlink_metadata(source_path)
+                            .and_then(|m| m.modified())
+                            .ok()
+                    })
+                };
+                // For ctime filtering, fall back to mtime since mtree never has ctime
+                // This matches bsdtar behavior (time_excluded() in archive_match.c)
+                if !time_filters.matches(mtime, mtime) {
+                    continue;
+                }
+                match create_entry_from_mtree(&entry, create_options) {
+                    Ok(Some(normal_entry)) => results.push(Ok(Some(normal_entry))),
+                    Ok(None) => {}
+                    Err(e) if entry.optional() && e.kind() == io::ErrorKind::NotFound => {
+                        log::warn!(
+                            "Skipping optional mtree entry (file not found): {}",
+                            entry.path().display()
+                        )
+                    }
+                    Err(e) => results.push(Err(io::Error::new(
+                        e.kind(),
+                        format!("{}: {}", entry.path().display(), e),
+                    ))),
+                }
+            }
+            Err(e) => results.push(Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("mtree parse error: {}", e),
+            ))),
+        }
+    }
+
+    Ok(results)
+}
+
+/// Streaming normalizer for mtree input.
+///
+/// Normalizes line-by-line so that bsdtar-style manifests can be parsed by mtree2.
+///
+/// - Treats CR, LF, and CRLF as line terminators (outputs LF)
+/// - Rewrites `content=` to `contents=` (`content=` is a non-standard shorthand
+///   accepted by bsdtar but not recognized by mtree2)
+///
+/// Operates on physical lines, so `content=` as the first token on a
+/// backslash-continuation line will not be rewritten. This is acceptable because
+/// such formatting is uncommon, and the case was already broken before
+/// normalization (mtree2 does not recognize `content=`).
+struct MtreeNormalizer<R> {
+    inner: io::BufReader<R>,
+    line_buf: Vec<u8>,
+    output: Vec<u8>,
+    pos: usize,
+    eof: bool,
+}
+
+impl<R: Read> MtreeNormalizer<R> {
+    fn new(reader: R) -> Self {
+        Self {
+            inner: io::BufReader::new(reader),
+            line_buf: Vec::new(),
+            output: Vec::new(),
+            pos: 0,
+            eof: false,
+        }
+    }
+
+    fn fill_next_line(&mut self) -> io::Result<bool> {
+        self.line_buf.clear();
+        self.output.clear();
+        self.pos = 0;
+
+        if self.eof {
+            return Ok(false);
+        }
+
+        let mut has_terminator = false;
+
+        loop {
+            let buf = self.inner.fill_buf()?;
+            if buf.is_empty() {
+                self.eof = true;
+                break;
+            }
+
+            if let Some(pos) = buf.iter().position(|&b| b == b'\r' || b == b'\n') {
+                self.line_buf.extend_from_slice(&buf[..pos]);
+                let terminator = buf[pos];
+                self.inner.consume(pos + 1);
+
+                if terminator == b'\r' {
+                    let next = self.inner.fill_buf()?;
+                    if !next.is_empty() && next[0] == b'\n' {
+                        self.inner.consume(1);
+                    }
+                }
+
+                has_terminator = true;
+                break;
+            }
+
+            self.line_buf.extend_from_slice(buf);
+            let len = buf.len();
+            self.inner.consume(len);
+        }
+
+        if self.line_buf.is_empty() && !has_terminator {
+            return Ok(false);
+        }
+
+        rewrite_content_keyword_line(&self.line_buf, &mut self.output);
+        if has_terminator {
+            self.output.push(b'\n');
+        }
+
+        Ok(true)
+    }
+}
+
+impl<R: Read> Read for MtreeNormalizer<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        loop {
+            let remaining = &self.output[self.pos..];
+            if !remaining.is_empty() {
+                let n = remaining.len().min(buf.len());
+                buf[..n].copy_from_slice(&remaining[..n]);
+                self.pos += n;
+                return Ok(n);
+            }
+
+            if !self.fill_next_line()? {
+                return Ok(0);
+            }
+        }
+    }
+}
+
+/// `/set` directives are intentionally processed because they carry keyword defaults.
+fn rewrite_content_keyword_line(line: &[u8], out: &mut Vec<u8>) {
+    if line.is_empty() || line[0] == b'#' {
+        out.extend_from_slice(line);
+        return;
+    }
+
+    let mut idx = 0;
+    while idx < line.len() && is_mtree_whitespace(line[idx]) {
+        idx += 1;
+    }
+    while idx < line.len() && !is_mtree_whitespace(line[idx]) {
+        idx += 1;
+    }
+    out.extend_from_slice(&line[..idx]);
+
+    while idx < line.len() {
+        let ws_start = idx;
+        while idx < line.len() && is_mtree_whitespace(line[idx]) {
+            idx += 1;
+        }
+        out.extend_from_slice(&line[ws_start..idx]);
+
+        let token_start = idx;
+        while idx < line.len() && !is_mtree_whitespace(line[idx]) {
+            idx += 1;
+        }
+        if token_start == idx {
+            break;
+        }
+
+        let token = &line[token_start..idx];
+        if token.starts_with(b"content=") {
+            out.extend_from_slice(b"contents=");
+            out.extend_from_slice(&token[b"content=".len()..]);
+        } else {
+            out.extend_from_slice(token);
+        }
+    }
+}
+
+#[inline]
+fn is_mtree_whitespace(byte: u8) -> bool {
+    matches!(byte, b' ' | b'\t')
+}
+
+/// Creates a single archive entry from an mtree entry.
+fn create_entry_from_mtree(
+    mtree_entry: &MtreeEntry,
+    CreateOptions {
+        option,
+        keep_options,
+        pathname_editor,
+    }: &CreateOptions,
+) -> io::Result<Option<NormalEntry>> {
+    let entry_path = mtree_entry.path();
+
+    let Some(entry_name) = pathname_editor.edit_entry_name(entry_path) else {
+        return Ok(None);
+    };
+
+    let source_path = mtree_entry.contents().unwrap_or(entry_path);
+
+    match mtree_entry.file_type() {
+        Some(MtreeFileType::File) => {
+            let metadata = get_metadata(source_path)?;
+            if !metadata.is_file() {
+                return Err(type_mismatch_error(source_path, "file", "regular file"));
+            }
+            create_file_entry(
+                entry_name,
+                source_path,
+                mtree_entry,
+                &metadata,
+                option,
+                keep_options,
+            )
+        }
+        None => {
+            let metadata = get_metadata(source_path)?;
+            if metadata.is_file() {
+                create_file_entry(
+                    entry_name,
+                    source_path,
+                    mtree_entry,
+                    &metadata,
+                    option,
+                    keep_options,
+                )
+            } else if metadata.is_dir() {
+                create_dir_entry(entry_name, source_path, mtree_entry, keep_options)
+            } else {
+                let link_meta = fs::symlink_metadata(source_path)?;
+                if link_meta.file_type().is_symlink() {
+                    create_symlink_entry(
+                        entry_name,
+                        source_path,
+                        mtree_entry,
+                        pathname_editor,
+                        &link_meta,
+                        keep_options,
+                    )
+                } else {
+                    Err(io::Error::new(
+                        io::ErrorKind::Unsupported,
+                        format!("unsupported file type: {}", source_path.display()),
+                    ))
+                }
+            }
+        }
+        Some(MtreeFileType::Directory) => {
+            let link_meta = fs::symlink_metadata(source_path);
+            if let Ok(ref meta) = link_meta
+                && !meta.is_dir()
+            {
+                return Err(type_mismatch_error(source_path, "dir", "directory"));
+            }
+            create_dir_entry(entry_name, source_path, mtree_entry, keep_options)
+        }
+        Some(MtreeFileType::SymbolicLink) => {
+            let metadata = fs::symlink_metadata(source_path)?;
+            if !metadata.file_type().is_symlink() {
+                return Err(type_mismatch_error(source_path, "link", "symlink"));
+            }
+            create_symlink_entry(
+                entry_name,
+                source_path,
+                mtree_entry,
+                pathname_editor,
+                &metadata,
+                keep_options,
+            )
+        }
+        Some(
+            MtreeFileType::BlockDevice
+            | MtreeFileType::CharacterDevice
+            | MtreeFileType::Fifo
+            | MtreeFileType::Socket,
+        ) => {
+            log::warn!(
+                "Skipping unsupported file type in mtree (block/char device, fifo, or socket): {}",
+                entry_path.display()
+            );
+            Ok(None)
+        }
+    }
+}
+
+/// Fetches metadata for a path, formatting errors with the path for context.
+fn get_metadata(path: &Path) -> io::Result<fs::Metadata> {
+    fs::metadata(path).map_err(|e| io::Error::new(e.kind(), format!("{}: {}", path.display(), e)))
+}
+
+/// Creates a type mismatch error for when mtree specifies a type that doesn't match the filesystem.
+fn type_mismatch_error(path: &Path, mtree_type: &str, expected: &str) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidInput,
+        format!(
+            "{}: mtree specifies type={} but path is not a {}",
+            path.display(),
+            mtree_type,
+            expected
+        ),
+    )
+}
+
+/// Creates a file entry from mtree specification.
+fn create_file_entry(
+    entry_name: pna::EntryName,
+    source_path: &Path,
+    mtree_entry: &MtreeEntry,
+    metadata: &fs::Metadata,
+    option: &WriteOptions,
+    keep_options: &KeepOptions,
+) -> io::Result<Option<NormalEntry>> {
+    let mut entry = FileEntryBuilder::new_with_options(entry_name, option)?;
+
+    let file = fs::File::open(source_path)?;
+    let mut reader = io::BufReader::with_capacity(64 * 1024, file);
+    io::copy(&mut reader, &mut entry)?;
+
+    entry.metadata(build_mtree_metadata(mtree_entry, metadata, keep_options)?);
+    entry.build().map(Some)
+}
+
+/// Creates a directory entry from mtree specification.
+fn create_dir_entry(
+    entry_name: pna::EntryName,
+    source_path: &Path,
+    mtree_entry: &MtreeEntry,
+    keep_options: &KeepOptions,
+) -> io::Result<Option<NormalEntry>> {
+    let mut entry = DirEntryBuilder::new(entry_name);
+
+    let metadata = match fs::metadata(source_path) {
+        Ok(meta) => meta,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            entry.metadata(build_mtree_metadata_without_fs(mtree_entry, keep_options)?);
+            return entry.build().map(Some);
+        }
+        Err(e) => return Err(e),
+    };
+
+    entry.metadata(build_mtree_metadata(mtree_entry, &metadata, keep_options)?);
+    entry.build().map(Some)
+}
+
+/// Creates a symlink entry from mtree specification.
+fn create_symlink_entry(
+    entry_name: pna::EntryName,
+    source_path: &Path,
+    mtree_entry: &MtreeEntry,
+    pathname_editor: &PathnameEditor,
+    metadata: &fs::Metadata,
+    keep_options: &KeepOptions,
+) -> io::Result<Option<NormalEntry>> {
+    let link_target = if let Some(link) = mtree_entry.link() {
+        pathname_editor.edit_symlink(link)
+    } else {
+        pathname_editor.edit_symlink(&fs::read_link(source_path)?)
+    };
+
+    let mut entry = SymlinkEntryBuilder::new(entry_name, link_target)?;
+
+    entry.metadata(build_mtree_metadata(mtree_entry, metadata, keep_options)?);
+    entry.build().map(Some)
+}
+
+/// Builds metadata from mtree entry, with filesystem metadata as fallback.
+/// When `nochange` keyword is set, always uses filesystem metadata (bsdtar behavior).
+/// Reference: libarchive's parse_file() in archive_read_support_format_mtree.c
+fn build_mtree_metadata(
+    mtree_entry: &MtreeEntry,
+    fs_metadata: &fs::Metadata,
+    keep_options: &KeepOptions,
+) -> io::Result<Metadata> {
+    let mut metadata = Metadata::new();
+    let nochange = mtree_entry.no_change();
+
+    if let TimestampStrategy::Preserve {
+        mtime,
+        ctime,
+        atime,
+    } = keep_options.timestamp_strategy
+    {
+        let mtree_time = if nochange { None } else { mtree_entry.time() };
+        if let Some(m) = mtime.resolve(mtree_time.or_else(|| fs_metadata.modified().ok())) {
+            metadata = metadata.with_modified_time(m);
+        }
+        if let Some(c) = ctime.resolve(fs_metadata.created().ok()) {
+            metadata = metadata.with_created_time(c);
+        }
+        if let Some(a) = atime.resolve(fs_metadata.accessed().ok()) {
+            metadata = metadata.with_accessed_time(a);
+        }
+    }
+
+    #[cfg(unix)]
+    if let OwnerStrategy::Preserve { options } = &keep_options.owner_strategy {
+        use crate::utils::fs::{Group, User};
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+        let fs_mode = fs_metadata.permissions().mode() as u16;
+        let mode: u16 = match (nochange, mtree_entry.mode()) {
+            (true, _) | (false, None) => fs_mode,
+            (false, Some(mtree_mode)) => u32::from(mtree_mode) as u16,
+        };
+
+        let uid = resolve_id(nochange, options.uid, mtree_entry.uid(), fs_metadata.uid());
+        let gid = resolve_id(nochange, options.gid, mtree_entry.gid(), fs_metadata.gid());
+
+        let uname = resolve_name(
+            nochange,
+            options.uname.as_ref(),
+            mtree_entry.uname(),
+            || {
+                User::from_uid(uid.into())
+                    .ok()
+                    .and_then(|u| u.name().map(String::from))
+            },
+        );
+        let gname = resolve_name(
+            nochange,
+            options.gname.as_ref(),
+            mtree_entry.gname(),
+            || {
+                Group::from_gid(gid.into())
+                    .ok()
+                    .and_then(|g| g.name().map(String::from))
+            },
+        );
+
+        metadata = metadata
+            .with_owner_uid(Some(pna::OwnerUid::from(u64::from(uid))))
+            .with_owner_gid(Some(pna::OwnerGid::from(u64::from(gid))))
+            .with_owner_user_name(crate::command::core::permission::owner_name_opt(&uname))
+            .with_owner_group_name(crate::command::core::permission::owner_group_name_opt(
+                &gname,
+            ))
+            .with_permission_mode(Some(pna::PermissionMode::from(mode)));
+    }
+
+    Ok(metadata)
+}
+
+/// Resolves a numeric ID (uid or gid) with nochange and override handling.
+#[cfg(unix)]
+fn resolve_id(nochange: bool, override_id: Option<u32>, mtree_id: Option<u32>, fs_id: u32) -> u32 {
+    if nochange {
+        override_id.unwrap_or(fs_id)
+    } else {
+        override_id.or(mtree_id).unwrap_or(fs_id)
+    }
+}
+
+/// Resolves a name (uname or gname) with nochange, override, and mtree handling.
+#[cfg(unix)]
+fn resolve_name<F>(
+    nochange: bool,
+    override_name: Option<&String>,
+    mtree_name: Option<&[u8]>,
+    lookup_from_id: F,
+) -> String
+where
+    F: FnOnce() -> Option<String>,
+{
+    if let Some(name) = override_name {
+        return name.clone();
+    }
+    if !nochange && let Some(name) = mtree_name {
+        return String::from_utf8_lossy(name).into_owned();
+    }
+    lookup_from_id().unwrap_or_default()
+}
+
+/// Builds metadata from mtree entry only (no filesystem metadata available).
+fn build_mtree_metadata_without_fs(
+    mtree_entry: &MtreeEntry,
+    keep_options: &KeepOptions,
+) -> io::Result<Metadata> {
+    let mut metadata = Metadata::new();
+
+    if let TimestampStrategy::Preserve { mtime, .. } = keep_options.timestamp_strategy
+        && let Some(m) = mtime.resolve(mtree_entry.time())
+    {
+        metadata = metadata.with_modified_time(m);
+    }
+
+    #[cfg(unix)]
+    if let OwnerStrategy::Preserve { options } = &keep_options.owner_strategy {
+        let uid = options.uid.or(mtree_entry.uid()).unwrap_or(0);
+        let gid = options.gid.or(mtree_entry.gid()).unwrap_or(0);
+        let mode: u16 = mtree_entry
+            .mode()
+            .map(|m| u32::from(m) as u16)
+            .unwrap_or(0o755);
+
+        let uname = resolve_name(false, options.uname.as_ref(), mtree_entry.uname(), || None);
+        let gname = resolve_name(false, options.gname.as_ref(), mtree_entry.gname(), || None);
+
+        metadata = metadata
+            .with_owner_uid(Some(pna::OwnerUid::from(u64::from(uid))))
+            .with_owner_gid(Some(pna::OwnerGid::from(u64::from(gid))))
+            .with_owner_user_name(crate::command::core::permission::owner_name_opt(&uname))
+            .with_owner_group_name(crate::command::core::permission::owner_group_name_opt(
+                &gname,
+            ))
+            .with_permission_mode(Some(pna::PermissionMode::from(mode)));
+    }
+
+    Ok(metadata)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn normalize(input: &[u8]) -> Vec<u8> {
+        let mut normalizer = MtreeNormalizer::new(input);
+        let mut out = Vec::new();
+        normalizer.read_to_end(&mut out).unwrap();
+        out
+    }
+
+    #[test]
+    fn mtree_optional_keyword_is_parsed() {
+        let data = b"#mtree\nfile1.txt\nfile2.txt optional\n";
+        let mtree = MTree::from_reader_with_cwd(&data[..], PathBuf::new());
+        let entries: Vec<_> = mtree.collect();
+
+        assert_eq!(entries.len(), 2);
+        let entry1 = entries[0].as_ref().unwrap();
+        let entry2 = entries[1].as_ref().unwrap();
+
+        assert_eq!(entry1.path().to_str(), Some("file1.txt"));
+        assert!(!entry1.optional());
+
+        assert_eq!(entry2.path().to_str(), Some("file2.txt"));
+        assert!(entry2.optional(), "file2.txt should be marked as optional");
+    }
+
+    #[test]
+    fn normalizer_converts_crlf_and_content_alias() {
+        let input = b"#mtree\r\nf type=file content=bar/foo\r\n";
+        assert_eq!(normalize(input), b"#mtree\nf type=file contents=bar/foo\n");
+    }
+
+    #[test]
+    fn normalizer_keeps_existing_contents_keyword() {
+        let input = b"#mtree\nf type=file contents=bar/foo\n";
+        assert_eq!(normalize(input), input);
+    }
+
+    #[test]
+    fn normalizer_preserves_first_token() {
+        let input = b"#mtree\ncontent=file type=file contents=bar/foo\n";
+        assert_eq!(normalize(input), input);
+    }
+
+    #[test]
+    fn normalizer_handles_wrapped_crlf_line() {
+        let input = b"#mtree\r\nf uname=\\\r\nroot content=bar/foo\r\n";
+        assert_eq!(
+            normalize(input),
+            b"#mtree\nf uname=\\\nroot contents=bar/foo\n"
+        );
+    }
+
+    #[test]
+    fn normalizer_converts_standalone_cr() {
+        let input = b"#mtree\rf type=file content=bar/foo\r";
+        assert_eq!(normalize(input), b"#mtree\nf type=file contents=bar/foo\n");
+    }
+
+    #[test]
+    fn normalizer_rewrites_tab_separated_content() {
+        let input = b"#mtree\nf\ttype=file\tcontent=bar/foo\n";
+        assert_eq!(
+            normalize(input),
+            b"#mtree\nf\ttype=file\tcontents=bar/foo\n"
+        );
+    }
+
+    #[test]
+    fn normalizer_handles_no_trailing_newline() {
+        let input = b"#mtree\nf type=file content=bar/foo";
+        assert_eq!(normalize(input), b"#mtree\nf type=file contents=bar/foo");
+    }
+}

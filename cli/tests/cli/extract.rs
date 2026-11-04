@@ -1,0 +1,27 @@
+mod hardlink;
+mod missing_file;
+mod option_exclude;
+mod option_exclude_vcs;
+mod option_files_from;
+mod option_keep_newer_files;
+mod option_keep_old_files;
+mod option_keep_permission;
+mod option_keep_timestamp;
+mod option_missing_time;
+mod option_mtime;
+#[cfg(all(unix, not(target_os = "redox")))]
+mod option_owner;
+mod option_password_from_file;
+mod option_safe_writes;
+mod option_substitution;
+mod option_transform;
+mod overwrite_order;
+mod overwrite_symlink;
+mod parent_file;
+mod sanitize_parent_components;
+#[cfg(windows)]
+mod symlink_link_target_type;
+mod symlink_metadata;
+mod unknown_data_kind;
+#[cfg(windows)]
+mod verbatim_out_dir;

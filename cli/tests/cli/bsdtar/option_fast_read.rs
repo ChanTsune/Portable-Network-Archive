@@ -1,0 +1,133 @@
+use crate::utils::{list_lines, setup};
+use assert_cmd::cargo::cargo_bin_cmd;
+use pna::{Archive, FileEntryBuilder};
+use std::{
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+};
+
+fn build_duplicate_archive(path: impl AsRef<Path>) -> Vec<u8> {
+    let path = path.as_ref();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    let file = fs::File::create(path).unwrap();
+    let mut archive = Archive::write_header(file).unwrap();
+
+    for (name, content) in [
+        ("a.txt", b"first-a" as &[u8]),
+        ("a.txt", b"second-a"),
+        ("b.txt", b"first-b"),
+        ("b.txt", b"second-b"),
+    ] {
+        let mut builder = FileEntryBuilder::new(name.into()).unwrap();
+        builder.write_all(content).unwrap();
+        archive.add_entry(builder.build().unwrap()).unwrap();
+    }
+
+    archive.finalize().unwrap();
+    fs::read(path).unwrap()
+}
+
+/// Precondition: Archive contains duplicate entries for multiple operands.
+/// Action: List with `--fast-read` and multiple operands.
+/// Expectation: All matching entries are listed until every operand has been seen at least once.
+#[test]
+fn bsdtar_list_with_fast_read() {
+    setup();
+    let archive_data = build_duplicate_archive("bsdtar_fast_read_list/archive.pna");
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    cmd.write_stdin(archive_data)
+        .args(["compat", "bsdtar", "--list", "-q", "a.txt", "b.txt"])
+        .assert()
+        .success()
+        .stdout(list_lines(&["a.txt", "a.txt", "b.txt"]));
+}
+
+/// Precondition: Archive contains duplicate entries.
+/// Action: List with `--fast-read` but no operands.
+/// Expectation: All entries are listed (fast-read without operands has no stop condition).
+#[test]
+fn bsdtar_list_with_fast_read_without_operands() {
+    setup();
+    let archive_data = build_duplicate_archive("bsdtar_fast_read_list_no_operands/archive.pna");
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    cmd.write_stdin(archive_data)
+        .args(["compat", "bsdtar", "--list", "--fast-read"])
+        .assert()
+        .success()
+        .stdout(list_lines(&["a.txt", "a.txt", "b.txt", "b.txt"]));
+}
+
+/// Precondition: Archive contains duplicate entries for multiple operands.
+/// Action: Extract with `--fast-read` and multiple operands.
+/// Expectation: Matching entries are extracted (overwriting previous) until every operand
+///   has been seen; the last version before stopping is kept.
+#[test]
+fn bsdtar_extract_with_fast_read() {
+    setup();
+    let archive_data = build_duplicate_archive("bsdtar_fast_read_extract/archive.pna");
+    let out_dir = PathBuf::from("bsdtar_fast_read_extract/out_fast");
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    cmd.write_stdin(archive_data)
+        .args([
+            "compat",
+            "bsdtar",
+            "--extract",
+            "--fast-read",
+            "--overwrite",
+            "--out-dir",
+            out_dir.to_str().unwrap(),
+            "a.txt",
+            "b.txt",
+        ])
+        .assert()
+        .success();
+
+    assert_eq!(
+        "second-a",
+        fs::read_to_string(out_dir.join("a.txt")).unwrap()
+    );
+    assert_eq!(
+        "first-b",
+        fs::read_to_string(out_dir.join("b.txt")).unwrap()
+    );
+}
+
+/// Precondition: Archive contains duplicate entries for multiple operands.
+/// Action: Extract without `--fast-read`.
+/// Expectation: All entries are processed; the last version of each file wins.
+#[test]
+fn bsdtar_extract_without_fast_read() {
+    setup();
+    let archive_data = build_duplicate_archive("bsdtar_fast_read_extract_default/archive.pna");
+    let out_dir = PathBuf::from("bsdtar_fast_read_extract_default/out_default");
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    cmd.write_stdin(archive_data)
+        .args([
+            "compat",
+            "bsdtar",
+            "--extract",
+            "--overwrite",
+            "--out-dir",
+            out_dir.to_str().unwrap(),
+            "a.txt",
+            "b.txt",
+        ])
+        .assert()
+        .success();
+
+    assert_eq!(
+        "second-a",
+        fs::read_to_string(out_dir.join("a.txt")).unwrap()
+    );
+    assert_eq!(
+        "second-b",
+        fs::read_to_string(out_dir.join("b.txt")).unwrap()
+    );
+}

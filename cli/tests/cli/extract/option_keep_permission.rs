@@ -1,0 +1,578 @@
+#[cfg(unix)]
+use crate::utils::{EmbedExt, TestResources, archive, set_mode, setup};
+#[cfg(unix)]
+use clap::Parser;
+#[cfg(unix)]
+use portable_network_archive::cli;
+#[cfg(unix)]
+use std::fs;
+#[cfg(unix)]
+use std::os::unix::prelude::*;
+
+/// Recursively remove a directory, restoring write permissions on files if needed.
+/// This is necessary because files with 0o000 permissions cannot be overwritten.
+#[cfg(unix)]
+fn force_remove_dir_all(path: impl AsRef<std::path::Path>) -> std::io::Result<()> {
+    let path = path.as_ref();
+    if !path.exists() {
+        return Ok(());
+    }
+
+    // Walk the directory and restore write permissions on all files
+    fn restore_permissions(dir: &std::path::Path) -> std::io::Result<()> {
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            let file_type = entry.file_type()?;
+
+            if file_type.is_dir() {
+                restore_permissions(&path)?;
+            } else if file_type.is_file() {
+                // Try to restore write permission so the file can be deleted
+                let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o644));
+            }
+        }
+        Ok(())
+    }
+
+    // Ignore errors during permission restoration - we'll try to remove anyway
+    let _ = restore_permissions(path);
+    fs::remove_dir_all(path)
+}
+
+/// Precondition: An archive contains a file with permission 0o755 (rwxr-xr-x).
+/// Action: Extract the archive with `--keep-permission`.
+/// Expectation: The extracted file has permission 0o755 on the filesystem.
+#[test]
+#[cfg(unix)]
+fn extract_preserves_executable_permission() {
+    setup();
+    TestResources::extract_in("raw/", "extract_perm_755/in/").unwrap();
+
+    skip_unless!("chmod", set_mode("extract_perm_755/in/raw/text.txt", 0o755));
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "extract_perm_755/archive.pna",
+        "--overwrite",
+        "extract_perm_755/in/",
+        "--keep-permission",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let mut found = false;
+    archive::for_each_entry("extract_perm_755/archive.pna", |entry| {
+        if entry.header().path().as_str().ends_with("raw/text.txt") {
+            found = true;
+            let mode = entry.metadata().permission_mode().unwrap();
+            assert_eq!(mode.get() & 0o777, 0o755);
+        }
+    })
+    .unwrap();
+    assert!(found, "raw/text.txt entry not found in archive");
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        "extract_perm_755/archive.pna",
+        "--overwrite",
+        "--out-dir",
+        "extract_perm_755/out/",
+        "--keep-permission",
+        "--strip-components",
+        "2",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let meta = fs::symlink_metadata("extract_perm_755/out/raw/text.txt").unwrap();
+    assert_eq!(
+        meta.permissions().mode() & 0o777,
+        0o755,
+        "extracted file should have permission 0o755"
+    );
+}
+
+/// Precondition: An archive contains a file with permission 0o644 (rw-r--r--).
+/// Action: Extract the archive with `--keep-permission`.
+/// Expectation: The extracted file has permission 0o644 on the filesystem.
+#[test]
+#[cfg(unix)]
+fn extract_preserves_readonly_permission() {
+    setup();
+    TestResources::extract_in("raw/", "extract_perm_644/in/").unwrap();
+
+    skip_unless!("chmod", set_mode("extract_perm_644/in/raw/text.txt", 0o644));
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "extract_perm_644/archive.pna",
+        "--overwrite",
+        "extract_perm_644/in/",
+        "--keep-permission",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let mut found = false;
+    archive::for_each_entry("extract_perm_644/archive.pna", |entry| {
+        if entry.header().path().as_str().ends_with("raw/text.txt") {
+            found = true;
+            let mode = entry.metadata().permission_mode().unwrap();
+            assert_eq!(mode.get() & 0o777, 0o644);
+        }
+    })
+    .unwrap();
+    assert!(found, "raw/text.txt entry not found in archive");
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        "extract_perm_644/archive.pna",
+        "--overwrite",
+        "--out-dir",
+        "extract_perm_644/out/",
+        "--keep-permission",
+        "--strip-components",
+        "2",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let meta = fs::symlink_metadata("extract_perm_644/out/raw/text.txt").unwrap();
+    assert_eq!(
+        meta.permissions().mode() & 0o777,
+        0o644,
+        "extracted file should have permission 0o644"
+    );
+}
+
+/// Precondition: An archive contains a file with permission 0o600 (rw-------).
+/// Action: Extract the archive with `--keep-permission`.
+/// Expectation: The extracted file has permission 0o600 on the filesystem.
+#[test]
+#[cfg(unix)]
+fn extract_preserves_private_permission() {
+    setup();
+    TestResources::extract_in("raw/", "extract_perm_600/in/").unwrap();
+
+    skip_unless!("chmod", set_mode("extract_perm_600/in/raw/text.txt", 0o600));
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "extract_perm_600/archive.pna",
+        "--overwrite",
+        "extract_perm_600/in/",
+        "--keep-permission",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let mut found = false;
+    archive::for_each_entry("extract_perm_600/archive.pna", |entry| {
+        if entry.header().path().as_str().ends_with("raw/text.txt") {
+            found = true;
+            let mode = entry.metadata().permission_mode().unwrap();
+            assert_eq!(mode.get() & 0o777, 0o600);
+        }
+    })
+    .unwrap();
+    assert!(found, "raw/text.txt entry not found in archive");
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        "extract_perm_600/archive.pna",
+        "--overwrite",
+        "--out-dir",
+        "extract_perm_600/out/",
+        "--keep-permission",
+        "--strip-components",
+        "2",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let meta = fs::symlink_metadata("extract_perm_600/out/raw/text.txt").unwrap();
+    assert_eq!(
+        meta.permissions().mode() & 0o777,
+        0o600,
+        "extracted file should have permission 0o600"
+    );
+}
+
+/// Precondition: An archive contains a file with permission 0o000 (---------).
+/// Action: Extract the archive with `--keep-permission`.
+/// Expectation: The extracted file has permission 0o000 on the filesystem.
+#[test]
+#[cfg(unix)]
+fn extract_preserves_no_permission() {
+    setup();
+    // Clean up any leftover files from previous test runs.
+    // Files with 0o000 permissions cannot be overwritten, so we must remove them first.
+    let _ = force_remove_dir_all("extract_perm_000");
+    TestResources::extract_in("raw/", "extract_perm_000/in/").unwrap();
+
+    skip_unless!("chmod", set_mode("extract_perm_000/in/raw/text.txt", 0o000));
+    skip_unless!(
+        "root",
+        fs::File::open("extract_perm_000/in/raw/text.txt").is_ok()
+    );
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "extract_perm_000/archive.pna",
+        "--overwrite",
+        "extract_perm_000/in/",
+        "--keep-permission",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        "extract_perm_000/archive.pna",
+        "--overwrite",
+        "--out-dir",
+        "extract_perm_000/out/",
+        "--keep-permission",
+        "--strip-components",
+        "2",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let meta = fs::symlink_metadata("extract_perm_000/out/raw/text.txt").unwrap();
+    assert_eq!(
+        meta.permissions().mode() & 0o777,
+        0o000,
+        "extracted file should have permission 0o000"
+    );
+}
+
+/// Precondition: An archive contains a file with permission 0o777 (rwxrwxrwx).
+/// Action: Extract the archive with `--keep-permission`.
+/// Expectation: The extracted file has permission 0o777 on the filesystem.
+#[test]
+#[cfg(unix)]
+fn extract_preserves_full_permission() {
+    setup();
+    TestResources::extract_in("raw/", "extract_perm_777/in/").unwrap();
+
+    skip_unless!("chmod", set_mode("extract_perm_777/in/raw/text.txt", 0o777));
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "extract_perm_777/archive.pna",
+        "--overwrite",
+        "extract_perm_777/in/",
+        "--keep-permission",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let mut found = false;
+    archive::for_each_entry("extract_perm_777/archive.pna", |entry| {
+        if entry.header().path().as_str().ends_with("raw/text.txt") {
+            found = true;
+            let mode = entry.metadata().permission_mode().unwrap();
+            assert_eq!(mode.get() & 0o777, 0o777);
+        }
+    })
+    .unwrap();
+    assert!(found, "raw/text.txt entry not found in archive");
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        "extract_perm_777/archive.pna",
+        "--overwrite",
+        "--out-dir",
+        "extract_perm_777/out/",
+        "--keep-permission",
+        "--strip-components",
+        "2",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let meta = fs::symlink_metadata("extract_perm_777/out/raw/text.txt").unwrap();
+    assert_eq!(
+        meta.permissions().mode() & 0o777,
+        0o777,
+        "extracted file should have permission 0o777"
+    );
+}
+
+/// Precondition: An archive contains multiple files with different permissions.
+/// Action: Extract the archive with `--keep-permission`.
+/// Expectation: Each extracted file has its original permission preserved.
+#[test]
+#[cfg(unix)]
+fn extract_preserves_mixed_permissions() {
+    setup();
+    TestResources::extract_in("raw/", "extract_perm_mixed/in/").unwrap();
+
+    skip_unless!(
+        "chmod",
+        set_mode("extract_perm_mixed/in/raw/text.txt", 0o755)
+            && set_mode("extract_perm_mixed/in/raw/empty.txt", 0o644)
+            && set_mode("extract_perm_mixed/in/raw/images/icon.png", 0o600)
+    );
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "extract_perm_mixed/archive.pna",
+        "--overwrite",
+        "extract_perm_mixed/in/",
+        "--keep-permission",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let mut found_text = false;
+    let mut found_empty = false;
+    let mut found_icon = false;
+    archive::for_each_entry("extract_perm_mixed/archive.pna", |entry| {
+        if entry.header().path().as_str().ends_with("raw/text.txt") {
+            found_text = true;
+            assert_eq!(
+                entry.metadata().permission_mode().unwrap().get() & 0o777,
+                0o755
+            );
+        } else if entry.header().path().as_str().ends_with("raw/empty.txt") {
+            found_empty = true;
+            assert_eq!(
+                entry.metadata().permission_mode().unwrap().get() & 0o777,
+                0o644
+            );
+        } else if entry
+            .header()
+            .path()
+            .as_str()
+            .ends_with("raw/images/icon.png")
+        {
+            found_icon = true;
+            assert_eq!(
+                entry.metadata().permission_mode().unwrap().get() & 0o777,
+                0o600
+            );
+        }
+    })
+    .unwrap();
+    assert!(found_text, "raw/text.txt entry not found in archive");
+    assert!(found_empty, "raw/empty.txt entry not found in archive");
+    assert!(found_icon, "raw/images/icon.png entry not found in archive");
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        "extract_perm_mixed/archive.pna",
+        "--overwrite",
+        "--out-dir",
+        "extract_perm_mixed/out/",
+        "--keep-permission",
+        "--strip-components",
+        "2",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let meta = fs::symlink_metadata("extract_perm_mixed/out/raw/text.txt").unwrap();
+    assert_eq!(
+        meta.permissions().mode() & 0o777,
+        0o755,
+        "text.txt should have permission 0o755"
+    );
+
+    let meta = fs::symlink_metadata("extract_perm_mixed/out/raw/empty.txt").unwrap();
+    assert_eq!(
+        meta.permissions().mode() & 0o777,
+        0o644,
+        "empty.txt should have permission 0o644"
+    );
+
+    let meta = fs::symlink_metadata("extract_perm_mixed/out/raw/images/icon.png").unwrap();
+    assert_eq!(
+        meta.permissions().mode() & 0o777,
+        0o600,
+        "icon.png should have permission 0o600"
+    );
+}
+
+/// Precondition: An archive contains a directory with permission 0o750 (rwxr-x---).
+/// Action: Extract with `--keep-permission`.
+/// Expectation: The extracted directory has permission 0o750 on the filesystem.
+#[test]
+#[cfg(unix)]
+fn extract_preserves_directory_permission() {
+    setup();
+    TestResources::extract_in("raw/", "extract_dir_perm/in/").unwrap();
+
+    skip_unless!("chmod", set_mode("extract_dir_perm/in/raw/images", 0o750));
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "extract_dir_perm/archive.pna",
+        "--overwrite",
+        "extract_dir_perm/in/",
+        "--keep-permission",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let mut found = false;
+    archive::for_each_entry("extract_dir_perm/archive.pna", |entry| {
+        if entry.header().path().as_str().ends_with("raw/images") {
+            found = true;
+            assert_eq!(entry.header().data_kind(), pna::DataKind::DIRECTORY);
+            let mode = entry.metadata().permission_mode().unwrap();
+            assert_eq!(mode.get() & 0o777, 0o750);
+        }
+    })
+    .unwrap();
+    assert!(found, "raw/images entry not found in archive");
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        "extract_dir_perm/archive.pna",
+        "--overwrite",
+        "--out-dir",
+        "extract_dir_perm/out/",
+        "--keep-permission",
+        "--strip-components",
+        "2",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let meta = fs::symlink_metadata("extract_dir_perm/out/raw/images").unwrap();
+    assert_eq!(meta.permissions().mode() & 0o777, 0o750,);
+}
+
+/// Precondition: A GCM-encrypted archive contains a file with the setuid bit set,
+/// stored via `--keep-permission`.
+/// Action: Extract the archive without `--keep-permission`.
+/// Expectation: The extracted file has no special bits (setuid/setgid/sticky), and its
+/// permission bits are masked by the umask instead of the archived mode.
+#[test]
+#[cfg(unix)]
+fn extract_encrypted_gcm_without_keep_permission_drops_setuid() {
+    setup();
+    TestResources::extract_in("raw/", "extract_gcm_setuid/in/").unwrap();
+
+    skip_unless!(
+        "chmod",
+        set_mode("extract_gcm_setuid/in/raw/text.txt", 0o4755)
+    );
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "extract_gcm_setuid/archive.pna",
+        "--overwrite",
+        "extract_gcm_setuid/in/",
+        "--keep-permission",
+        "--aes",
+        "gcm",
+        "--password",
+        "password",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let mut found = false;
+    archive::for_each_entry_with_password(
+        "extract_gcm_setuid/archive.pna",
+        Some("password"),
+        |entry| {
+            if entry.header().path().as_str().ends_with("raw/text.txt") {
+                found = true;
+                let mode = entry.metadata().permission_mode().unwrap();
+                assert_eq!(mode.get() & 0o7777, 0o4755);
+            }
+        },
+    )
+    .unwrap();
+    assert!(found, "raw/text.txt entry not found in archive");
+
+    crate::utils::pna_cmd_with_umask(0o022)
+        .arg("--quiet")
+        .arg("x")
+        .arg("-f")
+        .arg("extract_gcm_setuid/archive.pna")
+        .arg("--overwrite")
+        .arg("--out-dir")
+        .arg("extract_gcm_setuid/out/")
+        .arg("--password")
+        .arg("password")
+        .arg("--strip-components")
+        .arg("2")
+        .assert()
+        .success();
+
+    let extracted_mode = fs::symlink_metadata("extract_gcm_setuid/out/raw/text.txt")
+        .unwrap()
+        .permissions()
+        .mode();
+    assert_eq!(
+        extracted_mode & 0o7777,
+        0o666 & !0o022,
+        "without --keep-permission the archived mode (with setuid) must be replaced by the umask-masked default"
+    );
+}

@@ -1,0 +1,116 @@
+name: rust-bench
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "lib/**"
+      - "pna/**"
+      - "cli/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "resources/test/**"
+      - "tests/bats/**"
+      - ".cargo/config.toml"
+      - "rust-toolchain.toml"
+      - ".github/actions/**"
+      - ".github/workflows/bench.yml"
+  pull_request:
+    branches: ["*"]
+    paths:
+      - "lib/**"
+      - "pna/**"
+      - "cli/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "resources/test/**"
+      - "tests/bats/**"
+      - ".cargo/config.toml"
+      - "rust-toolchain.toml"
+      - ".github/actions/**"
+      - ".github/workflows/bench.yml"
+
+jobs:
+  rust-bench:
+    name: Run rust-bench
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read # checkout
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y libacl1-dev
+      - uses: $/.github/actions/setup-rust
+        with:
+          channel: nightly
+      - name: Run rust-bench
+        run: |
+          cargo bench --locked --all-features 2>&1 | tee bench_output.txt
+
+      - name: Generate summary
+        if: always()
+        run: |
+          {
+            echo "## Benchmark results"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ ! -f bench_output.txt ]; then
+            echo "No benchmark output found." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          {
+            echo "| Benchmark | Low | Mid | High |"
+            echo "|-----------|-----|-----|------|"
+
+            awk 'BEGIN{name=""}
+              /^[a-zA-Z_]/{if(index($0,"time:")==0){name=$1;next}}
+              /time:/{
+                if($1=="time:"){nm=name}else{nm=$1}
+                n=split($0,a,"[")
+                if(n>=2){
+                  sub(/\].*/,"",a[2])
+                  m=split(a[2],p," ")
+                  if(m>=6){printf "| %s | %s %s | %s %s | %s %s |\n",nm,p[1],p[2],p[3],p[4],p[5],p[6]}
+                }
+                name=""
+              }' bench_output.txt
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  cli-tests:
+    name: Run cli bench
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read # checkout
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: $/.github/actions/setup-rust
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y libacl1-dev bats
+      - name: Install bats extensions
+        run: |
+          chmod +x tests/bats/setup.sh
+          ./tests/bats/setup.sh
+      - name: Install cli
+        run: |
+          cargo install --locked --all-features --path cli
+      - name: Run CLI tests
+        env:
+          # Ubuntu 26.04 mounts /tmp as a ~7.8 GiB tmpfs, which cannot hold the
+          # 5 GiB large-file fixture together with its archive and extraction.
+          RESOURCE_DIR: ${{ runner.temp }}/
+        run: |
+          bats tests/bats/ tests/bats/bsdtar_compat/ tests/bats/gnutar_compat/

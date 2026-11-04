@@ -1,0 +1,35 @@
+mod directory_entry;
+mod duplicate_targets;
+mod encryption;
+mod entry_order;
+mod error;
+#[cfg(not(target_family = "wasm"))]
+mod mtime_stored_precision;
+mod multipart;
+mod no_timestamp_archive;
+mod option_atime;
+mod option_ctime;
+mod option_exclude;
+mod option_exclude_vcs;
+#[cfg(not(target_family = "wasm"))]
+mod option_files_from_stdin;
+mod option_include;
+mod option_keep_solid;
+mod option_missing_time;
+mod option_mtime;
+mod option_newer_ctime;
+mod option_newer_ctime_than;
+mod option_newer_mtime;
+#[cfg(not(target_family = "wasm"))]
+mod option_newer_mtime_than;
+mod option_older_ctime;
+mod option_older_ctime_than;
+mod option_older_mtime;
+#[cfg(not(target_family = "wasm"))]
+mod option_older_mtime_than;
+mod option_output;
+mod option_recursive;
+mod option_sync;
+mod option_unsolid;
+mod path_transform;
+mod symlink_entry;

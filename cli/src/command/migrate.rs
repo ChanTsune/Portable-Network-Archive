@@ -1,0 +1,137 @@
+use crate::{
+    cli::{ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategyArgs},
+    command::{
+        Command, ask_password,
+        core::{
+            Umask, resolve_rewrite_output,
+            rewrite::{EntryTransform, execute_archive_transform},
+        },
+    },
+    ext::*,
+    utils::GlobPatterns,
+};
+use clap::{ArgAction, Parser, ValueHint};
+use pna::{NormalEntry, RawChunk, prelude::*};
+use std::{borrow::Cow, io, path::PathBuf};
+
+#[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
+pub(crate) struct MigrateCommand {
+    #[command(flatten)]
+    transform_strategy: SolidEntriesTransformStrategyArgs,
+    #[command(flatten)]
+    password: PasswordArgs,
+    #[command(flatten)]
+    archive: ArchiveFileArgs,
+    #[arg(long, help = "Output file path", value_hint = ValueHint::AnyPath)]
+    output: PathBuf,
+    #[arg(
+        long,
+        conflicts_with = "no_overwrite",
+        help = "Overwrite the output file (rewrite in place when --output is omitted)"
+    )]
+    overwrite: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not overwrite output file. This is the inverse option of --overwrite",
+        requires = "output"
+    )]
+    no_overwrite: (),
+}
+
+impl Command for MigrateCommand {
+    #[inline]
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
+        migrate_metadata(self, ctx.umask())
+    }
+}
+
+#[hooq::hooq(anyhow)]
+fn migrate_metadata(args: MigrateCommand, umask: Umask) -> anyhow::Result<()> {
+    let password = ask_password(args.password)?;
+    let destination =
+        resolve_rewrite_output(&args.archive.file, Some(args.output), args.overwrite)?;
+    execute_archive_transform(
+        &args.archive.file,
+        destination,
+        umask,
+        password.as_deref(),
+        args.transform_strategy.strategy(),
+        MigrateTransform,
+    )
+}
+
+struct MigrateTransform;
+
+impl EntryTransform for MigrateTransform {
+    fn transform<'d>(
+        &mut self,
+        entry: NormalEntry<Cow<'d, [u8]>>,
+    ) -> io::Result<Option<NormalEntry<Cow<'d, [u8]>>>> {
+        convert_entry_to_owner_facet(entry).map(Some)
+    }
+
+    fn patterns(&self) -> Option<&GlobPatterns<'_>> {
+        None
+    }
+}
+
+#[inline]
+fn convert_entry_to_owner_facet<T>(entry: NormalEntry<T>) -> io::Result<NormalEntry<T>>
+where
+    T: Clone,
+    RawChunk<T>: Chunk,
+    RawChunk<T>: From<RawChunk>,
+{
+    let keep_private_chunks = [crate::chunk::faCl, crate::chunk::faCe];
+    let acls = entry.acl()?;
+    let mut acl = vec![];
+    for (platform, entries) in acls {
+        acl.push(RawChunk::from_data(crate::chunk::faCl, platform.to_bytes()).into());
+        for ace in entries {
+            acl.push(RawChunk::from_data(crate::chunk::faCe, ace.to_bytes()).into());
+        }
+    }
+    acl.extend(
+        entry
+            .extra_chunks()
+            .iter()
+            .filter(|it| !keep_private_chunks.contains(&it.ty()))
+            .cloned(),
+    );
+
+    let own = crate::ext::ResolvedOwnership::from_metadata(entry.metadata());
+    let src = entry.metadata();
+    let created = src.created();
+    let modified = src.modified();
+    let accessed = src.accessed();
+    let link_target_type = src.link_target_type();
+    let new_meta = pna::Metadata::new()
+        .with_created(created)
+        .with_modified(modified)
+        .with_accessed(accessed)
+        .with_link_target_type(link_target_type)
+        .with_xattrs(src.xattrs().to_vec())
+        .with_owner_uid(own.uid.map(pna::OwnerUid::from))
+        .with_owner_gid(own.gid.map(pna::OwnerGid::from))
+        .with_owner_user_name(
+            own.uname
+                .as_deref()
+                .and_then(crate::command::core::permission::owner_name_opt),
+        )
+        .with_owner_group_name(
+            own.gname
+                .as_deref()
+                .and_then(crate::command::core::permission::owner_group_name_opt),
+        )
+        .with_permission_mode(own.mode.map(pna::PermissionMode::from))
+        .with_owner_user_sid(
+            own.user_sid
+                .map(|s| pna::OwnerUserSid::new(s).expect("rescued sid within owner-facet bound")),
+        )
+        .with_owner_group_sid(
+            own.group_sid
+                .map(|s| pna::OwnerGroupSid::new(s).expect("rescued sid within owner-facet bound")),
+        );
+    Ok(entry.with_metadata(new_meta).with_extra_chunks(acl))
+}

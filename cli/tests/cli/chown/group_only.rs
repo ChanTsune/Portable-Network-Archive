@@ -1,0 +1,76 @@
+use crate::utils::{archive, archive::FileEntryDef, setup};
+use clap::Parser;
+use portable_network_archive::cli;
+
+/// Precondition: An archive contains entries with permission metadata.
+/// Action: Run `pna experimental chown` with `:group` to change only the group.
+/// Expectation: The target entry has an updated gname and no gid; uname/uid and permission bits are preserved.
+#[test]
+fn chown_group_only() {
+    setup();
+
+    archive::create_archive_with_permissions(
+        "chown_group_only.pna",
+        &[
+            FileEntryDef {
+                path: "target.txt",
+                content: b"target",
+                permission: 0o644,
+            },
+            FileEntryDef {
+                path: "other.txt",
+                content: b"other",
+                permission: 0o755,
+            },
+        ],
+    )
+    .unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "experimental",
+        "chown",
+        "-f",
+        "chown_group_only.pna",
+        ":new_group",
+        "target.txt",
+        "--no-owner-lookup",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let mut found = false;
+    let mut count = 0usize;
+    archive::for_each_entry("chown_group_only.pna", |entry| {
+        count += 1;
+        match entry.header().path().as_str() {
+            "target.txt" => {
+                found = true;
+                assert_eq!(
+                    entry.metadata().owner_group_name().unwrap().as_str(),
+                    "new_group"
+                );
+                assert!(entry.metadata().owner_gid().is_none());
+                assert_eq!(entry.metadata().owner_user_name().unwrap().as_str(), "user");
+                assert_eq!(entry.metadata().owner_uid().unwrap().get(), 1000);
+                assert_eq!(entry.metadata().permission_mode().unwrap().get(), 0o644);
+            }
+            "other.txt" => {
+                assert_eq!(entry.metadata().owner_user_name().unwrap().as_str(), "user");
+                assert_eq!(
+                    entry.metadata().owner_group_name().unwrap().as_str(),
+                    "group"
+                );
+                assert_eq!(entry.metadata().owner_uid().unwrap().get(), 1000);
+                assert_eq!(entry.metadata().owner_gid().unwrap().get(), 1000);
+                assert_eq!(entry.metadata().permission_mode().unwrap().get(), 0o755);
+            }
+            other => panic!("unexpected entry: {other}"),
+        }
+    })
+    .unwrap();
+    assert!(found, "target entry not found in archive");
+    assert_eq!(count, 2, "archive should contain exactly 2 entries");
+}

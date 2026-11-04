@@ -1,0 +1,181 @@
+use crate::utils::{EmbedExt, LibSourceCode, diff::assert_dirs_equal, setup};
+use assert_cmd::cargo::cargo_bin_cmd;
+use itertools::Itertools;
+
+// Native commands (pna create/extract) require --keep-permission to store permissions
+const FS_KEEP_OPTIONS: &[Option<&str>] = &[Some("--keep-permission"), Some("--keep-xattr")];
+// bsdtar stores mode+owner by default, no flag needed; still test with --keep-xattr for extended attrs
+const BSDTAR_KEEP_OPTIONS: &[Option<&str>] = &[None, Some("--keep-xattr")];
+
+const COMPRESSION_OPTIONS: &[Option<&[&str]>] = &[
+    Some(&["--store"]),
+    Some(&["--deflate", "1"]),
+    Some(&["--zstd", "1"]),
+    Some(&["--xz", "1"]),
+];
+
+// bsdtar's compression flags select an algorithm only; the level is set via
+// `--options='compression-level=N'`, not a value on the flag itself.
+const BSDTAR_COMPRESSION_OPTIONS: &[Option<&[&str]>] = &[
+    Some(&["--store"]),
+    Some(&["--deflate"]),
+    Some(&["--zstd"]),
+    Some(&["--xz"]),
+];
+
+const ENCRYPTION_OPTIONS: &[Option<[&str; 2]>] = &[
+    None,
+    Some(["--aes", "ctr"]),
+    Some(["--aes", "cbc"]),
+    Some(["--aes", "gcm"]),
+    Some(["--camellia", "ctr"]),
+    Some(["--camellia", "cbc"]),
+    Some(["--camellia", "gcm"]),
+];
+
+const HASH_OPTIONS: &[[&str; 2]] = &[["--pbkdf2", "r=1000"], ["--argon2", "t=1,m=50"]];
+
+const SOLID_OPTIONS: &[Option<&str>] = &[None, Some("--solid")];
+
+#[test]
+fn combination_fs() {
+    setup();
+    LibSourceCode::extract_all("combination_fs/in/").unwrap();
+    fn inner(options: Vec<&str>) {
+        let joined_options = options.iter().join("");
+
+        let mut cmd = cargo_bin_cmd!("pna");
+        cmd.args(
+            [
+                "--quiet",
+                "c",
+                "-f",
+                &format!("combination_fs/{joined_options}.pna"),
+                "--overwrite",
+                "combination_fs/in/",
+                #[cfg(windows)]
+                "--unstable",
+            ]
+            .into_iter()
+            .chain(options),
+        );
+        cmd.assert().success();
+        let mut cmd = cargo_bin_cmd!("pna");
+        cmd.args([
+            "--quiet",
+            "x",
+            "-f",
+            &format!("combination_fs/{joined_options}.pna"),
+            "--overwrite",
+            "--out-dir",
+            &format!("combination_fs/out/{joined_options}/"),
+            "--strip-components",
+            "2",
+            "--password",
+            "password",
+            #[cfg(windows)]
+            "--unstable",
+        ]);
+        cmd.assert().success();
+        assert_dirs_equal(
+            "combination_fs/in/",
+            format!("combination_fs/out/{joined_options}"),
+        );
+    }
+    for keep in FS_KEEP_OPTIONS {
+        for compress in COMPRESSION_OPTIONS {
+            for encrypt in ENCRYPTION_OPTIONS {
+                for solid in SOLID_OPTIONS {
+                    let mut options = [*keep, *solid]
+                        .into_iter()
+                        .flatten()
+                        .chain(compress.iter().copied().flatten().copied())
+                        .chain(encrypt.iter().flatten().copied())
+                        .collect::<Vec<_>>();
+                    if encrypt.is_some() {
+                        options.extend(["--password", "password"]);
+                        for hash in HASH_OPTIONS {
+                            let mut options = options.clone();
+                            options.extend(hash);
+                            inner(options)
+                        }
+                    } else {
+                        inner(options)
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn combination_bsdtar() {
+    setup();
+    LibSourceCode::extract_all("combination_bsdtar/in/").unwrap();
+    fn inner(options: Vec<&str>) {
+        let joined_options = options.iter().join("");
+
+        let mut cmd = cargo_bin_cmd!("pna");
+        cmd.args(
+            [
+                "--quiet",
+                "compat",
+                "bsdtar",
+                "-c",
+                "combination_bsdtar/in/",
+                #[cfg(windows)]
+                "--unstable",
+            ]
+            .into_iter()
+            .chain(options),
+        );
+        let assert = cmd.assert().success();
+
+        let mut cmd = cargo_bin_cmd!("pna");
+        cmd.write_stdin(assert.get_output().stdout.as_slice());
+        cmd.args([
+            "--quiet",
+            "compat",
+            "bsdtar",
+            "-x",
+            "--overwrite",
+            "--out-dir",
+            &format!("combination_bsdtar/out/{joined_options}/"),
+            "--strip-components",
+            "2",
+            "--password",
+            "password",
+            #[cfg(windows)]
+            "--unstable",
+        ]);
+        cmd.assert().success();
+        assert_dirs_equal(
+            "combination_bsdtar/in/",
+            format!("combination_bsdtar/out/{joined_options}"),
+        );
+    }
+    for keep in BSDTAR_KEEP_OPTIONS {
+        for compress in BSDTAR_COMPRESSION_OPTIONS {
+            for encrypt in ENCRYPTION_OPTIONS {
+                for solid in SOLID_OPTIONS {
+                    let mut options = [*keep, *solid]
+                        .into_iter()
+                        .flatten()
+                        .chain(compress.iter().copied().flatten().copied())
+                        .chain(encrypt.iter().flatten().copied())
+                        .collect::<Vec<_>>();
+                    if encrypt.is_some() {
+                        options.extend(["--password", "password"]);
+                        for hash in HASH_OPTIONS {
+                            let mut options = options.clone();
+                            options.extend(hash);
+                            inner(options)
+                        }
+                    } else {
+                        inner(options)
+                    }
+                }
+            }
+        }
+    }
+}

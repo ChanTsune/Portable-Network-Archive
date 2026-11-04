@@ -1,0 +1,245 @@
+mod read_buf;
+
+use crate::chunk::{self, Ace, AcePlatform, AceWithPlatform};
+use pna::{NormalEntry, RawChunk, prelude::*};
+pub(crate) use read_buf::*;
+use std::{
+    collections::HashMap,
+    fmt::{Display, Formatter},
+    io,
+};
+
+pub(crate) type Acls = HashMap<AcePlatform, Vec<Ace>>;
+
+pub(crate) trait NormalEntryExt {
+    fn acl(&self) -> io::Result<Acls>;
+    fn fflags(&self) -> Vec<String>;
+    /// Returns the macOS metadata (AppleDouble blob) if present.
+    fn mac_metadata(&self) -> Option<&[u8]>;
+}
+
+impl<T> NormalEntryExt for NormalEntry<T>
+where
+    RawChunk<T>: Chunk,
+{
+    #[inline]
+    fn acl(&self) -> io::Result<Acls> {
+        let mut acls = Acls::new();
+        let mut platform = AcePlatform::General;
+        for c in self.extra_chunks().iter() {
+            match c.ty() {
+                chunk::faCl => {
+                    platform = AcePlatform::try_from(c.data()).map_err(io::Error::other)?
+                }
+                chunk::faCe => {
+                    let ace = AceWithPlatform::try_from(c.data()).map_err(io::Error::other)?;
+                    if let Some(p) = ace.platform {
+                        acls.entry(p)
+                    } else {
+                        acls.entry(platform.clone())
+                    }
+                    .or_insert_with(Vec::new)
+                    .push(ace.ace);
+                }
+                _ => continue,
+            }
+        }
+        Ok(acls)
+    }
+
+    #[inline]
+    fn fflags(&self) -> Vec<String> {
+        self.extra_chunks()
+            .iter()
+            .filter_map(|c| {
+                if c.ty() == chunk::ffLg {
+                    std::str::from_utf8(c.data()).ok().map(str::to_string)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    #[inline]
+    fn mac_metadata(&self) -> Option<&[u8]> {
+        self.extra_chunks()
+            .iter()
+            .find(|c| c.ty() == chunk::maMd)
+            .map(|c| c.data())
+    }
+}
+
+/// Ownership/permission resolved for read sites, sourced entirely from the
+/// owner-facet API. A legacy archive's `fPRM` chunk is folded into these
+/// facets by the reader, so no fPRM-specific handling is needed here.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) struct ResolvedOwnership {
+    pub(crate) uid: Option<u64>,
+    pub(crate) gid: Option<u64>,
+    pub(crate) uname: Option<String>,
+    pub(crate) gname: Option<String>,
+    /// `0o7777`-masked permission bits (`fMOd`), never the raw `st_mode`
+    /// stored in a legacy `fPRM` chunk, which also carries file-type bits.
+    pub(crate) mode: Option<u16>,
+    pub(crate) user_sid: Option<String>,
+    pub(crate) group_sid: Option<String>,
+}
+
+impl ResolvedOwnership {
+    pub(crate) fn from_metadata(m: &pna::Metadata) -> Self {
+        Self {
+            uid: m.owner_uid().map(|v| v.get()),
+            gid: m.owner_gid().map(|v| v.get()),
+            uname: m.owner_user_name().map(|v| v.as_str().to_owned()),
+            gname: m.owner_group_name().map(|v| v.as_str().to_owned()),
+            mode: m.permission_mode().map(|v| v.get()),
+            user_sid: m.owner_user_sid().map(|v| v.as_str().to_owned()),
+            group_sid: m.owner_group_sid().map(|v| v.as_str().to_owned()),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.uid.is_none()
+            && self.gid.is_none()
+            && self.uname.is_none()
+            && self.gname.is_none()
+            && self.mode.is_none()
+            && self.user_sid.is_none()
+            && self.group_sid.is_none()
+    }
+
+    #[inline]
+    pub(crate) fn has_posix_owner_identity(&self) -> bool {
+        self.uid.is_some()
+            || self.gid.is_some()
+            || self.uname.as_deref().is_some_and(|v| !v.is_empty())
+            || self.gname.as_deref().is_some_and(|v| !v.is_empty())
+    }
+
+    /// Display helper for owner (uname unless numeric → uid).
+    ///
+    /// Faithful name/id display: it does NOT substitute the id when the name
+    /// is empty. Callers that need "empty name → numeric id" (e.g. the bsdtar
+    /// listing format) must apply that fallback themselves.
+    ///
+    /// A missing numeric ID is displayed as `-`.
+    #[inline]
+    pub(crate) fn owner_display(&self, is_numeric: bool) -> UserDisplay<&str> {
+        UserDisplay::new(self.uname.as_deref().unwrap_or(""), self.uid, is_numeric)
+    }
+
+    /// Display helper for group (gname unless numeric → gid).
+    ///
+    /// Faithful name/id display: it does NOT substitute the id when the name
+    /// is empty. Callers that need "empty name → numeric id" (e.g. the bsdtar
+    /// listing format) must apply that fallback themselves.
+    ///
+    /// A missing numeric ID is displayed as `-`.
+    #[inline]
+    pub(crate) fn group_display(&self, is_numeric: bool) -> UserDisplay<&str> {
+        UserDisplay::new(self.gname.as_deref().unwrap_or(""), self.gid, is_numeric)
+    }
+}
+
+pub(crate) struct UserDisplay<S> {
+    name: S,
+    id: Option<u64>,
+    is_numeric: bool,
+}
+
+impl<S> UserDisplay<S> {
+    #[inline]
+    pub(crate) const fn new(name: S, id: Option<u64>, is_numeric: bool) -> Self {
+        Self {
+            name,
+            id,
+            is_numeric,
+        }
+    }
+}
+
+impl<S: Display> Display for UserDisplay<S> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.is_numeric {
+            match self.id {
+                Some(id) => Display::fmt(&id, f),
+                None => f.write_str("-"),
+            }
+        } else {
+            Display::fmt(&self.name, f)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pna::{
+        Metadata, OwnerGid, OwnerGroupName, OwnerUid, OwnerUserName, OwnerUserSid, PermissionMode,
+    };
+
+    /// A `Metadata` with every owner facet set to a distinct literal, so a
+    /// uid<->gid or uname<->gname mix-up in `from_metadata` surfaces as a
+    /// wrong value: every one of the four fields differs from the other
+    /// three.
+    fn base_metadata() -> Metadata {
+        Metadata::new()
+            .with_owner_uid(Some(OwnerUid::from(501)))
+            .with_owner_gid(Some(OwnerGid::from(20)))
+            .with_owner_user_name(Some(OwnerUserName::new("kaihatsutarou").unwrap()))
+            .with_owner_group_name(Some(OwnerGroupName::new("staff").unwrap()))
+            .with_permission_mode(Some(PermissionMode::from(0o644)))
+    }
+
+    #[test]
+    fn from_metadata_maps_each_field_without_cross_wiring() {
+        let metadata = base_metadata()
+            .with_owner_uid(Some(OwnerUid::from(1)))
+            .with_owner_group_name(Some(OwnerGroupName::new("grp").unwrap()))
+            .with_owner_user_sid(Some(OwnerUserSid::new("S-1-1").unwrap()));
+        let r = ResolvedOwnership::from_metadata(&metadata);
+        assert_eq!(r.uid, Some(1));
+        assert_eq!(r.uname.as_deref(), Some("kaihatsutarou"));
+        assert_eq!(r.gid, Some(20));
+        assert_eq!(r.gname.as_deref(), Some("grp"));
+        assert_eq!(r.mode, Some(0o644));
+        assert_eq!(r.user_sid.as_deref(), Some("S-1-1"));
+        assert_eq!(r.group_sid, None);
+    }
+
+    #[test]
+    fn empty_when_nothing_recorded() {
+        let r = ResolvedOwnership::from_metadata(&pna::Metadata::new());
+        assert!(r.is_empty());
+    }
+
+    #[test]
+    fn numeric_owner_display_distinguishes_missing_ids_from_zero() {
+        let mut owner = ResolvedOwnership {
+            uname: Some("alice".into()),
+            gname: Some("staff".into()),
+            gid: Some(0),
+            ..Default::default()
+        };
+        assert_eq!(owner.owner_display(true).to_string(), "-");
+        assert_eq!(owner.group_display(true).to_string(), "0");
+        assert_eq!(owner.owner_display(false).to_string(), "alice");
+        assert_eq!(owner.group_display(false).to_string(), "staff");
+
+        owner.uid = Some(0);
+        owner.gid = None;
+        assert_eq!(owner.owner_display(true).to_string(), "0");
+        assert_eq!(owner.group_display(true).to_string(), "-");
+    }
+
+    #[test]
+    fn from_metadata_projects_every_owner_facet() {
+        let r = ResolvedOwnership::from_metadata(&base_metadata());
+        assert_eq!((r.uid, r.gid, r.mode), (Some(501), Some(20), Some(0o644)));
+        assert_eq!(r.uname.as_deref(), Some("kaihatsutarou"));
+        assert_eq!(r.gname.as_deref(), Some("staff"));
+    }
+}

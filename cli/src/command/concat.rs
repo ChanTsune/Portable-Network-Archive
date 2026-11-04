@@ -1,0 +1,111 @@
+#[cfg(feature = "memmap")]
+use crate::command::core::run_across_archive_bytes;
+#[cfg(not(feature = "memmap"))]
+use crate::command::core::run_across_archive_readers;
+use crate::{
+    command::{
+        Command,
+        core::{StagedArchive, Umask, collect_split_archives},
+    },
+    utils::PathWithCwd,
+};
+use anyhow::Context;
+use clap::{ArgAction, Parser, ValueHint};
+use pna::Archive;
+#[cfg(feature = "memmap")]
+use std::io;
+use std::path::PathBuf;
+
+#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) struct ConcatCommand {
+    #[arg(long, conflicts_with = "no_overwrite", help = "Overwrite file")]
+    overwrite: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not overwrite files. This is the inverse option of --overwrite"
+    )]
+    no_overwrite: (),
+    #[arg(short, long, required = true, help = "Archive files to concatenate", value_hint = ValueHint::FilePath)]
+    files: Vec<PathBuf>,
+    #[arg(
+        long,
+        help = "Output archive file path",
+        value_hint = ValueHint::FilePath
+    )]
+    output: Option<PathBuf>,
+}
+
+impl Command for ConcatCommand {
+    #[inline]
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
+        concat_entry(self, ctx.umask())
+    }
+}
+
+#[hooq::hooq(anyhow)]
+fn concat_entry(args: ConcatCommand, umask: Umask) -> anyhow::Result<()> {
+    let (archive, archives) = match args.output {
+        Some(output) => (output, args.files),
+        None => {
+            let mut files = args.files;
+            let archive = files.remove(0);
+            log::warn!(
+                "using the first input '{}' as the output destination is deprecated; specify the destination explicitly with --output",
+                archive.display()
+            );
+            (archive, files)
+        }
+    };
+    for item in &archives {
+        if !pna::fs::is_pna(item)? {
+            anyhow::bail!("{} is not a pna file", item.display());
+        }
+    }
+    if !args.overwrite && std::fs::symlink_metadata(&archive).is_ok() {
+        anyhow::bail!("{} already exists", PathWithCwd::new(&archive));
+    }
+    let mut staged = StagedArchive::new(archive.clone(), umask, args.overwrite)
+        .with_context(|| format!("failed to create `{}`", PathWithCwd::new(&archive)))?;
+    let mut archive = Archive::write_header(staged.as_file_mut())?;
+
+    for item in &archives {
+        let archives = collect_split_archives(item)?;
+        #[cfg(feature = "memmap")]
+        {
+            let mmaps = archives
+                .into_iter()
+                .map(crate::utils::mmap::Mmap::try_from)
+                .collect::<io::Result<Vec<_>>>()?;
+            let archives = mmaps.iter().map(|m| m.as_ref());
+            run_across_archive_bytes(
+                archives,
+                #[hooq::skip_all]
+                |reader| {
+                    for entry in reader.raw_entries_slice() {
+                        archive.add_entry(entry?)?;
+                    }
+                    Ok(())
+                },
+                false,
+            )?;
+        }
+        #[cfg(not(feature = "memmap"))]
+        {
+            run_across_archive_readers(
+                archives,
+                #[hooq::skip_all]
+                |reader| {
+                    for entry in reader.raw_entries() {
+                        archive.add_entry(entry?)?;
+                    }
+                    Ok(())
+                },
+                false,
+            )?;
+        }
+    }
+    archive.finalize()?;
+    staged.commit()?;
+    Ok(())
+}

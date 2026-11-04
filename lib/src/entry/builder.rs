@@ -1,0 +1,821 @@
+//! Builder types for constructing archive entries.
+mod dir;
+mod file;
+mod link;
+mod solid;
+pub use dir::DirEntryBuilder;
+pub use file::FileEntryBuilder;
+pub use link::{HardLinkEntryBuilder, SymlinkEntryBuilder};
+pub use solid::SolidEntryBuilder;
+
+use crate::{
+    chunk::{ChunkType, RawChunk},
+    cipher::CipherWriter,
+    compress::CompressionWriter,
+    entry::{
+        DataKind, EntryHeader, EntryName, Metadata, NormalEntry, WriteCipher, WriteOption,
+        WriteOptions, get_writer, get_writer_context,
+    },
+    util::io::{FlattenWriter, TryIntoInner},
+};
+
+#[cfg(feature = "unstable-async")]
+use futures_io::AsyncWrite;
+use std::{
+    io::{self, prelude::*},
+    num::NonZeroU32,
+};
+#[cfg(feature = "unstable-async")]
+use std::{
+    pin::Pin,
+    task::{Context, Poll},
+};
+
+/// Constructs the compression/encryption writer stack for entry data.
+///
+/// `header_chunk_data` is the exact on-wire `FHED` Data field for this entry.
+/// The raw `FHED` Type field and this Data field feed AEAD (GCM) stream-key
+/// derivation; block/stream cipher modes ignore them.
+#[allow(clippy::type_complexity)]
+pub(crate) fn data_writer(
+    option: impl WriteOption,
+    header_chunk_data: &[u8],
+) -> io::Result<(
+    CompressionWriter<CipherWriter<FlattenWriter>>,
+    Option<Vec<u8>>,
+    Option<String>,
+)> {
+    let context = get_writer_context(option, ChunkType::FHED, header_chunk_data)?;
+    let writer = get_writer(FlattenWriter::new(), &context)?;
+    let (prefix, phsf) = match context.cipher {
+        None => (None, None),
+        Some(WriteCipher { context: c, .. }) => (Some(c.prefix_bytes()), Some(c.phsf)),
+    };
+    Ok((writer, prefix, phsf))
+}
+
+pub(super) fn prepend_data_prefix(
+    data: &mut Vec<Vec<u8>>,
+    prefix: Vec<u8>,
+    max_chunk_size: NonZeroU32,
+) {
+    let max_chunk_size = max_chunk_size.get() as usize;
+    data.splice(0..0, prefix.chunks(max_chunk_size).map(<[u8]>::to_vec));
+}
+
+/// Fields and logic shared by the kind-specific entry builders.
+pub(crate) struct EntryBuilderCore {
+    header: EntryHeader,
+    phsf: Option<String>,
+    prefix: Option<Vec<u8>>,
+    max_chunk_size: NonZeroU32,
+    metadata: Metadata,
+    extra_chunks: Vec<RawChunk>,
+}
+
+impl EntryBuilderCore {
+    pub(crate) const fn new(header: EntryHeader) -> Self {
+        Self {
+            header,
+            phsf: None,
+            prefix: None,
+            max_chunk_size: NonZeroU32::MAX,
+            metadata: Metadata::new(),
+            extra_chunks: Vec::new(),
+        }
+    }
+
+    pub(crate) fn set_cipher(&mut self, prefix: Option<Vec<u8>>, phsf: Option<String>) {
+        self.prefix = prefix;
+        self.phsf = phsf;
+    }
+
+    pub(crate) fn set_max_chunk_size(&mut self, size: NonZeroU32) {
+        self.max_chunk_size = size;
+    }
+
+    pub(crate) fn header(&self) -> &EntryHeader {
+        &self.header
+    }
+
+    /// Sets the metadata, replacing any previously set metadata.
+    pub(crate) fn metadata(&mut self, metadata: Metadata) {
+        self.metadata = metadata;
+    }
+
+    pub(crate) fn add_extra_chunk(&mut self, chunk: impl Into<RawChunk>) {
+        self.extra_chunks.push(chunk.into());
+    }
+
+    pub(crate) fn build(
+        mut self,
+        mut data: Vec<Vec<u8>>,
+        raw_file_size: Option<u128>,
+    ) -> NormalEntry {
+        if let Some(prefix) = self.prefix {
+            prepend_data_prefix(&mut data, prefix, self.max_chunk_size);
+        }
+        self.metadata.raw_file_size = raw_file_size;
+        self.metadata.compressed_size = data.iter().map(|d| d.len()).sum();
+        NormalEntry {
+            header: self.header,
+            phsf: self.phsf,
+            extra: self.extra_chunks,
+            data,
+            metadata: self.metadata,
+        }
+    }
+}
+
+/// A builder for an opaque [`NormalEntry`] with a specified [`DataKind`].
+///
+/// Bytes written to the builder are compressed and encrypted according to the
+/// supplied [`WriteOptions`] without interpreting their contents.
+/// Use the kind-specific builders for data kinds defined by the PNA specification.
+pub struct OpaqueEntryBuilder {
+    core: EntryBuilderCore,
+    data: CompressionWriter<CipherWriter<FlattenWriter>>,
+    store_file_size: bool,
+    file_size: u128,
+}
+
+impl OpaqueEntryBuilder {
+    /// Creates a builder for an entry whose data is stored without compression
+    /// or encryption.
+    ///
+    /// The entry data is written via the [`Write`] trait as an opaque byte
+    /// stream; its interpretation is left to the application. Prefer the
+    /// kind-specific builders for the kinds defined by the PNA
+    /// specification.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if initialization fails.
+    #[inline]
+    pub fn new(name: EntryName, kind: DataKind) -> io::Result<Self> {
+        Self::new_with_options(name, kind, WriteOptions::store())
+    }
+
+    /// Creates a builder for an entry of the given kind with the given
+    /// write options.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the compression or encryption writer cannot be initialized.
+    #[inline]
+    pub fn new_with_options(
+        name: EntryName,
+        kind: DataKind,
+        option: impl WriteOption,
+    ) -> io::Result<Self> {
+        let header = EntryHeader::new_with_options(
+            kind,
+            option.compression(),
+            option.encryption(),
+            option.cipher_mode(),
+            name,
+        );
+        let (writer, prefix, phsf) = data_writer(option, &header.to_bytes())?;
+        let mut core = EntryBuilderCore::new(header);
+        core.set_cipher(prefix, phsf);
+        Ok(Self {
+            core,
+            data: writer,
+            store_file_size: true,
+            file_size: 0,
+        })
+    }
+
+    /// Sets the metadata of the entry, replacing any previously set metadata.
+    ///
+    /// The raw file size and compressed size recorded in the given metadata
+    /// are ignored; [`build()`](Self::build) computes them.
+    #[inline]
+    pub fn metadata(&mut self, metadata: Metadata) -> &mut Self {
+        self.core.metadata(metadata);
+        self
+    }
+
+    /// Sets whether to store the raw file size in the entry metadata.
+    ///
+    /// The size is recorded only for entries whose data kind is
+    /// [`DataKind::FILE`]. When `true` (the default), the raw file size is
+    /// recorded for such entries; when `false`, it is omitted.
+    #[inline]
+    pub fn store_file_size(&mut self, store: bool) -> &mut Self {
+        self.store_file_size = store;
+        self
+    }
+
+    /// Adds an extra chunk to the entry.
+    #[inline]
+    pub fn add_extra_chunk<T: Into<RawChunk>>(&mut self, chunk: T) -> &mut Self {
+        self.core.add_extra_chunk(chunk);
+        self
+    }
+
+    /// Sets the maximum chunk size for data written to this entry.
+    ///
+    /// The default is [`u32::MAX`] bytes.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use std::io::{self, Write};
+    /// use libpna::{DataKind, OpaqueEntryBuilder, WriteOptions};
+    /// use std::num::NonZeroU32;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let mut builder = OpaqueEntryBuilder::new_with_options(
+    ///     "data.bin".into(),
+    ///     DataKind::FILE,
+    ///     WriteOptions::store(),
+    /// )?;
+    /// builder.max_chunk_size(NonZeroU32::new(1024 * 1024).unwrap()); // 1MB chunks
+    /// builder.write_all(b"file content")?;
+    /// let entry = builder.build()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn max_chunk_size(&mut self, size: NonZeroU32) -> &mut Self {
+        self.core.set_max_chunk_size(size);
+        self.data
+            .get_mut()
+            .get_mut()
+            .set_max_chunk_size(size.get() as usize);
+        self
+    }
+
+    /// Consumes this builder and returns the constructed [`NormalEntry`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the compression or encryption stream cannot be finalized.
+    #[inline]
+    #[must_use = "building an entry without using it is wasteful"]
+    pub fn build(self) -> io::Result<NormalEntry> {
+        let data = self.data.try_into_inner()?.try_into_inner()?.inner;
+        let raw_file_size = (self.store_file_size
+            && self.core.header().data_kind() == DataKind::FILE)
+            .then_some(self.file_size);
+        Ok(self.core.build(data, raw_file_size))
+    }
+}
+
+impl Write for OpaqueEntryBuilder {
+    #[inline]
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.data
+            .write(buf)
+            .inspect(|len| self.file_size += *len as u128)
+    }
+
+    #[inline]
+    fn flush(&mut self) -> io::Result<()> {
+        self.data.flush()
+    }
+}
+
+#[cfg(feature = "unstable-async")]
+impl AsyncWrite for OpaqueEntryBuilder {
+    #[inline]
+    fn poll_write(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        Poll::Ready(self.get_mut().write(buf))
+    }
+
+    #[inline]
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(self.get_mut().flush())
+    }
+
+    #[inline]
+    fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::chunk::Chunk;
+    use crate::entry::private::SealedEntryExt;
+    use crate::entry::test_support::{entry_bytes, entry_chunks};
+    use crate::entry::{
+        DirEntryBuilder, FileEntryBuilder, HardLinkEntryBuilder, OwnerGid, OwnerGroupName,
+        OwnerUid, OwnerUserName, PermissionMode, SymlinkEntryBuilder,
+    };
+    use crate::entry::{LinkTargetType, OwnerGroupSid, OwnerUserSid};
+    use crate::{Duration, EntryReference, ReadOptions};
+    #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
+
+    /// The cipher-mode byte carries no meaning for an unencrypted entry, but it
+    /// is on the wire, and the two builders deliberately disagree on it: the file
+    /// builder writes whatever the options report, while the link builders pin
+    /// CBC, the value they have always emitted. Changing either value diverges
+    /// the `FHED` bytes of new archives from every unencrypted entry already in
+    /// the wild.
+    #[test]
+    fn unencrypted_entries_keep_their_cipher_mode_byte() {
+        let file = FileEntryBuilder::new_with_options("f".into(), WriteOptions::store())
+            .unwrap()
+            .build()
+            .unwrap();
+        let link = SymlinkEntryBuilder::new_with_options(
+            "l".into(),
+            EntryReference::from("target"),
+            WriteOptions::store(),
+        )
+        .unwrap()
+        .build()
+        .unwrap();
+
+        // `FHED` data: major, minor, kind, compression, encryption, cipher_mode.
+        assert_eq!(&file.header().to_bytes()[4..6], &[0, 1], "unencrypted, CTR");
+        assert_eq!(&link.header().to_bytes()[4..6], &[0, 0], "unencrypted, CBC");
+    }
+
+    #[test]
+    fn entry_extra_chunk() {
+        let mut builder = DirEntryBuilder::new("dir".into());
+        builder.add_extra_chunk(RawChunk::from_data(
+            ChunkType::private(*b"abCd").unwrap(),
+            [],
+        ));
+        let entry = builder.build().unwrap();
+
+        assert_eq!(
+            &entry.extra[0],
+            &RawChunk::from_data(ChunkType::private(*b"abCd").unwrap(), []),
+        );
+    }
+
+    #[test]
+    fn fltp_symlink_roundtrip() {
+        let mut builder =
+            SymlinkEntryBuilder::new("link_name".into(), "target_dir".into()).unwrap();
+        builder.metadata(Metadata::new().with_link_target_type(Some(LinkTargetType::Directory)));
+        let entry = builder.build().unwrap();
+        let restored = NormalEntry::parse_chunks(entry_chunks(entry)).unwrap();
+        assert_eq!(
+            restored.metadata().link_target_type(),
+            Some(LinkTargetType::Directory)
+        );
+    }
+
+    #[test]
+    fn fltp_hardlink_roundtrip() {
+        let mut builder =
+            HardLinkEntryBuilder::new("dir_hardlink".into(), "target_dir".into()).unwrap();
+        builder.metadata(Metadata::new().with_link_target_type(Some(LinkTargetType::Directory)));
+        let entry = builder.build().unwrap();
+        let restored = NormalEntry::parse_chunks(entry_chunks(entry)).unwrap();
+        assert_eq!(
+            restored.metadata().link_target_type(),
+            Some(LinkTargetType::Directory)
+        );
+    }
+
+    #[test]
+    fn fltp_absent_returns_none() {
+        let builder = SymlinkEntryBuilder::new("link_name".into(), "target".into()).unwrap();
+        let entry = builder.build().unwrap();
+        let restored = NormalEntry::parse_chunks(entry_chunks(entry)).unwrap();
+        assert_eq!(restored.metadata().link_target_type(), None);
+    }
+
+    #[test]
+    fn fltp_on_regular_file_is_preserved() {
+        let mut builder = FileEntryBuilder::new("regular.txt".into()).unwrap();
+        builder.metadata(Metadata::new().with_link_target_type(Some(LinkTargetType::File)));
+        let entry = builder.build().unwrap();
+        let restored = NormalEntry::parse_chunks(entry_chunks(entry)).unwrap();
+        assert_eq!(
+            restored.metadata().link_target_type(),
+            Some(LinkTargetType::File)
+        );
+    }
+
+    #[test]
+    fn file_entry_builder_round_trips_data_and_metadata() {
+        let mut b = FileEntryBuilder::new("f.txt".into()).unwrap();
+        b.write_all(b"content").unwrap();
+        b.metadata(Metadata::new().with_modified(Some(Duration::seconds(42))));
+        let entry = b.build().unwrap();
+        let restored = NormalEntry::parse_chunks(entry_chunks(entry)).unwrap();
+        assert_eq!(restored.header().data_kind(), DataKind::FILE);
+        assert_eq!(restored.metadata().modified(), Some(Duration::seconds(42)));
+        assert_eq!(restored.metadata().raw_file_size(), Some(7));
+        let mut r = restored.reader(ReadOptions::builder().build()).unwrap();
+        let mut buf = Vec::new();
+        r.read_to_end(&mut buf).unwrap();
+        assert_eq!(&buf[..], b"content");
+    }
+
+    #[test]
+    fn file_entry_builder_store_file_size_false_omits_size() {
+        let mut b = FileEntryBuilder::new("f".into()).unwrap();
+        b.store_file_size(false);
+        b.write_all(b"x").unwrap();
+        let entry = b.build().unwrap();
+        assert_eq!(entry.metadata().raw_file_size(), None);
+    }
+
+    #[test]
+    fn file_entry_builder_metadata_size_fields_are_overwritten() {
+        let mut b = FileEntryBuilder::new("f".into()).unwrap();
+        b.metadata(Metadata::new());
+        b.write_all(b"abc").unwrap();
+        let entry = b.build().unwrap();
+        assert_eq!(entry.metadata().raw_file_size(), Some(3));
+    }
+
+    #[test]
+    fn dir_entry_builder_round_trips() {
+        let mut b = DirEntryBuilder::new("d/".into());
+        b.metadata(Metadata::new().with_permission_mode(Some(PermissionMode::from(0o755))));
+        let entry = b.build().unwrap();
+        let restored = NormalEntry::parse_chunks(entry_chunks(entry)).unwrap();
+        assert_eq!(restored.header().data_kind(), DataKind::DIRECTORY);
+        assert_eq!(
+            restored.metadata().permission_mode(),
+            Some(PermissionMode::from(0o755))
+        );
+    }
+
+    #[test]
+    fn file_entry_builder_encrypted_round_trips() {
+        let opt = WriteOptions::builder()
+            .encryption(crate::Encryption::AES)
+            .password(Some("pass"))
+            .build();
+        let mut b = FileEntryBuilder::new_with_options("f".into(), opt).unwrap();
+        b.write_all(b"secret").unwrap();
+        let entry = b.build().unwrap();
+        let mut r = entry
+            .reader(ReadOptions::with_password(Some("pass")))
+            .unwrap();
+        let mut buf = Vec::new();
+        r.read_to_end(&mut buf).unwrap();
+        assert_eq!(&buf[..], b"secret");
+    }
+
+    #[test]
+    fn symlink_entry_builder_round_trips_target() {
+        let b = SymlinkEntryBuilder::new("link".into(), "target/file".into()).unwrap();
+        let entry = b.build().unwrap();
+        match entry.content(ReadOptions::builder().build()).unwrap() {
+            crate::EntryContent::SymbolicLink(r) => assert_eq!(r.as_str(), "target/file"),
+            other => panic!("unexpected content: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn symlink_entry_builder_encrypts_target() {
+        let opt = WriteOptions::builder()
+            .encryption(crate::Encryption::AES)
+            .password(Some("pass"))
+            .build();
+        let b = SymlinkEntryBuilder::new_with_options("link".into(), "secret/target".into(), opt)
+            .unwrap();
+        let entry = b.build().unwrap();
+        assert!(
+            !entry_bytes(entry.clone())
+                .windows(b"secret/target".len())
+                .any(|w| w == b"secret/target"),
+            "link target must not appear in plaintext"
+        );
+        match entry
+            .content(ReadOptions::with_password(Some("pass")))
+            .unwrap()
+        {
+            crate::EntryContent::SymbolicLink(r) => assert_eq!(r.as_str(), "secret/target"),
+            other => panic!("unexpected content: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn symlink_entry_builder_compresses_target() {
+        let opt = WriteOptions::builder()
+            .compression(crate::Compression::ZSTANDARD)
+            .build();
+        let b = SymlinkEntryBuilder::new_with_options("link".into(), "target".into(), opt).unwrap();
+        let entry = b.build().unwrap();
+        assert_eq!(entry.header().compression(), crate::Compression::ZSTANDARD);
+        let data_chunk = entry_chunks(entry.clone())
+            .into_iter()
+            .find(|c| c.ty() == ChunkType::FDAT)
+            .unwrap();
+        assert_ne!(
+            data_chunk.data(),
+            b"target",
+            "chunk data must be the compressed form, not the plain target"
+        );
+        match entry.content(ReadOptions::builder().build()).unwrap() {
+            crate::EntryContent::SymbolicLink(r) => assert_eq!(r.as_str(), "target"),
+            other => panic!("unexpected content: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn hard_link_entry_builder_round_trips_target() {
+        let b = HardLinkEntryBuilder::new("link".into(), "target/file".into()).unwrap();
+        let entry = b.build().unwrap();
+        match entry.content(ReadOptions::builder().build()).unwrap() {
+            crate::EntryContent::HardLink(r) => assert_eq!(r.as_str(), "target/file"),
+            other => panic!("unexpected content: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn hard_link_entry_builder_encrypts_target() {
+        let opt = WriteOptions::builder()
+            .encryption(crate::Encryption::AES)
+            .password(Some("pass"))
+            .build();
+        let b =
+            HardLinkEntryBuilder::new_with_options("link".into(), "secret".into(), opt).unwrap();
+        let entry = b.build().unwrap();
+        assert!(
+            !entry_bytes(entry.clone())
+                .windows(b"secret".len())
+                .any(|w| w == b"secret"),
+            "link target must not appear in plaintext"
+        );
+        match entry
+            .content(ReadOptions::with_password(Some("pass")))
+            .unwrap()
+        {
+            crate::EntryContent::HardLink(r) => assert_eq!(r.as_str(), "secret"),
+            other => panic!("unexpected content: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn opaque_builder_round_trips_private_kind() {
+        let kind = DataKind::new_private(200).unwrap();
+        let mut b = OpaqueEntryBuilder::new("custom".into(), kind).unwrap();
+        b.write_all(b"opaque bytes").unwrap();
+        let entry = b.build().unwrap();
+        let restored = NormalEntry::parse_chunks(entry_chunks(entry)).unwrap();
+        assert_eq!(restored.header().data_kind(), kind);
+        match restored.content(ReadOptions::builder().build()).unwrap() {
+            crate::EntryContent::Unknown(k, mut r) => {
+                assert_eq!(k, kind);
+                let mut buf = Vec::new();
+                r.read_to_end(&mut buf).unwrap();
+                assert_eq!(&buf[..], b"opaque bytes");
+            }
+            other => panic!("unexpected content: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn opaque_builder_with_file_kind_matches_file_entry_builder_wire() {
+        let mut a = OpaqueEntryBuilder::new("f".into(), DataKind::FILE).unwrap();
+        a.write_all(b"data").unwrap();
+        let mut b = FileEntryBuilder::new("f".into()).unwrap();
+        b.write_all(b"data").unwrap();
+        assert_eq!(
+            entry_bytes(a.build().unwrap()),
+            entry_bytes(b.build().unwrap())
+        );
+    }
+
+    #[test]
+    fn opaque_builder_private_kind_omits_file_size() {
+        let kind = DataKind::new_private(200).unwrap();
+        let mut b = OpaqueEntryBuilder::new("custom".into(), kind).unwrap();
+        b.write_all(b"x").unwrap();
+        let entry = b.build().unwrap();
+        assert_eq!(entry.metadata().raw_file_size(), None);
+    }
+
+    #[test]
+    fn opaque_builder_metadata_replaces_previous() {
+        let mut b = OpaqueEntryBuilder::new("f".into(), DataKind::FILE).unwrap();
+        b.metadata(Metadata::new().with_modified(Some(Duration::seconds(1))));
+        b.metadata(Metadata::new().with_modified(Some(Duration::seconds(2))));
+        let entry = b.build().unwrap();
+        assert_eq!(entry.metadata().modified(), Some(Duration::seconds(2)));
+    }
+
+    #[test]
+    fn metadata_preserves_all_owner_facets() {
+        let mut b = FileEntryBuilder::new("f".into()).unwrap();
+        b.metadata(
+            Metadata::new()
+                .with_owner_uid(Some(OwnerUid::from(1)))
+                .with_owner_gid(Some(OwnerGid::from(2)))
+                .with_owner_user_name(Some(OwnerUserName::new("u").unwrap()))
+                .with_owner_group_name(Some(OwnerGroupName::new("g").unwrap()))
+                .with_owner_user_sid(Some(OwnerUserSid::new("S-1-1").unwrap()))
+                .with_owner_group_sid(Some(OwnerGroupSid::new("S-1-2").unwrap()))
+                .with_permission_mode(Some(PermissionMode::from(0o644))),
+        );
+        let entry = b.build().unwrap();
+        let m = entry.metadata();
+        assert_eq!(m.owner_uid().map(|v| v.get()), Some(1));
+        assert_eq!(m.owner_gid().map(|v| v.get()), Some(2));
+        assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("u"));
+        assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("g"));
+        assert_eq!(m.owner_user_sid().map(|v| v.as_str()), Some("S-1-1"));
+        assert_eq!(m.owner_group_sid().map(|v| v.as_str()), Some("S-1-2"));
+        assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o644));
+    }
+
+    mod gcm {
+        use super::*;
+        use crate::cipher::{STREAM_HEADER_LEN, StreamHeader, derive_stream_key};
+        use crate::{CipherMode, Encryption, HashAlgorithm};
+        use aes::Aes256;
+        use aes_gcm::AesGcm;
+        use aes_gcm::aead::array::Array;
+        use aes_gcm::aead::{Aead, AeadCore, KeyInit, consts::U12};
+        use camellia::Camellia256;
+        use std::ops::Range;
+        // `use super::*` re-imports `test` from the parent's own
+        // `#[cfg(...)] use wasm_bindgen_test::... as test;`, but a
+        // glob-imported name loses to (rather than shadows) the `#[test]`
+        // prelude attribute, so wasm builds see it as ambiguous. Re-declare
+        // it directly in this module to disambiguate.
+        #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+        use wasm_bindgen_test::wasm_bindgen_test as test;
+
+        fn gcm_write_options(encryption: Encryption, segment_size: u32) -> WriteOptions {
+            let mut builder = WriteOptions::builder();
+            builder
+                .encryption(encryption)
+                .cipher_mode(CipherMode::GCM)
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
+                .password(Some("password"));
+            builder.segment_size(segment_size);
+            builder.build()
+        }
+
+        fn stream_header(bytes: &[u8]) -> StreamHeader {
+            StreamHeader::try_from_bytes(bytes.try_into().unwrap()).unwrap()
+        }
+
+        fn nonce(prefix: &[u8; 7], counter: u32, final_flag: u8) -> Array<u8, U12> {
+            let mut n = [0u8; 12];
+            n[..7].copy_from_slice(prefix);
+            n[7..11].copy_from_slice(&counter.to_be_bytes());
+            n[11] = final_flag;
+            Array::from(n)
+        }
+
+        fn assert_gcm_file_segments<C>(
+            encryption: Encryption,
+            plain: &[u8],
+            segments: &[(Range<usize>, u32, u8, &[u8])],
+        ) where
+            AesGcm<C, U12>: KeyInit + Aead + AeadCore<NonceSize = U12>,
+        {
+            let options = gcm_write_options(encryption, 4);
+            let mut builder =
+                FileEntryBuilder::new_with_options("dir/file".into(), &options).unwrap();
+            builder.write_all(plain).unwrap();
+            let entry = builder.build().unwrap();
+
+            let cipher = options.cipher().unwrap();
+            assert_eq!(entry.phsf.as_deref(), Some(cipher.derived.phsf.as_str()));
+            let datastream = entry.data.concat();
+            let (header_bytes, ciphertext) = datastream.split_at(STREAM_HEADER_LEN);
+            let header = stream_header(header_bytes);
+            assert_eq!(header.segment_size().get(), 4);
+            assert!(header.confirms_key(cipher.derived.key.as_bytes()));
+
+            let k_stream = derive_stream_key(
+                cipher.derived.key.as_bytes(),
+                &header,
+                ChunkType::FHED,
+                &entry.header.to_bytes(),
+                cipher.derived.phsf.as_bytes(),
+            );
+            let aead = AesGcm::<C, U12>::new_from_slice(k_stream.as_bytes()).unwrap();
+            assert_eq!(ciphertext.len(), segments.last().unwrap().0.end);
+            for (range, counter, final_flag, expected) in segments {
+                assert_eq!(
+                    aead.decrypt(
+                        &nonce(&header.nonce_prefix, *counter, *final_flag),
+                        &ciphertext[range.clone()]
+                    )
+                    .unwrap(),
+                    *expected,
+                    "segment {counter}"
+                );
+            }
+        }
+
+        const HELLO_SEGMENTS: [(Range<usize>, u32, u8, &[u8]); 4] = [
+            (0..20, 0, 0x00, b"hell"),
+            (20..40, 1, 0x00, b"o gc"),
+            (40..60, 2, 0x00, b"m st"),
+            (60..80, 3, 0x01, b"ream"),
+        ];
+
+        #[test]
+        fn new_file_gcm_aes_decrypts_to_plaintext() {
+            assert_gcm_file_segments::<Aes256>(
+                Encryption::AES,
+                b"hello gcm stream",
+                &HELLO_SEGMENTS,
+            );
+        }
+
+        #[test]
+        fn new_file_gcm_camellia_decrypts_to_plaintext() {
+            assert_gcm_file_segments::<Camellia256>(
+                Encryption::CAMELLIA,
+                b"hello gcm stream",
+                &HELLO_SEGMENTS,
+            );
+        }
+
+        #[test]
+        fn new_file_gcm_multiple_segments_decrypts_to_plaintext() {
+            assert_gcm_file_segments::<Aes256>(
+                Encryption::AES,
+                b"0123456789",
+                &[
+                    (0..20, 0, 0x00, b"0123"),
+                    (20..40, 1, 0x00, b"4567"),
+                    (40..58, 2, 0x01, b"89"),
+                ],
+            );
+        }
+
+        #[test]
+        fn new_file_gcm_empty_plaintext_is_tag_only_segment() {
+            assert_gcm_file_segments::<Aes256>(Encryption::AES, b"", &[(0..16, 0, 0x01, b"")]);
+        }
+
+        #[test]
+        fn new_file_gcm_header_respects_max_chunk_size() {
+            let options = gcm_write_options(Encryption::AES, 4);
+            let mut builder =
+                FileEntryBuilder::new_with_options("dir/file".into(), &options).unwrap();
+            builder.max_chunk_size(NonZeroU32::new(1).unwrap());
+            builder.write_all(b"x").unwrap();
+            let entry = builder.build().unwrap();
+
+            assert!(
+                entry.data.iter().all(|chunk| chunk.len() <= 1),
+                "every FDAT body must respect max_chunk_size"
+            );
+
+            let mut reader = entry
+                .reader(ReadOptions::with_password(Some("password")))
+                .unwrap();
+            let mut plain = Vec::new();
+            reader.read_to_end(&mut plain).unwrap();
+            assert_eq!(plain, b"x");
+        }
+
+        #[test]
+        fn solid_gcm_decrypts_with_shed_header_type() {
+            let options = gcm_write_options(Encryption::AES, 1024);
+            let mut builder = SolidEntryBuilder::new(&options).unwrap();
+            builder
+                .write_file("dir/file".into(), Metadata::new(), |w| {
+                    w.write_all(b"solid gcm payload")
+                })
+                .unwrap();
+            let entry = builder.build().unwrap();
+
+            let cipher = options.cipher().unwrap();
+            let header = stream_header(&entry.data[0]);
+            let ciphertext = entry.data[1..].concat();
+            let solid_key = derive_stream_key(
+                cipher.derived.key.as_bytes(),
+                &header,
+                ChunkType::SHED,
+                &entry.header.to_bytes(),
+                cipher.derived.phsf.as_bytes(),
+            );
+            let aead = AesGcm::<Aes256, U12>::new_from_slice(solid_key.as_bytes()).unwrap();
+            let plain = aead
+                .decrypt(&nonce(&header.nonce_prefix, 0, 0x01), ciphertext.as_slice())
+                .unwrap();
+
+            let mut store_entry =
+                FileEntryBuilder::new_with_options("dir/file".into(), WriteOptions::store())
+                    .unwrap();
+            store_entry.store_file_size(false);
+            store_entry.write_all(b"solid gcm payload").unwrap();
+            let mut expected = Vec::new();
+            store_entry
+                .build()
+                .unwrap()
+                .write_in(&mut expected)
+                .unwrap();
+            assert_eq!(plain, expected);
+        }
+    }
+}

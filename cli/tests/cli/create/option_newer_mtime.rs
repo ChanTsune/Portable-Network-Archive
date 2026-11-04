@@ -1,0 +1,74 @@
+use crate::utils::{archive, setup};
+use clap::Parser;
+use portable_network_archive::cli::{self, value::DateTime};
+use std::collections::HashSet;
+use std::fs;
+use std::str::FromStr;
+
+fn init_resources(path: impl AsRef<std::path::Path>) {
+    let path = path.as_ref();
+    if path.exists() {
+        fs::remove_dir_all(path).unwrap();
+    }
+    fs::create_dir_all(path).unwrap();
+
+    let keep_file = fs::File::create(path.join("keep.txt")).unwrap();
+    let time = fs::FileTimes::new().set_modified(
+        DateTime::from_str("2025-10-11T00:00:01Z")
+            .unwrap()
+            .to_system_time(),
+    );
+    keep_file.set_times(time).unwrap();
+
+    let not_keep = fs::File::create(path.join("not_keep.txt")).unwrap();
+    let time = fs::FileTimes::new().set_modified(
+        DateTime::from_str("2025-10-10T23:59:59Z")
+            .unwrap()
+            .to_system_time(),
+    );
+    not_keep.set_times(time).unwrap();
+}
+
+/// Precondition: The source tree contains files whose modification times span both sides of a threshold.
+/// Action: Run `pna create` with `--newer-mtime` specifying a timestamp threshold.
+/// Expectation: The archive contains only entries whose modification times are newer than the threshold.
+#[test]
+fn create_with_newer_mtime() {
+    setup();
+    init_resources("create_with_newer_mtime/in/");
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "create_with_newer_mtime/create_with_newer_mtime.pna",
+        "--overwrite",
+        "create_with_newer_mtime/in/",
+        "--keep-timestamp",
+        "--newer-mtime",
+        "2025-10-11T00:00:00Z",
+        "--no-keep-dir",
+        "--unstable",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let mut seen = HashSet::new();
+    archive::for_each_entry(
+        "create_with_newer_mtime/create_with_newer_mtime.pna",
+        |entry| {
+            seen.insert(entry.header().path().to_string());
+        },
+    )
+    .unwrap();
+
+    let required_entries = ["create_with_newer_mtime/in/keep.txt"];
+    for required in required_entries {
+        assert!(
+            seen.take(required).is_some(),
+            "required entry missing: {required}"
+        );
+    }
+    assert!(seen.is_empty(), "unexpected entries found: {seen:?}");
+}
