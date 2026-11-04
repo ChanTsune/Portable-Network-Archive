@@ -44,12 +44,5 @@ features = ["acl", "memmap"]
 riscv64gc-unknown-linux-gnu = "ubuntu-24.04-riscv"
 aarch64-pc-windows-msvc = "windows-11-arm"
 
-[dist.github-action-commits]
-"actions/checkout" = "3d3c42e5aac5ba805825da76410c181273ba90b1"
-"actions/upload-artifact" = "cf430e030ddbb5b0abf93d22962f4752f3646cd9"
-"actions/download-artifact" = "9000827ccba6bdab643e8b6fd33ac0654aef8333"
-"actions/attest" = "1e69f48acb82d1966a394da916b4c1698aa569d6"
-"swatinem/rust-cache" = "d1527c8f67ef9af357290475d4af4b0fab8f12e0"
-
 [dist.dependencies.apt]
 libacl1-dev = { stage = ["build", "run"], targets = ["aarch64-unknown-linux-gnu", "riscv64gc-unknown-linux-gnu", "x86_64-unknown-linux-gnu"] }
