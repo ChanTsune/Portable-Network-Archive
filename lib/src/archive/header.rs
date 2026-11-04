@@ -1,11 +1,6 @@
 //! Archive header constants and validation.
 
-use crate::PNA_SIGNATURE;
 use std::io;
-
-/// Alias of [`PNA_SIGNATURE`].
-#[deprecated(since = "0.37.0", note = "renamed to `PNA_SIGNATURE`")]
-pub const PNA_HEADER: &[u8; 8] = PNA_SIGNATURE;
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ArchiveHeader {

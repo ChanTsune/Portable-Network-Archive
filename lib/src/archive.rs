@@ -13,7 +13,7 @@ use crate::{
     io::WriteChunk,
 };
 use core::num::NonZeroU32;
-pub use header::*;
+pub(crate) use header::*;
 pub use split_parts::{MIN_SPLIT_PART_BYTES, SplitParts};
 use std::io::{self, Write};
 pub(crate) use write::*;
