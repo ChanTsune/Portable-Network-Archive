@@ -1,5 +1,9 @@
 use nix::unistd::{Gid, Uid};
-use std::{fs, io};
+use std::{
+    fs::OpenOptions,
+    io::{self, Read},
+    os::unix::fs::OpenOptionsExt,
+};
 
 fn split_columns(line: &str) -> std::str::Split<'_, char> {
     if line.contains(';') {
@@ -7,6 +11,16 @@ fn split_columns(line: &str) -> std::str::Split<'_, char> {
     } else {
         line.split(':')
     }
+}
+
+fn read_account_db(path: &str) -> io::Result<String> {
+    let mut file = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_SHLOCK)
+        .open(path)?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+    Ok(contents)
 }
 
 pub(crate) struct User {
@@ -18,14 +32,14 @@ pub(crate) struct User {
 impl User {
     #[inline]
     pub(crate) fn from_uid(uid: Uid) -> io::Result<Self> {
-        let passwd = fs::read_to_string("/etc/passwd")?;
+        let passwd = read_account_db("/etc/passwd")?;
         Self::lookup(&passwd, |user| user.uid == uid)
             .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, format!("uid {uid} not found")))
     }
 
     #[inline]
     pub(crate) fn from_name(name: &str) -> io::Result<Self> {
-        let passwd = fs::read_to_string("/etc/passwd")?;
+        let passwd = read_account_db("/etc/passwd")?;
         Self::lookup(&passwd, |user| user.name == name).ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::NotFound,
@@ -74,14 +88,14 @@ pub(crate) struct Group {
 impl Group {
     #[inline]
     pub(crate) fn from_gid(gid: Gid) -> io::Result<Self> {
-        let group = fs::read_to_string("/etc/group")?;
+        let group = read_account_db("/etc/group")?;
         Self::lookup(&group, |group| group.gid == gid)
             .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, format!("gid {gid} not found")))
     }
 
     #[inline]
     pub(crate) fn from_name(name: &str) -> io::Result<Self> {
-        let group = fs::read_to_string("/etc/group")?;
+        let group = read_account_db("/etc/group")?;
         Self::lookup(&group, |group| group.name == name).ok_or_else(|| {
             io::Error::new(io::ErrorKind::NotFound, format!("gname {name} not found"))
         })
