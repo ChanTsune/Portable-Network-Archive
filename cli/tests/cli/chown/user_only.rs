@@ -11,7 +11,7 @@ const LEGACY_FIXTURE: &str = "0.33.0/zstd_keep_permission.pna";
 
 /// Precondition: An archive contains entries with permission metadata.
 /// Action: Run `pna experimental chown` with `user` (no colon) to change only the user.
-/// Expectation: The target entry has updated uname/uid; gname/gid and permission bits are preserved.
+/// Expectation: The target entry has an updated uname and no uid; gname/gid and permission bits are preserved.
 #[test]
 fn chown_user_only() {
     setup();
@@ -59,7 +59,7 @@ fn chown_user_only() {
                     entry.metadata().owner_user_name().unwrap().as_str(),
                     "new_user"
                 );
-                assert_eq!(entry.metadata().owner_uid().unwrap().get(), u64::MAX);
+                assert!(entry.metadata().owner_uid().is_none());
                 assert_eq!(
                     entry.metadata().owner_group_name().unwrap().as_str(),
                     "group"
@@ -116,7 +116,7 @@ fn chown_user_only_on_legacy_fprm_entry_preserves_group() {
             found = true;
             let metadata = entry.metadata();
             assert_eq!(metadata.owner_user_name().unwrap().as_str(), "new_user");
-            assert_eq!(metadata.owner_uid().unwrap().get(), u64::MAX);
+            assert!(metadata.owner_uid().is_none());
             // The group side wasn't targeted, so it's rescued from the
             // fixture's legacy fPRM ("staff"/20) rather than left absent.
             assert_eq!(metadata.owner_group_name().unwrap().as_str(), "staff");

@@ -1128,13 +1128,13 @@ pub(crate) fn build_entry_metadata(
         let mode = mode_from_file_information(path, &info, meta.file_type().is_symlink());
         let user = sd.owner_sid()?;
         let group = sd.group_sid()?;
-        let uid = options.uid.map_or(u64::MAX, Into::into);
-        let gid = options.gid.map_or(u64::MAX, Into::into);
+        let uid = options.uid.map(u64::from);
+        let gid = options.gid.map(u64::from);
         let uname = options.uname.clone().unwrap_or(user.name);
         let gname = options.gname.clone().unwrap_or(group.name);
         metadata = metadata
-            .with_owner_uid(Some(pna::OwnerUid::from(uid)))
-            .with_owner_gid(Some(pna::OwnerGid::from(gid)))
+            .with_owner_uid(uid.map(pna::OwnerUid::from))
+            .with_owner_gid(gid.map(pna::OwnerGid::from))
             .with_owner_user_name(crate::command::core::permission::owner_name_opt(&uname))
             .with_owner_group_name(crate::command::core::permission::owner_group_name_opt(
                 &gname,

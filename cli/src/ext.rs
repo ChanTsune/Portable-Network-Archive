@@ -123,13 +123,11 @@ impl ResolvedOwnership {
     /// Faithful name/id display: it does NOT substitute the id when the name
     /// is empty. Callers that need "empty name → numeric id" (e.g. the bsdtar
     /// listing format) must apply that fallback themselves.
+    ///
+    /// A missing numeric ID is displayed as `-`.
     #[inline]
     pub(crate) fn owner_display(&self, is_numeric: bool) -> UserDisplay<&str> {
-        UserDisplay::new(
-            self.uname.as_deref().unwrap_or(""),
-            self.uid.unwrap_or(0),
-            is_numeric,
-        )
+        UserDisplay::new(self.uname.as_deref().unwrap_or(""), self.uid, is_numeric)
     }
 
     /// Display helper for group (gname unless numeric → gid).
@@ -137,25 +135,23 @@ impl ResolvedOwnership {
     /// Faithful name/id display: it does NOT substitute the id when the name
     /// is empty. Callers that need "empty name → numeric id" (e.g. the bsdtar
     /// listing format) must apply that fallback themselves.
+    ///
+    /// A missing numeric ID is displayed as `-`.
     #[inline]
     pub(crate) fn group_display(&self, is_numeric: bool) -> UserDisplay<&str> {
-        UserDisplay::new(
-            self.gname.as_deref().unwrap_or(""),
-            self.gid.unwrap_or(0),
-            is_numeric,
-        )
+        UserDisplay::new(self.gname.as_deref().unwrap_or(""), self.gid, is_numeric)
     }
 }
 
 pub(crate) struct UserDisplay<S> {
     name: S,
-    id: u64,
+    id: Option<u64>,
     is_numeric: bool,
 }
 
 impl<S> UserDisplay<S> {
     #[inline]
-    pub(crate) const fn new(name: S, id: u64, is_numeric: bool) -> Self {
+    pub(crate) const fn new(name: S, id: Option<u64>, is_numeric: bool) -> Self {
         Self {
             name,
             id,
@@ -168,7 +164,10 @@ impl<S: Display> Display for UserDisplay<S> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if self.is_numeric {
-            Display::fmt(&self.id, f)
+            match self.id {
+                Some(id) => Display::fmt(&id, f),
+                None => f.write_str("-"),
+            }
         } else {
             Display::fmt(&self.name, f)
         }
@@ -215,6 +214,25 @@ mod tests {
     fn empty_when_nothing_recorded() {
         let r = ResolvedOwnership::from_metadata(&pna::Metadata::new());
         assert!(r.is_empty());
+    }
+
+    #[test]
+    fn numeric_owner_display_distinguishes_missing_ids_from_zero() {
+        let mut owner = ResolvedOwnership {
+            uname: Some("alice".into()),
+            gname: Some("staff".into()),
+            gid: Some(0),
+            ..Default::default()
+        };
+        assert_eq!(owner.owner_display(true).to_string(), "-");
+        assert_eq!(owner.group_display(true).to_string(), "0");
+        assert_eq!(owner.owner_display(false).to_string(), "alice");
+        assert_eq!(owner.group_display(false).to_string(), "staff");
+
+        owner.uid = Some(0);
+        owner.gid = None;
+        assert_eq!(owner.owner_display(true).to_string(), "0");
+        assert_eq!(owner.group_display(true).to_string(), "-");
     }
 
     #[test]

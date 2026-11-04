@@ -113,21 +113,17 @@ fn transform_entry<T>(entry: NormalEntry<T>, owner: &Ownership) -> NormalEntry<T
     let metadata = entry.metadata().clone();
     let own = crate::ext::ResolvedOwnership::from_metadata(&metadata);
     let (uid, uname): (Option<u64>, String) = match owner.user.as_ref() {
-        Some(OwnerSpecifier::Name(uname)) => (Some(u64::MAX), uname.clone()),
+        Some(OwnerSpecifier::Name(uname)) => (None, uname.clone()),
         Some(OwnerSpecifier::ID(uid)) => (Some(*uid), String::new()),
-        Some(OwnerSpecifier::System(user)) => (
-            Some(user.uid().unwrap_or(u64::MAX)),
-            user.name().unwrap_or_default().into(),
-        ),
+        Some(OwnerSpecifier::System(user)) => (user.uid(), user.name().unwrap_or_default().into()),
         None => (own.uid, own.uname.clone().unwrap_or_default()),
     };
     let (gid, gname): (Option<u64>, String) = match owner.group.as_ref() {
-        Some(OwnerSpecifier::Name(gname)) => (Some(u64::MAX), gname.clone()),
+        Some(OwnerSpecifier::Name(gname)) => (None, gname.clone()),
         Some(OwnerSpecifier::ID(gid)) => (Some(*gid), String::new()),
-        Some(OwnerSpecifier::System(group)) => (
-            Some(group.gid().unwrap_or(u64::MAX)),
-            group.name().unwrap_or_default().into(),
-        ),
+        Some(OwnerSpecifier::System(group)) => {
+            (group.gid(), group.name().unwrap_or_default().into())
+        }
         None => (own.gid, own.gname.clone().unwrap_or_default()),
     };
     let metadata =

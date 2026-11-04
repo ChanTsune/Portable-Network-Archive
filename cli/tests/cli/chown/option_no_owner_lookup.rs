@@ -74,8 +74,8 @@ fn chown_no_owner_lookup() {
                     entry.metadata().owner_user_name().unwrap().as_str(),
                     "test_user"
                 );
-                assert_eq!(entry.metadata().owner_uid().unwrap().get(), u64::MAX);
-                assert_eq!(entry.metadata().owner_gid().unwrap().get(), u64::MAX);
+                assert!(entry.metadata().owner_uid().is_none());
+                assert!(entry.metadata().owner_gid().is_none());
                 assert_eq!(
                     entry.metadata().permission_mode().map(|v| v.get()),
                     original.4
