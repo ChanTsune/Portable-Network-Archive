@@ -1,7 +1,0 @@
-paths:
-  ".github/workflows/release.yml":
-    ignore:
-      - ".*"
-  ".github/workflows/*.lock.yml":
-    ignore:
-      - ".*"
