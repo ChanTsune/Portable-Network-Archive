@@ -1,0 +1,41 @@
+name: DragonFly Rust compile probe
+
+on:
+  push:
+    branches:
+      - ci/dragonfly-rust-probe-1319
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile-dragonfly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Compile current PNA on DragonFly BSD
+        uses: vmactions/dragonflybsd-vm@323497fa680c1856dd1ba5c4fd89182a9194f649 # v1.2.7
+        with:
+          copyback: false
+          disable-cache: true
+          usesh: true
+          prepare: |
+            pkg install -y rust cmake libnghttp2
+          run: |
+            set -e
+            export LC_ALL=C LANG=C
+            uname -a
+            rustc --version
+            cargo --version
+            rust_minor=$(rustc --version | awk '{split($2, v, "."); print v[2]}')
+            if [ "$rust_minor" -lt 95 ]; then
+              echo "Rust 1.95 or newer required; the DragonFly package is too old" >&2
+              exit 1
+            fi
+            chown -R $(whoami):$(id -gn) ./
+            chmod -R a+rw ./
+            cargo build --locked --release -p libpna -p pna -p portable-network-archive

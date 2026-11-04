@@ -136,9 +136,10 @@ fn extract_keep_timestamp_restores_directory_times() {
     .execute()
     .unwrap();
 
-    // WASM does not support path-based timestamp restoration (filetime crate
-    // limitation); restore_path_timestamps is gated out for wasm targets.
-    #[cfg(not(target_family = "wasm"))]
+    // WASM targets other than emscripten do not support path-based timestamp
+    // restoration (filetime crate limitation); restore_path_timestamps is
+    // gated out for those targets.
+    #[cfg(any(not(target_family = "wasm"), target_os = "emscripten"))]
     {
         let atime = SystemTime::UNIX_EPOCH + Duration::from_secs(1_704_067_200);
         let mtime = SystemTime::UNIX_EPOCH + Duration::from_secs(1_704_153_600);
@@ -213,7 +214,7 @@ fn extract_with_keep_timestamp_restores_nested_directory_times() {
     .execute()
     .unwrap();
 
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(any(not(target_family = "wasm"), target_os = "emscripten"))]
     {
         let a_mtime = SystemTime::UNIX_EPOCH + Duration::from_secs(1_577_836_800);
         let a_atime = SystemTime::UNIX_EPOCH + Duration::from_secs(1_577_923_200);
@@ -289,9 +290,10 @@ fn extract_keep_timestamp_restores_hardlink_times() {
     .execute()
     .unwrap();
 
-    // WASM does not support path-based timestamp restoration (filetime crate
-    // limitation); restore_path_timestamps is gated out for wasm targets.
-    #[cfg(not(target_family = "wasm"))]
+    // WASM targets other than emscripten do not support path-based timestamp
+    // restoration (filetime crate limitation); restore_path_timestamps is
+    // gated out for those targets.
+    #[cfg(any(not(target_family = "wasm"), target_os = "emscripten"))]
     {
         let mtime = SystemTime::UNIX_EPOCH + Duration::from_secs(1_704_067_200);
         let atime = SystemTime::UNIX_EPOCH + Duration::from_secs(1_704_153_600);

@@ -1,7 +1,10 @@
-use crate::{cli::value::ChunkType, command::Command};
-use clap::{Parser, ValueHint};
+use crate::{
+    cli::{ArchiveFileArgs, value::ChunkType},
+    command::Command,
+};
+use clap::Parser;
 use pna::prelude::*;
-use std::{collections::HashSet, fs, path::PathBuf};
+use std::{collections::HashSet, fs};
 use tabled::{builder::Builder as TableBuilder, settings::Style as TableStyle};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
@@ -45,8 +48,8 @@ pub(crate) struct ListCommand {
         help = "Do not list chunks of the specified type"
     )]
     exclude_ty: Vec<ChunkType>,
-    #[arg(short = 'f', long = "file", value_hint = ValueHint::FilePath)]
-    archive: PathBuf,
+    #[command(flatten)]
+    archive: ArchiveFileArgs,
     #[arg(long, action = clap::ArgAction::Help, help = "Print help")]
     help: (),
 }
@@ -60,7 +63,7 @@ impl Command for ListCommand {
 
 #[hooq::hooq(anyhow)]
 fn list_archive_chunks(args: ListCommand) -> anyhow::Result<()> {
-    let archive = fs::File::open(args.archive)?;
+    let archive = fs::File::open(args.archive.file)?;
     let mut builder = TableBuilder::new();
     if args.header {
         builder.push_record(
@@ -96,7 +99,7 @@ fn list_archive_chunks(args: ListCommand) -> anyhow::Result<()> {
                 })),
             );
         }
-        offset += chunk.length() as usize + std::mem::size_of::<u32>() * 3;
+        offset += chunk.length() as usize + pna::MIN_CHUNK_BYTES_SIZE;
     }
     let mut table = builder.build();
     table.with(TableStyle::empty());

@@ -1,98 +1,212 @@
-use crate::utils::{EmbedExt, TestResources, diff::assert_dirs_equal, setup};
-use assert_cmd::cargo::cargo_bin_cmd;
+use crate::utils::{EmbedExt, TestResources, archive, setup};
+use clap::Parser;
+use portable_network_archive::cli;
+use std::fs;
 
-/// Precondition: An archive exists and xattr dump is provided via stdin.
-/// Action: Run `pna xattr set --restore -` to restore xattrs from stdin, then extract.
-/// Expectation: Extracted files have the xattrs applied from the dump.
+/// Precondition: An archive exists and a dump file contains xattr definitions.
+/// Action: Run `pna xattr set --restore <file>` to restore xattrs from a file path.
+/// Expectation: The xattrs defined in the dump file are applied to the archive entries.
 #[test]
-fn xattr_set_restore() {
+fn xattr_restore_from_file() {
     setup();
-    TestResources::extract_in("raw/", "xattr_set_restore/in/").unwrap();
+    TestResources::extract_in("raw/", "xattr_restore_file/in/").unwrap();
 
-    let mut cmd = cargo_bin_cmd!("pna");
-    cmd.args([
+    cli::Cli::try_parse_from([
+        "pna",
         "--quiet",
         "c",
         "-f",
-        "xattr_set_restore/xattr_set_restore.pna",
+        "xattr_restore_file/archive.pna",
         "--overwrite",
-        "xattr_set_restore/in/",
+        "xattr_restore_file/in/",
     ])
-    .assert()
-    .success();
+    .unwrap()
+    .execute()
+    .unwrap();
 
-    let mut cmd = cargo_bin_cmd!("pna");
-    cmd.write_stdin(concat!(
-        "# file: xattr_set_restore/in/raw/empty.txt\n",
-        "user.name=\"pna\"\n",
-        "user.value=\"inspired by png data structure\"\n",
-        "# file: xattr_set_restore/in/raw/images/icon.png\n",
-        "# file: xattr_set_restore/in/raw/images/icon.svg\n",
-        "# file: xattr_set_restore/in/raw/images/icon.bmp\n",
-        "# file: xattr_set_restore/in/raw/first/second/third/pna.txt\n",
-        "# file: xattr_set_restore/in/raw/pna/empty.pna\n",
-        "# file: xattr_set_restore/in/raw/pna/nest.pna\n",
-        "# file: xattr_set_restore/in/raw/parent/child.txt\n",
-        "user.meta=\"\x01\x02\x03\x04\x05\"\n",
-        "# file: xattr_set_restore/in/raw/text.txt\n"
-    ));
-    cmd.args([
+    fs::write(
+        "xattr_restore_file/xattrs.dump",
+        concat!(
+            "# file: xattr_restore_file/in/raw/empty.txt\n",
+            "user.author=\"pna team\"\n",
+            "user.version=\"1.0\"\n",
+            "\n",
+            "# file: xattr_restore_file/in/raw/text.txt\n",
+            "user.description=\"sample text file\"\n",
+        ),
+    )
+    .unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
         "--quiet",
         "xattr",
         "set",
         "-f",
-        "xattr_set_restore/xattr_set_restore.pna",
+        "xattr_restore_file/archive.pna",
         "--restore",
-        "-",
+        "xattr_restore_file/xattrs.dump",
     ])
-    .assert()
-    .success();
+    .unwrap()
+    .execute()
+    .unwrap();
 
-    let mut cmd = cargo_bin_cmd!("pna");
-    cmd.args([
+    let mut applied_sorted_by_name =
+        archive::xattrs_by_entry("xattr_restore_file/archive.pna", None);
+    applied_sorted_by_name.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(
+        applied_sorted_by_name,
+        vec![
+            (
+                "xattr_restore_file/in/raw/empty.txt".to_string(),
+                vec![
+                    archive::xattr("user.author", b"pna team"),
+                    archive::xattr("user.version", b"1.0"),
+                ]
+            ),
+            (
+                "xattr_restore_file/in/raw/text.txt".to_string(),
+                vec![archive::xattr("user.description", b"sample text file")]
+            ),
+        ]
+    );
+}
+
+/// Precondition: An archive exists and a dump file contains hex-encoded xattr values.
+/// Action: Run `pna xattr set --restore <file>` with hex-encoded values in the dump.
+/// Expectation: The binary values are correctly decoded and applied.
+#[test]
+fn xattr_restore_from_file_with_encodings() {
+    setup();
+    TestResources::extract_in("raw/", "xattr_restore_enc/in/").unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
         "--quiet",
-        "x",
+        "c",
         "-f",
-        "xattr_set_restore/xattr_set_restore.pna",
+        "xattr_restore_enc/archive.pna",
         "--overwrite",
-        "--out-dir",
-        "xattr_set_restore/out/",
-        "--keep-xattr",
-        "--strip-components",
-        "2",
+        "xattr_restore_enc/in/",
     ])
-    .assert()
-    .success();
+    .unwrap()
+    .execute()
+    .unwrap();
 
-    assert_dirs_equal("xattr_set_restore/in/", "xattr_set_restore/out/");
+    fs::write(
+        "xattr_restore_enc/xattrs.dump",
+        concat!(
+            "# file: xattr_restore_enc/in/raw/empty.txt\n",
+            "user.text=\"hello world\"\n",
+            "user.hex=0x48454c4c4f\n",
+            "user.base64=0sSGVsbG8=\n",
+        ),
+    )
+    .unwrap();
 
-    #[cfg(unix)]
-    if xattr::SUPPORTED_PLATFORM {
-        // Check if xattr is supported on this filesystem
-        match xattr::get("xattr_set_restore/out/raw/empty.txt", "user.name") {
-            Ok(Some(value)) => {
-                assert_eq!(value, b"pna");
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
-                eprintln!(
-                    "Skipping xattr verification: filesystem does not support extended attributes"
-                );
-                return;
-            }
-            other => panic!("Unexpected result: {:?}", other),
-        }
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "xattr",
+        "set",
+        "-f",
+        "xattr_restore_enc/archive.pna",
+        "--restore",
+        "xattr_restore_enc/xattrs.dump",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
 
-        assert_eq!(
-            xattr::get("xattr_set_restore/out/raw/empty.txt", "user.value")
-                .unwrap()
-                .unwrap(),
-            b"inspired by png data structure"
-        );
-        assert_eq!(
-            xattr::get("xattr_set_restore/out/raw/parent/child.txt", "user.meta")
-                .unwrap()
-                .unwrap(),
-            &[1, 2, 3, 4, 5]
-        );
+    assert_eq!(
+        archive::xattrs_by_entry("xattr_restore_enc/archive.pna", None),
+        vec![(
+            "xattr_restore_enc/in/raw/empty.txt".to_string(),
+            vec![
+                archive::xattr("user.text", b"hello world"),
+                archive::xattr("user.hex", b"HELLO"),
+                archive::xattr("user.base64", b"Hello"),
+            ]
+        )]
+    );
+}
+
+/// Precondition: An archive entry already has xattrs, and a dump file defines additional ones.
+/// Action: Run `pna xattr set --restore <file>` to add xattrs to an entry with existing xattrs.
+/// Expectation: New xattrs are merged with existing ones, overwriting on name collision.
+#[test]
+fn xattr_restore_from_file_merge() {
+    setup();
+    TestResources::extract_in("raw/", "xattr_restore_merge/in/").unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        "xattr_restore_merge/archive.pna",
+        "--overwrite",
+        "xattr_restore_merge/in/",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    for (name, value) in [
+        ("user.existing", "original"),
+        ("user.overwrite", "old_value"),
+    ] {
+        cli::Cli::try_parse_from([
+            "pna",
+            "--quiet",
+            "xattr",
+            "set",
+            "-f",
+            "xattr_restore_merge/archive.pna",
+            "--name",
+            name,
+            "--value",
+            value,
+            "xattr_restore_merge/in/raw/empty.txt",
+        ])
+        .unwrap()
+        .execute()
+        .unwrap();
     }
+
+    fs::write(
+        "xattr_restore_merge/xattrs.dump",
+        concat!(
+            "# file: xattr_restore_merge/in/raw/empty.txt\n",
+            "user.new=\"added\"\n",
+            "user.overwrite=\"new_value\"\n",
+        ),
+    )
+    .unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "xattr",
+        "set",
+        "-f",
+        "xattr_restore_merge/archive.pna",
+        "--restore",
+        "xattr_restore_merge/xattrs.dump",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    assert_eq!(
+        archive::xattrs_by_entry("xattr_restore_merge/archive.pna", None),
+        vec![(
+            "xattr_restore_merge/in/raw/empty.txt".to_string(),
+            vec![
+                archive::xattr("user.existing", b"original"),
+                archive::xattr("user.overwrite", b"new_value"),
+                archive::xattr("user.new", b"added"),
+            ]
+        )]
+    );
 }

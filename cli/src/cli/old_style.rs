@@ -53,19 +53,22 @@ pub fn expand_bsdtar_old_style_args(args: Vec<OsString>) -> Vec<OsString> {
         return args;
     }
 
-    let mut result = args[..i].to_vec();
-    let mut remaining = args[i + 1..].iter();
+    let mut remaining = args.into_iter();
+    let mut result = remaining.by_ref().take(i).collect::<Vec<_>>();
+    let candidate = remaining
+        .next()
+        .expect("old-style candidate must exist after validation");
 
-    for ch in candidate_str.chars() {
+    for ch in candidate.to_str().unwrap_or_default().chars() {
         result.push(OsString::from(format!("-{ch}")));
         if SHORT_OPTIONS_WITH_ARG.contains(&ch)
             && let Some(value) = remaining.next()
         {
-            result.push(value.clone());
+            result.push(value);
         }
     }
 
-    result.extend(remaining.cloned());
+    result.extend(remaining);
     result
 }
 

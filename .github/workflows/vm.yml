@@ -31,6 +31,8 @@ permissions:
 
 env:
   RUST_BACKTRACE: 1
+  # These VMs run the suite as root, so a skip for want of privilege is a defect.
+  PNA_TEST_REQUIRE: root
 
 jobs:
   solaris-test:
@@ -43,9 +45,9 @@ jobs:
           persist-credentials: false
       - name: Test in Solaris
         id: test
-        uses: vmactions/solaris-vm@315163f088b66e55bbcc45928bd224d4973b2312 # v1.3.8
+        uses: vmactions/solaris-vm@1c166978f5a2c1f87f1c9d4d8dd85ae3d1eff6f7 # v1.4.2
         with:
-          envs: "RUST_BACKTRACE"
+          envs: "RUST_BACKTRACE PNA_TEST_REQUIRE"
           copyback: false
           disable-cache: true
           usesh: true
@@ -65,17 +67,19 @@ jobs:
 
   NetBSD-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     name: Test on NetBSD
+    env:
+      PNA_TEST_REQUIRE: root,nodump
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Test in NetBSD
         id: test
-        uses: vmactions/NetBSD-vm@00081e82b14bc40114eb97f32b4455306828516b # v1.4.6
+        uses: vmactions/NetBSD-vm@c8a0d7ddb84619a7a8cc4e652efa7950b3fd9f92 # v1.5.2
         with:
-          envs: "RUST_BACKTRACE"
+          envs: "RUST_BACKTRACE PNA_TEST_REQUIRE"
           copyback: false
           disable-cache: true
           usesh: true
@@ -97,15 +101,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 50
     name: Test on FreeBSD
+    env:
+      # This job exists to exercise POSIX.1e ACLs and extended attributes on
+      # the UFS image mounted below, so a skip for want of xattr means that
+      # mount stopped delivering them.
+      PNA_TEST_REQUIRE: root,xattr
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Test in FreeBSD
         id: test
-        uses: vmactions/freebsd-vm@83b151f58c6047089f4c80eb5ba2039d158ce093 # v1.5.3
+        uses: vmactions/freebsd-vm@c46abacb49f09938ca4e1702d15d836285d694cc # v1.5.9
         with:
-          envs: "RUST_BACKTRACE"
+          envs: "RUST_BACKTRACE PNA_TEST_REQUIRE"
           copyback: false
           disable-cache: true
           usesh: true
@@ -132,7 +141,7 @@ jobs:
               enabled: no
             }
             EOF
-            pkg install -y curl cmake
+            pkg install -y curl cmake-core
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           run: |
             set -e
@@ -159,15 +168,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 80
     name: Test on OpenBSD
+    env:
+      PNA_TEST_REQUIRE: root,nodump
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Test in OpenBSD
         id: test
-        uses: vmactions/OpenBSD-vm@e6c68b637a12e83519688d115d57d5b0b53923cd # v1.4.6
+        uses: vmactions/OpenBSD-vm@f1ca8bc8ecc5b6ef7218e5b914836e067e1546d3 # v1.4.9
         with:
-          envs: "RUST_BACKTRACE"
+          envs: "RUST_BACKTRACE PNA_TEST_REQUIRE"
           copyback: false
           disable-cache: true
           usesh: true
@@ -187,33 +198,41 @@ jobs:
   DragonflyBSD-test:
     runs-on: ubuntu-latest
     timeout-minutes: 100
-    name: Test on DragonflyBSD
+    name: Test on DragonFly BSD
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Test in DragonflyBSD
+      - name: Test in DragonFly BSD
         id: test
         uses: vmactions/dragonflybsd-vm@323497fa680c1856dd1ba5c4fd89182a9194f649 # v1.2.7
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
+          disable-cache: true
           usesh: true
           prepare: |
-            pkg install -y curl cmake libnghttp2
-            pkg install -y rust
+            pkg install -y rust cmake libnghttp2
           run: |
             set -e
             export LC_ALL=C LANG=C
             uname -a
+            rustc --version
+            cargo --version
+            rust_minor=$(rustc --version | awk '{split($2, v, "."); print v[2]}')
+            if [ "$rust_minor" -lt 95 ]; then
+              echo "Rust 1.95 or newer required; the DragonFly package is too old" >&2
+              exit 1
+            fi
             chown -R $(whoami):$(id -gn) ./
             chmod -R a+rw ./
+            cargo build --locked --release -p libpna -p pna -p portable-network-archive
             cargo install -f cargo-hack --locked
             cargo hack test --locked --release --each-feature --exclude-features wasm -p libpna -p pna -p portable-network-archive
 
   OmniOS-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     name: Test on OmniOS
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -221,9 +240,9 @@ jobs:
           persist-credentials: false
       - name: Test in OmniOS
         id: test
-        uses: vmactions/omnios-vm@027e3ec08fed6fb740ab5f300c2605f9de02997a # v1.3.4
+        uses: vmactions/omnios-vm@9576f0b6d15e7696548409baa533bc0a339caf42 # v1.3.7
         with:
-          envs: "RUST_BACKTRACE"
+          envs: "RUST_BACKTRACE PNA_TEST_REQUIRE"
           copyback: false
           disable-cache: true
           usesh: true

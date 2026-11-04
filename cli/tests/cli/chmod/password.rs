@@ -106,7 +106,7 @@ fn chmod_wrong_password_on_solid_archive_fails_without_modifying_archive() {
         "failed chmod must leave the original archive untouched"
     );
     assert_eq!(
-        archive::entry_mode_with_password(archive_path, ENTRY_PATH, Some(PASSWORD)),
+        super::entry_snapshot(archive_path, ENTRY_PATH, Some(PASSWORD)).0,
         0o777
     );
 }
@@ -149,12 +149,7 @@ fn chmod_wrong_password_on_normal_encrypted_archive_updates_metadata_only() {
     .execute()
     .unwrap();
 
-    assert_eq!(
-        archive::entry_mode_with_password(archive_path, ENTRY_PATH, Some(PASSWORD)),
-        0o600
-    );
-    assert_eq!(
-        archive::entry_contents_with_password(archive_path, ENTRY_PATH, Some(PASSWORD)),
-        ENTRY_CONTENT
-    );
+    let (mode, contents) = super::entry_snapshot(archive_path, ENTRY_PATH, Some(PASSWORD));
+    assert_eq!(mode, 0o600);
+    assert_eq!(contents, ENTRY_CONTENT);
 }

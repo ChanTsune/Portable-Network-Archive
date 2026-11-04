@@ -25,7 +25,7 @@ fn assert_same_second(actual: SystemTime, expected: SystemTime, label: &str) {
 
 /// Precondition: Archive contains a file with mtime 2020-01-15.
 /// Action: Extract with `--mtime 2024-06-01` (override mode).
-/// Expectation: Extracted file has mtime 2024-06-01, ignoring archive timestamp.
+/// Expectation: Extracted file has mtime 2024-06-01, with the archive timestamp ignored.
 #[test]
 fn extract_with_mtime_override() {
     setup();

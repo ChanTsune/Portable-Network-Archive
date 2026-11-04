@@ -168,9 +168,10 @@ fn extract_symlink_with_keep_timestamp() {
         fs::read_link(&link_path).unwrap(),
         PathBuf::from("target.txt"),
     );
-    // WASM does not support path-based timestamp restoration (filetime crate
-    // limitation); restore_path_timestamps is gated out for wasm targets.
-    #[cfg(not(target_family = "wasm"))]
+    // WASM targets other than emscripten do not support path-based timestamp
+    // restoration (filetime crate limitation); restore_path_timestamps is
+    // gated out for those targets.
+    #[cfg(any(not(target_family = "wasm"), target_os = "emscripten"))]
     {
         use std::time::{Duration as StdDuration, SystemTime};
         let link_mtime = fs::symlink_metadata(&link_path)
@@ -291,9 +292,10 @@ fn extract_broken_symlink_with_keep_timestamp() {
         fs::read_link(&link_path).unwrap(),
         PathBuf::from("nonexistent"),
     );
-    // WASM does not support path-based timestamp restoration (filetime crate
-    // limitation); restore_path_timestamps is gated out for wasm targets.
-    #[cfg(not(target_family = "wasm"))]
+    // WASM targets other than emscripten do not support path-based timestamp
+    // restoration (filetime crate limitation); restore_path_timestamps is
+    // gated out for those targets.
+    #[cfg(any(not(target_family = "wasm"), target_os = "emscripten"))]
     {
         use std::time::{Duration as StdDuration, SystemTime};
         let link_mtime = fs::symlink_metadata(&link_path)
@@ -363,9 +365,10 @@ fn extract_symlink_with_partial_timestamps() {
     let link_path = PathBuf::from(format!("{base}/out/link.txt"));
     assert!(link_path.is_symlink());
 
-    // WASM does not support path-based timestamp restoration (filetime crate
-    // limitation); restore_path_timestamps is gated out for wasm targets.
-    #[cfg(not(target_family = "wasm"))]
+    // WASM targets other than emscripten do not support path-based timestamp
+    // restoration (filetime crate limitation); restore_path_timestamps is
+    // gated out for those targets.
+    #[cfg(any(not(target_family = "wasm"), target_os = "emscripten"))]
     {
         use std::time::{Duration as StdDuration, SystemTime};
         let link_meta = fs::symlink_metadata(&link_path).unwrap();
@@ -391,6 +394,88 @@ fn extract_symlink_with_partial_timestamps() {
             "atime should not be clobbered to Unix epoch when absent from archive"
         );
     }
+}
+
+/// Precondition: Archive contains a directory entry, a file entry, and a later symlink entry
+/// that replaces the directory and points to the file, plus an unreplaced directory entry.
+/// Action: Extract with `--overwrite --keep-permission`.
+/// Expectation: Extraction succeeds, the replaced path remains a symlink, the file retains its
+/// own permission, and the unreplaced directory receives its archived permission.
+#[cfg(unix)]
+#[test]
+fn extract_deferred_directory_permission_does_not_leak_through_replacing_symlink() {
+    use std::{io::Write, os::unix::fs::PermissionsExt};
+
+    setup();
+    let base = "extract_deferred_directory_permission_does_not_leak_through_replacing_symlink";
+    let archive_path = format!("{base}/{base}.pna");
+    fs::create_dir_all(base).unwrap();
+
+    let file = fs::File::create(&archive_path).unwrap();
+    let mut archive = pna::Archive::write_header(file).unwrap();
+    let mut dir_builder = pna::DirEntryBuilder::new("a".into());
+    dir_builder.metadata(
+        pna::Metadata::new().with_permission_mode(Some(pna::PermissionMode::from(0o777))),
+    );
+    archive.add_entry(dir_builder.build().unwrap()).unwrap();
+    let mut kept_dir_builder = pna::DirEntryBuilder::new("d".into());
+    kept_dir_builder.metadata(
+        pna::Metadata::new().with_permission_mode(Some(pna::PermissionMode::from(0o751))),
+    );
+    archive
+        .add_entry(kept_dir_builder.build().unwrap())
+        .unwrap();
+    let mut file_builder = pna::FileEntryBuilder::new("v.txt".into()).unwrap();
+    file_builder.metadata(
+        pna::Metadata::new().with_permission_mode(Some(pna::PermissionMode::from(0o600))),
+    );
+    file_builder.write_all(b"content").unwrap();
+    archive.add_entry(file_builder.build().unwrap()).unwrap();
+    let symlink_builder = pna::SymlinkEntryBuilder::new("a".into(), "v.txt".into()).unwrap();
+    archive.add_entry(symlink_builder.build().unwrap()).unwrap();
+    archive.finalize().unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        &archive_path,
+        "--overwrite",
+        "--out-dir",
+        &format!("{base}/out"),
+        "--keep-permission",
+        "--unstable",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let link_path = PathBuf::from(format!("{base}/out/a"));
+    assert!(link_path.is_symlink(), "replaced path should be a symlink");
+    assert_eq!(
+        fs::read_link(&link_path).unwrap(),
+        PathBuf::from("v.txt"),
+        "symlink should point to the file entry"
+    );
+    let target_mode = fs::metadata(format!("{base}/out/v.txt"))
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(
+        target_mode, 0o600,
+        "file permission should remain 0o600, not be changed by the directory's 0o777"
+    );
+    let kept_dir_mode = fs::symlink_metadata(format!("{base}/out/d"))
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(
+        kept_dir_mode, 0o751,
+        "unreplaced directory should receive its archived permission 0o751"
+    );
 }
 
 /// Precondition: Archive contains a symlink entry with all metadata (permission, timestamps).
@@ -450,4 +535,124 @@ fn extract_symlink_with_all_preservation_flags() {
     // Verify the target file was not corrupted by the symlink extraction
     let target_content = fs::read_to_string(format!("{base}/out/target.txt")).unwrap();
     assert_eq!(target_content, "content");
+}
+
+/// Precondition: Archive contains a directory entry whose name ends with a slash and a later
+/// symlink entry that replaces the directory and points to a pre-existing directory.
+/// Action: Extract with `--overwrite --keep-permission`.
+/// Expectation: The pre-existing target directory retains its own permission.
+#[cfg(unix)]
+#[test]
+fn extract_deferred_directory_permission_does_not_leak_through_symlink_to_directory() {
+    use std::os::unix::fs::PermissionsExt;
+
+    setup();
+    let base = "extract_deferred_directory_permission_does_not_leak_through_symlink_to_directory";
+    let archive_path = format!("{base}/{base}.pna");
+    fs::create_dir_all(format!("{base}/out/vdir")).unwrap();
+    fs::set_permissions(
+        format!("{base}/out/vdir"),
+        fs::Permissions::from_mode(0o700),
+    )
+    .unwrap();
+
+    let file = fs::File::create(&archive_path).unwrap();
+    let mut archive = pna::Archive::write_header(file).unwrap();
+    let mut dir_builder = pna::DirEntryBuilder::new("a/".into());
+    dir_builder.metadata(
+        pna::Metadata::new().with_permission_mode(Some(pna::PermissionMode::from(0o777))),
+    );
+    archive.add_entry(dir_builder.build().unwrap()).unwrap();
+    let symlink_builder = pna::SymlinkEntryBuilder::new("a".into(), "vdir".into()).unwrap();
+    archive.add_entry(symlink_builder.build().unwrap()).unwrap();
+    archive.finalize().unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        &archive_path,
+        "--overwrite",
+        "--out-dir",
+        &format!("{base}/out"),
+        "--keep-permission",
+        "--unstable",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let target_mode = fs::metadata(format!("{base}/out/vdir"))
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(target_mode, 0o700, "target dir should remain 0o700");
+}
+
+/// Precondition: Archive contains a file entry and a symlink entry pointing
+/// at it, each carrying its own extended attributes.
+/// Action: Extract with `--keep-xattr`.
+/// Expectation: Extraction succeeds. The file keeps its own xattr, the
+/// symlink entry's xattr does not appear on the file, and the symlink itself
+/// is extracted as a symlink to the file. On platforms such as Linux, where a
+/// symlink cannot carry `user.*` xattrs, failing to restore the symlink's
+/// xattrs must not fail the extraction.
+#[cfg(unix)]
+#[test]
+fn extract_symlink_xattr_does_not_fail_or_leak_to_target() {
+    use crate::utils::fs_supports_xattr;
+    use std::io::Write;
+
+    setup();
+    let base = "extract_symlink_xattr";
+    let archive_path = format!("{base}/{base}.pna");
+    fs::create_dir_all(base).unwrap();
+    fs::write(format!("{base}/probe"), b"probe").unwrap();
+    skip_unless!("xattr", fs_supports_xattr(format!("{base}/probe")));
+
+    let file = fs::File::create(&archive_path).unwrap();
+    let mut archive = pna::Archive::write_header(file).unwrap();
+    let mut file_builder = pna::FileEntryBuilder::new("target.txt".into()).unwrap();
+    file_builder.metadata(
+        pna::Metadata::new().with_xattrs(vec![archive::xattr("user.file", b"file-value")]),
+    );
+    file_builder.write_all(b"content").unwrap();
+    archive.add_entry(file_builder.build().unwrap()).unwrap();
+    let mut symlink_builder =
+        pna::SymlinkEntryBuilder::new("link.txt".into(), "target.txt".into()).unwrap();
+    symlink_builder.metadata(
+        pna::Metadata::new().with_xattrs(vec![archive::xattr("user.symlink", b"symlink-value")]),
+    );
+    archive.add_entry(symlink_builder.build().unwrap()).unwrap();
+    archive.finalize().unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        &archive_path,
+        "--overwrite",
+        "--out-dir",
+        &format!("{base}/out"),
+        "--keep-xattr",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let out_target = PathBuf::from(format!("{base}/out/target.txt"));
+    let out_link = PathBuf::from(format!("{base}/out/link.txt"));
+    assert!(out_link.is_symlink());
+    assert_eq!(
+        fs::read_link(&out_link).unwrap(),
+        PathBuf::from("target.txt")
+    );
+    assert_eq!(
+        xattr::get(&out_target, "user.file").unwrap().as_deref(),
+        Some(b"file-value".as_slice())
+    );
+    assert_eq!(xattr::get(&out_target, "user.symlink").unwrap(), None);
 }

@@ -1,11 +1,10 @@
-use crate::utils::{archive, setup};
+use crate::utils::{
+    archive, setup,
+    time::{birth_time, birth_time_recorded, create_file_born_after},
+};
 use clap::Parser;
 use portable_network_archive::cli;
-use std::{
-    collections::HashSet,
-    fs, thread,
-    time::{Duration, SystemTime},
-};
+use std::{collections::HashSet, fs};
 
 /// Precondition: An archive exists with files to update, and the source tree contains a reference file and files with varying creation times.
 /// Action: Run `pna experimental update` with `--newer-ctime-than` pointing to the reference file.
@@ -18,17 +17,11 @@ fn update_with_newer_ctime_than() {
     let file_to_update = "update_newer_ctime_than/file_to_update.txt";
     let file_to_add = "update_newer_ctime_than/file_to_add.txt";
 
-    // Create directory
     fs::create_dir_all("update_newer_ctime_than").unwrap();
-
-    // 1. Create the initial file and archive it.
     fs::write(file_to_update, "initial content").unwrap();
 
-    // Check if creation time is available on this filesystem
-    if fs::metadata(file_to_update).unwrap().created().is_err() {
-        eprintln!("Skipping test: creation time (birth time) is not supported on this filesystem");
-        return;
-    }
+    skip_unless!("birthtime", birth_time_recorded(file_to_update));
+
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -42,28 +35,11 @@ fn update_with_newer_ctime_than() {
     .execute()
     .unwrap();
 
-    // 2. Wait and create a reference file to set a timestamp benchmark.
-    thread::sleep(Duration::from_millis(10));
-    fs::write(reference_file, "time reference").unwrap();
-    let reference_ctime = fs::metadata(reference_file).unwrap().created().unwrap();
+    let reference_ctime =
+        create_file_born_after(reference_file, "time reference", birth_time(file_to_update));
+    create_file_born_after(file_to_update, "updated content", reference_ctime);
+    create_file_born_after(file_to_add, "new file content", reference_ctime);
 
-    // 3. Wait, then recreate the existing file (to ensure both ctime/birth time move
-    //    forward) and create the new file so that both are newer than the reference.
-    thread::sleep(Duration::from_millis(10));
-    fs::remove_file(file_to_update).unwrap();
-    fs::write(file_to_update, "updated content").unwrap();
-    fs::write(file_to_add, "new file content").unwrap();
-    if !wait_until_ctime_after(file_to_update, reference_ctime)
-        || !wait_until_ctime_after(file_to_add, reference_ctime)
-    {
-        eprintln!(
-            "Skipping test: creation time did not advance beyond reference on this filesystem"
-        );
-        return;
-    }
-
-    // 4. Run the update command, targeting the files to be updated/added,
-    //    filtered by the ctime of the reference file.
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -73,6 +49,7 @@ fn update_with_newer_ctime_than() {
         "update_newer_ctime_than/test.pna",
         file_to_update,
         file_to_add,
+        reference_file,
         "--unstable",
         "--newer-ctime-than",
         reference_file,
@@ -81,34 +58,17 @@ fn update_with_newer_ctime_than() {
     .execute()
     .unwrap();
 
-    // 5. Verify archive contents
     let mut seen = HashSet::new();
     archive::for_each_entry("update_newer_ctime_than/test.pna", |entry| {
         seen.insert(entry.header().path().to_string());
     })
     .unwrap();
 
-    // file_to_update should be present (updated because ctime > reference)
-    assert!(
-        seen.contains(file_to_update),
-        "updated file should be in archive: {file_to_update}"
-    );
-
-    // file_to_add should be present (added because ctime > reference)
-    assert!(
-        seen.contains(file_to_add),
-        "new file should be added: {file_to_add}"
-    );
-
-    // Verify that exactly two entries exist
     assert_eq!(
-        seen.len(),
-        2,
-        "Expected exactly 2 entries, but found {}: {seen:?}",
-        seen.len()
+        seen,
+        HashSet::from([file_to_update.to_string(), file_to_add.to_string()])
     );
 
-    // 6. Extract and verify the content of the updated file.
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -131,21 +91,4 @@ fn update_with_newer_ctime_than() {
         updated_content, "updated content",
         "The updated file did not contain the correct content"
     );
-}
-
-fn wait_until_ctime_after(path: &str, baseline: SystemTime) -> bool {
-    const MAX_ATTEMPTS: usize = 200;
-    const SLEEP_MS: u64 = 10;
-    for _ in 0..MAX_ATTEMPTS {
-        if fs::metadata(path)
-            .ok()
-            .and_then(|meta| meta.created().ok())
-            .map(|ctime| ctime > baseline)
-            .unwrap_or(false)
-        {
-            return true;
-        }
-        thread::sleep(Duration::from_millis(SLEEP_MS));
-    }
-    false
 }

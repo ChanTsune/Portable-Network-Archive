@@ -4,7 +4,7 @@ use portable_network_archive::cli;
 
 /// Precondition: An archive contains entries with permission metadata.
 /// Action: Run `pna experimental chown` with `:group` to change only the group.
-/// Expectation: The target entry has updated gname/gid; uname/uid and permission bits are preserved.
+/// Expectation: The target entry has an updated gname and no gid; uname/uid and permission bits are preserved.
 #[test]
 fn chown_group_only() {
     setup();
@@ -52,7 +52,7 @@ fn chown_group_only() {
                     entry.metadata().owner_group_name().unwrap().as_str(),
                     "new_group"
                 );
-                assert_eq!(entry.metadata().owner_gid().unwrap().get(), u64::MAX);
+                assert!(entry.metadata().owner_gid().is_none());
                 assert_eq!(entry.metadata().owner_user_name().unwrap().as_str(), "user");
                 assert_eq!(entry.metadata().owner_uid().unwrap().get(), 1000);
                 assert_eq!(entry.metadata().permission_mode().unwrap().get(), 0o644);

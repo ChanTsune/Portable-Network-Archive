@@ -1,6 +1,8 @@
 pub mod archive;
 pub mod diff;
 pub mod time;
+#[cfg(unix)]
+pub mod unix;
 
 use std::{borrow::Cow, fs, io, path::Path};
 
@@ -71,6 +73,65 @@ pub fn extract_in<T: rust_embed::Embed>(item: &str, into: impl AsRef<Path>) -> i
 pub fn setup() {
     fs::create_dir_all(env!("CARGO_TARGET_TMPDIR")).expect("Failed to create working dir");
     std::env::set_current_dir(env!("CARGO_TARGET_TMPDIR")).expect("Failed to set current dir");
+}
+
+/// Environment variable listing capabilities (comma-separated); a listed
+/// capability's absence is a failure rather than a skip. CI sets it per job so that a precondition
+/// which should hold on that runner cannot silently turn a test green.
+pub const REQUIRE_ENV: &str = "PNA_TEST_REQUIRE";
+
+pub fn is_required(list: &str, capability: &str) -> bool {
+    list.split(',').map(str::trim).any(|c| c == capability)
+}
+
+#[track_caller]
+pub fn skip_or_fail(capability: &str, condition: &str) {
+    let list = std::env::var(REQUIRE_ENV).unwrap_or_default();
+    if is_required(&list, capability) {
+        panic!("{REQUIRE_ENV} lists `{capability}` but `{condition}` is false");
+    }
+    eprintln!("skipped: `{capability}` unavailable (`{condition}` is false)");
+}
+
+/// Leaves the current test when a runtime-only precondition is unmet.
+/// Capability names are the vocabulary of `PNA_TEST_REQUIRE`; keep them
+/// stable: `birthtime`, `mtime_nanos`, `xattr`, `nodump`, `chmod`, `setuid`,
+/// `root`, `unprivileged`, `mount`.
+macro_rules! skip_unless {
+    ($capability:literal, $cond:expr) => {
+        if !$cond {
+            $crate::utils::skip_or_fail($capability, stringify!($cond));
+            return;
+        }
+    };
+}
+
+/// `false` only when the OS refuses the change; any other error is a test bug.
+#[cfg(unix)]
+#[track_caller]
+pub fn set_mode(path: impl AsRef<Path>, mode: u32) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    match fs::set_permissions(path, fs::Permissions::from_mode(mode)) {
+        Ok(()) => true,
+        Err(e) if e.kind() == io::ErrorKind::PermissionDenied => false,
+        Err(e) => panic!("set_permissions: {e}"),
+    }
+}
+
+/// Non-mutating probe: reading an absent attribute is `Ok(None)` on a
+/// filesystem with xattr support and `Unsupported` otherwise.
+///
+/// Ask this rather than `xattr::SUPPORTED_PLATFORM`, which is a compile-time
+/// constant and stays true on FreeBSD and NetBSD whether or not the mounted
+/// file system carries extended attributes.
+#[cfg(unix)]
+#[track_caller]
+pub fn fs_supports_xattr(path: impl AsRef<Path>) -> bool {
+    match xattr::get(path, "user.pna_test_probe") {
+        Ok(_) => true,
+        Err(e) if e.kind() == io::ErrorKind::Unsupported => false,
+        Err(e) => panic!("xattr::get: {e}"),
+    }
 }
 
 /// Spawns the `pna` binary under `mask` without touching this test process's
@@ -151,4 +212,27 @@ pub fn remove_with_empty_parents(path: impl AsRef<Path>) -> io::Result<()> {
         Ok(())
     }
     inner(path.as_ref())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_required;
+
+    #[test]
+    fn is_required_matches_whole_comma_separated_items() {
+        let cases = [
+            ("", "xattr", false),
+            ("xattr", "xattr", true),
+            ("birthtime, xattr ,root", "xattr", true),
+            ("xattrs", "xattr", false),
+            ("xattr", "xattrs", false),
+        ];
+        for (list, capability, expected) in cases {
+            assert_eq!(
+                is_required(list, capability),
+                expected,
+                "{list:?} / {capability}"
+            );
+        }
+    }
 }

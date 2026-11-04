@@ -16,7 +16,7 @@ use camellia::Camellia256;
 use crypto_common::{BlockSizeUser, KeySizeUser};
 use flate2::write::ZlibEncoder;
 use liblzma::write::XzEncoder;
-use password_hash::{Output, SaltString};
+use password_hash::phc::{Output, SaltString};
 use std::io::{self, Write};
 use zstd::stream::write::Encoder as ZstdEncoder;
 
@@ -32,8 +32,8 @@ pub(crate) enum CipherPayload {
         iv: Vec<u8>,
         key: Output,
     },
-    /// GCM: the per-stream key is derived from the entry header, so it cannot be
-    /// derived before that header is final.
+    // GCM: the per-stream key is derived from the entry header, so it cannot be
+    // derived before that header is final.
     GcmStream {
         header: StreamHeader,
         k_stream: StreamKey,
@@ -47,6 +47,13 @@ impl CipherContext {
         match &self.payload {
             CipherPayload::Block { iv, .. } => iv.clone(),
             CipherPayload::GcmStream { header, .. } => header.to_bytes().to_vec(),
+        }
+    }
+
+    pub(crate) fn write_prefix<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        match &self.payload {
+            CipherPayload::Block { iv, .. } => writer.write_all(iv),
+            CipherPayload::GcmStream { header, .. } => writer.write_all(&header.to_bytes()),
         }
     }
 }
@@ -66,7 +73,7 @@ pub(crate) fn derive_key_material(
     hash_algorithm: HashAlgorithm,
     password: &[u8],
 ) -> io::Result<DerivedKeyMaterial> {
-    let salt = random::salt_string();
+    let salt = random::salt_string()?;
     let (key, phsf) = hash(cipher_algorithm, hash_algorithm, password, &salt)?;
     Ok(DerivedKeyMaterial { phsf, key })
 }
@@ -150,13 +157,13 @@ fn key_size(cipher_algorithm: CipherAlgorithm) -> usize {
 }
 
 #[inline]
-fn hash<'s, 'p: 's>(
+fn hash(
     cipher_algorithm: CipherAlgorithm,
     hash_algorithm: HashAlgorithm,
-    password: &'p [u8],
-    salt: &'s SaltString,
+    password: &[u8],
+    salt: &SaltString,
 ) -> io::Result<(Output, String)> {
-    let mut password_hash = match hash_algorithm.0 {
+    match hash_algorithm.0 {
         HashAlgorithmParams::Argon2Id {
             time_cost,
             memory_cost,
@@ -171,18 +178,12 @@ fn hash<'s, 'p: 's>(
             salt,
         ),
         HashAlgorithmParams::Pbkdf2Sha256 { rounds } => {
-            let mut params = pbkdf2::Params::default();
-            if let Some(rounds) = rounds {
-                params.rounds = rounds;
-            }
+            let rounds = rounds.unwrap_or(pbkdf2::Params::RECOMMENDED_ROUNDS);
+            let params = pbkdf2::Params::new_with_output_len(rounds, key_size(cipher_algorithm))
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
             hash::pbkdf2_with_salt(password, pbkdf2::Algorithm::Pbkdf2Sha256, params, salt)
         }
-    }?;
-    let hash = password_hash
-        .hash
-        .take()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::Unsupported, "failed to get hash"))?;
-    Ok((hash, password_hash.to_string()))
+    }
 }
 
 #[inline]

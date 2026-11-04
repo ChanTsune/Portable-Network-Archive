@@ -10,6 +10,7 @@ use std::collections::HashSet;
 #[test]
 fn delete_with_exclude() {
     setup();
+    let _ = std::fs::remove_file("delete_output_exclude/delete_excluded.pna");
     TestResources::extract_in("raw/", "delete_output_exclude/in/").unwrap();
     cli::Cli::try_parse_from([
         "pna",

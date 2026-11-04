@@ -17,6 +17,11 @@ updates:
       codeql-action:
         patterns:
           - "github/codeql-action/*"
+  - package-ecosystem: "devcontainers"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 20
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:

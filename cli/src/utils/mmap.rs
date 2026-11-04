@@ -10,7 +10,6 @@ impl Mmap {
     pub(crate) fn map_with_size(file: fs::File, len: usize) -> io::Result<Self> {
         // SAFETY:
         // - The file handle is kept alive for the lifetime of the map via `_file` field
-        // - `len` is obtained from file metadata, so it corresponds to a valid region
         // - The caller must ensure the file is not modified while the map is active;
         //   this is used for reading source files during archive creation where
         //   concurrent modification would cause data corruption regardless of mmap

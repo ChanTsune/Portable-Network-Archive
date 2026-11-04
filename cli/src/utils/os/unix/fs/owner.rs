@@ -1,8 +1,28 @@
+#[cfg(target_os = "redox")]
+pub(crate) use crate::utils::os::redox::fs::owner::{Group, User};
 use nix::unistd;
 use nix::unistd::{Gid, Uid};
 use std::io;
 
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) struct UserId(Uid);
+
+impl UserId {
+    #[inline]
+    pub(crate) fn from_uid(uid: u32) -> Self {
+        Self(Uid::from_raw(uid))
+    }
+
+    #[inline]
+    pub(crate) fn as_raw(&self) -> u32 {
+        self.0.as_raw()
+    }
+}
+
+#[cfg(not(target_os = "redox"))]
 pub(crate) struct User(unistd::User);
+
+#[cfg(not(target_os = "redox"))]
 impl User {
     #[inline]
     pub(crate) fn from_uid(uid: Uid) -> io::Result<Self> {
@@ -41,8 +61,26 @@ impl User {
         Some(self.0.gid.as_raw())
     }
 }
+
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) struct GroupId(Gid);
+
+impl GroupId {
+    #[inline]
+    pub(crate) fn from_gid(gid: u32) -> Self {
+        Self(Gid::from_raw(gid))
+    }
+
+    #[inline]
+    pub(crate) fn as_raw(&self) -> u32 {
+        self.0.as_raw()
+    }
+}
+
+#[cfg(not(target_os = "redox"))]
 pub(crate) struct Group(unistd::Group);
 
+#[cfg(not(target_os = "redox"))]
 impl Group {
     #[inline]
     pub(crate) fn from_gid(gid: Gid) -> io::Result<Self> {

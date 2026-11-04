@@ -1,4 +1,26 @@
-use std::time::SystemTime;
+use pna::Duration;
+use std::{cmp::Ordering, time::SystemTime};
+
+/// Compares two timestamps at the precision `archived` was stored with, so that an
+/// entry carrying no sub-second precision compares by whole seconds only.
+pub(crate) fn cmp_at_stored_precision(archived: Duration, fs: Duration) -> Ordering {
+    if archived.subsec_nanoseconds() == 0 {
+        floor_seconds(archived).cmp(&floor_seconds(fs))
+    } else {
+        archived.cmp(&fs)
+    }
+}
+
+/// A whole second denotes the interval starting at it on both sides of the epoch;
+/// [`Duration::whole_seconds`] alone truncates towards zero.
+fn floor_seconds(duration: Duration) -> i64 {
+    let seconds = duration.whole_seconds();
+    if duration.subsec_nanoseconds() < 0 {
+        seconds - 1
+    } else {
+        seconds
+    }
+}
 
 /// How to determine a single timestamp value.
 ///
@@ -54,10 +76,10 @@ impl TimestampStrategy {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
+    use std::time::Duration as StdDuration;
 
     fn time(secs: u64) -> SystemTime {
-        SystemTime::UNIX_EPOCH + Duration::from_secs(secs)
+        SystemTime::UNIX_EPOCH + StdDuration::from_secs(secs)
     }
 
     #[test]
@@ -83,5 +105,124 @@ mod tests {
         assert_eq!(source.resolve(Some(time(30))), Some(time(30)));
         // No source -> None
         assert_eq!(source.resolve(None), None);
+    }
+
+    #[test]
+    fn cmp_at_stored_precision_whole_second_archive_ignores_filesystem_subsecond() {
+        assert_eq!(
+            cmp_at_stored_precision(Duration::seconds(100), Duration::new(100, 500_000_000)),
+            Ordering::Equal,
+        );
+    }
+
+    #[test]
+    fn cmp_at_stored_precision_whole_second_archive_ignores_end_of_second() {
+        assert_eq!(
+            cmp_at_stored_precision(Duration::seconds(100), Duration::new(100, 999_999_999)),
+            Ordering::Equal,
+        );
+    }
+
+    #[test]
+    fn cmp_at_stored_precision_whole_second_archive_is_older_at_next_second() {
+        assert_eq!(
+            cmp_at_stored_precision(Duration::seconds(100), Duration::seconds(101)),
+            Ordering::Less,
+        );
+    }
+
+    #[test]
+    fn cmp_at_stored_precision_whole_second_archive_is_newer_at_previous_second() {
+        assert_eq!(
+            cmp_at_stored_precision(Duration::seconds(100), Duration::new(99, 999_999_999)),
+            Ordering::Greater,
+        );
+    }
+
+    #[test]
+    fn cmp_at_stored_precision_whole_second_archive_ignores_filesystem_subsecond_before_epoch() {
+        assert_eq!(
+            cmp_at_stored_precision(Duration::seconds(-100), Duration::new(-99, -500_000_000)),
+            Ordering::Equal,
+        );
+    }
+
+    #[test]
+    fn cmp_at_stored_precision_whole_second_archive_is_newer_below_its_own_second_before_epoch() {
+        assert_eq!(
+            cmp_at_stored_precision(Duration::seconds(-100), Duration::new(-100, -1)),
+            Ordering::Greater,
+        );
+    }
+
+    #[test]
+    fn cmp_at_stored_precision_whole_second_archive_is_older_at_next_second_before_epoch() {
+        assert_eq!(
+            cmp_at_stored_precision(Duration::seconds(-100), Duration::seconds(-99)),
+            Ordering::Less,
+        );
+    }
+
+    #[test]
+    fn cmp_at_stored_precision_whole_second_archive_accepts_exact_match_before_epoch() {
+        assert_eq!(
+            cmp_at_stored_precision(Duration::seconds(-100), Duration::seconds(-100)),
+            Ordering::Equal,
+        );
+    }
+
+    #[test]
+    fn cmp_at_stored_precision_subsecond_archive_accepts_exact_match() {
+        assert_eq!(
+            cmp_at_stored_precision(
+                Duration::new(100, 500_000_000),
+                Duration::new(100, 500_000_000),
+            ),
+            Ordering::Equal,
+        );
+    }
+
+    #[test]
+    fn cmp_at_stored_precision_subsecond_archive_is_newer_within_same_second() {
+        assert_eq!(
+            cmp_at_stored_precision(
+                Duration::new(100, 500_000_000),
+                Duration::new(100, 250_000_000),
+            ),
+            Ordering::Greater,
+        );
+    }
+
+    #[test]
+    fn cmp_at_stored_precision_subsecond_archive_is_older_within_same_second() {
+        assert_eq!(
+            cmp_at_stored_precision(
+                Duration::new(100, 500_000_000),
+                Duration::new(100, 750_000_000),
+            ),
+            Ordering::Less,
+        );
+    }
+
+    #[test]
+    fn cmp_at_stored_precision_subsecond_archive_accepts_exact_match_before_epoch() {
+        assert_eq!(
+            cmp_at_stored_precision(
+                Duration::new(-1, -500_000_000),
+                Duration::new(-1, -500_000_000),
+            ),
+            Ordering::Equal,
+        );
+    }
+
+    #[test]
+    fn cmp_at_stored_precision_subsecond_archive_is_older_within_same_second_before_epoch() {
+        assert_eq!(
+            cmp_at_stored_precision(
+                Duration::new(-1, -500_000_000),
+                Duration::new(-1, -400_000_000),
+            ),
+            Ordering::Less,
+        );
     }
 }

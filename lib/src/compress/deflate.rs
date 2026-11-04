@@ -93,9 +93,9 @@ impl From<CompressionLevel> for Compression {
             CompressionLevelImpl::Min => Self::none(),
             CompressionLevelImpl::Max => Self::best(),
             CompressionLevelImpl::Default => Self::default(),
-            CompressionLevelImpl::Custom(value) => {
-                Self::new((value as u32).clamp(Self::none().level(), Self::best().level()))
-            }
+            CompressionLevelImpl::Custom(value) => Self::new(
+                value.clamp(Self::none().level() as i64, Self::best().level() as i64) as u32,
+            ),
         }
     }
 }
@@ -120,7 +120,7 @@ impl FromStr for DeflateCompressionLevel {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
@@ -154,6 +154,14 @@ mod test {
         assert_eq!(
             Compression::from(CompressionLevel::from(100)),
             Compression::best()
+        );
+        assert_eq!(
+            Compression::from(CompressionLevel::from(-5)),
+            Compression::none()
+        );
+        assert_eq!(
+            Compression::from(CompressionLevel::from(-1)),
+            Compression::none()
         );
     }
 

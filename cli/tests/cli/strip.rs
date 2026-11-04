@@ -1,4 +1,10 @@
-use crate::utils::{EmbedExt, TestResources, archive, setup};
+mod file_operands;
+mod keep_solid;
+mod missing_file;
+mod option_output;
+mod unsolid;
+
+use crate::utils::{EmbedExt, TestResources, archive, archive::SymlinkEntryDef, setup};
 use clap::Parser;
 use pna::Duration;
 use portable_network_archive::cli;
@@ -8,7 +14,6 @@ use std::collections::BTreeMap;
 /// Action: Run `pna strip` keeping only timestamps.
 /// Expectation: Timestamps are preserved with their original values; permissions are removed.
 #[test]
-#[allow(deprecated)]
 fn strip_removes_unspecified_metadata() {
     setup();
     TestResources::extract_in("zstd_keep_all.pna", "strip_metadata/").unwrap();
@@ -54,10 +59,6 @@ fn strip_removes_unspecified_metadata() {
             "timestamp value should be preserved for {path}"
         );
         assert!(
-            meta.permission().is_none(),
-            "permissions should be removed for {path}"
-        );
-        assert!(
             meta.owner_uid().is_none()
                 && meta.owner_gid().is_none()
                 && meta.owner_user_name().is_none()
@@ -78,9 +79,8 @@ fn strip_removes_unspecified_metadata() {
 
 /// Precondition: An archive carries ownership metadata as owner facets.
 /// Action: Run `pna strip --keep-permission`.
-/// Expectation: Ownership is preserved as owner-facet chunks; the legacy fPRM chunk is not emitted.
+/// Expectation: Ownership is preserved as owner-facet chunks.
 #[test]
-#[allow(deprecated)]
 fn strip_keep_permission_preserves_owner_facets() {
     struct OwnerFacets {
         uid: Option<u64>,
@@ -97,10 +97,6 @@ fn strip_keep_permission_preserves_owner_facets() {
     archive::for_each_entry("strip_keep_perm/zstd_keep_all.pna", |entry| {
         let path = entry.header().path().to_string();
         let meta = entry.metadata();
-        assert!(
-            meta.permission().is_none(),
-            "fixture entry should not carry fPRM permission for {path}"
-        );
         assert!(
             meta.permission_mode().is_some(),
             "fixture entry should carry owner-facet permission mode for {path}"
@@ -139,10 +135,6 @@ fn strip_keep_permission_preserves_owner_facets() {
         let expected = pre
             .get(&path)
             .unwrap_or_else(|| panic!("unexpected entry after strip: {path}"));
-        assert!(
-            meta.permission().is_none(),
-            "fPRM must not be emitted after strip --keep-permission for {path}"
-        );
         assert_eq!(
             meta.owner_uid().map(|v| v.get()),
             expected.uid,
@@ -171,4 +163,123 @@ fn strip_keep_permission_preserves_owner_facets() {
     })
     .unwrap();
     assert_eq!(post_count, pre.len(), "strip should preserve all entries");
+}
+
+/// Precondition: An archive contains symlink entries with each link target type and one without, all carrying permission metadata.
+/// Action: Run `pna strip` with no preservation options.
+/// Expectation: Link target types are preserved exactly; permissions are removed.
+#[test]
+fn strip_preserves_link_target_type() {
+    setup();
+    let path = "strip_link_target_type.pna";
+    archive::create_archive_with_symlinks(
+        path,
+        &[],
+        &[
+            SymlinkEntryDef {
+                path: "link_to_file",
+                target: "file.txt",
+                permission: Some(0o777),
+                modified: None,
+                accessed: None,
+                created: None,
+                link_target_type: Some(pna::LinkTargetType::File),
+            },
+            SymlinkEntryDef {
+                path: "link_to_dir",
+                target: "dir",
+                permission: Some(0o777),
+                modified: None,
+                accessed: None,
+                created: None,
+                link_target_type: Some(pna::LinkTargetType::Directory),
+            },
+            SymlinkEntryDef {
+                path: "link_unknown",
+                target: "unknown",
+                permission: Some(0o777),
+                modified: None,
+                accessed: None,
+                created: None,
+                link_target_type: Some(pna::LinkTargetType::Unknown),
+            },
+            SymlinkEntryDef {
+                path: "link_without_type",
+                target: "untyped",
+                permission: Some(0o777),
+                modified: None,
+                accessed: None,
+                created: None,
+                link_target_type: None,
+            },
+        ],
+    )
+    .unwrap();
+
+    let mut pre = Vec::new();
+    archive::for_each_entry(path, |entry| {
+        pre.push((
+            entry.header().path().to_string(),
+            entry.metadata().link_target_type(),
+            entry.metadata().permission_mode().map(|m| m.get()),
+        ));
+    })
+    .unwrap();
+    assert_eq!(
+        pre,
+        [
+            (
+                "link_to_file".to_string(),
+                Some(pna::LinkTargetType::File),
+                Some(0o777),
+            ),
+            (
+                "link_to_dir".to_string(),
+                Some(pna::LinkTargetType::Directory),
+                Some(0o777),
+            ),
+            (
+                "link_unknown".to_string(),
+                Some(pna::LinkTargetType::Unknown),
+                Some(0o777),
+            ),
+            ("link_without_type".to_string(), None, Some(0o777)),
+        ]
+    );
+
+    cli::Cli::try_parse_from(["pna", "--quiet", "strip", "-f", path])
+        .unwrap()
+        .execute()
+        .unwrap();
+
+    let mut post = Vec::new();
+    archive::for_each_entry(path, |entry| {
+        post.push((
+            entry.header().path().to_string(),
+            entry.metadata().link_target_type(),
+            entry.metadata().permission_mode().map(|m| m.get()),
+        ));
+    })
+    .unwrap();
+    assert_eq!(
+        post,
+        [
+            (
+                "link_to_file".to_string(),
+                Some(pna::LinkTargetType::File),
+                None,
+            ),
+            (
+                "link_to_dir".to_string(),
+                Some(pna::LinkTargetType::Directory),
+                None,
+            ),
+            (
+                "link_unknown".to_string(),
+                Some(pna::LinkTargetType::Unknown),
+                None,
+            ),
+            ("link_without_type".to_string(), None, None),
+        ]
+    );
 }

@@ -14,9 +14,9 @@ impl Ignore {
     #[inline]
     pub(crate) fn is_ignore(&self, path: impl AsRef<Path>, is_dir: bool) -> bool {
         let path = path.as_ref();
-        // Start from the directory containing the path (or the path itself if it is a dir),
-        // walk up to root, and apply the nearest .gitignore last (closest wins).
-        // Determine the first directory to check for a .gitignore
+        // Walk from the directory containing the path (or the path itself if it is a
+        // dir) up to root, checking each directory's .gitignore in turn; the first
+        // directory with a matching rule decides the result, so the closest one wins.
         let mut cur_dir_opt = if is_dir { Some(path) } else { path.parent() };
 
         while let Some(dir) = cur_dir_opt {

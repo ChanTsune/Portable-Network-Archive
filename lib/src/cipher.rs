@@ -6,28 +6,20 @@ mod gcm;
 mod stream;
 
 use crate::util::io::TryIntoInner;
+#[cfg(test)]
+pub(crate) use aead::MAX_SEGMENT_SIZE;
 pub(crate) use aead::{
     DEFAULT_SEGMENT_SIZE, STREAM_HEADER_LEN, SegmentSize, StreamHeader, StreamKey,
     derive_stream_key, key_confirmation,
 };
-#[cfg(test)]
-pub(crate) use aead::{GCM_TAG_LEN, MAX_SEGMENT_SIZE, segment_nonce};
 use aes::Aes256;
 use camellia::Camellia256;
 use cipher::block_padding::Pkcs7;
 use ctr::{CtrCore, flavors::Ctr128BE};
 use std::io::{self, Read, Write};
 
-/// A type alias for a CTR mode stream cipher reader.
-///
-/// This type represents a reader that decrypts data using CTR mode with a 128-bit block size
-/// and big-endian counter.
 type CtrReader<R, C, F> = stream::StreamCipherReader<R, CtrCore<C, F>>;
 
-/// A type alias for a CTR mode stream cipher writer.
-///
-/// This type represents a writer that encrypts data using CTR mode with a 128-bit block size
-/// and big-endian counter.
 type CtrWriter<W, C, F> = stream::StreamCipherWriter<W, CtrCore<C, F>>;
 
 /// A type alias for a CTR mode stream cipher reader with 128-bit block size and big-endian counter.
@@ -62,12 +54,7 @@ pub(crate) type DecryptGcmAes256Reader<R> = gcm::GcmDecryptReader<R, Aes256>;
 /// A type alias for a Camellia-256 GCM mode STREAM decryption reader.
 pub(crate) type DecryptGcmCamellia256Reader<R> = gcm::GcmDecryptReader<R, Camellia256>;
 
-/// An enum representing different encryption writers for PNA archives.
-///
-/// This enum provides different encryption implementations for writing data to a PNA archive.
-/// It supports block ciphers (AES-256 and Camellia-256 in CBC mode), stream ciphers
-/// (AES-256 and Camellia-256 in CTR mode), and authenticated encryption
-/// (AES-256 and Camellia-256 in GCM STREAM mode).
+/// An encryption writer for a PNA datastream.
 pub(crate) enum CipherWriter<W: Write> {
     /// No encryption, data is written as-is.
     No(W),
@@ -143,12 +130,7 @@ impl<W: Write> TryIntoInner<W> for CipherWriter<W> {
     }
 }
 
-/// An enum representing different decryption readers for PNA archives.
-///
-/// This enum provides different decryption implementations for reading data from a PNA archive.
-/// It supports block ciphers (AES-256 and Camellia-256 in CBC mode), stream ciphers
-/// (AES-256 and Camellia-256 in CTR mode), and authenticated encryption
-/// (AES-256 and Camellia-256 in GCM STREAM mode).
+/// A decryption reader for a PNA datastream.
 pub(crate) enum DecryptReader<R: Read> {
     /// No decryption, data is read as-is.
     No(R),
@@ -303,17 +285,19 @@ mod tests {
     fn aes256_cbc_wrong_key_does_not_recover_plaintext() {
         let ct = encrypt_aes256_cbc(&KAT_KEY, &KAT_IV, KAT_PLAINTEXT).unwrap();
         let wrong_key = [0x99u8; 32];
-        if let Ok(recovered) = decrypt_aes256_cbc(&wrong_key, &ct) {
-            assert_ne!(recovered.as_slice(), KAT_PLAINTEXT.as_slice())
-        }
+        assert_ne!(
+            decrypt_aes256_cbc(&wrong_key, &ct).ok().as_deref(),
+            Some(KAT_PLAINTEXT.as_slice())
+        );
     }
 
     #[test]
     fn camellia256_cbc_wrong_key_does_not_recover_plaintext() {
         let ct = encrypt_camellia256_cbc(&KAT_KEY, &KAT_IV, KAT_PLAINTEXT).unwrap();
         let wrong_key = [0x99u8; 32];
-        if let Ok(recovered) = decrypt_camellia256_cbc(&wrong_key, &ct) {
-            assert_ne!(recovered.as_slice(), KAT_PLAINTEXT.as_slice())
-        }
+        assert_ne!(
+            decrypt_camellia256_cbc(&wrong_key, &ct).ok().as_deref(),
+            Some(KAT_PLAINTEXT.as_slice())
+        );
     }
 }

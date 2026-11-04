@@ -1,33 +1,51 @@
-mod edge_cases;
 mod glob_pattern;
 mod keep_solid;
 mod missing_file;
 mod multipart;
-mod multiple_clauses;
 mod numeric;
+mod option_output;
 mod password;
 mod password_file;
-mod symbolic_all;
-mod symbolic_combined;
-mod symbolic_group;
-mod symbolic_other;
-mod symbolic_user;
 mod unsolid;
 
-use crate::utils::{archive, archive::FileEntryDef, setup};
+use crate::utils::{EmbedExt, TestResources, archive, archive::FileEntryDef, setup};
 use clap::Parser;
-#[allow(deprecated)]
-use pna::Permission;
+use pna::prelude::*;
 use pna::{
-    Archive, DirEntryBuilder, EntryName, FileEntryBuilder, HardLinkEntryBuilder, Metadata,
+    Archive, DirEntryBuilder, EntryName, FileEntryBuilder, HardLinkEntryBuilder, ReadOptions,
     SymlinkEntryBuilder,
 };
 use portable_network_archive::cli;
 use std::fs::File;
-use std::io::Write;
+use std::io::{Read, Write};
 
 const ENTRY_PATH: &str = "test.txt";
 const ENTRY_CONTENT: &[u8] = b"test content";
+
+fn entry_snapshot(path: &str, name: &str, password: Option<&str>) -> (u16, Vec<u8>) {
+    let options = ReadOptions::with_password(password.map(str::as_bytes));
+    let mut archive = Archive::open(path).unwrap();
+    let entry = archive
+        .entries_with_options(&options)
+        .find_map(|entry| {
+            let entry = entry.unwrap();
+            (entry.name() == name).then_some(entry)
+        })
+        .expect("target entry should exist");
+    let mode = entry
+        .metadata()
+        .permission_mode()
+        .expect("entry should have permission mode metadata")
+        .get()
+        & 0o777;
+    let mut contents = Vec::new();
+    entry
+        .reader(options)
+        .unwrap()
+        .read_to_end(&mut contents)
+        .unwrap();
+    (mode, contents)
+}
 
 /// Precondition: An archive contains a file with permission 0o777 (rwxrwxrwx).
 /// Action: Run `pna experimental chmod` with `-x` to remove execute permission for all.
@@ -61,42 +79,26 @@ fn archive_chmod() {
     .execute()
     .unwrap();
 
-    archive::for_each_entry("chmod.pna", |entry| {
-        if entry.header().path() == ENTRY_PATH {
-            let mode = entry
-                .metadata()
-                .permission_mode()
-                .expect("entry should have permission mode metadata")
-                .get();
-            assert_eq!(mode & 0o777, 0o666, "-x on 0o777 should yield 0o666");
-        }
-    })
-    .unwrap();
+    assert_eq!(
+        archive::modes_by_entry("chmod.pna"),
+        vec![(ENTRY_PATH.to_string(), Some(0o666))]
+    );
 }
 
 /// Precondition: An archive entry carries legacy fPRM metadata.
 /// Action: Run `pna experimental chmod` to change its mode.
-/// Expectation: The updated mode is emitted as fMOd, and stale fPRM is removed.
+/// Expectation: The target entry's mode is updated; other entries' ownership
+/// (filled from the same fixture's legacy fPRM) passes through unchanged.
 #[test]
-#[allow(deprecated)]
-fn archive_chmod_drops_legacy_fprm() {
+fn archive_chmod_updates_mode_on_legacy_fprm_entry() {
     setup();
-    let path = "chmod_legacy_fprm.pna";
-    {
-        let mut archive = Archive::write_header(File::create(path).unwrap()).unwrap();
-        let mut builder =
-            FileEntryBuilder::new(EntryName::from_utf8_preserve_root(ENTRY_PATH)).unwrap();
-        builder.metadata(Metadata::new().with_permission(Some(Permission::new(
-            1000,
-            "user".to_string(),
-            1000,
-            "group".to_string(),
-            0o777,
-        ))));
-        builder.write_all(ENTRY_CONTENT).unwrap();
-        archive.add_entry(builder.build().unwrap()).unwrap();
-        archive.finalize().unwrap();
-    }
+    // The 0.33.0 `zstd_keep_permission` fixture's entries carry only legacy
+    // `fPRM` (no owner facets): uid=501 uname="kaihatsutarou" gid=20
+    // gname="staff", mode `0o100644` unmasked for files.
+    const LEGACY_FIXTURE: &str = "0.33.0/zstd_keep_permission.pna";
+    TestResources::extract_in(LEGACY_FIXTURE, "chmod_legacy_fprm/").unwrap();
+    let path = format!("chmod_legacy_fprm/{LEGACY_FIXTURE}");
+    let target = "raw/text.txt";
 
     cli::Cli::try_parse_from([
         "pna",
@@ -104,29 +106,44 @@ fn archive_chmod_drops_legacy_fprm() {
         "experimental",
         "chmod",
         "-f",
-        path,
-        "644",
-        ENTRY_PATH,
+        path.as_str(),
+        "600",
+        target,
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    archive::for_each_entry(path, |entry| {
-        assert!(
-            entry.metadata().permission().is_none(),
-            "legacy fPRM must be removed after chmod"
-        );
-        assert_eq!(entry.metadata().permission_mode().unwrap().get(), 0o644);
+    let mut found = false;
+    let mut other_count = 0;
+    archive::for_each_entry(&path, |entry| {
+        let metadata = entry.metadata();
+        if entry.header().path().as_str() == target {
+            found = true;
+            assert_eq!(metadata.permission_mode().unwrap().get(), 0o600);
+        } else {
+            other_count += 1;
+            assert_eq!(metadata.owner_uid().unwrap().get(), 501);
+            assert_eq!(metadata.owner_gid().unwrap().get(), 20);
+            assert_eq!(
+                metadata.owner_user_name().unwrap().as_str(),
+                "kaihatsutarou"
+            );
+            assert_eq!(metadata.owner_group_name().unwrap().as_str(), "staff");
+        }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
+    assert_eq!(
+        other_count, 8,
+        "fixture has 8 entries other than the target"
+    );
 }
 
 /// Precondition: An archive entry has no permission metadata.
 /// Action: Run `pna experimental chmod 600` on that entry.
-/// Expectation: The requested mode is emitted as fMOd without generating legacy fPRM.
+/// Expectation: The requested mode is emitted as fMOd.
 #[test]
-#[allow(deprecated)]
 fn archive_chmod_numeric_sets_missing_permission_mode() {
     setup();
     let path = "chmod_missing_mode_numeric.pna";
@@ -154,10 +171,6 @@ fn archive_chmod_numeric_sets_missing_permission_mode() {
     .unwrap();
 
     archive::for_each_entry(path, |entry| {
-        assert!(
-            entry.metadata().permission().is_none(),
-            "legacy fPRM must not be generated by chmod"
-        );
         assert_eq!(entry.metadata().permission_mode().unwrap().get(), 0o600);
     })
     .unwrap();

@@ -46,7 +46,7 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y libacl1-dev
-      - uses: ./.github/actions/setup-rust
+      - uses: $/.github/actions/setup-rust
         with:
           channel: nightly
       - name: Run rust-bench
@@ -95,7 +95,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-rust
+      - uses: $/.github/actions/setup-rust
       - name: Install dependencies
         run: |
           sudo apt update
@@ -108,5 +108,9 @@ jobs:
         run: |
           cargo install --locked --all-features --path cli
       - name: Run CLI tests
+        env:
+          # Ubuntu 26.04 mounts /tmp as a ~7.8 GiB tmpfs, which cannot hold the
+          # 5 GiB large-file fixture together with its archive and extraction.
+          RESOURCE_DIR: ${{ runner.temp }}/
         run: |
           bats tests/bats/ tests/bats/bsdtar_compat/ tests/bats/gnutar_compat/

@@ -20,6 +20,18 @@ pub(crate) fn validate_chunk_crc(ty: &[u8; 4], data: &[u8], stored: u32) -> io::
     Ok(())
 }
 
+/// Rejects a chunk data length exceeding the inclusive limit.
+#[inline]
+pub(crate) fn check_chunk_length_limit(length: u32, max_data_len: u32) -> io::Result<()> {
+    if length > max_data_len {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("chunk data length {length} exceeds limit {max_data_len}"),
+        ));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
