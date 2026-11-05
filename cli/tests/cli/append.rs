@@ -16,11 +16,16 @@ mod option_older_ctime_than;
 mod option_older_mtime;
 #[cfg(not(target_family = "wasm"))]
 mod option_older_mtime_than;
+#[cfg(not(target_family = "wasm"))]
+mod option_overwrite;
 
 use crate::utils::{EmbedExt, TestResources, diff::assert_dirs_equal, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 
+/// Precondition: An archive and additional input files exist.
+/// Action: Append the additional files and extract the archive.
+/// Expectation: Extraction reproduces the original and added files.
 #[test]
 fn archive_append() {
     setup();
@@ -38,7 +43,6 @@ fn archive_append() {
     .execute()
     .unwrap();
 
-    // Copy extra input
     TestResources::extract_in("store.pna", "archive_append/in/").unwrap();
     TestResources::extract_in("zstd.pna", "archive_append/in/").unwrap();
 
@@ -69,10 +73,12 @@ fn archive_append() {
     .unwrap()
     .execute()
     .unwrap();
-    // check completely extracted
     assert_dirs_equal("archive_append/in/", "archive_append/out/");
 }
 
+/// Precondition: A split archive and additional input files exist.
+/// Action: Append the additional files and extract the archive parts.
+/// Expectation: Extraction reproduces the original and added files.
 #[test]
 fn archive_append_split() {
     setup();
@@ -92,7 +98,6 @@ fn archive_append_split() {
     .execute()
     .unwrap();
 
-    // Copy extra input
     TestResources::extract_in("store.pna", "archive_append_split/in/").unwrap();
     TestResources::extract_in("zstd.pna", "archive_append_split/in/").unwrap();
 
@@ -123,6 +128,5 @@ fn archive_append_split() {
     .unwrap()
     .execute()
     .unwrap();
-    // check completely extracted
     assert_dirs_equal("archive_append_split/in/", "archive_append_split/out/");
 }
