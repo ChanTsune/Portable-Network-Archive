@@ -357,18 +357,16 @@ pub(crate) struct ExtractCommand {
     no_same_owner: (),
     #[arg(
         long,
-        action = ArgAction::SetTrue,
         help = "Allow extracting symbolic links and hard links that contain root or parent paths"
     )]
-    allow_unsafe_links: (),
+    allow_unsafe_links: bool,
     #[arg(
         long,
+        action = ArgAction::SetTrue,
         help = "Do not allow extracting symbolic links and hard links that contain root or parent paths (default)",
-        default_value_t = true,
-        default_value_if("allow_unsafe_links", ArgPredicate::Equals("true".into()), "false"),
         conflicts_with = "allow_unsafe_links"
     )]
-    no_allow_unsafe_links: bool,
+    no_allow_unsafe_links: (),
     #[arg(
         long,
         requires = "unstable",
@@ -485,7 +483,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     };
     let output_options = OutputOption {
         overwrite_strategy,
-        allow_unsafe_links: !args.no_allow_unsafe_links,
+        allow_unsafe_links: args.allow_unsafe_links,
         out_dir: args.out_dir,
         to_stdout: false,
         filter,
