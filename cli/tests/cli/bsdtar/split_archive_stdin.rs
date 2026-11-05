@@ -8,6 +8,10 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
 use std::rc::Rc;
+#[cfg(unix)]
+use std::process::{Command, Stdio};
+#[cfg(unix)]
+use assert_cmd::cargo::CommandCargoExt;
 
 /// A part writer that appends to one shared buffer, so the parts of a split
 /// archive land in it back to back, as they do when piped in order.
@@ -93,4 +97,46 @@ fn bsdtar_extract_reads_split_archive_from_stdin() {
         .success();
 
     assert_eq!(fs::read(base.join("split.txt")).unwrap(), vec![b'x'; 4096]);
+}
+
+/// The same archive must produce identical listings when opened by pathname,
+/// redirected into stdin as a regular file, and streamed through a pipe.
+#[cfg(unix)]
+#[test]
+fn bsdtar_list_unifies_file_redirect_and_pipe() {
+    setup();
+    let archive = split_archive_stream("same.txt", &[b'x'; 4096]);
+    let path = PathBuf::from("bsdtar_unified_input.pna");
+    fs::write(&path, &archive).unwrap();
+
+    let explicit = cargo_bin_cmd!("pna")
+        .args(["compat", "bsdtar", "--unstable", "-tf", path.to_str().unwrap()])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let redirected = Command::cargo_bin("pna")
+        .unwrap()
+        .args(["compat", "bsdtar", "--unstable", "-tf", "-"])
+        .stdin(Stdio::from(fs::File::open(&path).unwrap()))
+        .output()
+        .unwrap();
+    assert!(
+        redirected.status.success(),
+        "redirected stdin: {}",
+        String::from_utf8_lossy(&redirected.stderr)
+    );
+    assert_eq!(redirected.stdout, explicit);
+
+    let piped = cargo_bin_cmd!("pna")
+        .write_stdin(archive)
+        .args(["compat", "bsdtar", "--unstable", "-tf", "-"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(piped, explicit);
 }
