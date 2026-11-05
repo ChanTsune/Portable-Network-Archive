@@ -105,7 +105,6 @@ impl CompressionAlgorithmArgs {
     group(ArgGroup::new("keep-xattr-flag").args(["keep_xattr", "no_keep_xattr"])),
     group(ArgGroup::new("keep-timestamp-flag").args(["keep_timestamp", "no_keep_timestamp"])),
     group(ArgGroup::new("action-flags").args(["create", "extract", "list", "append", "update"]).required(true)),
-    group(ArgGroup::new("safe-writes-flag").args(["safe_writes", "no_safe_writes"])),
     group(ArgGroup::new("unsafe-links-flag").args(["allow_unsafe_links", "no_allow_unsafe_links"])),
     group(
         ArgGroup::new("overwrite-flag")
@@ -631,10 +630,15 @@ pub(crate) struct BsdtarCommand {
         help = "Continue reading concatenated archives after the first archive ends instead of stopping at the first archive boundary"
     )]
     ignore_zeros: bool,
-    #[arg(long, hide = true)]
+    #[arg(long, hide = true, overrides_with = "no_safe_writes")]
     safe_writes: bool,
-    #[arg(long, hide = true)]
-    no_safe_writes: bool,
+    #[arg(
+        long,
+        hide = true,
+        overrides_with = "safe_writes",
+        action = clap::ArgAction::SetTrue
+    )]
+    no_safe_writes: (),
     #[arg(short = 'a', long = "auto-compress", hide = true)]
     auto_compress: bool,
     #[arg(
@@ -1113,7 +1117,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
         ordered_path_locks: Arc::new(OrderedPathLocks::default()),
         unlink_first: args.unlink_first,
         time_filters,
-        safe_writes: args.safe_writes && !args.no_safe_writes,
+        safe_writes: args.safe_writes,
         verbose: args.verbose,
         absolute_paths: args.absolute_paths,
         warned_lead_slash: Arc::new(AtomicBool::new(false)),
