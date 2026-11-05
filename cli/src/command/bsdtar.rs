@@ -633,8 +633,8 @@ pub(crate) struct BsdtarCommand {
     ignore_zeros: bool,
     #[arg(long, hide = true)]
     safe_writes: bool,
-    #[arg(long, hide = true)]
-    no_safe_writes: bool,
+    #[arg(long, hide = true, action = clap::ArgAction::SetTrue)]
+    no_safe_writes: (),
     #[arg(short = 'a', long = "auto-compress", hide = true)]
     auto_compress: bool,
     #[arg(
@@ -1113,7 +1113,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
         ordered_path_locks: Arc::new(OrderedPathLocks::default()),
         unlink_first: args.unlink_first,
         time_filters,
-        safe_writes: args.safe_writes && !args.no_safe_writes,
+        safe_writes: args.safe_writes,
         verbose: args.verbose,
         absolute_paths: args.absolute_paths,
         warned_lead_slash: Arc::new(AtomicBool::new(false)),
