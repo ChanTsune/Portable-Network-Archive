@@ -581,14 +581,20 @@ pub(crate) struct BsdtarCommand {
     #[arg(
         long,
         help = "Allow extracting symbolic or hard links containing root or parent paths (default)",
-        default_value_t = true
+        default_value_t = true,
+        default_value_if(
+            "no_allow_unsafe_links",
+            clap::builder::ArgPredicate::Equals("true".into()),
+            "false"
+        )
     )]
     allow_unsafe_links: bool,
     #[arg(
         long,
+        action = clap::ArgAction::SetTrue,
         help = "Do not allow extracting symbolic links or hard links if either contains root or parent paths"
     )]
-    no_allow_unsafe_links: bool,
+    no_allow_unsafe_links: (),
     #[arg(
         long,
         requires = "extract",
@@ -1080,7 +1086,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
     .resolve();
     let out_option = OutputOption {
         overwrite_strategy,
-        allow_unsafe_links: !args.no_allow_unsafe_links,
+        allow_unsafe_links: args.allow_unsafe_links,
         out_dir: args.out_dir,
         to_stdout: args.to_stdout,
         filter,
