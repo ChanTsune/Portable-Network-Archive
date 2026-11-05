@@ -142,12 +142,8 @@ jobs:
       - name: Install dist
         if: ${{ !contains(matrix.targets, 'riscv64gc-unknown-linux-gnu') && !contains(matrix.targets, 'aarch64-pc-windows-msvc') }}
         run: ${{ matrix.install_dist.run }}
-      - name: Install dist on Windows ARM64
-        if: ${{ contains(matrix.targets, 'aarch64-pc-windows-msvc') }}
-        shell: pwsh
-        run: cargo install --locked --version "${{ fromJson(needs.plan.outputs.val).dist_version }}" cargo-dist
-      - name: Install dist on RISC-V
-        if: ${{ contains(matrix.targets, 'riscv64gc-unknown-linux-gnu') }}
+      - name: Install dist from crates.io
+        if: ${{ contains(matrix.targets, 'riscv64gc-unknown-linux-gnu') || contains(matrix.targets, 'aarch64-pc-windows-msvc') }}
         uses: baptiste0928/cargo-install@8195d4f734a149db85385bb4102b42efcd373759 # v3.5.0
         with:
           crate: cargo-dist
