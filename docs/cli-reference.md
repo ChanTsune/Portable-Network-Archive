@@ -323,6 +323,9 @@ Append files to archive
 
 ###### **Options:**
 
+* `--overwrite` — Append to the existing archive in place
+
+  Default value: `false`
 * `--one-file-system` — Stay in the same file system when collecting files
 
   Default value: `false`
