@@ -57,3 +57,64 @@ fn append_with_overwrite_updates_existing_archive() {
         ]
     );
 }
+
+/// Precondition: Archives contain an entry and an additional input file exists.
+/// Action: Append implicitly through the command, its alias, and quiet logging.
+/// Expectation: Every archive is updated; only unsilenced implicit calls emit the warning.
+#[test]
+fn append_without_overwrite_warns_unless_quiet() {
+    const WARNING: &str = concat!(
+        "warning: `append` without `--overwrite` is deprecated and will write the updated archive to standard output in a future release; pass `--overwrite` to keep appending in place",
+        "\n",
+    );
+    setup();
+    fs::create_dir_all("append_warning").unwrap();
+    archive::create_archive_with_permissions(
+        "append_warning/base.pna",
+        &[archive::FileEntryDef {
+            path: "base.txt",
+            content: b"base content",
+            permission: 0o644,
+        }],
+    )
+    .unwrap();
+    fs::copy("append_warning/base.pna", "append_warning/alias.pna").unwrap();
+    fs::copy("append_warning/base.pna", "append_warning/quiet.pna").unwrap();
+    fs::write("append_warning/new.txt", b"new content").unwrap();
+
+    for (args, path, stderr) in [
+        (&["append"][..], "append_warning/base.pna", WARNING),
+        (&["a"][..], "append_warning/alias.pna", WARNING),
+        (&["--quiet", "append"][..], "append_warning/quiet.pna", ""),
+    ] {
+        cargo_bin_cmd!("pna")
+            .args(args)
+            .args(["--file", path, "append_warning/new.txt"])
+            .assert()
+            .success()
+            .stdout("")
+            .stderr(stderr);
+
+        let mut entries = Vec::new();
+        archive::for_each_entry(path, |entry| {
+            let mut content = Vec::new();
+            entry
+                .reader(pna::ReadOptions::with_password::<&[u8]>(None))
+                .unwrap()
+                .read_to_end(&mut content)
+                .unwrap();
+            entries.push((entry.header().path().to_string(), content));
+        })
+        .unwrap();
+        assert_eq!(
+            entries,
+            [
+                ("base.txt".to_string(), b"base content".to_vec()),
+                (
+                    "append_warning/new.txt".to_string(),
+                    b"new content".to_vec()
+                ),
+            ]
+        );
+    }
+}

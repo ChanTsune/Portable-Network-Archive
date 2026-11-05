@@ -49,9 +49,9 @@ pub(crate) struct AppendCommand {
     #[arg(
         long,
         action = ArgAction::SetTrue,
-        help = "Append to the existing archive in place"
+        help = "Append to the existing archive in place; omitting this flag is deprecated"
     )]
-    overwrite: (),
+    overwrite: bool,
     #[arg(
         long,
         requires = "unstable",
@@ -395,11 +395,16 @@ impl Command for AppendCommand {
 
 #[hooq::hooq(anyhow)]
 fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
-    let password = ask_password(args.password)?;
     let archive_path = args.archive.file;
     if !archive_path.exists() {
         anyhow::bail!("{} is not exists", archive_path.display());
     }
+    if !args.overwrite {
+        log::warn!(
+            "`append` without `--overwrite` is deprecated and will write the updated archive to standard output in a future release; pass `--overwrite` to keep appending in place"
+        );
+    }
+    let password = ask_password(args.password)?;
     let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);
     let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
