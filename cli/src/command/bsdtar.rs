@@ -1164,6 +1164,49 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
 }
 
 #[hooq::hooq(anyhow)]
+// The bsdtar listing path uses the same owned handle for filesystem archives and
+// stdin. Duplicating stdin preserves ownership of the process' original descriptor.
+#[cfg(unix)]
+fn open_bsdtar_archive_handles(path: Option<&Path>) -> io::Result<Vec<std::fs::File>> {
+    match path {
+        Some(path) => collect_split_archives(path),
+        None => {
+            use std::os::fd::AsFd;
+            let stdin = io::stdin();
+            Ok(vec![std::fs::File::from(
+                stdin.as_fd().try_clone_to_owned()?,
+            )])
+        }
+    }
+}
+
+// A regular file (including a redirected stdin) may be mapped. A pipe,
+// terminal, an empty file, or an already-consumed stream stays on the Read path.
+// Failed mappings also fall back to Read rather than failing a valid input.
+#[cfg(all(unix, feature = "memmap"))]
+fn try_map_bsdtar_archive_handles(
+    files: &[std::fs::File],
+) -> Option<Vec<crate::utils::mmap::Mmap>> {
+    use std::io::Seek;
+    if files.is_empty() {
+        return None;
+    }
+    files
+        .iter()
+        .map(|file| {
+            let metadata = file.metadata().ok()?;
+            if !metadata.is_file() || metadata.len() == 0 {
+                return None;
+            }
+            let mut handle = file.try_clone().ok()?;
+            if handle.stream_position().ok()? != 0 {
+                return None;
+            }
+            crate::utils::mmap::Mmap::try_from(handle).ok()
+        })
+        .collect()
+}
+
 fn run_list_archive(args: BsdtarCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let time_filters = TimeFilterResolver {
@@ -1231,12 +1274,26 @@ fn run_list_archive(args: BsdtarCommand) -> anyhow::Result<()> {
     // NOTE: "-" will use stdin
     let mut file = args.file;
     file.take_if(|it| it == "-");
-    if let Some(path) = &file {
-        let archives = collect_split_archives(path)?;
+
+    #[cfg(unix)]
+    {
+        let handles = open_bsdtar_archive_handles(file.as_deref())?;
+        #[cfg(feature = "memmap")]
+        if let Some(mmaps) = try_map_bsdtar_archive_handles(&handles) {
+            return crate::command::list::run_list_archive(
+                mmaps.iter().map(|mmap| mmap.as_ref()),
+                password.as_deref(),
+                files_globs,
+                filter,
+                list_options,
+                args.fast_read,
+                args.ignore_zeros,
+            );
+        }
         crate::command::list::run_list_archive(
-            archives
+            handles
                 .into_iter()
-                .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
+                .map(|file| io::BufReader::with_capacity(64 * 1024, file)),
             password.as_deref(),
             files_globs,
             filter,
@@ -1244,16 +1301,34 @@ fn run_list_archive(args: BsdtarCommand) -> anyhow::Result<()> {
             args.fast_read,
             args.ignore_zeros,
         )
-    } else {
-        crate::command::list::run_list_archive(
-            std::iter::once_with(|| io::stdin().lock()),
-            password.as_deref(),
-            files_globs,
-            filter,
-            list_options,
-            args.fast_read,
-            args.ignore_zeros,
-        )
+    }
+
+    #[cfg(not(unix))]
+    {
+        if let Some(path) = &file {
+            let archives = collect_split_archives(path)?;
+            crate::command::list::run_list_archive(
+                archives
+                    .into_iter()
+                    .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
+                password.as_deref(),
+                files_globs,
+                filter,
+                list_options,
+                args.fast_read,
+                args.ignore_zeros,
+            )
+        } else {
+            crate::command::list::run_list_archive(
+                std::iter::once_with(|| io::stdin().lock()),
+                password.as_deref(),
+                files_globs,
+                filter,
+                list_options,
+                args.fast_read,
+                args.ignore_zeros,
+            )
+        }
     }
 }
 
