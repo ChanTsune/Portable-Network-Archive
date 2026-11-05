@@ -98,15 +98,21 @@ pub(crate) struct ExtractCommand {
     #[arg(
         long = "preserve-timestamps",
         visible_alias = "keep-timestamp",
+        default_value_t = false,
+        default_value_if("no_keep_timestamp", ArgPredicate::Equals("true".into()), "false"),
+        default_value_if("mtime", ArgPredicate::IsPresent, "true"),
+        default_value_if("ctime", ArgPredicate::IsPresent, "true"),
+        default_value_if("atime", ArgPredicate::IsPresent, "true"),
         help = "Restore the timestamp of the files"
     )]
     pub(crate) keep_timestamp: bool,
     #[arg(
         long = "no-preserve-timestamps",
         visible_alias = "no-keep-timestamp",
+        action = ArgAction::SetTrue,
         help = "Do not restore timestamp of files. This is the inverse option of --preserve-timestamps"
     )]
-    pub(crate) no_keep_timestamp: bool,
+    no_keep_timestamp: (),
     #[arg(
         long,
         value_name = "DATETIME",
@@ -466,8 +472,6 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let keep_options = KeepOptions {
         timestamp_strategy: TimestampStrategyResolver {
             keep_timestamp: args.keep_timestamp,
-            no_keep_timestamp: args.no_keep_timestamp,
-            default_preserve: false,
             mtime: args.mtime.map(|it| it.to_system_time()),
             clamp_mtime: args.clamp_mtime,
             ctime: args.ctime.map(|it| it.to_system_time()),
