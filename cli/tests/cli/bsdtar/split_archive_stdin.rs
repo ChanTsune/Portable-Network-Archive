@@ -2,16 +2,16 @@
 
 use crate::utils::setup;
 use assert_cmd::cargo::cargo_bin_cmd;
+#[cfg(unix)]
+use assert_cmd::cargo::CommandCargoExt;
 use pna::{Archive, Compression, Metadata, WriteOptions};
 use std::cell::RefCell;
 use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
-use std::rc::Rc;
 #[cfg(unix)]
 use std::process::{Command, Stdio};
-#[cfg(unix)]
-use assert_cmd::cargo::CommandCargoExt;
+use std::rc::Rc;
 
 /// A part writer that appends to one shared buffer, so the parts of a split
 /// archive land in it back to back, as they do when piped in order.
