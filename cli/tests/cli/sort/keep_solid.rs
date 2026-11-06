@@ -31,7 +31,7 @@ fn sort_solid_archive_without_unsolid() {
         ],
     )
     .unwrap();
-    cli::Cli::try_parse_from(["pna", "--quiet", "sort", "-f", path])
+    cli::Cli::try_parse_from(["pna", "--quiet", "sort", "--overwrite", "-f", path])
         .unwrap()
         .execute()
         .unwrap();
@@ -101,10 +101,18 @@ fn sort_keep_solid_mixed_archive() {
     out.add_entry(stored_file_entry("d.txt")).unwrap();
     out.finalize().unwrap();
 
-    cli::Cli::try_parse_from(["pna", "--quiet", "sort", "--keep-solid", "-f", path])
-        .unwrap()
-        .execute()
-        .unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "sort",
+        "--overwrite",
+        "--keep-solid",
+        "-f",
+        path,
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
 
     assert_eq!(
         layout(path),
@@ -125,6 +133,7 @@ fn sort_keep_solid_mixed_archive() {
         "pna",
         "--quiet",
         "sort",
+        "--overwrite",
         "--keep-solid",
         "-f",
         path,
@@ -192,6 +201,7 @@ fn sort_keep_solid_encrypted_solid_archive() {
         "pna",
         "--quiet",
         "sort",
+        "--overwrite",
         "--keep-solid",
         "-f",
         path,
@@ -282,6 +292,7 @@ fn sort_encrypted_archive_keeps_encryption() {
         "pna",
         "--quiet",
         "sort",
+        "--overwrite",
         "-f",
         path,
         "--password",
@@ -512,10 +523,18 @@ fn sort_non_solid_archive_with_keep_solid() {
     )
     .unwrap();
 
-    cli::Cli::try_parse_from(["pna", "--quiet", "sort", "--keep-solid", "-f", path])
-        .unwrap()
-        .execute()
-        .unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "sort",
+        "--overwrite",
+        "--keep-solid",
+        "-f",
+        path,
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
 
     assert_eq!(archive::get_archive_entry_names(path), ["a.txt", "b.txt"]);
 }

@@ -17,6 +17,7 @@ fn delete_with_password() {
         "pna",
         "--quiet",
         "delete",
+        "--overwrite",
         "-f",
         "delete_password/zstd_aes_ctr.pna",
         "**/empty.txt",

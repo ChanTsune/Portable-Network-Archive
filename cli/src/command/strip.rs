@@ -1,6 +1,6 @@
 use crate::{
     cli::{
-        ArchiveFileArgs, FileOperands, PasswordArgs, PrivateChunkType,
+        ArchiveFileArgs, ArchiveOutputArgs, FileOperands, PasswordArgs, PrivateChunkType,
         SolidEntriesTransformStrategyArgs,
     },
     command::{
@@ -13,9 +13,9 @@ use crate::{
     },
     utils::GlobPatterns,
 };
-use clap::{Args, Parser, ValueHint};
+use clap::{Args, Parser};
 use pna::{Metadata, NormalEntry, RawChunk, prelude::*};
-use std::{borrow::Cow, io, path::PathBuf};
+use std::{borrow::Cow, io};
 
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) struct StripOptions {
@@ -53,17 +53,8 @@ pub(crate) struct StripCommand {
     pub(crate) strip_options: StripOptions,
     #[command(flatten)]
     transform_strategy: SolidEntriesTransformStrategyArgs,
-    #[arg(long, help = "Output file path", value_hint = ValueHint::AnyPath)]
-    pub(crate) output: Option<PathBuf>,
-    #[arg(long, help = "Overwrite the source or output archive")]
-    overwrite: bool,
-    #[arg(
-        long,
-        conflicts_with = "overwrite",
-        requires = "output",
-        help = "Deprecated: omit this flag to preserve existing output archives"
-    )]
-    no_overwrite: bool,
+    #[command(flatten)]
+    output: ArchiveOutputArgs,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
@@ -81,13 +72,10 @@ impl Command for StripCommand {
 
 #[hooq::hooq(anyhow)]
 fn strip_metadata(args: StripCommand, umask: Umask) -> anyhow::Result<()> {
-    if args.no_overwrite {
-        log::warn!(
-            "`--no-overwrite` is deprecated and will be removed in a future release; omit it to preserve existing output archives."
-        );
-    }
+    args.output.warn_deprecated_options();
     let source = args.archive.source();
-    let destination = resolve_transform_destination(&source, args.output, args.overwrite)?;
+    let destination =
+        resolve_transform_destination(&source, args.output.output, args.output.overwrite)?;
     let password = ask_password(args.password)?;
     let globs = if args.files.files.is_empty() {
         None

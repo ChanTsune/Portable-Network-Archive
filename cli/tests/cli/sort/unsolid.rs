@@ -36,10 +36,18 @@ fn sort_unsolid_solid_archive() {
     )
     .unwrap();
 
-    cli::Cli::try_parse_from(["pna", "--quiet", "sort", "--unsolid", "-f", path])
-        .unwrap()
-        .execute()
-        .unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "sort",
+        "--overwrite",
+        "--unsolid",
+        "-f",
+        path,
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
 
     assert_eq!(layout(path), [false, false]);
     assert_eq!(archive::get_archive_entry_names(path), ["a.txt", "b.txt"]);
@@ -75,6 +83,7 @@ fn sort_unsolid_encrypted_solid_archive() {
         "pna",
         "--quiet",
         "sort",
+        "--overwrite",
         "--unsolid",
         "-f",
         path,
@@ -139,10 +148,18 @@ fn sort_unsolid_mixed_archive() {
     out.add_entry(solid_block(&["c.txt"])).unwrap();
     out.finalize().unwrap();
 
-    cli::Cli::try_parse_from(["pna", "--quiet", "sort", "--unsolid", "-f", path])
-        .unwrap()
-        .execute()
-        .unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "sort",
+        "--overwrite",
+        "--unsolid",
+        "-f",
+        path,
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
 
     assert_eq!(layout(path), [false, false, false, false, false]);
     assert_eq!(
@@ -205,10 +222,18 @@ fn sort_non_solid_archive_with_unsolid() {
     )
     .unwrap();
 
-    cli::Cli::try_parse_from(["pna", "--quiet", "sort", "--unsolid", "-f", path])
-        .unwrap()
-        .execute()
-        .unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "sort",
+        "--overwrite",
+        "--unsolid",
+        "-f",
+        path,
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
 
     assert_eq!(layout(path), [false, false]);
     assert_eq!(archive::get_archive_entry_names(path), ["a.txt", "b.txt"]);

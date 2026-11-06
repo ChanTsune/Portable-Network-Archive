@@ -55,6 +55,7 @@ fn chown_empty_files_is_noop() {
         "--quiet",
         "experimental",
         "chown",
+        "--overwrite",
         "-f",
         "chown_empty_files.pna",
         "new_user:new_group",

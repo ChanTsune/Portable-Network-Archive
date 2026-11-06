@@ -106,9 +106,108 @@ const PAIRS: &[(&[&str], &str, &str)] = &[
         "--overwrite",
         "--no-overwrite",
     ),
+    (
+        &["delete", "present.txt", "--output", "out.pna"],
+        "--overwrite",
+        "--no-overwrite",
+    ),
+    (
+        &[
+            "experimental",
+            "chmod",
+            "600",
+            "present.txt",
+            "--output",
+            "out.pna",
+        ],
+        "--overwrite",
+        "--no-overwrite",
+    ),
+    (
+        &[
+            "experimental",
+            "chown",
+            "new_user",
+            "present.txt",
+            "--no-owner-lookup",
+            "--output",
+            "out.pna",
+        ],
+        "--overwrite",
+        "--no-overwrite",
+    ),
+    (
+        &[
+            "experimental",
+            "acl",
+            "set",
+            "present.txt",
+            "--modify",
+            "u:test:r",
+            "--output",
+            "out.pna",
+        ],
+        "--overwrite",
+        "--no-overwrite",
+    ),
+    (
+        &[
+            "xattr",
+            "set",
+            "present.txt",
+            "--name",
+            "user.test",
+            "--value",
+            "value",
+            "--output",
+            "out.pna",
+        ],
+        "--overwrite",
+        "--no-overwrite",
+    ),
+    (
+        &["migrate", "--output", "out.pna"],
+        "--overwrite",
+        "--no-overwrite",
+    ),
+    (
+        &["sort", "--output", "out.pna"],
+        "--overwrite",
+        "--no-overwrite",
+    ),
 ];
 
-const DEPRECATED_NO_OVERWRITE_COMMANDS: &[&[&str]] = &[&["strip"]];
+const DEPRECATED_NO_OVERWRITE_COMMANDS: &[&[&str]] = &[
+    &["strip"],
+    &["delete", "present.txt"],
+    &["experimental", "chmod", "600", "present.txt"],
+    &[
+        "experimental",
+        "chown",
+        "new_user",
+        "present.txt",
+        "--no-owner-lookup",
+    ],
+    &[
+        "experimental",
+        "acl",
+        "set",
+        "present.txt",
+        "--modify",
+        "u:test:r",
+    ],
+    &[
+        "xattr",
+        "set",
+        "present.txt",
+        "--name",
+        "user.test",
+        "--value",
+        "value",
+    ],
+    &["migrate"],
+    &["sort"],
+];
 
 /// Precondition: A native command exposes a flag together with its `--no-` counterpart.
 /// Action: Pass both spellings in one invocation, in either order.

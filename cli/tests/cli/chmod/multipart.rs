@@ -49,8 +49,11 @@ fn chmod_multipart_archive_updates_consolidated_output() {
         "--quiet",
         "experimental",
         "chmod",
+        "--overwrite",
         "-f",
         "chmod_multipart/split/archive.part1.pna",
+        "--output",
+        "chmod_multipart/split/archive.pna",
         "600",
         ENTRY_PATH,
     ])

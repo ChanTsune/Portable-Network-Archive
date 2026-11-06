@@ -30,6 +30,7 @@ fn fail_with_missing_file() {
         "--quiet",
         "xattr",
         "set",
+        "--overwrite",
         "-f",
         "xattr_missing_set/archive.pna",
         "--name",

@@ -226,6 +226,39 @@ pub(crate) struct ArchiveFileArgs {
 }
 
 #[derive(Args, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) struct ArchiveOutputArgs {
+    #[arg(
+        long,
+        value_name = "ARCHIVE",
+        help = "Write the transformed archive to this path",
+        value_hint = ValueHint::FilePath
+    )]
+    pub(crate) output: Option<PathBuf>,
+    #[arg(
+        long,
+        help = "Replace an existing output archive, or rewrite the input archive in place when --output is omitted"
+    )]
+    pub(crate) overwrite: bool,
+    #[arg(
+        long,
+        conflicts_with = "overwrite",
+        requires = "output",
+        help = "Deprecated: omit this flag to preserve existing output archives"
+    )]
+    no_overwrite: bool,
+}
+
+impl ArchiveOutputArgs {
+    pub(crate) fn warn_deprecated_options(&self) {
+        if self.no_overwrite {
+            log::warn!(
+                "`--no-overwrite` is deprecated and will be removed in a future release; omit it to preserve existing output archives."
+            );
+        }
+    }
+}
+
+#[derive(Args, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct FileOperands {
     #[arg(help = "Files or directories to process", value_hint = ValueHint::FilePath)]
     pub(crate) files: Vec<String>,

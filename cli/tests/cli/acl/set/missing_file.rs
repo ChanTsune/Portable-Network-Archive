@@ -31,6 +31,7 @@ fn fail_with_missing_file() {
         "experimental",
         "acl",
         "set",
+        "--overwrite",
         "-f",
         "acl_set_missing/archive.pna",
         "--set",
