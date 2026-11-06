@@ -81,6 +81,11 @@ const PAIRS: &[(&[&str], &str, &str)] = &[
     (&["x", "-f", "a.pna"], "--same-owner", "--no-same-owner"),
     (&["x", "-f", "a.pna"], "--overwrite", "--no-overwrite"),
     (
+        &["compat", "bsdtar", "--extract", "-f", "a.pna"],
+        "--overwrite",
+        "--no-overwrite",
+    ),
+    (
         &["x", "-f", "a.pna", "--unstable"],
         "--safe-writes",
         "--no-safe-writes",
