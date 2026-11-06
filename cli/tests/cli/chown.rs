@@ -7,3 +7,5 @@ mod option_output;
 mod preserve_owner_absence;
 mod user_and_group;
 mod user_only;
+#[cfg(windows)]
+mod windows_owner_lookup;
