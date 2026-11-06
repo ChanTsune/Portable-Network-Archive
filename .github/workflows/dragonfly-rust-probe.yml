@@ -48,14 +48,13 @@ jobs:
               export PATH="/opt/rust-1.98.0/bin:$PATH"
             fi
             export LC_ALL=C LANG=C
-            # Locate the installed GCC runtime rather than assuming its versioned path.
-            stdcpp=$(find /usr/local/lib -name libstdc++.so.6 -print -quit)
-            if [ -z "$stdcpp" ]; then
+            # Use the runtime from gcc14, not an older GCC found first.
+            gcc_libdir=/usr/local/lib/gcc14
+            if [ ! -f "$gcc_libdir/libstdc++.so.6" ]; then
               pkg info -l gcc14
-              echo "GCC C++ runtime libstdc++.so.6 is missing" >&2
+              echo "GCC 14 C++ runtime libstdc++.so.6 is missing" >&2
               exit 1
             fi
-            gcc_libdir=${stdcpp%/*}
             export LD_LIBRARY_PATH="$gcc_libdir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
             uname -a
             rustc --version
