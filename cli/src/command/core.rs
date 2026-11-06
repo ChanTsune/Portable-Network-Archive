@@ -23,7 +23,7 @@ pub(crate) use self::staged_archive::StagedArchive;
 pub(crate) use self::timestamp::{TimeSource, TimestampStrategy, cmp_at_stored_precision};
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs, MissingTimePolicy},
-    utils::{self, WorkingDirectory, fs::HardlinkResolver},
+    utils::{self, fs::HardlinkResolver},
 };
 pub(crate) use iter::ReorderByIndex;
 pub(crate) use path_filter::PathFilter;
@@ -451,60 +451,6 @@ impl fmt::Display for ArchiveSource {
     }
 }
 
-/// Represents a CLI file argument that can be either a filesystem path or an archive inclusion.
-///
-/// Archive inclusions start with '@' and reference entries from an existing archive.
-/// This follows bsdtar's convention for including archives.
-#[derive(Clone, Debug)]
-pub(crate) enum ItemSource {
-    /// A regular filesystem path (file or directory).
-    Filesystem(PathBuf),
-    /// An archive to include entries from.
-    Archive(ArchiveSource),
-    /// Change the base directory for subsequent inputs.
-    ChangeDir(PathBuf),
-}
-
-impl ItemSource {
-    /// Parses a single CLI argument into an `ItemSource`.
-    ///
-    /// - `@` or `@-` → `Archive(Stdin)`
-    /// - `@path` → `Archive(File(path))`
-    /// - `path` → `Filesystem(path)`
-    ///
-    /// To include a file whose name starts with `@`, use `./@filename` (bsdtar convention).
-    ///
-    /// Paths are stored as-is. Both filesystem and archive paths are resolved
-    /// relative to the current working directory at the time they are accessed,
-    /// which means they are affected by the -C option.
-    pub(crate) fn parse(arg: &str) -> Self {
-        if let Some(archive_path) = arg.strip_prefix('@') {
-            if archive_path.is_empty() || archive_path == "-" {
-                Self::Archive(ArchiveSource::Stdin)
-            } else {
-                Self::Archive(ArchiveSource::File(PathBuf::from(archive_path)))
-            }
-        } else {
-            Self::Filesystem(PathBuf::from(arg))
-        }
-    }
-}
-
-/// Validates that stdin is not used as a source more than once.
-///
-/// Returns an error if multiple `@-` or `@` sources are found,
-/// since stdin can only be read once.
-pub(crate) fn validate_no_duplicate_stdin(sources: &[ItemSource]) -> anyhow::Result<()> {
-    let stdin_count = sources
-        .iter()
-        .filter(|s| matches!(s, ItemSource::Archive(ArchiveSource::Stdin)))
-        .count();
-    if stdin_count > 1 {
-        anyhow::bail!("stdin (@- or @) can only be specified once as an archive source");
-    }
-    Ok(())
-}
-
 /// Represents a collected item ready for archive creation.
 ///
 /// This preserves the CLI argument order while separating filesystem items
@@ -516,7 +462,24 @@ pub(crate) enum CollectedItem {
     /// A marker indicating where to insert entries from an archive source.
     ArchiveMarker {
         source: ArchiveSource,
-        base: WorkingDirectory,
+        mtree_base: PathBuf,
+    },
+}
+
+/// A filesystem input with its archive name and resolved path kept separately.
+#[derive(Clone, Debug)]
+pub(crate) struct FilesystemInput {
+    pub(crate) path: PathBuf,
+    pub(crate) fs_path: PathBuf,
+}
+
+/// A source prepared by a command-line layer for collection.
+#[derive(Clone, Debug)]
+pub(crate) enum CollectionInput {
+    Filesystem(FilesystemInput),
+    Archive {
+        source: ArchiveSource,
+        mtree_base: PathBuf,
     },
 }
 
@@ -591,10 +554,10 @@ pub(crate) fn spawn_entry_results(
                         .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
                     })
                 }
-                CollectedItem::ArchiveMarker { source, base } => {
+                CollectedItem::ArchiveMarker { source, mtree_base } => {
                     let result = read_archive_source(
                         &source,
-                        &base,
+                        &mtree_base,
                         create_options,
                         filter,
                         time_filters,
@@ -612,11 +575,11 @@ pub(crate) fn spawn_entry_results(
     rx
 }
 
-/// Collects items from mixed filesystem and archive sources, preserving order.
+/// Collects prepared filesystem and archive inputs, preserving their order.
 ///
-/// For filesystem sources, uses the existing collection logic with shared
-/// hardlink detection. For archive sources, returns markers that indicate
-/// where archive entries should be inserted.
+/// Filesystem paths and archive bases are resolved by the caller. Filesystem
+/// inputs use the existing collection logic with shared hardlink detection;
+/// archive inputs become markers for entry insertion.
 ///
 /// # Order Guarantee
 ///
@@ -627,43 +590,21 @@ pub(crate) fn spawn_entry_results(
 ///
 /// A single `HardlinkResolver` is shared across all filesystem paths,
 /// enabling cross-path hardlink detection.
-pub(crate) fn collect_items_from_sources(
-    sources: impl IntoIterator<Item = ItemSource>,
+pub(crate) fn collect_items_from_inputs(
+    inputs: impl IntoIterator<Item = CollectionInput>,
     options: &CollectOptions<'_>,
     hardlink_resolver: &mut HardlinkResolver,
 ) -> io::Result<Vec<CollectedItem>> {
     let mut results = Vec::new();
 
-    let mut base = WorkingDirectory::current()?;
-    for source in sources {
-        match source {
-            ItemSource::ChangeDir(dir) => {
-                base.change_directory(&dir)?;
+    for input in inputs {
+        match input {
+            CollectionInput::Filesystem(FilesystemInput { path, fs_path }) => {
+                let items = collect_items_with_state(&path, &fs_path, options, hardlink_resolver)?;
+                results.extend(items.into_iter().map(CollectedItem::Filesystem));
             }
-            ItemSource::Filesystem(path) => {
-                #[cfg(windows)]
-                let paths: Vec<PathBuf> = crate::utils::expand_bsdtar_windows_globs(
-                    &base,
-                    vec![path.to_string_lossy().into_owned()],
-                )
-                .map_err(|e| io::Error::other(format!("{e:#}")))?
-                .into_iter()
-                .map(PathBuf::from)
-                .collect();
-                #[cfg(not(windows))]
-                let paths = vec![path];
-
-                for p in &paths {
-                    let root = base.resolve(p);
-                    let items = collect_items_with_state(p, &root, options, hardlink_resolver)?;
-                    results.extend(items.into_iter().map(CollectedItem::Filesystem));
-                }
-            }
-            ItemSource::Archive(source) => {
-                results.push(CollectedItem::ArchiveMarker {
-                    source,
-                    base: base.clone(),
-                });
+            CollectionInput::Archive { source, mtree_base } => {
+                results.push(CollectedItem::ArchiveMarker { source, mtree_base });
             }
         }
     }
@@ -671,31 +612,25 @@ pub(crate) fn collect_items_from_sources(
     Ok(results)
 }
 
-/// Collects items from multiple paths, preserving CLI argument order.
+/// Collects entries from filesystem inputs whose paths are already resolved.
 ///
 /// State such as hardlink detection is shared across all paths via the provided
 /// `HardlinkResolver`, enabling cross-path hardlink recognition. The resolver
 /// can be inspected after collection to check for incomplete hardlink sets via
 /// [`HardlinkResolver::incomplete_links`].
 ///
-/// # Order Preservation
-///
-/// Items are collected in the order paths are provided. Each path's items
-/// appear in traversal order. This enables predictable archive ordering
-/// matching CLI argument order.
-pub(crate) fn collect_items_from_paths<P: AsRef<Path>>(
-    paths: impl IntoIterator<Item = P>,
+/// Inputs are collected in the order provided. Each input's entries appear in
+/// traversal order.
+pub(crate) fn collect_items_from_filesystem_inputs(
+    inputs: impl IntoIterator<Item = FilesystemInput>,
     options: &CollectOptions<'_>,
     hardlink_resolver: &mut HardlinkResolver,
 ) -> io::Result<Vec<CollectedEntry>> {
     let mut results = Vec::new();
-    let base = WorkingDirectory::current()?;
-    for path in paths {
-        let path = path.as_ref();
-        let root = base.resolve(path);
+    for FilesystemInput { path, fs_path } in inputs {
         results.extend(collect_items_with_state(
-            path,
-            &root,
+            &path,
+            &fs_path,
             options,
             hardlink_resolver,
         )?);
@@ -2050,7 +1985,7 @@ pub(crate) fn transform_archive_entries<R: io::Read>(
 /// - mtree manifest: Reads files from filesystem with metadata overrides (Unix only)
 pub(crate) fn read_archive_source(
     source: &ArchiveSource,
-    base: &WorkingDirectory,
+    _mtree_base: &Path,
     create_options: &CreateOptions,
     filter: &PathFilter<'_>,
     time_filters: &TimeFilters,
@@ -2071,9 +2006,13 @@ pub(crate) fn read_archive_source(
                 allow_concatenated_archives,
             ),
             #[cfg(unix)]
-            SourceFormat::Mtree => {
-                mtree::transform_mtree_entries(reader, base, create_options, filter, time_filters)
-            }
+            SourceFormat::Mtree => mtree::transform_mtree_entries(
+                reader,
+                _mtree_base,
+                create_options,
+                filter,
+                time_filters,
+            ),
             #[cfg(not(unix))]
             SourceFormat::Mtree => Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -2085,7 +2024,6 @@ pub(crate) fn read_archive_source(
 
     match source {
         ArchiveSource::File(path) => {
-            let path = base.resolve(path);
             let file = fs::File::open(&path)
                 .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", path.display(), e)))?;
             process_source(
@@ -2803,6 +2741,14 @@ mod tests {
         }
     }
 
+    fn filesystem_input(path: &str) -> FilesystemInput {
+        let path = PathBuf::from(path);
+        FilesystemInput {
+            fs_path: path.clone(),
+            path,
+        }
+    }
+
     #[test]
     fn collect_items_only_file() {
         let source = concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/test/raw",);
@@ -2810,7 +2756,12 @@ mod tests {
         let time_filters = empty_time_filters();
         let options = default_collect_options(&filter, &time_filters);
         let mut resolver = HardlinkResolver::new(options.follow_links);
-        let items = collect_items_from_paths([source], &options, &mut resolver).unwrap();
+        let items = collect_items_from_filesystem_inputs(
+            [filesystem_input(source)],
+            &options,
+            &mut resolver,
+        )
+        .unwrap();
         assert_eq!(
             items.into_iter().map(|it| it.path).collect::<HashSet<_>>(),
             HashSet::new()
@@ -2825,7 +2776,12 @@ mod tests {
         let mut options = default_collect_options(&filter, &time_filters);
         options.keep_dir = true;
         let mut resolver = HardlinkResolver::new(options.follow_links);
-        let items = collect_items_from_paths([source], &options, &mut resolver).unwrap();
+        let items = collect_items_from_filesystem_inputs(
+            [filesystem_input(source)],
+            &options,
+            &mut resolver,
+        )
+        .unwrap();
         assert_eq!(
             items.into_iter().map(|it| it.path).collect::<HashSet<_>>(),
             [concat!(
@@ -2846,7 +2802,12 @@ mod tests {
         let mut options = default_collect_options(&filter, &time_filters);
         options.recursive = true;
         let mut resolver = HardlinkResolver::new(options.follow_links);
-        let items = collect_items_from_paths([source], &options, &mut resolver).unwrap();
+        let items = collect_items_from_filesystem_inputs(
+            [filesystem_input(source)],
+            &options,
+            &mut resolver,
+        )
+        .unwrap();
         assert_eq!(
             items.into_iter().map(|it| it.path).collect::<HashSet<_>>(),
             [
@@ -2947,88 +2908,6 @@ mod tests {
             );
 
             let _ = fs::remove_dir_all(&dir);
-        }
-
-        #[test]
-        fn at_alone_is_stdin() {
-            let result = ItemSource::parse("@");
-            assert!(matches!(result, ItemSource::Archive(ArchiveSource::Stdin)));
-        }
-
-        #[test]
-        fn at_dash_is_stdin() {
-            let result = ItemSource::parse("@-");
-            assert!(matches!(result, ItemSource::Archive(ArchiveSource::Stdin)));
-        }
-
-        #[test]
-        fn at_path_is_archive_file() {
-            let result = ItemSource::parse("@archive.pna");
-            assert!(matches!(
-                result,
-                ItemSource::Archive(ArchiveSource::File(p)) if p == Path::new("archive.pna")
-            ));
-        }
-
-        #[test]
-        fn plain_path_is_filesystem() {
-            let result = ItemSource::parse("some/path");
-            assert!(matches!(
-                result,
-                ItemSource::Filesystem(p) if p == Path::new("some/path")
-            ));
-        }
-
-        #[test]
-        fn dot_slash_at_is_filesystem_escape() {
-            // Following bsdtar convention: ./@file escapes the @ prefix
-            let result = ItemSource::parse("./@file");
-            assert!(matches!(
-                result,
-                ItemSource::Filesystem(p) if p == Path::new("./@file")
-            ));
-        }
-
-        #[test]
-        fn parse_many_mixed() {
-            let results = ["file1", "@archive.pna", "@", "./@literal"].map(ItemSource::parse);
-            assert_eq!(results.len(), 4);
-            assert!(matches!(&results[0], ItemSource::Filesystem(p) if p == Path::new("file1")));
-            assert!(
-                matches!(&results[1], ItemSource::Archive(ArchiveSource::File(p)) if p == Path::new("archive.pna"))
-            );
-            assert!(matches!(
-                &results[2],
-                ItemSource::Archive(ArchiveSource::Stdin)
-            ));
-            assert!(
-                matches!(&results[3], ItemSource::Filesystem(p) if p == Path::new("./@literal"))
-            );
-        }
-
-        #[test]
-        fn validate_no_duplicate_stdin_ok() {
-            let sources = vec![
-                ItemSource::Filesystem(PathBuf::from("file")),
-                ItemSource::Archive(ArchiveSource::Stdin),
-                ItemSource::Archive(ArchiveSource::File(PathBuf::from("archive.pna"))),
-            ];
-            assert!(validate_no_duplicate_stdin(&sources).is_ok());
-        }
-
-        #[test]
-        fn validate_no_duplicate_stdin_error() {
-            let sources = vec![
-                ItemSource::Archive(ArchiveSource::Stdin),
-                ItemSource::Archive(ArchiveSource::Stdin),
-            ];
-            assert!(validate_no_duplicate_stdin(&sources).is_err());
-        }
-
-        #[test]
-        fn validate_no_duplicate_stdin_empty() {
-            let sources: Vec<ItemSource> = vec![];
-            assert!(validate_no_duplicate_stdin(&sources).is_ok());
         }
     }
 

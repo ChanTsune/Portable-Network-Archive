@@ -7,7 +7,6 @@ use crate::command::core::{
     CreateOptions, KeepOptions, OwnerStrategy, PathFilter, PathnameEditor, TimeFilters,
     TimestampStrategy,
 };
-use crate::utils::WorkingDirectory;
 use mtree2::{Entry as MtreeEntry, FileType as MtreeFileType, MTree};
 use pna::prelude::*;
 use pna::{
@@ -29,7 +28,7 @@ use std::{
 /// Entries marked as `optional` are skipped if the file doesn't exist.
 pub(crate) fn transform_mtree_entries<R: Read>(
     reader: R,
-    base: &WorkingDirectory,
+    base: &Path,
     create_options: &CreateOptions,
     filter: &PathFilter<'_>,
     time_filters: &TimeFilters,
@@ -45,7 +44,7 @@ pub(crate) fn transform_mtree_entries<R: Read>(
                 if filter.excluded(entry_path.to_string_lossy()) {
                     continue;
                 }
-                let source_path = base.resolve(entry.contents().unwrap_or(entry_path));
+                let source_path = base.join(entry.contents().unwrap_or(entry_path));
                 // When nochange is set, always use filesystem mtime (bsdtar behavior)
                 // Reference: libarchive's parse_file() in archive_read_support_format_mtree.c
                 let mtime = if entry.no_change() {

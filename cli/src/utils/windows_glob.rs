@@ -190,7 +190,6 @@ fn find_matches(search_pattern: &std::path::Path) -> anyhow::Result<Vec<String>>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::command::core::ItemSource;
     use std::path::Path;
 
     #[test]
@@ -239,15 +238,6 @@ mod tests {
             "./@archive.pna"
         );
         assert_eq!(format_expanded_windows_path("", "@-"), "./@-");
-    }
-
-    #[test]
-    fn expanded_current_directory_at_name_stays_filesystem_source() {
-        let expanded = format_expanded_windows_path("", "@archive.pna");
-        assert!(matches!(
-            ItemSource::parse(&expanded),
-            ItemSource::Filesystem(path) if path == Path::new("./@archive.pna")
-        ));
     }
 
     #[test]
