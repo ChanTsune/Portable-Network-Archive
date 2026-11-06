@@ -82,6 +82,107 @@ impl CompressionAlgorithmArgs {
     }
 }
 
+#[derive(Args)]
+#[group(skip)]
+struct OperandArgs {
+    #[arg(short = 'C', long = "cd", visible_alias = "directory", value_name = "DIRECTORY",
+          value_hint = ValueHint::DirPath, help = "Change directory before adding the following files")]
+    working_dir: Vec<PathBuf>,
+    #[arg(help = "Files or patterns")]
+    files: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+enum Operand {
+    ChangeDir(PathBuf),
+    File(String),
+}
+
+#[derive(Clone, Debug)]
+struct Operands(Vec<Operand>);
+
+impl Args for Operands {
+    fn augment_args(cmd: clap::Command) -> clap::Command {
+        OperandArgs::augment_args(cmd)
+    }
+
+    fn augment_args_for_update(cmd: clap::Command) -> clap::Command {
+        OperandArgs::augment_args_for_update(cmd)
+    }
+}
+
+impl clap::FromArgMatches for Operands {
+    fn from_arg_matches(matches: &clap::ArgMatches) -> Result<Self, clap::Error> {
+        let args = OperandArgs::from_arg_matches(matches)?;
+        let dirs = matches
+            .indices_of("working_dir")
+            .into_iter()
+            .flatten()
+            .zip(args.working_dir.into_iter().map(Operand::ChangeDir));
+        let files = matches
+            .indices_of("files")
+            .into_iter()
+            .flatten()
+            .zip(args.files.into_iter().map(Operand::File));
+        Ok(Self(
+            dirs.merge_by(files, |a, b| a.0 < b.0)
+                .map(|(_, op)| op)
+                .collect(),
+        ))
+    }
+
+    fn update_from_arg_matches(&mut self, matches: &clap::ArgMatches) -> Result<(), clap::Error> {
+        *self = Self::from_arg_matches(matches)?;
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy)]
+enum WriteMode {
+    Create,
+    Append,
+    Update,
+}
+
+impl Operands {
+    fn write_sources(
+        self,
+        files_from: Option<PathBuf>,
+        null: bool,
+        mode: WriteMode,
+    ) -> anyhow::Result<Vec<ItemSource>> {
+        let parse = |name: String| {
+            if !matches!(mode, WriteMode::Update) {
+                ItemSource::parse(&name)
+            } else {
+                ItemSource::Filesystem(name.into())
+            }
+        };
+        let mut sources: Vec<_> = self
+            .0
+            .into_iter()
+            .map(|op| match op {
+                Operand::ChangeDir(dir) => ItemSource::ChangeDir(dir),
+                Operand::File(name) => parse(name),
+            })
+            .collect();
+        if let Some(path) = files_from {
+            sources.extend(read_files_from(path, null)?.into_iter().map(parse));
+        } else if sources
+            .iter()
+            .all(|s| matches!(s, ItemSource::ChangeDir(_)))
+        {
+            let name = match mode {
+                WriteMode::Create => "create",
+                WriteMode::Append => "append",
+                WriteMode::Update => "update",
+            };
+            anyhow::bail!("{name} mode requires at least one input path or @archive source");
+        }
+        Ok(sources)
+    }
+}
+
 #[derive(Args, Clone, Debug)]
 #[clap(disable_help_flag = true)]
 #[command(
@@ -601,8 +702,8 @@ pub(crate) struct BsdtarCommand {
         help = "Read the archive from or write the archive to the specified file. The filename can be - for standard input or standard output."
     )]
     file: Option<String>,
-    #[arg(help = "Files or patterns")]
-    files: Vec<String>,
+    #[command(flatten)]
+    operands: Operands,
     #[arg(
         long,
         help = "Filenames or patterns are separated by null characters, not by newlines"
@@ -858,13 +959,9 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
     let mut file = args.file;
     file.take_if(|it| it == "-");
     let archive_file = file.take().map(|p| current_dir.join(p));
-    let mut files = args.files;
-    if files.iter().all(|f| f.starts_with(crate::cli::CD_SENTINEL)) && args.files_from.is_none() {
-        anyhow::bail!("create mode requires at least one input path or @archive source");
-    }
-    if let Some(path) = args.files_from {
-        files.extend(read_files_from(path, args.null)?);
-    }
+    let sources = args
+        .operands
+        .write_sources(args.files_from, args.null, WriteMode::Create)?;
 
     let mut exclude = args.exclude;
     if let Some(p) = args.exclude_from {
@@ -892,7 +989,6 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
         missing_mtime: MissingTimePolicy::default(),
     }
     .resolve()?;
-    let sources = ItemSource::parse_many(&files);
     validate_no_duplicate_stdin(&sources)?;
     let collect_options = CollectOptions {
         recursive: !args.no_recursive,
@@ -1065,7 +1161,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
         no_mac_metadata: args.no_mac_metadata,
     }
     .resolve();
-    let out_option = OutputOption {
+    let mut out_option = OutputOption {
         overwrite_strategy,
         allow_unsafe_links: !args.no_allow_unsafe_links,
         out_dir: args.out_dir,
@@ -1105,7 +1201,11 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
         absolute_paths: args.absolute_paths,
         warned_lead_slash: Arc::new(AtomicBool::new(false)),
     };
-    let mut files = args.files;
+    let (cd_dirs, mut files): (Vec<_>, Vec<_>) =
+        args.operands.0.into_iter().partition_map(|op| match op {
+            Operand::ChangeDir(dir) => itertools::Either::Left(dir),
+            Operand::File(file) => itertools::Either::Right(file),
+        });
     if let Some(path) = &args.files_from {
         files.extend(read_paths(path, args.null)?);
     }
@@ -1117,20 +1217,20 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
     } else {
         None
     };
-    // Separate -C directory changes from file patterns
-    let (cd_dirs, file_patterns): (Vec<_>, Vec<_>) = files.into_iter().partition_map(|f| {
-        if let Some(dir) = f.strip_prefix(crate::cli::CD_SENTINEL) {
-            itertools::Either::Left(PathBuf::from(dir))
-        } else {
-            itertools::Either::Right(f)
+    let mut base = PathBuf::from(".");
+    if !cd_dirs.is_empty() {
+        for dir in cd_dirs {
+            base = super::core::change_directory(&base, &dir)?;
         }
-    });
-    for dir in &cd_dirs {
-        env::set_current_dir(dir)
-            .with_context(|| format!("changing directory to {}", dir.display()))?;
+        if !args.chroot {
+            // Resolve the user-selected directory before checking archive members for symlink traversal.
+            out_option.out_dir = Some(
+                base.canonicalize()?
+                    .join(out_option.out_dir.unwrap_or_default()),
+            );
+        }
     }
-    let files = file_patterns;
-    apply_chroot(args.chroot)?;
+    apply_chroot(args.chroot, &base)?;
     let outcome = if let Some(archives) = archives {
         run_extract_archive_reader(
             archives
@@ -1205,8 +1305,15 @@ fn run_list_archive(args: BsdtarCommand) -> anyhow::Result<()> {
             LineEnding::Lf
         },
     };
-    let mut files = args.files;
-    files.retain(|f| !f.starts_with(crate::cli::CD_SENTINEL));
+    let mut files: Vec<_> = args
+        .operands
+        .0
+        .into_iter()
+        .filter_map(|op| match op {
+            Operand::File(name) => Some(name),
+            Operand::ChangeDir(_) => None,
+        })
+        .collect();
     if let Some(path) = args.files_from {
         files.extend(read_paths(path, args.null)?);
     }
@@ -1326,13 +1433,9 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
             "-T - (--files-from -) cannot be combined with reading the archive from stdin"
         );
     }
-    let mut files = args.files;
-    if files.is_empty() && args.files_from.is_none() {
-        anyhow::bail!("append mode requires at least one input path or @archive source");
-    }
-    if let Some(path) = args.files_from {
-        files.extend(read_files_from(path, args.null)?);
-    }
+    let sources = args
+        .operands
+        .write_sources(args.files_from, args.null, WriteMode::Append)?;
 
     let mut exclude = args.exclude;
     if let Some(p) = args.exclude_from {
@@ -1360,7 +1463,6 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
         missing_mtime: MissingTimePolicy::default(),
     }
     .resolve()?;
-    let sources = ItemSource::parse_many(&files);
     validate_no_duplicate_stdin(&sources)?;
     let collect_options = CollectOptions {
         recursive: args.recursive,
@@ -1503,13 +1605,9 @@ fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
         .into());
     }
 
-    let mut files = args.files;
-    if files.is_empty() && args.files_from.is_none() {
-        anyhow::bail!("update mode requires at least one input path or @archive source");
-    }
-    if let Some(path) = args.files_from {
-        files.extend(read_files_from(path, args.null)?);
-    }
+    let sources = args
+        .operands
+        .write_sources(args.files_from, args.null, WriteMode::Update)?;
 
     let mut exclude = args.exclude;
     if let Some(p) = args.exclude_from {
@@ -1525,7 +1623,6 @@ fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
 
-    let sources = ItemSource::parse_many_no_archives(&files);
     let time_filters = TimeFilterResolver {
         newer_ctime_than: args.newer_ctime_than.as_deref(),
         older_ctime_than: args.older_ctime_than.as_deref(),
@@ -1556,9 +1653,7 @@ fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
             .into_iter()
             .filter_map(|item| match item {
                 CollectedItem::Filesystem(entry) => Some(entry),
-                // ChangeDir is consumed inline; no ArchiveMarker is produced
-                // because parse_many_no_archives treats @ as filesystem paths.
-                CollectedItem::ArchiveMarker(_) => None,
+                CollectedItem::ArchiveMarker { .. } => None,
             })
             .collect();
 

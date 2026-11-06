@@ -345,8 +345,6 @@ pub(crate) struct CollectedEntry {
     /// Relative path used as the archive entry name (as given on the CLI).
     pub(crate) path: PathBuf,
     /// Absolute filesystem path for reading file data and metadata.
-    /// Captured as `cwd.join(path)` at collection time so it remains valid
-    /// even after subsequent `-C` directory changes.
     pub(crate) fs_path: PathBuf,
     pub(crate) store_as: StoreAs,
     pub(crate) metadata: fs::Metadata,
@@ -354,16 +352,15 @@ pub(crate) struct CollectedEntry {
 
 impl CollectedEntry {
     /// `path` is what the entry is stored as; `fs_path` is what filesystem I/O
-    /// reads, resolved against `cwd`. They differ at a walk root, where `path`
+    /// reads. They differ at a walk root, where `path`
     /// keeps the trailing separator the caller supplied.
     pub(crate) fn new(
         path: PathBuf,
         fs_path: &Path,
-        cwd: &Path,
         store_as: StoreAs,
         metadata: fs::Metadata,
     ) -> Self {
-        let fs_path = cwd.join(fs_path);
+        let fs_path = fs_path.to_owned();
         Self {
             path,
             fs_path,
@@ -454,15 +451,6 @@ impl fmt::Display for ArchiveSource {
     }
 }
 
-/// Controls how `ItemSource::parse_with` interprets the `@` prefix.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ParseMode {
-    /// Recognizes `@path` as archive inclusion and `@-`/`@` as stdin.
-    Full,
-    /// Treats `@` as a literal character — all arguments become filesystem paths.
-    NoArchives,
-}
-
 /// Represents a CLI file argument that can be either a filesystem path or an archive inclusion.
 ///
 /// Archive inclusions start with '@' and reference entries from an existing archive.
@@ -473,14 +461,13 @@ pub(crate) enum ItemSource {
     Filesystem(PathBuf),
     /// An archive to include entries from.
     Archive(ArchiveSource),
-    /// A directory change instruction encoded by the pre-processing step.
+    /// Change the base directory for subsequent inputs.
     ChangeDir(PathBuf),
 }
 
 impl ItemSource {
     /// Parses a single CLI argument into an `ItemSource`.
     ///
-    /// - `\0CD\0path` → `ChangeDir(path)` (internal sentinel from `-C` pre-processing)
     /// - `@` or `@-` → `Archive(Stdin)`
     /// - `@path` → `Archive(File(path))`
     /// - `path` → `Filesystem(path)`
@@ -491,20 +478,7 @@ impl ItemSource {
     /// relative to the current working directory at the time they are accessed,
     /// which means they are affected by the -C option.
     pub(crate) fn parse(arg: &str) -> Self {
-        Self::parse_with(arg, ParseMode::Full)
-    }
-
-    /// Parses a single CLI argument with control over `@archive` recognition.
-    ///
-    /// When `mode` is [`ParseMode::NoArchives`], the `@` prefix is not treated
-    /// as an archive inclusion marker — the argument becomes a filesystem path.
-    /// This is used by modes (e.g., update) that do not support `@archive`.
-    pub(crate) fn parse_with(arg: &str, mode: ParseMode) -> Self {
-        if let Some(dir) = arg.strip_prefix(crate::cli::CD_SENTINEL) {
-            Self::ChangeDir(PathBuf::from(dir))
-        } else if mode == ParseMode::Full
-            && let Some(archive_path) = arg.strip_prefix('@')
-        {
+        if let Some(archive_path) = arg.strip_prefix('@') {
             if archive_path.is_empty() || archive_path == "-" {
                 Self::Archive(ArchiveSource::Stdin)
             } else {
@@ -513,18 +487,6 @@ impl ItemSource {
         } else {
             Self::Filesystem(PathBuf::from(arg))
         }
-    }
-
-    /// Parses multiple CLI arguments into `ItemSource` values.
-    pub(crate) fn parse_many(args: &[String]) -> Vec<Self> {
-        args.iter().map(|s| Self::parse(s)).collect()
-    }
-
-    /// Parses multiple CLI arguments without recognizing `@archive` syntax.
-    pub(crate) fn parse_many_no_archives(args: &[String]) -> Vec<Self> {
-        args.iter()
-            .map(|s| Self::parse_with(s, ParseMode::NoArchives))
-            .collect()
     }
 }
 
@@ -552,7 +514,10 @@ pub(crate) enum CollectedItem {
     /// A filesystem item with its path and storage strategy.
     Filesystem(CollectedEntry),
     /// A marker indicating where to insert entries from an archive source.
-    ArchiveMarker(ArchiveSource),
+    ArchiveMarker {
+        source: ArchiveSource,
+        base: PathBuf,
+    },
 }
 
 /// Result type for entries sent through the channel.
@@ -626,9 +591,10 @@ pub(crate) fn spawn_entry_results(
                         .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
                     })
                 }
-                CollectedItem::ArchiveMarker(source) => {
+                CollectedItem::ArchiveMarker { source, base } => {
                     let result = read_archive_source(
                         &source,
+                        &base,
                         create_options,
                         filter,
                         time_filters,
@@ -644,6 +610,19 @@ pub(crate) fn spawn_entry_results(
         drop(tx);
     });
     rx
+}
+
+pub(crate) fn change_directory(base: &Path, dir: &Path) -> io::Result<PathBuf> {
+    let path = base.join(dir);
+    let metadata = fs::metadata(&path)
+        .map_err(|err| io::Error::new(err.kind(), format!("{}: {err}", path.display())))?;
+    if dir.as_os_str().is_empty() || !metadata.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::NotADirectory,
+            path.display().to_string(),
+        ));
+    }
+    Ok(path)
 }
 
 /// Collects items from mixed filesystem and archive sources, preserving order.
@@ -668,17 +647,18 @@ pub(crate) fn collect_items_from_sources(
 ) -> io::Result<Vec<CollectedItem>> {
     let mut results = Vec::new();
 
+    let mut base = env::current_dir()?;
     for source in sources {
         match source {
             ItemSource::ChangeDir(dir) => {
-                env::set_current_dir(&dir)
-                    .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", dir.display(), e)))?;
+                base = change_directory(&base, &dir)?;
             }
             ItemSource::Filesystem(path) => {
                 #[cfg(windows)]
-                let paths: Vec<PathBuf> = crate::utils::expand_bsdtar_windows_globs(vec![
-                    path.to_string_lossy().into_owned(),
-                ])
+                let paths: Vec<PathBuf> = crate::utils::expand_bsdtar_windows_globs(
+                    &base,
+                    vec![path.to_string_lossy().into_owned()],
+                )
                 .map_err(|e| io::Error::other(format!("{e:#}")))?
                 .into_iter()
                 .map(PathBuf::from)
@@ -687,20 +667,15 @@ pub(crate) fn collect_items_from_sources(
                 let paths = [path];
 
                 for p in &paths {
-                    let items = collect_items_with_state(p, options, hardlink_resolver)?;
+                    let items = collect_items_with_state(&base, p, options, hardlink_resolver)?;
                     results.extend(items.into_iter().map(CollectedItem::Filesystem));
                 }
             }
-            ItemSource::Archive(ArchiveSource::File(path)) => {
-                let abs = if path.is_relative() {
-                    env::current_dir()?.join(&path)
-                } else {
-                    path
-                };
-                results.push(CollectedItem::ArchiveMarker(ArchiveSource::File(abs)));
-            }
-            ItemSource::Archive(source @ ArchiveSource::Stdin) => {
-                results.push(CollectedItem::ArchiveMarker(source));
+            ItemSource::Archive(source) => {
+                results.push(CollectedItem::ArchiveMarker {
+                    source,
+                    base: base.clone(),
+                });
             }
         }
     }
@@ -726,8 +701,10 @@ pub(crate) fn collect_items_from_paths<P: AsRef<Path>>(
     hardlink_resolver: &mut HardlinkResolver,
 ) -> io::Result<Vec<CollectedEntry>> {
     let mut results = Vec::new();
+    let base = env::current_dir()?;
     for path in paths {
         results.extend(collect_items_with_state(
+            &base,
             path.as_ref(),
             options,
             hardlink_resolver,
@@ -805,18 +782,22 @@ fn normalize_non_follow_root_path<'a>(path: &'a Path, options: &CollectOptions<'
 /// tolerated and returned as `StoreAs::Symlink` instead of an error. Returns
 /// `io::ErrorKind::Unsupported` for entries with unsupported types. Other walk
 /// errors are wrapped using `io::Error::other`.
-pub(crate) fn collect_items_with_state(
+fn collect_items_with_state(
+    base: &Path,
     path: &Path,
     options: &CollectOptions<'_>,
     hardlink_resolver: &mut HardlinkResolver,
 ) -> io::Result<Vec<CollectedEntry>> {
-    let cwd = std::env::current_dir()?;
+    if path.as_os_str().is_empty() {
+        return Err(io::Error::new(io::ErrorKind::NotFound, "empty input path"));
+    }
+    let root = base.join(path);
     let mut ig = ignore::Ignore::default();
     let mut out = Vec::new();
 
     // Strip the trailing separator only for symlink-to-directory operands;
     // see `normalize_non_follow_root_path` for the rationale.
-    let walk_path = normalize_non_follow_root_path(path, options);
+    let walk_path = normalize_non_follow_root_path(&root, options);
 
     // REASON: The CLI distinguishes following only command-line symlinks from
     // following nested symlinks too. `ignore::WalkBuilder` has one `follow_links`
@@ -848,14 +829,23 @@ pub(crate) fn collect_items_with_state(
                 // the root archive entry — except for symlink roots, where
                 // walkdir is iterating the bare path we passed in, so we keep
                 // its emitted path.
-                let archive_path: &Path = if depth == 0 && !is_symlink {
-                    path
+                let archive_path = if depth == 0 {
+                    if is_symlink {
+                        path.components().as_path()
+                    } else {
+                        path
+                    }
+                    .to_path_buf()
                 } else {
-                    entry_path
+                    path.join(
+                        entry_path
+                            .strip_prefix(walk_path)
+                            .map_err(io::Error::other)?,
+                    )
                 };
 
                 // Exclude (prunes descent when directory)
-                if options.filter.excluded(entry_path.to_slash_lossy()) {
+                if options.filter.excluded(archive_path.to_slash_lossy()) {
                     if is_dir {
                         iter.skip_current_dir();
                     }
@@ -901,7 +891,11 @@ pub(crate) fn collect_items_with_state(
                     let link_target_type = detect_symlink_target_type(entry_path, &meta)?;
                     Some((StoreAs::Symlink(link_target_type), meta))
                 } else if is_file {
-                    if let Some(linked) = hardlink_resolver.resolve(entry_path).ok().flatten() {
+                    if let Some(linked) = hardlink_resolver
+                        .resolve(entry_path, &archive_path)
+                        .ok()
+                        .flatten()
+                    {
                         Some((StoreAs::Hardlink(linked), fs::symlink_metadata(entry_path)?))
                     } else {
                         Some((StoreAs::File, fs::metadata(entry_path)?))
@@ -925,9 +919,8 @@ pub(crate) fn collect_items_with_state(
                         .matches(metadata.created().ok(), metadata.modified().ok())
                 {
                     out.push(CollectedEntry::new(
-                        archive_path.to_path_buf(),
+                        archive_path,
                         entry_path,
-                        &cwd,
                         store_as,
                         metadata,
                     ));
@@ -935,15 +928,21 @@ pub(crate) fn collect_items_with_state(
             }
             Err(e) => {
                 if let Some(ioe) = e.io_error()
-                    && let Some(path) = e.path()
+                    && let Some(failed_path) = e.path()
                 {
-                    let metadata = fs::symlink_metadata(path)?;
+                    let metadata = fs::symlink_metadata(failed_path)?;
                     if is_broken_symlink_error(&metadata, ioe) {
-                        let link_target_type = detect_symlink_target_type(path, &metadata)?;
+                        let link_target_type = detect_symlink_target_type(failed_path, &metadata)?;
+                        let suffix = failed_path
+                            .strip_prefix(walk_path)
+                            .map_err(io::Error::other)?;
                         out.push(CollectedEntry::new(
-                            path.to_path_buf(),
-                            path,
-                            &cwd,
+                            if suffix.as_os_str().is_empty() {
+                                path.to_owned()
+                            } else {
+                                path.join(suffix)
+                            },
+                            failed_path,
                             StoreAs::Symlink(link_target_type),
                             metadata,
                         ));
@@ -1975,23 +1974,20 @@ pub(crate) fn read_paths_stdin(nul: bool) -> io::Result<Vec<String>> {
     read_paths_reader(io::stdin().lock(), nul)
 }
 
-/// Apply chroot to the current directory if enabled.
+/// Apply chroot to the base directory if enabled.
 ///
 /// On Unix systems (excluding Fuchsia), this changes the root directory to the
-/// current directory and resets the working directory to `/`.
+/// supplied base directory and resets the working directory to `/`.
 /// On other platforms, an error is returned since chroot is unsupported.
 #[allow(unused_variables)]
-pub(crate) fn apply_chroot(chroot: bool) -> anyhow::Result<()> {
+pub(crate) fn apply_chroot(chroot: bool, base: &Path) -> anyhow::Result<()> {
     if !chroot {
         return Ok(());
     }
     #[cfg(all(unix, not(target_os = "fuchsia")))]
     {
         use anyhow::Context;
-        std::os::unix::fs::chroot(
-            std::env::current_dir().with_context(|| "resolving current directory before chroot")?,
-        )
-        .with_context(|| "chroot into current directory")?;
+        std::os::unix::fs::chroot(base).with_context(|| "chroot into extraction directory")?;
         std::env::set_current_dir("/").with_context(|| "changing directory to / after chroot")?;
         Ok(())
     }
@@ -2065,21 +2061,14 @@ pub(crate) fn transform_archive_entries<R: io::Read>(
 /// - mtree manifest: Reads files from filesystem with metadata overrides (Unix only)
 pub(crate) fn read_archive_source(
     source: &ArchiveSource,
+    base: &Path,
     create_options: &CreateOptions,
     filter: &PathFilter<'_>,
     time_filters: &TimeFilters,
     password: Option<&[u8]>,
     allow_concatenated_archives: bool,
 ) -> io::Result<Vec<io::Result<Option<NormalEntry>>>> {
-    fn process_source<R: io::BufRead>(
-        mut reader: R,
-        source_name: &str,
-        create_options: &CreateOptions,
-        filter: &PathFilter<'_>,
-        time_filters: &TimeFilters,
-        password: Option<&[u8]>,
-        allow_concatenated_archives: bool,
-    ) -> io::Result<Vec<io::Result<Option<NormalEntry>>>> {
+    let process_source = |mut reader: &mut dyn io::BufRead, source_name: &str| {
         let format = detect_format(&mut reader)
             .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", source_name, e)))?;
 
@@ -2094,7 +2083,7 @@ pub(crate) fn read_archive_source(
             ),
             #[cfg(unix)]
             SourceFormat::Mtree => {
-                mtree::transform_mtree_entries(reader, create_options, filter, time_filters)
+                mtree::transform_mtree_entries(reader, base, create_options, filter, time_filters)
             }
             #[cfg(not(unix))]
             SourceFormat::Mtree => Err(io::Error::new(
@@ -2103,35 +2092,19 @@ pub(crate) fn read_archive_source(
             )),
         }
         .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", source_name, e)))
-    }
+    };
 
     match source {
         ArchiveSource::File(path) => {
-            let file = fs::File::open(path)
+            let path = base.join(path);
+            let file = fs::File::open(&path)
                 .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", path.display(), e)))?;
-            let reader = io::BufReader::with_capacity(64 * 1024, file);
             process_source(
-                reader,
+                &mut io::BufReader::with_capacity(64 * 1024, file),
                 &path.display().to_string(),
-                create_options,
-                filter,
-                time_filters,
-                password,
-                allow_concatenated_archives,
             )
         }
-        ArchiveSource::Stdin => {
-            let reader = io::BufReader::new(io::stdin().lock());
-            process_source(
-                reader,
-                "<stdin>",
-                create_options,
-                filter,
-                time_filters,
-                password,
-                allow_concatenated_archives,
-            )
-        }
+        ArchiveSource::Stdin => process_source(&mut io::stdin().lock(), "<stdin>"),
     }
 }
 
@@ -2357,9 +2330,9 @@ mod tests {
     #[cfg(not(all(unix, not(target_os = "fuchsia"))))]
     #[test]
     fn apply_chroot_is_unsupported_on_this_platform() {
-        assert!(apply_chroot(false).is_ok());
+        assert!(apply_chroot(false, Path::new(".")).is_ok());
 
-        let err = apply_chroot(true).unwrap_err();
+        let err = apply_chroot(true, Path::new(".")).unwrap_err();
         let io_err = err.downcast_ref::<io::Error>().unwrap();
         assert_eq!(io_err.kind(), io::ErrorKind::Unsupported);
         assert_eq!(io_err.to_string(), "chroot not supported on this platform");
@@ -3029,13 +3002,7 @@ mod tests {
 
         #[test]
         fn parse_many_mixed() {
-            let args = vec![
-                "file1".to_string(),
-                "@archive.pna".to_string(),
-                "@".to_string(),
-                "./@literal".to_string(),
-            ];
-            let results = ItemSource::parse_many(&args);
+            let results = ["file1", "@archive.pna", "@", "./@literal"].map(ItemSource::parse);
             assert_eq!(results.len(), 4);
             assert!(matches!(&results[0], ItemSource::Filesystem(p) if p == Path::new("file1")));
             assert!(
@@ -3073,20 +3040,6 @@ mod tests {
         fn validate_no_duplicate_stdin_empty() {
             let sources: Vec<ItemSource> = vec![];
             assert!(validate_no_duplicate_stdin(&sources).is_ok());
-        }
-
-        #[test]
-        fn parse_change_dir() {
-            let item = ItemSource::parse("\0CD\0mydir");
-            assert!(matches!(item, ItemSource::ChangeDir(ref p) if p == Path::new("mydir")));
-        }
-
-        #[test]
-        fn parse_change_dir_absolute() {
-            let item = ItemSource::parse("\0CD\0/absolute/dir");
-            assert!(
-                matches!(item, ItemSource::ChangeDir(ref p) if p == Path::new("/absolute/dir"))
-            );
         }
     }
 

@@ -163,7 +163,7 @@ fn bsdtar_create_multiple_cd_absolute_paths() {
 }
 
 /// Precondition: A directory tree with nested files exists.
-/// Action: Create with `-C` changing into different directories for each file group.
+/// Action: Chain absolute and relative directory changes, then pass a literal option name after `--`.
 /// Expectation: Each file is archived relative to its -C directory.
 #[test]
 fn bsdtar_create_cd_does_not_affect_prior_args() {
@@ -175,16 +175,15 @@ fn bsdtar_create_cd_does_not_affect_prior_args() {
     }
     fs::create_dir_all(&base).unwrap();
 
-    // Create directories
     let alpha = base.join("alpha");
     fs::create_dir_all(&alpha).unwrap();
     fs::write(alpha.join("first.txt"), "first").unwrap();
 
-    let beta = base.join("beta");
+    let beta = alpha.join("beta");
     fs::create_dir_all(&beta).unwrap();
     fs::write(beta.join("second.txt"), "second").unwrap();
 
-    // Archive first.txt from alpha, then second.txt from beta
+    fs::write(beta.join("-C"), "literal").unwrap();
     let output_archive = base.join("result.pna");
     cargo_bin_cmd!("pna")
         .args([
@@ -199,18 +198,16 @@ fn bsdtar_create_cd_does_not_affect_prior_args() {
             "-C",
             alpha.to_str().unwrap(),
             "first.txt",
-            "-C",
-            beta.to_str().unwrap(),
+            "--directory=beta",
             "second.txt",
+            "--",
+            "-C",
         ])
         .assert()
         .success();
 
-    // Verify entry order matches argument order
     let entry_names = get_archive_entry_names(&output_archive);
-    assert_eq!(entry_names.len(), 2, "Expected exactly 2 entries");
-    assert_eq!(entry_names[0], "first.txt");
-    assert_eq!(entry_names[1], "second.txt");
+    assert_eq!(entry_names, ["first.txt", "second.txt", "-C"]);
 }
 
 /// Precondition: Archive source.pna exists in directory src/. File extra.txt exists in dir/.
@@ -278,7 +275,7 @@ fn bsdtar_create_cd_affects_archive_inclusion() {
 }
 
 /// Precondition: An archive contains entries a.txt and b.txt.
-/// Action: Extract with `-C <target_dir>` to redirect output.
+/// Action: Extract with `-C` pointing to a symlink to the destination directory.
 /// Expectation: Files appear in the target directory with correct content.
 #[test]
 fn bsdtar_extract_with_cd() {
@@ -290,15 +287,14 @@ fn bsdtar_extract_with_cd() {
     }
     fs::create_dir_all(&base).unwrap();
 
-    // Create archive with two entries
     let archive = base.join("test.pna");
     create_test_archive(&archive, &[("a.txt", "alpha"), ("b.txt", "beta")]);
 
-    // Create target extraction directory
     let target = base.join("out");
     fs::create_dir_all(&target).unwrap();
 
-    // Extract with -C pointing to target directory
+    let alias = base.join("alias");
+    pna::fs::symlink(&target, &alias).unwrap();
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
@@ -309,12 +305,11 @@ fn bsdtar_extract_with_cd() {
             "-f",
             archive.to_str().unwrap(),
             "-C",
-            target.to_str().unwrap(),
+            alias.to_str().unwrap(),
         ])
         .assert()
         .success();
 
-    // Verify files landed in the target directory
     assert_eq!(fs::read_to_string(target.join("a.txt")).unwrap(), "alpha");
     assert_eq!(fs::read_to_string(target.join("b.txt")).unwrap(), "beta");
 }
