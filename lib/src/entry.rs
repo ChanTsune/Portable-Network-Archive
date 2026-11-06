@@ -1171,41 +1171,6 @@ impl<T> NormalEntry<T> {
         self
     }
 
-    /// Applies a new name to the entry, preserving all other fields.
-    ///
-    /// This is useful for path transformations during archive-to-archive copying
-    /// where the entry data should remain unchanged.
-    ///
-    /// # Panics
-    ///
-    /// Panics when the entry is encrypted in a cipher mode that does not
-    /// [allow a header rewrite](CipherMode::allows_header_rewrite), because the
-    /// rename would make the entry's data undecryptable. See
-    /// [`NormalEntry::try_with_name`] for the fallible variant.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # use std::io;
-    /// use libpna::DirEntryBuilder;
-    ///
-    /// # fn main() -> io::Result<()> {
-    /// let entry = DirEntryBuilder::new("original/path".into()).build()?;
-    /// let renamed = entry.try_with_name("new/path".into()).unwrap();
-    /// assert_eq!(renamed.header().path().as_str(), "new/path");
-    /// # Ok(())
-    /// # }
-    /// ```
-    #[deprecated(
-        since = "0.39.0",
-        note = "use `NormalEntry::try_with_name`, which refuses renames that would make encrypted data undecryptable instead of panicking"
-    )]
-    #[inline]
-    pub fn with_name(self, name: EntryName) -> Self {
-        self.try_with_name(name)
-            .unwrap_or_else(|_| panic!("renaming this entry would make its data undecryptable"))
-    }
-
     /// Returns this entry with a new name.
     ///
     /// # Errors
@@ -1981,24 +1946,6 @@ mod tests {
         let renamed = entry.try_with_name("renamed".into()).unwrap();
 
         assert_eq!(renamed.header().path().as_str(), "renamed");
-    }
-
-    #[test]
-    #[should_panic(expected = "renaming this entry would make its data undecryptable")]
-    #[allow(deprecated)]
-    fn with_name_panics_on_gcm_encrypted_entry() {
-        let options = WriteOptions::builder()
-            .encryption(Encryption::AES)
-            .cipher_mode(CipherMode::GCM)
-            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
-            .password(Some("password"))
-            .build();
-        let mut builder =
-            FileEntryBuilder::new_with_options("dir/original".into(), &options).unwrap();
-        builder.write_all(b"secret payload").unwrap();
-        let entry = builder.build().unwrap();
-
-        let _ = entry.with_name("dir/renamed".into());
     }
 
     #[test]
