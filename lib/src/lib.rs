@@ -115,7 +115,8 @@
 //! - [`SolidEntryBuilder`] - Builder for creating solid (multi-file) entries
 //! - [`EntryWriteAttributes`] - Metadata and extra chunks for streaming entry writes
 //! - [`WriteOptions`] - Configuration for compression and encryption when writing
-//! - [`ReadOptions`] - Configuration (password) for reading encrypted entries
+//! - [`ReadOptions`] - Configuration (password, KDF cost limits) for reading encrypted entries
+//! - [`KdfCostLimits`] - Limits on key derivation costs accepted when reading
 //! - [`NormalEntry`] / [`SolidEntry`] / [`ReadEntry`] - Entry types for reading
 //! - [`Chunk`] / [`ChunkType`] - Low-level chunk primitives
 //!
