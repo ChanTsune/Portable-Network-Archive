@@ -9,6 +9,7 @@ mod option_keep_permission;
 mod option_keep_timestamp;
 mod option_missing_time;
 mod option_mtime;
+mod option_no_overwrite;
 #[cfg(all(unix, not(target_os = "redox")))]
 mod option_owner;
 mod option_password_from_file;

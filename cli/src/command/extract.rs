@@ -74,9 +74,10 @@ pub(crate) struct ExtractCommand {
     overwrite: bool,
     #[arg(
         long,
+        action = ArgAction::SetTrue,
         help = "Do not overwrite files. This is the inverse option of --overwrite"
     )]
-    no_overwrite: bool,
+    no_overwrite: (),
     #[arg(
         long,
         requires = "unstable",
@@ -446,13 +447,15 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         missing_mtime: args.missing_time.unwrap_or_default(),
     }
     .resolve()?;
-    let overwrite_strategy = OverwriteStrategy::from_flags(
-        args.overwrite,
-        args.no_overwrite,
-        args.keep_newer_files,
-        args.keep_old_files,
-        OverwriteStrategy::Never,
-    );
+    let overwrite_strategy = if args.overwrite {
+        OverwriteStrategy::Always
+    } else if args.keep_newer_files {
+        OverwriteStrategy::KeepNewer
+    } else if args.keep_old_files {
+        OverwriteStrategy::KeepOlder
+    } else {
+        OverwriteStrategy::Never
+    };
     let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
         keep_permission: args.keep_permission,
         same_owner: args.same_owner,
@@ -556,28 +559,6 @@ pub(crate) enum OverwriteStrategy {
     Always,
     KeepNewer,
     KeepOlder,
-}
-
-impl OverwriteStrategy {
-    pub(crate) const fn from_flags(
-        overwrite: bool,
-        no_overwrite: bool,
-        keep_newer: bool,
-        keep_older: bool,
-        default_strategy: Self,
-    ) -> Self {
-        if overwrite {
-            Self::Always
-        } else if no_overwrite {
-            Self::Never
-        } else if keep_newer {
-            Self::KeepNewer
-        } else if keep_older {
-            Self::KeepOlder
-        } else {
-            default_strategy
-        }
-    }
 }
 
 #[derive(Clone, Debug)]
