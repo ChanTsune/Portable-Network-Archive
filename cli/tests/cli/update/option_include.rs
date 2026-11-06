@@ -61,6 +61,7 @@ fn update_with_include() {
         "--quiet",
         "experimental",
         "update",
+        "--overwrite",
         "-f",
         "update_with_include/archive.pna",
         "update_with_include/in/a.txt",

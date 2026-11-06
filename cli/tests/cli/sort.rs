@@ -7,4 +7,6 @@ mod keep_solid;
 mod multiple_keys;
 mod option_output;
 mod order_combination;
+#[cfg(not(target_family = "wasm"))]
+mod stdio;
 mod unsolid;

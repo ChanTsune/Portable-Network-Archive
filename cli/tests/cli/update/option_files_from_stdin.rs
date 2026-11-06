@@ -38,6 +38,7 @@ fn update_with_files_from_stdin() {
         "--quiet",
         "experimental",
         "update",
+        "--overwrite",
         "-f",
         "update_files_from_stdin/base.pna",
         "--files-from-stdin",

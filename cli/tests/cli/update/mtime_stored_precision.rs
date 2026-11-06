@@ -63,6 +63,7 @@ fn update_keeps_entry_when_only_subsecond_differs() {
         "--quiet",
         "experimental",
         "update",
+        "--overwrite",
         "-f",
         &archive_path,
         "--keep-timestamp",
