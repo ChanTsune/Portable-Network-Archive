@@ -13,10 +13,7 @@ fn extract_no_overwrite_preserves_existing_file() {
     let archive_path = base.join("archive.pna");
     archive::create_test_archive(&archive_path, &[("file.txt", "from archive")]);
 
-    for (output, flags) in [
-        ("default", &[][..]),
-        ("explicit", &["--no-overwrite"][..]),
-    ] {
+    for (output, flags) in [("default", &[][..]), ("explicit", &["--no-overwrite"][..])] {
         let out_dir = base.join(output);
         fs::create_dir_all(&out_dir).unwrap();
         fs::write(out_dir.join("file.txt"), b"existing").unwrap();
