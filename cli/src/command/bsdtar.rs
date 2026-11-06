@@ -197,14 +197,20 @@ pub(crate) struct BsdtarCommand {
     #[arg(
         long,
         help = "Include directories in archive (default)",
-        default_value_t = true
+        default_value_t = true,
+        default_value_if(
+            "no_keep_dir",
+            clap::builder::ArgPredicate::Equals("true".into()),
+            "false"
+        )
     )]
     keep_dir: bool,
     #[arg(
         long,
+        action = clap::ArgAction::SetTrue,
         help = "Do not archive directories. This is the inverse option of --keep-dir"
     )]
-    no_keep_dir: bool,
+    no_keep_dir: (),
     #[arg(
         long = "preserve-timestamps",
         visible_alias = "keep-timestamp",
@@ -909,7 +915,7 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
     validate_no_duplicate_stdin(&sources)?;
     let collect_options = CollectOptions {
         recursive: !args.no_recursive,
-        keep_dir: !args.no_keep_dir,
+        keep_dir: args.keep_dir,
         gitignore: args.gitignore,
         nodump: args.nodump,
         follow_links: args.follow_links,
@@ -1371,7 +1377,7 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
     validate_no_duplicate_stdin(&sources)?;
     let collect_options = CollectOptions {
         recursive: args.recursive,
-        keep_dir: !args.no_keep_dir,
+        keep_dir: args.keep_dir,
         gitignore: args.gitignore,
         nodump: args.nodump,
         follow_links: args.follow_links,
@@ -1551,7 +1557,7 @@ fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
     .resolve()?;
     let collect_options = CollectOptions {
         recursive: !args.no_recursive,
-        keep_dir: !args.no_keep_dir,
+        keep_dir: args.keep_dir,
         gitignore: args.gitignore,
         nodump: args.nodump,
         follow_links: args.follow_links,
