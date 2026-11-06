@@ -146,8 +146,7 @@ fn bsdtar_unsafe_link_flags_remain_mutually_exclusive() {
     for flag in ["--allow-unsafe-links", "--no-allow-unsafe-links"] {
         let mut args = base.to_vec();
         args.push(flag);
-        cli::Cli::try_parse_from(&args)
-            .unwrap_or_else(|err| panic!("rejected {args:?}: {err}"));
+        cli::Cli::try_parse_from(&args).unwrap_or_else(|err| panic!("rejected {args:?}: {err}"));
     }
 
     for pair in [
