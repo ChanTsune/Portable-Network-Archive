@@ -25,8 +25,16 @@ fn bsdtar_create_keep_dir_flags_control_directory_entries() {
 
     for (archive_name, flags, expected) in [
         ("default.pna", &[][..], &["source", "source/file.txt"][..]),
-        ("positive.pna", &["--keep-dir"][..], &["source", "source/file.txt"][..]),
-        ("negative.pna", &["--no-keep-dir"][..], &["source/file.txt"][..]),
+        (
+            "positive.pna",
+            &["--keep-dir"][..],
+            &["source", "source/file.txt"][..],
+        ),
+        (
+            "negative.pna",
+            &["--no-keep-dir"][..],
+            &["source/file.txt"][..],
+        ),
     ] {
         let output = base.join(archive_name);
         cargo_bin_cmd!("pna")
