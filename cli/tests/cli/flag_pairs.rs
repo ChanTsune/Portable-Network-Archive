@@ -138,3 +138,30 @@ fn native_commands_accept_either_spelling_alone() {
         }
     }
 }
+
+#[test]
+fn bsdtar_unsafe_link_flags_remain_mutually_exclusive() {
+    let base = ["pna", "compat", "bsdtar", "--extract", "--file", "a.pna"];
+
+    for flag in ["--allow-unsafe-links", "--no-allow-unsafe-links"] {
+        let mut args = base.to_vec();
+        args.push(flag);
+        cli::Cli::try_parse_from(&args).unwrap_or_else(|err| panic!("rejected {args:?}: {err}"));
+    }
+
+    for pair in [
+        ["--allow-unsafe-links", "--no-allow-unsafe-links"],
+        ["--no-allow-unsafe-links", "--allow-unsafe-links"],
+    ] {
+        let mut args = base.to_vec();
+        args.extend(pair);
+        let err = cli::Cli::try_parse_from(&args)
+            .err()
+            .unwrap_or_else(|| panic!("accepted {args:?}"));
+        assert_eq!(
+            err.kind(),
+            clap::error::ErrorKind::ArgumentConflict,
+            "{args:?} was rejected for the wrong reason: {err}"
+        );
+    }
+}
