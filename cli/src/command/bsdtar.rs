@@ -25,7 +25,7 @@ use crate::{
     },
     utils::{self, BsdGlobMatcher, VCS_FILES, fs::HardlinkResolver},
 };
-use clap::{ArgGroup, Args, Parser, ValueHint};
+use clap::{ArgAction, ArgGroup, Args, Parser, ValueHint, builder::ArgPredicate};
 use pna::Archive;
 use pna::prelude::PathPartExt;
 use std::{
@@ -208,6 +208,11 @@ pub(crate) struct BsdtarCommand {
     #[arg(
         long = "preserve-timestamps",
         visible_alias = "keep-timestamp",
+        default_value_t = true,
+        default_value_if("no_keep_timestamp", ArgPredicate::Equals("true".into()), "false"),
+        default_value_if("mtime", ArgPredicate::IsPresent, "true"),
+        default_value_if("ctime", ArgPredicate::IsPresent, "true"),
+        default_value_if("atime", ArgPredicate::IsPresent, "true"),
         help = "Preserve file timestamps"
     )]
     keep_timestamp: bool,
@@ -216,9 +221,10 @@ pub(crate) struct BsdtarCommand {
         long = "no-preserve-timestamps",
         visible_aliases = ["no-keep-timestamp", "modification-time"],
         alias = "modification_time",
+        action = ArgAction::SetTrue,
         help = "Do not archive timestamp of files. This is the inverse option of --preserve-timestamps"
     )]
-    no_keep_timestamp: bool,
+    no_keep_timestamp: (),
     #[arg(
         long,
         visible_aliases = ["no-preserve-permissions", "no-permissions"],
@@ -954,8 +960,6 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
     let keep_options = KeepOptions {
         timestamp_strategy: TimestampStrategyResolver {
             keep_timestamp: args.keep_timestamp,
-            no_keep_timestamp: args.no_keep_timestamp,
-            default_preserve: true,
             mtime: args.mtime.map(|it| it.to_system_time()),
             clamp_mtime: args.clamp_mtime,
             ctime: args.ctime.map(|it| it.to_system_time()),
@@ -1087,8 +1091,6 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
         keep_options: KeepOptions {
             timestamp_strategy: TimestampStrategyResolver {
                 keep_timestamp: args.keep_timestamp,
-                no_keep_timestamp: args.no_keep_timestamp,
-                default_preserve: true,
                 mtime: args.mtime.map(|it| it.to_system_time()),
                 clamp_mtime: args.clamp_mtime,
                 ctime: args.ctime.map(|it| it.to_system_time()),
@@ -1284,8 +1286,6 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
     let keep_options = KeepOptions {
         timestamp_strategy: TimestampStrategyResolver {
             keep_timestamp: args.keep_timestamp,
-            no_keep_timestamp: args.no_keep_timestamp,
-            default_preserve: true,
             mtime: args.mtime.map(|it| it.to_system_time()),
             clamp_mtime: args.clamp_mtime,
             ctime: args.ctime.map(|it| it.to_system_time()),
@@ -1458,8 +1458,6 @@ fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
     let keep_options = KeepOptions {
         timestamp_strategy: TimestampStrategyResolver {
             keep_timestamp: args.keep_timestamp,
-            no_keep_timestamp: args.no_keep_timestamp,
-            default_preserve: true,
             mtime: args.mtime.map(|it| it.to_system_time()),
             clamp_mtime: args.clamp_mtime,
             ctime: args.ctime.map(|it| it.to_system_time()),
