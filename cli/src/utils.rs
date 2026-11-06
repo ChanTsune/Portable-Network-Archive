@@ -11,7 +11,9 @@ pub(crate) mod process;
 pub(crate) mod str;
 mod windows_glob;
 
-pub(crate) use {globs::*, path::*, windows_glob::*};
+#[cfg(windows)]
+pub(crate) use windows_glob::expand_bsdtar_windows_globs;
+pub(crate) use {globs::*, path::*};
 
 /// Version Control System file names.
 pub(crate) const VCS_FILES: &[&str] = &[

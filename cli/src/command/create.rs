@@ -7,15 +7,16 @@ use crate::{
         Command, ask_password,
         core::{
             AclStrategy, CollectOptions, CollectedItem, CreateOptions, EntryResult, FflagsStrategy,
-            KeepOptions, MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
-            PermissionStrategyResolver, TimeFilterResolver, TimeFilters, TimestampStrategyResolver,
-            XattrStrategy, collect_items_from_paths, drain_entry_results, entry_option,
+            FilesystemInput, KeepOptions, MacMetadataStrategy, PathFilter, PathTransformers,
+            PathnameEditor, PermissionStrategyResolver, TimeFilterResolver, TimeFilters,
+            TimestampStrategyResolver, XattrStrategy, collect_items_from_filesystem_inputs,
+            drain_entry_results, entry_option,
             iter::ReorderByIndex,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin, spawn_entry_results, write_split_archive,
         },
     },
-    utils::{self, VCS_FILES, fs::HardlinkResolver},
+    utils::{self, VCS_FILES, WorkingDirectory, fs::HardlinkResolver},
 };
 use anyhow::ensure;
 use bytesize::ByteSize;
@@ -482,10 +483,19 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         time_filters: &time_filters,
     };
     let mut resolver = HardlinkResolver::new(collect_options.follow_links);
-    let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?
-        .into_iter()
-        .map(CollectedItem::Filesystem)
-        .collect::<Vec<_>>();
+    let base = WorkingDirectory::current()?;
+    let inputs = files.iter().map(|path| {
+        let path = PathBuf::from(path);
+        FilesystemInput {
+            fs_path: base.resolve(&path),
+            path,
+        }
+    });
+    let target_items =
+        collect_items_from_filesystem_inputs(inputs, &collect_options, &mut resolver)?
+            .into_iter()
+            .map(CollectedItem::Filesystem)
+            .collect::<Vec<_>>();
 
     if let Some(parent) = archive.parent() {
         fs::create_dir_all(parent)?;

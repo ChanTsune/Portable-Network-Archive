@@ -1,3 +1,4 @@
+use crate::utils::WorkingDirectory;
 #[cfg(windows)]
 use anyhow::Context;
 #[cfg(any(windows, test))]
@@ -9,19 +10,27 @@ use std::io;
 ///
 /// bsdtar only performs command-line wildcard expansion on Windows. On Unix,
 /// callers are expected to rely on the shell and operands are left untouched.
-pub(crate) fn expand_bsdtar_windows_globs(paths: Vec<String>) -> anyhow::Result<Vec<String>> {
+#[cfg_attr(not(windows), allow(dead_code))]
+pub(crate) fn expand_bsdtar_windows_globs(
+    working_directory: &WorkingDirectory,
+    paths: Vec<String>,
+) -> anyhow::Result<Vec<String>> {
     #[cfg(windows)]
     {
-        expand_bsdtar_windows_globs_inner(paths)
+        expand_bsdtar_windows_globs_inner(working_directory, paths)
     }
     #[cfg(not(windows))]
     {
+        let _ = working_directory;
         Ok(paths)
     }
 }
 
 #[cfg(windows)]
-fn expand_bsdtar_windows_globs_inner(paths: Vec<String>) -> anyhow::Result<Vec<String>> {
+fn expand_bsdtar_windows_globs_inner(
+    working_directory: &WorkingDirectory,
+    paths: Vec<String>,
+) -> anyhow::Result<Vec<String>> {
     let mut expanded = Vec::with_capacity(paths.len());
     for path in paths {
         let Some(parts) = WindowsGlobParts::parse(&path) else {
@@ -29,8 +38,10 @@ fn expand_bsdtar_windows_globs_inner(paths: Vec<String>) -> anyhow::Result<Vec<S
             continue;
         };
 
-        let matches = find_matches(&parts.search_pattern)
-            .with_context(|| format!("expanding Windows wildcard operand `{path}`"))?;
+        let matches = find_matches(
+            &working_directory.resolve(std::path::Path::new(parts.search_pattern.as_ref())),
+        )
+        .with_context(|| format!("expanding Windows wildcard operand `{path}`"))?;
         if matches.is_empty() {
             expanded.push(path);
             continue;
@@ -68,14 +79,15 @@ fn format_expanded_windows_path(output_prefix: &str, name: &str) -> String {
     }
 }
 
-#[cfg(any(windows, test))]
-fn encode_windows_search_pattern(search_pattern: &str) -> io::Result<Vec<u16>> {
+#[cfg(any(test, windows))]
+fn encode_windows_search_pattern(search_pattern: &std::path::Path) -> io::Result<Vec<u16>> {
     #[cfg(windows)]
     {
-        crate::utils::str::encode_wide(std::ffi::OsStr::new(search_pattern))
+        crate::utils::str::encode_wide(search_pattern.as_os_str())
     }
     #[cfg(all(test, not(windows)))]
     {
+        let search_pattern = search_pattern.to_string_lossy();
         if search_pattern.contains('\0') {
             return Err(io::Error::other(
                 "Value cannot pass to platform, because contains null character",
@@ -119,7 +131,7 @@ impl<'a> WindowsGlobParts<'a> {
 }
 
 #[cfg(windows)]
-fn find_matches(search_pattern: &str) -> anyhow::Result<Vec<String>> {
+fn find_matches(search_pattern: &std::path::Path) -> anyhow::Result<Vec<String>> {
     use scopeguard::defer;
     use std::{ffi::OsString, io, os::windows::ffi::OsStringExt};
     use windows::{
@@ -178,7 +190,6 @@ fn find_matches(search_pattern: &str) -> anyhow::Result<Vec<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::command::core::ItemSource;
     use std::path::Path;
 
     #[test]
@@ -230,15 +241,6 @@ mod tests {
     }
 
     #[test]
-    fn expanded_current_directory_at_name_stays_filesystem_source() {
-        let expanded = format_expanded_windows_path("", "@archive.pna");
-        assert!(matches!(
-            ItemSource::parse(&expanded),
-            ItemSource::Filesystem(path) if path == Path::new("./@archive.pna")
-        ));
-    }
-
-    #[test]
     fn expanded_nested_at_name_is_not_rewritten() {
         assert_eq!(
             format_expanded_windows_path("dir/", "@archive.pna"),
@@ -252,13 +254,17 @@ mod tests {
 
     #[test]
     fn windows_search_pattern_rejects_embedded_nul() {
-        assert!(encode_windows_search_pattern("a\0b*").is_err());
+        assert!(encode_windows_search_pattern(Path::new("a\0b*")).is_err());
     }
 
     #[cfg(not(windows))]
     #[test]
     fn non_windows_expansion_is_noop() {
         let paths = vec!["a*".into(), "bbb/file".into()];
-        assert_eq!(expand_bsdtar_windows_globs(paths.clone()).unwrap(), paths);
+        assert_eq!(
+            expand_bsdtar_windows_globs(&WorkingDirectory::current().unwrap(), paths.clone())
+                .unwrap(),
+            paths
+        );
     }
 }

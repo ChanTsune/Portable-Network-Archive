@@ -8,24 +8,26 @@ use crate::{
         append::{open_archive_then_seek_to_end, run_append_archive},
         ask_password,
         core::{
-            AclStrategy, CollectOptions, CreateOptions, FflagsStrategy, ItemSource, KeepOptions,
-            MacMetadataStrategy, ModeStrategy, OwnerOptions, OwnerStrategy, PathFilter,
-            PathTransformers, PathnameEditor, SplitArchiveReader, StagedArchive,
-            TimeFilterResolver, TimestampStrategyResolver, TransformStrategyUnSolid, Umask,
-            XattrStrategy, apply_chroot, collect_items_from_paths, collect_items_from_sources,
-            collect_split_archives,
+            AclStrategy, ArchiveSource, CollectOptions, CollectedItem, CollectionInput,
+            CreateOptions, FflagsStrategy, FilesystemInput, KeepOptions, MacMetadataStrategy,
+            ModeStrategy, OwnerOptions, OwnerStrategy, PathFilter, PathTransformers,
+            PathnameEditor, SplitArchiveReader, StagedArchive, TimeFilterResolver,
+            TimestampStrategyResolver, TransformStrategyUnSolid, Umask, XattrStrategy,
+            apply_chroot, collect_items_from_inputs, collect_split_archives,
             path_lock::OrderedPathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
-            read_paths, read_paths_stdin, run_across_archive_readers, validate_no_duplicate_stdin,
+            read_paths, read_paths_stdin, run_across_archive_readers,
         },
         create::{CreationContext, create_archive_file},
         extract::{Outcome, OutputOption, OverwriteStrategy, run_extract_archive_reader},
         list::{Format, LineEnding, ListOptions, TimeField, TimeFormat},
         update::run_update_archive,
     },
-    utils::{self, BsdGlobMatcher, VCS_FILES, fs::HardlinkResolver},
+    utils::{self, BsdGlobMatcher, VCS_FILES, WorkingDirectory, fs::HardlinkResolver},
 };
+use anyhow::Context;
 use clap::{ArgGroup, Args, Parser, ValueHint};
+use itertools::Itertools;
 use pna::Archive;
 use pna::prelude::PathPartExt;
 use std::{
@@ -78,6 +80,243 @@ impl CompressionAlgorithmArgs {
         let level = module_level.or(global_level);
 
         (compression, level)
+    }
+}
+
+#[derive(Args)]
+#[group(skip)]
+struct OperandArgs {
+    #[arg(short = 'C', long = "cd", visible_alias = "directory", value_name = "DIRECTORY",
+          value_hint = ValueHint::DirPath, help = "Change directory before adding the following files")]
+    working_dir: Vec<PathBuf>,
+    #[arg(help = "Files or patterns")]
+    files: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+enum Operand {
+    ChangeDir(PathBuf),
+    File(String),
+}
+
+#[derive(Clone, Debug)]
+struct Operands(Vec<Operand>);
+
+impl Args for Operands {
+    fn augment_args(cmd: clap::Command) -> clap::Command {
+        OperandArgs::augment_args(cmd)
+    }
+
+    fn augment_args_for_update(cmd: clap::Command) -> clap::Command {
+        OperandArgs::augment_args_for_update(cmd)
+    }
+}
+
+impl clap::FromArgMatches for Operands {
+    fn from_arg_matches(matches: &clap::ArgMatches) -> Result<Self, clap::Error> {
+        let args = OperandArgs::from_arg_matches(matches)?;
+        let dirs = matches
+            .indices_of("working_dir")
+            .into_iter()
+            .flatten()
+            .zip(args.working_dir.into_iter().map(Operand::ChangeDir));
+        let files = matches
+            .indices_of("files")
+            .into_iter()
+            .flatten()
+            .zip(args.files.into_iter().map(Operand::File));
+        Ok(Self(
+            dirs.merge_by(files, |a, b| a.0 < b.0)
+                .map(|(_, op)| op)
+                .collect(),
+        ))
+    }
+
+    fn update_from_arg_matches(&mut self, matches: &clap::ArgMatches) -> Result<(), clap::Error> {
+        *self = Self::from_arg_matches(matches)?;
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy)]
+enum WriteMode {
+    Create,
+    Append,
+    Update,
+}
+
+#[derive(Clone, Debug)]
+enum ItemSource {
+    Filesystem(PathBuf),
+    Archive(ArchiveSource),
+}
+
+impl ItemSource {
+    fn parse(arg: &str, mode: WriteMode) -> Self {
+        if matches!(mode, WriteMode::Update) {
+            return Self::Filesystem(PathBuf::from(arg));
+        }
+        if let Some(archive_path) = arg.strip_prefix('@') {
+            if archive_path.is_empty() || archive_path == "-" {
+                Self::Archive(ArchiveSource::Stdin)
+            } else {
+                Self::Archive(ArchiveSource::File(PathBuf::from(archive_path)))
+            }
+        } else {
+            Self::Filesystem(PathBuf::from(arg))
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct InputPlan {
+    inputs: Vec<CollectionInput>,
+}
+
+impl InputPlan {
+    fn validate(&self) -> anyhow::Result<()> {
+        let stdin_count = self
+            .inputs
+            .iter()
+            .filter(|input| {
+                matches!(
+                    input,
+                    CollectionInput::Archive {
+                        source: ArchiveSource::Stdin,
+                        ..
+                    }
+                )
+            })
+            .count();
+        if stdin_count > 1 {
+            anyhow::bail!("stdin (@- or @) can only be specified once as an archive source");
+        }
+        Ok(())
+    }
+
+    fn into_inputs(self) -> Vec<CollectionInput> {
+        self.inputs
+    }
+}
+
+struct ExtractionInputPlan {
+    change_dirs: Vec<PathBuf>,
+    files: Vec<String>,
+}
+
+struct ExtractionPlan {
+    base: PathBuf,
+    output_dir: Option<PathBuf>,
+    files: Vec<String>,
+}
+
+impl ExtractionInputPlan {
+    fn resolve(self, output_dir: Option<PathBuf>, chroot: bool) -> io::Result<ExtractionPlan> {
+        let mut base = WorkingDirectory::current()?;
+        for dir in &self.change_dirs {
+            base.change_directory(dir)?;
+        }
+        let output_dir = if !self.change_dirs.is_empty() && !chroot {
+            Some(base.resolve(&output_dir.unwrap_or_default()))
+        } else {
+            output_dir
+        };
+        Ok(ExtractionPlan {
+            base: base.as_path().to_owned(),
+            output_dir,
+            files: self.files,
+        })
+    }
+}
+
+impl Operands {
+    fn extraction_input_plan(
+        self,
+        files_from: Option<PathBuf>,
+        null: bool,
+    ) -> io::Result<ExtractionInputPlan> {
+        let (change_dirs, mut files): (Vec<_>, Vec<_>) =
+            self.0.into_iter().partition_map(|operand| match operand {
+                Operand::ChangeDir(dir) => itertools::Either::Left(dir),
+                Operand::File(file) => itertools::Either::Right(file),
+            });
+        if let Some(path) = files_from {
+            files.extend(read_paths(path, null)?);
+        }
+        Ok(ExtractionInputPlan { change_dirs, files })
+    }
+
+    fn plan_write_inputs(
+        self,
+        files_from: Option<PathBuf>,
+        null: bool,
+        mode: WriteMode,
+    ) -> anyhow::Result<InputPlan> {
+        let has_files_from = files_from.is_some();
+        let mut operands = self.0;
+        if let Some(path) = files_from {
+            let mut names = read_files_from(path, null)?.into_iter();
+            while let Some(name) = names.next() {
+                if !null && name == "-C" {
+                    let dir = names
+                        .next()
+                        .context("missing directory after -C in --files-from input")?;
+                    operands.push(Operand::ChangeDir(dir.into()));
+                } else {
+                    operands.push(Operand::File(name));
+                }
+            }
+        }
+
+        let mut base = WorkingDirectory::current()?;
+        let mut plan = InputPlan { inputs: Vec::new() };
+        for operand in operands {
+            match operand {
+                Operand::ChangeDir(dir) => base.change_directory(&dir)?,
+                Operand::File(name) => match ItemSource::parse(&name, mode) {
+                    ItemSource::Filesystem(path) => {
+                        #[cfg(windows)]
+                        let paths = utils::expand_bsdtar_windows_globs(
+                            &base,
+                            vec![path.to_string_lossy().into_owned()],
+                        )
+                        .map_err(|e| io::Error::other(format!("{e:#}")))?
+                        .into_iter()
+                        .map(PathBuf::from)
+                        .collect::<Vec<_>>();
+                        #[cfg(not(windows))]
+                        let paths = vec![path];
+
+                        plan.inputs.extend(paths.into_iter().map(|path| {
+                            CollectionInput::Filesystem(FilesystemInput {
+                                fs_path: base.resolve(&path),
+                                path,
+                            })
+                        }));
+                    }
+                    ItemSource::Archive(source) => {
+                        let source = match source {
+                            ArchiveSource::File(path) => ArchiveSource::File(base.resolve(&path)),
+                            ArchiveSource::Stdin => ArchiveSource::Stdin,
+                        };
+                        plan.inputs.push(CollectionInput::Archive {
+                            source,
+                            mtree_base: base.as_path().to_owned(),
+                        });
+                    }
+                },
+            }
+        }
+
+        if !has_files_from && plan.inputs.is_empty() {
+            let name = match mode {
+                WriteMode::Create => "create",
+                WriteMode::Append => "append",
+                WriteMode::Update => "update",
+            };
+            anyhow::bail!("{name} mode requires at least one input path or @archive source");
+        }
+        Ok(plan)
     }
 }
 
@@ -562,15 +801,6 @@ pub(crate) struct BsdtarCommand {
     #[arg(long, help = "Extract files as yourself")]
     no_same_owner: bool,
     #[arg(
-        short = 'C',
-        long = "cd",
-        visible_aliases = ["directory"],
-        value_name = "DIRECTORY",
-        help = "Change directory before adding the following files",
-        value_hint = ValueHint::DirPath
-    )]
-    working_dir: Option<PathBuf>,
-    #[arg(
         short = 'O',
         long = "to-stdout",
         requires = "unstable",
@@ -609,8 +839,8 @@ pub(crate) struct BsdtarCommand {
         help = "Read the archive from or write the archive to the specified file. The filename can be - for standard input or standard output."
     )]
     file: Option<String>,
-    #[arg(help = "Files or patterns")]
-    files: Vec<String>,
+    #[command(flatten)]
+    operands: Operands,
     #[arg(
         long,
         help = "Filenames or patterns are separated by null characters, not by newlines"
@@ -866,13 +1096,9 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
     let mut file = args.file;
     file.take_if(|it| it == "-");
     let archive_file = file.take().map(|p| current_dir.join(p));
-    let mut files = args.files;
-    if files.is_empty() && args.files_from.is_none() {
-        anyhow::bail!("create mode requires at least one input path or @archive source");
-    }
-    if let Some(path) = args.files_from {
-        files.extend(read_files_from(path, args.null)?);
-    }
+    let input_plan =
+        args.operands
+            .plan_write_inputs(args.files_from, args.null, WriteMode::Create)?;
 
     let mut exclude = args.exclude;
     if let Some(p) = args.exclude_from {
@@ -900,13 +1126,7 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
         missing_mtime: MissingTimePolicy::default(),
     }
     .resolve()?;
-    if let Some(working_dir) = args.working_dir {
-        env::set_current_dir(working_dir)?;
-    }
-    files = utils::expand_bsdtar_windows_globs(files)?;
-    // Parse sources AFTER changing directory so @archive paths are affected by -C
-    let sources = ItemSource::parse_many(&files);
-    validate_no_duplicate_stdin(&sources)?;
+    input_plan.validate()?;
     let collect_options = CollectOptions {
         recursive: !args.no_recursive,
         keep_dir: !args.no_keep_dir,
@@ -919,7 +1139,8 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
         time_filters: &time_filters,
     };
     let mut resolver = HardlinkResolver::new(collect_options.follow_links);
-    let target_items = collect_items_from_sources(sources, &collect_options, &mut resolver)?;
+    let target_items =
+        collect_items_from_inputs(input_plan.into_inputs(), &collect_options, &mut resolver)?;
     if args.check_links {
         for (path, expected, archived) in resolver.incomplete_links() {
             log::warn!(
@@ -1078,7 +1299,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
         no_mac_metadata: args.no_mac_metadata,
     }
     .resolve();
-    let out_option = OutputOption {
+    let mut out_option = OutputOption {
         overwrite_strategy,
         allow_unsafe_links: !args.no_allow_unsafe_links,
         out_dir: args.out_dir,
@@ -1118,10 +1339,9 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
         absolute_paths: args.absolute_paths,
         warned_lead_slash: Arc::new(AtomicBool::new(false)),
     };
-    let mut files = args.files;
-    if let Some(path) = &args.files_from {
-        files.extend(read_paths(path, args.null)?);
-    }
+    let extraction_inputs = args
+        .operands
+        .extraction_input_plan(args.files_from, args.null)?;
     // NOTE: "-" will use stdin
     let mut file = args.file;
     file.take_if(|it| it == "-");
@@ -1130,16 +1350,15 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
     } else {
         None
     };
-    if let Some(working_dir) = args.working_dir {
-        env::set_current_dir(working_dir)?;
-    }
-    apply_chroot(args.chroot)?;
+    let extraction_plan = extraction_inputs.resolve(out_option.out_dir.take(), args.chroot)?;
+    out_option.out_dir = extraction_plan.output_dir;
+    apply_chroot(args.chroot, &extraction_plan.base)?;
     let outcome = if let Some(archives) = archives {
         run_extract_archive_reader(
             archives
                 .into_iter()
                 .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
-            files,
+            extraction_plan.files,
             || password.as_deref(),
             out_option,
             args.no_recursive,
@@ -1149,7 +1368,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
     } else {
         run_extract_archive_reader(
             std::iter::once_with(|| io::stdin().lock()),
-            files,
+            extraction_plan.files,
             || password.as_deref(),
             out_option,
             args.no_recursive,
@@ -1208,7 +1427,15 @@ fn run_list_archive(args: BsdtarCommand) -> anyhow::Result<()> {
             LineEnding::Lf
         },
     };
-    let mut files = args.files;
+    let mut files: Vec<_> = args
+        .operands
+        .0
+        .into_iter()
+        .filter_map(|op| match op {
+            Operand::File(name) => Some(name),
+            Operand::ChangeDir(_) => None,
+        })
+        .collect();
     if let Some(path) = args.files_from {
         files.extend(read_paths(path, args.null)?);
     }
@@ -1328,13 +1555,9 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
             "-T - (--files-from -) cannot be combined with reading the archive from stdin"
         );
     }
-    let mut files = args.files;
-    if files.is_empty() && args.files_from.is_none() {
-        anyhow::bail!("append mode requires at least one input path or @archive source");
-    }
-    if let Some(path) = args.files_from {
-        files.extend(read_files_from(path, args.null)?);
-    }
+    let input_plan =
+        args.operands
+            .plan_write_inputs(args.files_from, args.null, WriteMode::Append)?;
 
     let mut exclude = args.exclude;
     if let Some(p) = args.exclude_from {
@@ -1362,13 +1585,7 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
         missing_mtime: MissingTimePolicy::default(),
     }
     .resolve()?;
-    if let Some(working_dir) = args.working_dir {
-        env::set_current_dir(working_dir)?;
-    }
-    files = utils::expand_bsdtar_windows_globs(files)?;
-    // Parse sources AFTER changing directory so @archive paths are affected by -C
-    let sources = ItemSource::parse_many(&files);
-    validate_no_duplicate_stdin(&sources)?;
+    input_plan.validate()?;
     let collect_options = CollectOptions {
         recursive: args.recursive,
         keep_dir: !args.no_keep_dir,
@@ -1383,7 +1600,11 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
     let mut resolver = HardlinkResolver::new(collect_options.follow_links);
     if let Some(file) = &archive_path {
         let archive = open_archive_then_seek_to_end(file, args.ignore_zeros)?;
-        let target_items = collect_items_from_sources(sources, &collect_options, &mut resolver)?;
+        let target_items = collect_items_from_inputs(
+            input_plan.clone().into_inputs(),
+            &collect_options,
+            &mut resolver,
+        )?;
         run_append_archive(
             &create_options,
             archive,
@@ -1395,7 +1616,8 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
             args.ignore_zeros,
         )
     } else {
-        let target_items = collect_items_from_sources(sources, &collect_options, &mut resolver)?;
+        let target_items =
+            collect_items_from_inputs(input_plan.into_inputs(), &collect_options, &mut resolver)?;
         let mut output_archive = Archive::write_header(io::stdout().lock())?;
         run_across_archive_readers(
             std::iter::once(io::stdin().lock()),
@@ -1510,13 +1732,9 @@ fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
         .into());
     }
 
-    let mut files = args.files;
-    if files.is_empty() && args.files_from.is_none() {
-        anyhow::bail!("update mode requires at least one input path or @archive source");
-    }
-    if let Some(path) = args.files_from {
-        files.extend(read_files_from(path, args.null)?);
-    }
+    let input_plan =
+        args.operands
+            .plan_write_inputs(args.files_from, args.null, WriteMode::Update)?;
 
     let mut exclude = args.exclude;
     if let Some(p) = args.exclude_from {
@@ -1532,10 +1750,6 @@ fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
 
-    if let Some(working_dir) = args.working_dir {
-        env::set_current_dir(working_dir)?;
-    }
-    files = utils::expand_bsdtar_windows_globs(files)?;
     let time_filters = TimeFilterResolver {
         newer_ctime_than: args.newer_ctime_than.as_deref(),
         older_ctime_than: args.older_ctime_than.as_deref(),
@@ -1561,7 +1775,14 @@ fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
         time_filters: &time_filters,
     };
     let mut resolver = HardlinkResolver::new(collect_options.follow_links);
-    let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
+    let target_items: Vec<_> =
+        collect_items_from_inputs(input_plan.into_inputs(), &collect_options, &mut resolver)?
+            .into_iter()
+            .filter_map(|item| match item {
+                CollectedItem::Filesystem(entry) => Some(entry),
+                CollectedItem::ArchiveMarker { .. } => None,
+            })
+            .collect();
 
     let archives = collect_split_archives(&archive_path)?;
 
@@ -1587,4 +1808,112 @@ fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
     staged.commit()?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn at_alone_is_stdin() {
+        let result = ItemSource::parse("@", WriteMode::Create);
+        assert!(matches!(result, ItemSource::Archive(ArchiveSource::Stdin)));
+    }
+
+    #[test]
+    fn at_dash_is_stdin() {
+        let result = ItemSource::parse("@-", WriteMode::Create);
+        assert!(matches!(result, ItemSource::Archive(ArchiveSource::Stdin)));
+    }
+
+    #[test]
+    fn at_path_is_archive_file() {
+        let result = ItemSource::parse("@archive.pna", WriteMode::Create);
+        assert!(matches!(
+            result,
+            ItemSource::Archive(ArchiveSource::File(path)) if path == Path::new("archive.pna")
+        ));
+    }
+
+    #[test]
+    fn plain_path_is_filesystem() {
+        let result = ItemSource::parse("some/path", WriteMode::Create);
+        assert!(matches!(
+            result,
+            ItemSource::Filesystem(path) if path == Path::new("some/path")
+        ));
+    }
+
+    #[test]
+    fn dot_slash_at_is_filesystem_escape() {
+        let result = ItemSource::parse("./@file", WriteMode::Create);
+        assert!(matches!(
+            result,
+            ItemSource::Filesystem(path) if path == Path::new("./@file")
+        ));
+    }
+
+    #[test]
+    fn parse_many_mixed() {
+        let results = ["file1", "@archive.pna", "@", "./@literal"]
+            .map(|name| ItemSource::parse(name, WriteMode::Create));
+        assert_eq!(results.len(), 4);
+        assert!(matches!(&results[0], ItemSource::Filesystem(path) if path == Path::new("file1")));
+        assert!(matches!(
+            &results[1],
+            ItemSource::Archive(ArchiveSource::File(path)) if path == Path::new("archive.pna")
+        ));
+        assert!(matches!(
+            &results[2],
+            ItemSource::Archive(ArchiveSource::Stdin)
+        ));
+        assert!(
+            matches!(&results[3], ItemSource::Filesystem(path) if path == Path::new("./@literal"))
+        );
+    }
+
+    #[test]
+    fn validate_no_duplicate_stdin_ok() {
+        let plan = InputPlan {
+            inputs: vec![
+                CollectionInput::Filesystem(FilesystemInput {
+                    path: PathBuf::from("file"),
+                    fs_path: PathBuf::from("/tmp/file"),
+                }),
+                CollectionInput::Archive {
+                    source: ArchiveSource::Stdin,
+                    mtree_base: PathBuf::from("/tmp"),
+                },
+                CollectionInput::Archive {
+                    source: ArchiveSource::File(PathBuf::from("/tmp/archive.pna")),
+                    mtree_base: PathBuf::from("/tmp"),
+                },
+            ],
+        };
+        assert!(plan.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_no_duplicate_stdin_error() {
+        let plan = InputPlan {
+            inputs: vec![
+                CollectionInput::Archive {
+                    source: ArchiveSource::Stdin,
+                    mtree_base: PathBuf::from("/tmp"),
+                },
+                CollectionInput::Archive {
+                    source: ArchiveSource::Stdin,
+                    mtree_base: PathBuf::from("/tmp"),
+                },
+            ],
+        };
+        assert!(plan.validate().is_err());
+    }
+
+    #[test]
+    fn validate_no_duplicate_stdin_empty() {
+        let plan = InputPlan { inputs: vec![] };
+        assert!(plan.validate().is_ok());
+    }
 }

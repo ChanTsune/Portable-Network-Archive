@@ -22,17 +22,16 @@ fn bsdtar_mtree_basic_inclusion() {
     let base = PathBuf::from("bsdtar_mtree_basic_inclusion");
     fs::create_dir_all(&base).unwrap();
 
-    // Create source file
     fs::write(base.join("source.txt"), "file content").unwrap();
 
-    // Create mtree manifest
     fs::write(
         base.join("manifest.mtree"),
         "#mtree\nentry.txt contents=source.txt\n",
     )
     .unwrap();
 
-    // Create archive via bsdtar
+    fs::create_dir_all(base.join("later")).unwrap();
+    fs::write(base.join("later/extra"), "later input").unwrap();
     let output_archive = base.join("output.pna");
     cargo_bin_cmd!("pna")
         .args([
@@ -47,16 +46,16 @@ fn bsdtar_mtree_basic_inclusion() {
             "-C",
             base.to_str().unwrap(),
             "@manifest.mtree",
+            "-Clater",
+            "extra",
         ])
         .assert()
         .success();
 
-    // Verify archive contents
-    let entry_names: HashSet<String> = get_archive_entry_names(&output_archive)
-        .into_iter()
-        .collect();
-    assert!(entry_names.contains("entry.txt"), "Missing entry.txt");
-    assert_eq!(entry_names.len(), 1);
+    assert_eq!(
+        get_archive_entry_names(&output_archive),
+        ["entry.txt", "extra"]
+    );
 }
 
 /// Precondition: An mtree manifest uses /set directive for default metadata.

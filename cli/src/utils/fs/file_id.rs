@@ -454,7 +454,11 @@ impl HardlinkResolver {
 
     #[cfg(any(unix, windows, all(target_os = "wasi", target_env = "p1")))]
     #[inline]
-    pub(crate) fn resolve(&mut self, path: &Path) -> io::Result<Option<PathBuf>> {
+    pub(crate) fn resolve(
+        &mut self,
+        path: &Path,
+        archive_path: &Path,
+    ) -> io::Result<Option<PathBuf>> {
         let (id, nlinks) = get_file_id_and_nlinks(path, self.follow_symlink)?;
         if 1 < nlinks {
             if let Some(info) = self.seen.get_mut(&id) {
@@ -464,7 +468,7 @@ impl HardlinkResolver {
             self.seen.insert(
                 id,
                 HardlinkInfo {
-                    first_path: path.to_path_buf(),
+                    first_path: archive_path.to_owned(),
                     expected_nlinks: nlinks,
                     archived_count: 1,
                 },
@@ -479,7 +483,11 @@ impl HardlinkResolver {
     /// file and compares new files against them.
     #[cfg(all(target_os = "wasi", target_env = "p2"))]
     #[inline]
-    pub(crate) fn resolve(&mut self, path: &Path) -> io::Result<Option<PathBuf>> {
+    pub(crate) fn resolve(
+        &mut self,
+        path: &Path,
+        archive_path: &Path,
+    ) -> io::Result<Option<PathBuf>> {
         // Open once so the link count and the identity being compared both
         // come from the same resolved object.
         let descriptor = preopen::Resolver::new().open(path, self.follow_symlink)?;
@@ -496,7 +504,7 @@ impl HardlinkResolver {
         self.seen.push((
             descriptor,
             HardlinkInfo {
-                first_path: path.to_path_buf(),
+                first_path: archive_path.to_owned(),
                 expected_nlinks: nlinks,
                 archived_count: 1,
             },
@@ -506,7 +514,11 @@ impl HardlinkResolver {
 
     #[cfg(not(any(unix, windows, target_os = "wasi")))]
     #[inline]
-    pub(crate) fn resolve(&mut self, _path: &Path) -> io::Result<Option<PathBuf>> {
+    pub(crate) fn resolve(
+        &mut self,
+        _path: &Path,
+        _archive_path: &Path,
+    ) -> io::Result<Option<PathBuf>> {
         Ok(None)
     }
 
