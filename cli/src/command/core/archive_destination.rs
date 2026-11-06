@@ -122,7 +122,6 @@ impl Drop for CreateNewArchive {
     }
 }
 
-#[allow(dead_code)]
 pub(crate) fn resolve_transform_destination(
     source: &ArchiveSource,
     output: Option<PathBuf>,

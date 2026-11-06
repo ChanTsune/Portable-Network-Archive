@@ -31,6 +31,7 @@ fn strip_unsolid_only_named_entries() {
         "pna",
         "--quiet",
         "strip",
+        "--overwrite",
         "--unsolid",
         "-f",
         path,

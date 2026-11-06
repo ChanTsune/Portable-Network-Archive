@@ -1,5 +1,9 @@
+use crate::utils::setup;
+use assert_cmd::cargo::cargo_bin_cmd;
 use clap::Parser;
 use portable_network_archive::cli;
+use predicates::prelude::*;
+use std::fs;
 
 /// Every flag that has a `--no-` counterpart, per command that exposes the pair.
 const PAIRS: &[(&[&str], &str, &str)] = &[
@@ -97,7 +101,14 @@ const PAIRS: &[(&[&str], &str, &str)] = &[
         "--owner-lookup",
         "--no-owner-lookup",
     ),
+    (
+        &["strip", "--output", "out.pna"],
+        "--overwrite",
+        "--no-overwrite",
+    ),
 ];
+
+const DEPRECATED_NO_OVERWRITE_COMMANDS: &[&[&str]] = &[&["strip"]];
 
 /// Precondition: A native command exposes a flag together with its `--no-` counterpart.
 /// Action: Pass both spellings in one invocation, in either order.
@@ -124,7 +135,7 @@ fn native_commands_reject_a_flag_with_its_negation() {
 
 /// Precondition: A native command exposes a flag with a `--no-` counterpart.
 /// Action: Pass each spelling on its own.
-/// Expectation: Both are accepted.
+/// Expectation: Both are accepted; deprecated no-overwrite warns and preserves existing outputs.
 #[test]
 fn native_commands_accept_either_spelling_alone() {
     for (base, yes, no) in PAIRS {
@@ -136,5 +147,31 @@ fn native_commands_accept_either_spelling_alone() {
                 .collect::<Vec<_>>();
             cli::Cli::try_parse_from(&argv).unwrap_or_else(|e| panic!("rejected {argv:?}: {e}"));
         }
+    }
+
+    setup();
+    let destination = "native_no_overwrite.pna";
+    let mut archive = pna::Archive::write_header(Vec::new()).unwrap();
+    archive
+        .add_entry(
+            pna::FileEntryBuilder::new("present.txt".into())
+                .unwrap()
+                .build()
+                .unwrap(),
+        )
+        .unwrap();
+    let input = archive.finalize().unwrap();
+    fs::write(destination, b"original destination").unwrap();
+    for args in DEPRECATED_NO_OVERWRITE_COMMANDS {
+        cargo_bin_cmd!("pna")
+            .args(*args)
+            .args(["--no-overwrite", "--output", destination])
+            .write_stdin(input.clone())
+            .assert()
+            .failure()
+            .stdout(predicate::str::is_empty())
+            .stderr(predicate::str::contains("`--no-overwrite` is deprecated and will be removed in a future release; omit it to preserve existing output archives."))
+            .stderr(predicate::str::contains("already exists"));
+        assert_eq!(fs::read(destination).unwrap(), b"original destination");
     }
 }
