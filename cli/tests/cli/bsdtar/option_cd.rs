@@ -47,10 +47,9 @@ fn bsdtar_create_extract_with_cd() {
     assert_dirs_equal("bsdtar_with_cd/in/", "bsdtar_with_cd/out/");
 }
 
-/// Precondition: Archive source.pna contains file a.txt. Directory sub/ contains b.txt.
-/// Action: Create with `@source.pna -C sub b.txt` -- archive inclusion before -C.
-/// Expectation: Result contains both a.txt (from @source) and b.txt (from sub/).
-///   @source.pna is resolved from original cwd, not from sub/.
+/// Precondition: An archive and a filesystem file are available in separate directories.
+/// Action: Include the archive, then change directories before adding the filesystem file.
+/// Expectation: Both inputs are resolved from the directory active at their position.
 #[test]
 fn bsdtar_create_archive_inclusion_before_cd() {
     setup();
@@ -63,17 +62,13 @@ fn bsdtar_create_archive_inclusion_before_cd() {
     }
     fs::create_dir_all(&base).unwrap();
 
-    // Create source archive with a.txt
     let source_archive = base.join("source.pna");
     create_test_archive(&source_archive, &[("a.txt", "content a")]);
 
-    // Create sub directory with b.txt
     let sub_dir = base.join("sub");
     fs::create_dir_all(&sub_dir).unwrap();
     fs::write(sub_dir.join("b.txt"), "content b").unwrap();
 
-    // Create result archive: @source.pna is before -C, so it resolves from base (cwd).
-    // -C sub applies only to b.txt.
     let output_archive = base.join("result.pna");
     cargo_bin_cmd!("pna")
         .args([
@@ -95,7 +90,6 @@ fn bsdtar_create_archive_inclusion_before_cd() {
         .assert()
         .success();
 
-    // Verify the output archive contains both entries
     let entry_names: HashSet<String> = get_archive_entry_names(&output_archive)
         .into_iter()
         .collect();
@@ -107,9 +101,9 @@ fn bsdtar_create_archive_inclusion_before_cd() {
     assert_eq!(entry_names.len(), 2);
 }
 
-/// Precondition: Directories d1/ and d2/ each contain a file.
-/// Action: Create with `-C d1 f1.txt -C d2 f2.txt` using absolute -C paths.
-/// Expectation: Both files archived with base names only (no directory prefix).
+/// Precondition: Files are available in two separate directories.
+/// Action: Add one file from each directory using successive directory changes.
+/// Expectation: Both files are archived under their input path names.
 #[test]
 fn bsdtar_create_multiple_cd_absolute_paths() {
     setup();
@@ -122,12 +116,10 @@ fn bsdtar_create_multiple_cd_absolute_paths() {
     }
     fs::create_dir_all(&base).unwrap();
 
-    // Create d1 with f1.txt
     let d1 = base.join("d1");
     fs::create_dir_all(&d1).unwrap();
     fs::write(d1.join("f1.txt"), "content f1").unwrap();
 
-    // Create d2 with f2.txt
     let d2 = base.join("d2");
     fs::create_dir_all(&d2).unwrap();
     fs::write(d2.join("f2.txt"), "content f2").unwrap();
@@ -153,7 +145,6 @@ fn bsdtar_create_multiple_cd_absolute_paths() {
         .assert()
         .success();
 
-    // Verify both files are archived with base names
     let entry_names: HashSet<String> = get_archive_entry_names(&output_archive)
         .into_iter()
         .collect();
@@ -162,9 +153,9 @@ fn bsdtar_create_multiple_cd_absolute_paths() {
     assert_eq!(entry_names.len(), 2);
 }
 
-/// Precondition: A directory tree with nested files exists.
-/// Action: Chain absolute and relative directory changes, then pass a literal option name after `--`.
-/// Expectation: Each file is archived relative to its -C directory.
+/// Precondition: A nested directory tree includes a file with an option-like name.
+/// Action: Change directories between inputs and include the option-like name literally.
+/// Expectation: Each input is resolved from the directory active at its position.
 #[test]
 fn bsdtar_create_cd_does_not_affect_prior_args() {
     setup();
@@ -210,9 +201,9 @@ fn bsdtar_create_cd_does_not_affect_prior_args() {
     assert_eq!(entry_names, ["first.txt", "second.txt", "-C"]);
 }
 
-/// Precondition: Archive source.pna exists in directory src/. File extra.txt exists in dir/.
-/// Action: Create with `-C src @source.pna -C dir extra.txt`.
-/// Expectation: @source.pna resolves from src/ (the active -C), extra.txt resolves from dir/.
+/// Precondition: An archive and a filesystem file are available in separate directories.
+/// Action: Change directories before including each source.
+/// Expectation: Each source is resolved from the directory active at its position.
 #[test]
 fn bsdtar_create_cd_affects_archive_inclusion() {
     setup();
@@ -225,19 +216,15 @@ fn bsdtar_create_cd_affects_archive_inclusion() {
     }
     fs::create_dir_all(&base).unwrap();
 
-    // Create source archive inside src/ subdirectory
     let src_dir = base.join("src");
     fs::create_dir_all(&src_dir).unwrap();
     let source_archive = src_dir.join("source.pna");
     create_test_archive(&source_archive, &[("archived.txt", "from archive")]);
 
-    // Create extra file in dir/ subdirectory
     let dir = base.join("dir");
     fs::create_dir_all(&dir).unwrap();
     fs::write(dir.join("extra.txt"), "extra content").unwrap();
 
-    // -C src makes @source.pna resolve from src/
-    // -C dir makes extra.txt resolve from dir/
     let output_archive = base.join("result.pna");
     cargo_bin_cmd!("pna")
         .args([
@@ -259,7 +246,6 @@ fn bsdtar_create_cd_affects_archive_inclusion() {
         .assert()
         .success();
 
-    // Verify both entries present
     let entry_names: HashSet<String> = get_archive_entry_names(&output_archive)
         .into_iter()
         .collect();
@@ -274,9 +260,9 @@ fn bsdtar_create_cd_affects_archive_inclusion() {
     assert_eq!(entry_names.len(), 2);
 }
 
-/// Precondition: An archive contains entries a.txt and b.txt.
-/// Action: Extract with `-C` pointing to a symlink to the destination directory.
-/// Expectation: Files appear in the target directory with correct content.
+/// Precondition: An archive and a symlink to an output directory are available.
+/// Action: Extract with the symlink specified as the change directory.
+/// Expectation: Extracted entries appear in the directory target.
 #[test]
 fn bsdtar_extract_with_cd() {
     setup();
@@ -314,9 +300,9 @@ fn bsdtar_extract_with_cd() {
     assert_eq!(fs::read_to_string(target.join("b.txt")).unwrap(), "beta");
 }
 
-/// Precondition: Archive contains a.txt. Directory sub/ contains b.txt.
-/// Action: Update archive with `-C <sub> b.txt`.
-/// Expectation: Archive contains both a.txt and b.txt.
+/// Precondition: An archive and a source file are available in separate directories.
+/// Action: Update the archive after changing to the source directory.
+/// Expectation: The archive retains its original entry and includes the selected source.
 #[test]
 fn bsdtar_update_with_cd() {
     setup();
@@ -327,16 +313,13 @@ fn bsdtar_update_with_cd() {
     }
     fs::create_dir_all(&base).unwrap();
 
-    // Create initial archive with a.txt
     let archive = base.join("test.pna");
     create_test_archive(&archive, &[("a.txt", "content a")]);
 
-    // Create sub directory with b.txt
     let sub_dir = base.join("sub");
     fs::create_dir_all(&sub_dir).unwrap();
     fs::write(sub_dir.join("b.txt"), "content b").unwrap();
 
-    // Update archive: -C sub b.txt
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
@@ -353,16 +336,15 @@ fn bsdtar_update_with_cd() {
         .assert()
         .success();
 
-    // Verify the archive now contains both entries
     let entry_names: HashSet<String> = get_archive_entry_names(&archive).into_iter().collect();
     assert!(entry_names.contains("a.txt"), "Missing a.txt");
     assert!(entry_names.contains("b.txt"), "Missing b.txt");
     assert_eq!(entry_names.len(), 2);
 }
 
-/// Precondition: Archive contains a.txt. Directory sub/ contains b.txt.
-/// Action: Append to archive with `-C <sub> b.txt`.
-/// Expectation: Archive contains both a.txt and b.txt.
+/// Precondition: An archive and a source file are available in separate directories.
+/// Action: Append to the archive after changing to the source directory.
+/// Expectation: The archive retains its original entry and includes the selected source.
 #[test]
 fn bsdtar_append_with_cd() {
     setup();
@@ -373,16 +355,13 @@ fn bsdtar_append_with_cd() {
     }
     fs::create_dir_all(&base).unwrap();
 
-    // Create initial archive with a.txt
     let archive = base.join("test.pna");
     create_test_archive(&archive, &[("a.txt", "content a")]);
 
-    // Create sub directory with b.txt
     let sub_dir = base.join("sub");
     fs::create_dir_all(&sub_dir).unwrap();
     fs::write(sub_dir.join("b.txt"), "content b").unwrap();
 
-    // Append to archive: -C sub b.txt
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
@@ -399,7 +378,6 @@ fn bsdtar_append_with_cd() {
         .assert()
         .success();
 
-    // Verify the archive now contains both entries
     let entry_names: HashSet<String> = get_archive_entry_names(&archive).into_iter().collect();
     assert!(entry_names.contains("a.txt"), "Missing a.txt");
     assert!(entry_names.contains("b.txt"), "Missing b.txt");

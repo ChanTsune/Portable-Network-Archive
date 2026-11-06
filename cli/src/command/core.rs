@@ -23,7 +23,7 @@ pub(crate) use self::staged_archive::StagedArchive;
 pub(crate) use self::timestamp::{TimeSource, TimestampStrategy, cmp_at_stored_precision};
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs, MissingTimePolicy},
-    utils::{self, fs::HardlinkResolver},
+    utils::{self, WorkingDirectory, fs::HardlinkResolver},
 };
 pub(crate) use iter::ReorderByIndex;
 pub(crate) use path_filter::PathFilter;
@@ -37,7 +37,7 @@ use pna::{
 use std::{
     borrow::Cow,
     collections::HashMap,
-    env, fmt, fs,
+    fmt, fs,
     io::{self, prelude::*},
     path::{Path, PathBuf},
     time::SystemTime,
@@ -516,7 +516,7 @@ pub(crate) enum CollectedItem {
     /// A marker indicating where to insert entries from an archive source.
     ArchiveMarker {
         source: ArchiveSource,
-        base: PathBuf,
+        base: WorkingDirectory,
     },
 }
 
@@ -612,19 +612,6 @@ pub(crate) fn spawn_entry_results(
     rx
 }
 
-pub(crate) fn change_directory(base: &Path, dir: &Path) -> io::Result<PathBuf> {
-    let path = base.join(dir);
-    let metadata = fs::metadata(&path)
-        .map_err(|err| io::Error::new(err.kind(), format!("{}: {err}", path.display())))?;
-    if dir.as_os_str().is_empty() || !metadata.is_dir() {
-        return Err(io::Error::new(
-            io::ErrorKind::NotADirectory,
-            path.display().to_string(),
-        ));
-    }
-    Ok(path)
-}
-
 /// Collects items from mixed filesystem and archive sources, preserving order.
 ///
 /// For filesystem sources, uses the existing collection logic with shared
@@ -647,11 +634,11 @@ pub(crate) fn collect_items_from_sources(
 ) -> io::Result<Vec<CollectedItem>> {
     let mut results = Vec::new();
 
-    let mut base = env::current_dir()?;
+    let mut base = WorkingDirectory::current()?;
     for source in sources {
         match source {
             ItemSource::ChangeDir(dir) => {
-                base = change_directory(&base, &dir)?;
+                base.change_directory(&dir)?;
             }
             ItemSource::Filesystem(path) => {
                 #[cfg(windows)]
@@ -664,10 +651,11 @@ pub(crate) fn collect_items_from_sources(
                 .map(PathBuf::from)
                 .collect();
                 #[cfg(not(windows))]
-                let paths = [path];
+                let paths = vec![path];
 
                 for p in &paths {
-                    let items = collect_items_with_state(&base, p, options, hardlink_resolver)?;
+                    let root = base.resolve(p);
+                    let items = collect_items_with_state(p, &root, options, hardlink_resolver)?;
                     results.extend(items.into_iter().map(CollectedItem::Filesystem));
                 }
             }
@@ -701,11 +689,13 @@ pub(crate) fn collect_items_from_paths<P: AsRef<Path>>(
     hardlink_resolver: &mut HardlinkResolver,
 ) -> io::Result<Vec<CollectedEntry>> {
     let mut results = Vec::new();
-    let base = env::current_dir()?;
+    let base = WorkingDirectory::current()?;
     for path in paths {
+        let path = path.as_ref();
+        let root = base.resolve(path);
         results.extend(collect_items_with_state(
-            &base,
-            path.as_ref(),
+            path,
+            &root,
             options,
             hardlink_resolver,
         )?);
@@ -783,21 +773,20 @@ fn normalize_non_follow_root_path<'a>(path: &'a Path, options: &CollectOptions<'
 /// `io::ErrorKind::Unsupported` for entries with unsupported types. Other walk
 /// errors are wrapped using `io::Error::other`.
 fn collect_items_with_state(
-    base: &Path,
     path: &Path,
+    root: &Path,
     options: &CollectOptions<'_>,
     hardlink_resolver: &mut HardlinkResolver,
 ) -> io::Result<Vec<CollectedEntry>> {
     if path.as_os_str().is_empty() {
         return Err(io::Error::new(io::ErrorKind::NotFound, "empty input path"));
     }
-    let root = base.join(path);
     let mut ig = ignore::Ignore::default();
     let mut out = Vec::new();
 
     // Strip the trailing separator only for symlink-to-directory operands;
     // see `normalize_non_follow_root_path` for the rationale.
-    let walk_path = normalize_non_follow_root_path(&root, options);
+    let walk_path = normalize_non_follow_root_path(root, options);
 
     // REASON: The CLI distinguishes following only command-line symlinks from
     // following nested symlinks too. `ignore::WalkBuilder` has one `follow_links`
@@ -2061,7 +2050,7 @@ pub(crate) fn transform_archive_entries<R: io::Read>(
 /// - mtree manifest: Reads files from filesystem with metadata overrides (Unix only)
 pub(crate) fn read_archive_source(
     source: &ArchiveSource,
-    base: &Path,
+    base: &WorkingDirectory,
     create_options: &CreateOptions,
     filter: &PathFilter<'_>,
     time_filters: &TimeFilters,
@@ -2096,7 +2085,7 @@ pub(crate) fn read_archive_source(
 
     match source {
         ArchiveSource::File(path) => {
-            let path = base.join(path);
+            let path = base.resolve(path);
             let file = fs::File::open(&path)
                 .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", path.display(), e)))?;
             process_source(

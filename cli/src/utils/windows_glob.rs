@@ -1,3 +1,4 @@
+use crate::utils::WorkingDirectory;
 #[cfg(windows)]
 use anyhow::Context;
 #[cfg(any(windows, test))]
@@ -11,23 +12,23 @@ use std::io;
 /// callers are expected to rely on the shell and operands are left untouched.
 #[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) fn expand_bsdtar_windows_globs(
-    base: &std::path::Path,
+    working_directory: &WorkingDirectory,
     paths: Vec<String>,
 ) -> anyhow::Result<Vec<String>> {
     #[cfg(windows)]
     {
-        expand_bsdtar_windows_globs_inner(base, paths)
+        expand_bsdtar_windows_globs_inner(working_directory, paths)
     }
     #[cfg(not(windows))]
     {
-        let _ = base;
+        let _ = working_directory;
         Ok(paths)
     }
 }
 
 #[cfg(windows)]
 fn expand_bsdtar_windows_globs_inner(
-    base: &std::path::Path,
+    working_directory: &WorkingDirectory,
     paths: Vec<String>,
 ) -> anyhow::Result<Vec<String>> {
     let mut expanded = Vec::with_capacity(paths.len());
@@ -37,8 +38,10 @@ fn expand_bsdtar_windows_globs_inner(
             continue;
         };
 
-        let matches = find_matches(&base.join(parts.search_pattern.as_ref()))
-            .with_context(|| format!("expanding Windows wildcard operand `{path}`"))?;
+        let matches = find_matches(
+            &working_directory.resolve(std::path::Path::new(parts.search_pattern.as_ref())),
+        )
+        .with_context(|| format!("expanding Windows wildcard operand `{path}`"))?;
         if matches.is_empty() {
             expanded.push(path);
             continue;
@@ -269,7 +272,8 @@ mod tests {
     fn non_windows_expansion_is_noop() {
         let paths = vec!["a*".into(), "bbb/file".into()];
         assert_eq!(
-            expand_bsdtar_windows_globs(Path::new("."), paths.clone()).unwrap(),
+            expand_bsdtar_windows_globs(&WorkingDirectory::current().unwrap(), paths.clone())
+                .unwrap(),
             paths
         );
     }

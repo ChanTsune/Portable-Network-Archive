@@ -22,7 +22,7 @@ use crate::{
         list::{Format, LineEnding, ListOptions, TimeField, TimeFormat},
         update::run_update_archive,
     },
-    utils::{self, BsdGlobMatcher, VCS_FILES, fs::HardlinkResolver},
+    utils::{self, BsdGlobMatcher, VCS_FILES, WorkingDirectory, fs::HardlinkResolver},
 };
 use anyhow::Context;
 use clap::{ArgGroup, Args, Parser, ValueHint};
@@ -167,7 +167,17 @@ impl Operands {
             })
             .collect();
         if let Some(path) = files_from {
-            sources.extend(read_files_from(path, null)?.into_iter().map(parse));
+            let mut names = read_files_from(path, null)?.into_iter();
+            while let Some(name) = names.next() {
+                if !null && name == "-C" {
+                    let dir = names
+                        .next()
+                        .context("missing directory after -C in --files-from input")?;
+                    sources.push(ItemSource::ChangeDir(dir.into()));
+                } else {
+                    sources.push(parse(name));
+                }
+            }
         } else if sources
             .iter()
             .all(|s| matches!(s, ItemSource::ChangeDir(_)))
@@ -1217,20 +1227,18 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
     } else {
         None
     };
-    let mut base = PathBuf::from(".");
+    let mut base = WorkingDirectory::current()?;
     if !cd_dirs.is_empty() {
         for dir in cd_dirs {
-            base = super::core::change_directory(&base, &dir)?;
+            base.change_directory(&dir)?;
         }
         if !args.chroot {
             // Resolve the user-selected directory before checking archive members for symlink traversal.
-            out_option.out_dir = Some(
-                base.canonicalize()?
-                    .join(out_option.out_dir.unwrap_or_default()),
-            );
+            let out_dir = out_option.out_dir.take().unwrap_or_default();
+            out_option.out_dir = Some(base.resolve(&out_dir));
         }
     }
-    apply_chroot(args.chroot, &base)?;
+    apply_chroot(args.chroot, base.as_path())?;
     let outcome = if let Some(archives) = archives {
         run_extract_archive_reader(
             archives
