@@ -22,13 +22,17 @@ pub(crate) struct SplitCommand {
     #[arg(
         long,
         value_name = "BASE_PATH",
-        help = "Base path used to name split archive parts. Relative paths resolve under --out-dir when given",
+        help = "Base path used to name split archive parts; required when --file is omitted. Relative paths resolve under --out-dir when given",
         value_hint = ValueHint::FilePath
     )]
     output: Option<PathBuf>,
     #[arg(long, value_name = "DIRECTORY", help = "Output directory for split archives", value_hint = ValueHint::DirPath)]
     out_dir: Option<PathBuf>,
-    #[arg(long, conflicts_with = "no_overwrite", help = "Overwrite file")]
+    #[arg(
+        long,
+        conflicts_with = "no_overwrite",
+        help = "Replace existing split part files"
+    )]
     overwrite: bool,
     #[arg(
         long,
