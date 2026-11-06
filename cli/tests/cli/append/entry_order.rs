@@ -12,7 +12,6 @@ fn append_preserves_cli_argument_order() {
     let dir = "append_preserves_cli_argument_order";
     fs::create_dir_all(dir).unwrap();
 
-    // Create initial archive with one file
     let initial_file = format!("{dir}/initial.txt");
     fs::write(&initial_file, b"initial content").unwrap();
 
@@ -31,7 +30,6 @@ fn append_preserves_cli_argument_order() {
     .execute()
     .unwrap();
 
-    // Create files with different sizes to affect parallel processing time
     let large_file = format!("{dir}/large.bin");
     let small_file = format!("{dir}/small.txt");
     let medium_file = format!("{dir}/medium.dat");
@@ -40,7 +38,6 @@ fn append_preserves_cli_argument_order() {
     fs::write(&small_file, b"small file").unwrap();
     fs::write(&medium_file, vec![1u8; 100 * 1024]).unwrap();
 
-    // Append with specific order: small, large, medium
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -61,7 +58,6 @@ fn append_preserves_cli_argument_order() {
     })
     .unwrap();
 
-    // First entry is the initial file, followed by appended files in order
     assert_eq!(entry_names.len(), 4);
     assert!(
         entry_names[0].ends_with("initial.txt"),

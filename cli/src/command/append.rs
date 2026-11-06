@@ -48,6 +48,12 @@ use std::{
 pub(crate) struct AppendCommand {
     #[arg(
         long,
+        action = ArgAction::SetTrue,
+        help = "Append to the existing archive in place"
+    )]
+    overwrite: (),
+    #[arg(
+        long,
         requires = "unstable",
         help_heading = "Unstable Options",
         help = "Stay in the same file system when collecting files"
