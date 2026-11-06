@@ -79,6 +79,7 @@ const PAIRS: &[(&[&str], &str, &str)] = &[
         "--no-preserve-acls",
     ),
     (&["x", "-f", "a.pna"], "--same-owner", "--no-same-owner"),
+    (&["x", "-f", "a.pna"], "--overwrite", "--no-overwrite"),
     (
         &["x", "-f", "a.pna", "--unstable"],
         "--safe-writes",
