@@ -24,9 +24,28 @@ jobs:
           disable-cache: true
           usesh: true
           prepare: |
-            pkg install -y rust cmake libnghttp2
+            pkg install -y rust cmake libnghttp2 curl zstd
+            rust_minor=$(rustc --version | awk '{split($2, v, "."); print v[2]}')
+            if [ "$rust_minor" -lt 95 ]; then
+              # DragonFly 6.4 packages have shipped Rust 1.85.1; install a
+              # newer, DragonFly-native compiler only when needed.
+              version=1.99.1
+              prefix="/opt/rust-$version"
+              base="https://leaf.dragonflybsd.org/~marino/dports-src/rust"
+              mkdir -p "$prefix"
+              for component in rustc cargo rust-std; do
+                artifact="$component-$version-x86_64-unknown-dragonfly"
+                curl -fLS --retry 3 "$base/$artifact.tar.zst" -o "/tmp/$artifact.tar.zst"
+                zstd -dc "/tmp/$artifact.tar.zst" | tar -xf - -C /tmp
+                (cd "/tmp/$artifact" && sh ./install.sh --prefix="$prefix" --disable-ldconfig)
+                rm -rf "/tmp/$artifact" "/tmp/$artifact.tar.zst"
+              done
+            fi
           run: |
             set -e
+            if [ -x /opt/rust-1.99.1/bin/rustc ]; then
+              export PATH="/opt/rust-1.99.1/bin:$PATH"
+            fi
             export LC_ALL=C LANG=C
             uname -a
             rustc --version
