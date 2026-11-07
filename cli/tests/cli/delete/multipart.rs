@@ -9,6 +9,7 @@ use std::collections::HashSet;
 #[test]
 fn delete_from_multipart_archive() {
     setup();
+    let _ = std::fs::remove_file("delete_multipart/deleted.pna");
     TestResources::extract_in("raw/", "delete_multipart/in/").unwrap();
 
     // Create a regular archive first

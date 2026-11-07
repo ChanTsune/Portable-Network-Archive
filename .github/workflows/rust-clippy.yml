@@ -16,11 +16,13 @@ on:
       - "lib/**"
       - "pna/**"
       - "cli/**"
+      - "xtask/**"
       - "Cargo.toml"
       - "Cargo.lock"
       - ".cargo/config.toml"
       - "rust-toolchain.toml"
       - ".github/actions/**"
+      - ".github/scripts/normalize-sarif-paths.py"
       - ".github/workflows/rust-clippy.yml"
   pull_request:
     branches: ["main"]
@@ -28,11 +30,13 @@ on:
       - "lib/**"
       - "pna/**"
       - "cli/**"
+      - "xtask/**"
       - "Cargo.toml"
       - "Cargo.lock"
       - ".cargo/config.toml"
       - "rust-toolchain.toml"
       - ".github/actions/**"
+      - ".github/scripts/normalize-sarif-paths.py"
       - ".github/workflows/rust-clippy.yml"
   schedule:
     - cron: '29 14 * * 0'
@@ -53,7 +57,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-rust
+      - uses: $/.github/actions/setup-rust
       - name: Install dependencies (Linux)
         if: startsWith(matrix.os, 'ubuntu')
         run: |
@@ -64,10 +68,16 @@ jobs:
       - name: Run rust-clippy
         shell: bash
         run: |
-          cargo clippy --locked --all-targets --all-features --message-format=json | clippy-sarif | tee rust-clippy-results.sarif | sarif-fmt
+          cargo clippy --locked --all-targets --all-features --message-format=json -- -D warnings \
+            | clippy-sarif \
+            | tee rust-clippy-results.sarif \
+            | sarif-fmt
+      - name: Normalize SARIF paths
+        if: ${{ !cancelled() && runner.os == 'Windows' }}
+        run: python .github/scripts/normalize-sarif-paths.py rust-clippy-results.sarif
       - name: Upload analysis results to GitHub
         if: always()
-        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           sarif_file: rust-clippy-results.sarif
           category: clippy-${{ matrix.os }}

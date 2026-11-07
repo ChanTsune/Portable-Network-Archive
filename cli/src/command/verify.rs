@@ -1,25 +1,25 @@
 use crate::{
-    cli::{GlobalContext, PasswordArgs},
+    cli::{ArchiveFileArgs, GlobalContext, PasswordArgs},
     command::{
         Command, ask_password,
-        core::{collect_split_archives, run_read_entries},
+        core::{collect_split_archives, run_read_entries_readers},
     },
 };
-use clap::{Parser, ValueHint};
+use clap::Parser;
 use pna::{CipherMode, Encryption, NormalEntry, ReadEntry, ReadOptions, SolidEntry};
-use std::{io, path::PathBuf};
+use std::io;
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(
     after_long_help = "Note: for entries encrypted in CBC or CTR mode, a wrong password is indistinguishable from corruption. GCM mode instead reports a key mismatch, meaning the password does not match the key derivation parameters recorded for the entry: either the password is wrong, or those recorded parameters were themselves altered."
 )]
 pub(crate) struct VerifyCommand {
-    #[arg(short = 'f', long = "file", help = "Archive file path", value_hint = ValueHint::FilePath)]
-    archive: PathBuf,
+    #[command(flatten)]
+    archive: ArchiveFileArgs,
     #[arg(
         long,
         help = "Verify chunk structure and CRC32 only, without decoding entry data",
-        long_help = "Verify chunk structure and CRC32 only. No entry data is decoded, so neither the entries contained in a solid block nor corruption that leaves a chunk's CRC32 intact are checked. Every entry whose chunks are intact is counted as ok, and no password is required."
+        long_help = "Verify only chunk structure and CRC32. No entry data is decoded, so neither the entries contained in a solid block nor corruption that leaves a chunk's CRC32 intact are checked. Every entry whose chunks are intact is counted as ok, and no password is required."
     )]
     fast: bool,
     #[command(flatten)]
@@ -38,7 +38,8 @@ struct VerifyReport {
     ok: usize,
     failed: usize,
     skipped: usize,
-    /// Gates the note that a wrong password cannot be told from corruption.
+    /// Whether any failure involved unauthenticated encryption, where a wrong
+    /// password is indistinguishable from corruption.
     unauthenticated_failure: bool,
 }
 
@@ -53,11 +54,11 @@ fn verify_archive(args: VerifyCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let password = password.as_deref();
     let read_options = ReadOptions::with_password(password);
-    let archives = collect_split_archives(&args.archive)?;
+    let archives = collect_split_archives(&args.archive.file)?;
     let mut report = VerifyReport::default();
     let mut solid_blocks = 0usize;
     let mut resyncing = false;
-    let result = run_read_entries(
+    let result = run_read_entries_readers(
         archives,
         |entry| {
             // A chunk that fails its CRC32 arrives as `Err(InvalidData)`, so an `Ok`

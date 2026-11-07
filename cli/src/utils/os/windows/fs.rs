@@ -1,6 +1,6 @@
 pub(crate) mod owner;
 
-use super::security::{Sid, apply_security_info};
+use crate::utils::os::windows::security::{Sid, apply_security_info};
 use crate::utils::str::encode_wide;
 use std::io;
 use std::mem::size_of;
@@ -103,8 +103,11 @@ pub(crate) fn mode_from_file_information(
     if path
         .extension()
         .and_then(|it| it.to_str())
-        .map(str::to_ascii_lowercase)
-        .is_some_and(|ext| matches!(ext.as_str(), "bat" | "cmd" | "exe"))
+        .is_some_and(|ext| {
+            ext.eq_ignore_ascii_case("bat")
+                || ext.eq_ignore_ascii_case("cmd")
+                || ext.eq_ignore_ascii_case("exe")
+        })
     {
         mode |= MODE_EXEC_BITS;
     }

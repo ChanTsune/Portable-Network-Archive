@@ -3,12 +3,16 @@ mod nodump;
 mod owner;
 
 #[cfg(windows)]
-use crate::utils::os::windows::{self, fs::*};
-pub(crate) use file_id::HardlinkResolver;
+use crate::utils::os::windows;
+pub(crate) use file_id::{HardlinkResolver, is_same_file};
 pub(crate) use nodump::is_nodump;
 pub(crate) use owner::*;
 pub(crate) use pna::fs::*;
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io::{self, BufRead},
+    path::Path,
+};
 
 /// Returns the current process umask.
 ///
@@ -41,27 +45,22 @@ pub(crate) fn current_umask() -> u16 {
     }
 }
 
-pub(crate) fn is_pna<P: AsRef<Path>>(path: P) -> io::Result<bool> {
-    let file = fs::File::open(path)?;
-    super::io::is_pna(file)
-}
-
 #[cfg(any(windows, unix))]
 pub(crate) fn lchown<P: AsRef<Path>>(
     path: P,
-    owner: Option<User>,
-    group: Option<Group>,
+    owner: Option<UserId>,
+    group: Option<GroupId>,
 ) -> io::Result<()> {
     #[cfg(windows)]
-    fn inner(path: &Path, owner: Option<User>, group: Option<Group>) -> io::Result<()> {
+    fn inner(path: &Path, owner: Option<UserId>, group: Option<GroupId>) -> io::Result<()> {
         windows::fs::lchown(path, owner.map(|it| it.0), group.map(|it| it.0))
     }
     #[cfg(unix)]
-    fn inner(path: &Path, owner: Option<User>, group: Option<Group>) -> io::Result<()> {
+    fn inner(path: &Path, owner: Option<UserId>, group: Option<GroupId>) -> io::Result<()> {
         std::os::unix::fs::lchown(
             path,
-            owner.map(|it| it.0.as_raw()),
-            group.map(|it| it.0.as_raw()),
+            owner.map(|it| it.as_raw()),
+            group.map(|it| it.as_raw()),
         )
     }
     inner(path.as_ref(), owner, group)
@@ -85,7 +84,10 @@ pub(crate) fn get_flags<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> {
         target_os = "macos",
         target_os = "linux",
         target_os = "android",
-        target_os = "freebsd"
+        target_os = "freebsd",
+        target_os = "dragonfly",
+        target_os = "netbsd",
+        target_os = "openbsd"
     ))]
     fn inner(path: &Path) -> io::Result<Vec<String>> {
         crate::utils::os::unix::fs::get_flags(path)
@@ -94,10 +96,16 @@ pub(crate) fn get_flags<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> {
         target_os = "macos",
         target_os = "linux",
         target_os = "android",
-        target_os = "freebsd"
+        target_os = "freebsd",
+        target_os = "dragonfly",
+        target_os = "netbsd",
+        target_os = "openbsd"
     )))]
     fn inner(_path: &Path) -> io::Result<Vec<String>> {
-        Ok(Vec::new())
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "file flags are not supported on this platform",
+        ))
     }
     inner(path.as_ref())
 }
@@ -107,7 +115,10 @@ pub(crate) fn set_flags<P: AsRef<Path>>(path: P, flags: &[String]) -> io::Result
         target_os = "macos",
         target_os = "linux",
         target_os = "android",
-        target_os = "freebsd"
+        target_os = "freebsd",
+        target_os = "dragonfly",
+        target_os = "netbsd",
+        target_os = "openbsd"
     ))]
     fn inner(path: &Path, flags: &[String]) -> io::Result<()> {
         crate::utils::os::unix::fs::set_flags(path, flags)
@@ -116,10 +127,16 @@ pub(crate) fn set_flags<P: AsRef<Path>>(path: P, flags: &[String]) -> io::Result
         target_os = "macos",
         target_os = "linux",
         target_os = "android",
-        target_os = "freebsd"
+        target_os = "freebsd",
+        target_os = "dragonfly",
+        target_os = "netbsd",
+        target_os = "openbsd"
     )))]
     fn inner(_path: &Path, _flags: &[String]) -> io::Result<()> {
-        Ok(())
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "file flags are not supported on this platform",
+        ))
     }
     inner(path.as_ref(), flags)
 }
@@ -130,5 +147,102 @@ pub(crate) fn file_create(path: impl AsRef<Path>, overwrite: bool) -> io::Result
         fs::File::create(path)
     } else {
         fs::File::create_new(path)
+    }
+}
+
+/// Atomically renames `src` onto `dst`, failing when anything already occupies `dst`.
+///
+/// Unlike [`fs::rename`], which silently replaces an existing file on Unix, the
+/// filesystem itself refuses the link when the destination name is taken, so no
+/// check-then-act race exists. A dangling symlink is never replaced either.
+pub(crate) fn rename_no_overwrite(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
+    let (src, dst) = (src.as_ref(), dst.as_ref());
+    if let Err(error) = fs::hard_link(src, dst) {
+        // The link itself is the atomic guard; this lookup only selects the message.
+        let message = if fs::symlink_metadata(dst).is_ok() {
+            format!(
+                "{} already exists (use --overwrite to replace it)",
+                dst.display()
+            )
+        } else {
+            format!("failed to publish {}: {error}", dst.display())
+        };
+        return Err(io::Error::new(error.kind(), message));
+    }
+    fs::remove_file(src)
+}
+
+/// Returns the first non-empty line from a file as UTF-8, if any.
+///
+/// Empty lines are skipped. The trailing line terminator (`\n` or `\r\n`)
+/// is not included in the returned string.
+///
+/// # Returns
+///
+/// - `Ok(Some(line))` if a non-empty line was found.
+/// - `Ok(None)` if the file contains no non-empty lines.
+/// - `Err(e)` if an I/O error occurs while opening or reading the file.
+///
+/// # Errors
+///
+/// Propagates any I/O error that occurs while opening or reading the file.
+#[inline]
+pub(crate) fn read_first_non_empty_line<P: AsRef<Path>>(path: P) -> io::Result<Option<String>> {
+    let file = fs::File::open(path)?;
+    let reader = io::BufReader::new(file);
+    for line in reader.lines() {
+        let line = line?;
+        if !line.is_empty() {
+            return Ok(Some(line));
+        }
+    }
+    Ok(None)
+}
+
+#[cfg(test)]
+#[cfg(not(target_family = "wasm"))]
+mod tests {
+    use super::read_first_non_empty_line;
+    use std::{
+        fs,
+        io::Write,
+        path::PathBuf,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    fn temp_path(name: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("pna-password-test-{name}-{nanos}"))
+    }
+
+    #[test]
+    fn reads_first_non_empty_line_and_skips_empty_prefix() {
+        let path = temp_path("first-line");
+        let mut file = fs::File::create(&path).unwrap();
+        writeln!(file).unwrap();
+        writeln!(file, "secret").unwrap();
+        writeln!(file, "ignored").unwrap();
+
+        let result = read_first_non_empty_line(&path);
+        let _ = fs::remove_file(&path);
+        assert_eq!(result.unwrap().as_deref(), Some("secret"));
+    }
+
+    #[test]
+    fn returns_none_for_empty_or_blank_file() {
+        let empty = temp_path("empty");
+        fs::write(&empty, "").unwrap();
+        let empty_result = read_first_non_empty_line(&empty);
+        let _ = fs::remove_file(&empty);
+        assert_eq!(empty_result.unwrap(), None);
+
+        let blank = temp_path("blank");
+        fs::write(&blank, "\n\n").unwrap();
+        let blank_result = read_first_non_empty_line(&blank);
+        let _ = fs::remove_file(&blank);
+        assert_eq!(blank_result.unwrap(), None);
     }
 }

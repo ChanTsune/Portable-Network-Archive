@@ -82,6 +82,24 @@ impl io::Write for FlattenWriter {
     }
 }
 
+/// Fills `buf` until full or EOF; any EOF yields `Ok(total)`.
+/// Bytes read before an `Err` are lost, so callers must not retry.
+pub(crate) fn read_to_fill<R: io::Read + ?Sized>(
+    reader: &mut R,
+    buf: &mut [u8],
+) -> io::Result<usize> {
+    let mut total = 0;
+    while total < buf.len() {
+        match reader.read(&mut buf[total..]) {
+            Ok(0) => break, // EOF
+            Ok(n) => total += n,
+            Err(ref e) if e.kind() == io::ErrorKind::Interrupted => continue,
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(total)
+}
+
 /// A reader that chains an iterator of readers.
 ///
 /// This is similar to [`std::io::Chain`] but for an arbitrary number
@@ -230,6 +248,54 @@ pub(crate) mod tests {
         assert_eq!(writer.inner.concat(), expected);
         assert!(writer.inner.iter().all(|c| c.len() <= MAX));
         assert_eq!(writer.inner.len(), expected.len().div_ceil(MAX));
+    }
+
+    #[test]
+    fn read_to_fill_distinguishes_clean_eof_from_truncation() {
+        let mut src: &[u8] = b"abcdefgh";
+        let mut buf = [0u8; 8];
+        assert_eq!(read_to_fill(&mut src, &mut buf).unwrap(), 8);
+        assert_eq!(&buf, b"abcdefgh");
+
+        let mut src: &[u8] = b"abc";
+        let mut buf = [0u8; 8];
+        assert_eq!(read_to_fill(&mut src, &mut buf).unwrap(), 3);
+        assert_eq!(&buf[..3], b"abc");
+
+        let mut src = PartialReader::new(b"abcdef".to_vec(), [2u8, 2, 2]);
+        let mut buf = [0u8; 6];
+        assert_eq!(read_to_fill(&mut src, &mut buf).unwrap(), 6);
+        assert_eq!(&buf, b"abcdef");
+    }
+
+    #[test]
+    fn read_to_fill_retries_interrupted_and_reports_errors() {
+        struct Interrupting<R>(R, bool);
+        impl<R: Read> Read for Interrupting<R> {
+            fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+                if !self.1 {
+                    self.1 = true;
+                    return Err(io::Error::from(io::ErrorKind::Interrupted));
+                }
+                self.0.read(buf)
+            }
+        }
+        let mut src = Interrupting(PartialReader::new(b"abcdef".to_vec(), [6u8]), false);
+        let mut buf = [0u8; 6];
+        assert_eq!(read_to_fill(&mut src, &mut buf).unwrap(), 6);
+        assert_eq!(&buf, b"abcdef");
+
+        struct Failing;
+        impl Read for Failing {
+            fn read(&mut self, _buf: &mut [u8]) -> io::Result<usize> {
+                Err(io::Error::other("boom"))
+            }
+        }
+        let mut buf = [0u8; 4];
+        assert_eq!(
+            read_to_fill(&mut Failing, &mut buf).unwrap_err().kind(),
+            io::ErrorKind::Other
+        );
     }
 
     #[test]

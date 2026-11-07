@@ -4,7 +4,7 @@ use portable_network_archive::cli;
 
 /// Precondition: An archive contains entries with permission metadata.
 /// Action: Run `pna experimental chown` with `user:group` to change both owner and group.
-/// Expectation: The target entry has updated uname/gname/uid/gid; permission bits are preserved.
+/// Expectation: The target entry has updated uname/gname and no uid/gid; permission bits are preserved.
 #[test]
 fn chown_user_and_group() {
     setup();
@@ -52,12 +52,12 @@ fn chown_user_and_group() {
                     entry.metadata().owner_user_name().unwrap().as_str(),
                     "new_user"
                 );
-                assert_eq!(entry.metadata().owner_uid().unwrap().get(), u64::MAX);
+                assert!(entry.metadata().owner_uid().is_none());
                 assert_eq!(
                     entry.metadata().owner_group_name().unwrap().as_str(),
                     "new_group"
                 );
-                assert_eq!(entry.metadata().owner_gid().unwrap().get(), u64::MAX);
+                assert!(entry.metadata().owner_gid().is_none());
                 assert_eq!(entry.metadata().permission_mode().unwrap().get(), 0o644);
             }
             "other.txt" => {

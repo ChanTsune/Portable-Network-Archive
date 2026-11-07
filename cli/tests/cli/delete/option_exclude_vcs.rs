@@ -53,7 +53,6 @@ fn delete_with_exclude_vcs() {
         "-f",
         "delete_with_exclude_vcs/delete_with_exclude_vcs.pna",
         "**/.git/**",
-        "--unstable",
         "--exclude-vcs",
     ])
     .unwrap()

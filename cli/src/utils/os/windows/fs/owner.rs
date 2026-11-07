@@ -1,7 +1,25 @@
 use crate::utils::os::windows::security;
 use std::io;
 
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) struct UserId(security::Sid);
+
+impl From<User> for UserId {
+    #[inline]
+    fn from(value: User) -> Self {
+        Self(value.0)
+    }
+}
+
+impl From<UserId> for security::Sid {
+    #[inline]
+    fn from(value: UserId) -> Self {
+        value.0
+    }
+}
+
 pub(crate) struct User(security::Sid);
+
 impl User {
     #[inline]
     pub(crate) fn from_name(name: &str) -> io::Result<Self> {
@@ -22,6 +40,23 @@ impl User {
 impl From<User> for security::Sid {
     #[inline]
     fn from(value: User) -> Self {
+        value.0
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) struct GroupId(security::Sid);
+
+impl From<Group> for GroupId {
+    #[inline]
+    fn from(value: Group) -> Self {
+        Self(value.0)
+    }
+}
+
+impl From<GroupId> for security::Sid {
+    #[inline]
+    fn from(value: GroupId) -> Self {
         value.0
     }
 }

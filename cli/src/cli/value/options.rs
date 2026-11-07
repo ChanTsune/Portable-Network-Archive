@@ -1,4 +1,4 @@
-use super::{DeflateLevel, XzLevel, ZstdLevel};
+use crate::cli::value::{DeflateLevel, XzLevel, ZstdLevel};
 use std::str::FromStr;
 
 /// Archive options parsed from `--options` argument.

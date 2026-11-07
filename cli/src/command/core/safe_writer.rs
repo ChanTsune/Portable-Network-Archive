@@ -1,9 +1,20 @@
+use crate::utils::fs::rename_no_overwrite;
 use std::{
     fs, io,
     path::{Path, PathBuf},
 };
 
-const MAX_RETRIES: u32 = 3;
+/// The mode is part of the creation, so the file is owner-only from the moment it exists.
+fn create_new_owner_only(path: &Path) -> io::Result<fs::File> {
+    let mut options = fs::OpenOptions::new();
+    options.read(true).write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    options.open(path)
+}
 
 /// Atomic file writer using temp file + rename pattern.
 ///
@@ -17,49 +28,50 @@ pub(crate) struct SafeWriter {
     temp_path: Option<PathBuf>,
     final_path: PathBuf,
     file: fs::File,
+    overwrite: bool,
 }
 
 impl SafeWriter {
+    /// A 64-bit name does not repeat in practice; the limit only bounds a filesystem that
+    /// reports `AlreadyExists` for some other reason.
+    const MAX_RETRIES: usize = 1 << 16;
+
     /// Creates a new temp file with pattern `.pna.{random}` in the same directory as
     /// `final_path`, which keeps [`persist()`](Self::persist)'s rename within one filesystem.
+    ///
+    /// When `overwrite` is false, [`persist()`](Self::persist) atomically refuses to
+    /// replace an existing destination instead of renaming over it.
     ///
     /// # Errors
     ///
     /// Returns an error if the parent directory doesn't exist or temp file creation fails.
-    pub(crate) fn new(final_path: impl AsRef<Path>) -> io::Result<Self> {
+    pub(crate) fn new(final_path: impl AsRef<Path>, overwrite: bool) -> io::Result<Self> {
         let final_path = final_path.as_ref().to_path_buf();
         let parent = final_path.parent().unwrap_or(Path::new("."));
 
-        // Retry on collision (astronomically rare)
-        for _ in 0..MAX_RETRIES {
-            let random = rand::random::<u64>();
-            let temp_name = format!(".pna.{:016x}", random);
-            let temp_path = parent.join(temp_name);
+        let (temp_path, file) =
+            std::iter::repeat_with(|| parent.join(format!(".pna.{:016x}", rand::random::<u64>())))
+                .take(Self::MAX_RETRIES)
+                .find_map(|temp_path| match create_new_owner_only(&temp_path) {
+                    Err(e) if e.kind() == io::ErrorKind::AlreadyExists => None,
+                    result => Some(result.map(|file| (temp_path, file))),
+                })
+                .unwrap_or_else(|| {
+                    Err(io::Error::new(
+                        io::ErrorKind::AlreadyExists,
+                        format!(
+                            "failed to create unique temp file after {} attempts",
+                            Self::MAX_RETRIES
+                        ),
+                    ))
+                })?;
 
-            match fs::File::create_new(&temp_path) {
-                Ok(file) => {
-                    #[cfg(unix)]
-                    {
-                        // Restrict temp file to owner-only access to prevent other users
-                        // from reading sensitive data before final permissions are applied
-                        use std::os::unix::fs::PermissionsExt;
-                        file.set_permissions(fs::Permissions::from_mode(0o600))?;
-                    }
-                    return Ok(Self {
-                        temp_path: Some(temp_path),
-                        final_path,
-                        file,
-                    });
-                }
-                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
-                Err(e) => return Err(e),
-            }
-        }
-
-        Err(io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            format!("failed to create unique temp file after {MAX_RETRIES} attempts"),
-        ))
+        Ok(Self {
+            temp_path: Some(temp_path),
+            final_path,
+            file,
+            overwrite,
+        })
     }
 
     /// Returns a mutable reference to the underlying file for writing.
@@ -72,6 +84,9 @@ impl SafeWriter {
     ///
     /// On failure, the temp file is cleaned up automatically via `Drop`.
     ///
+    /// When created with `overwrite` set to false, an occupied destination is
+    /// refused instead of replaced; the filesystem enforces this at publish time.
+    ///
     /// # Errors
     ///
     /// Returns an error if:
@@ -79,8 +94,21 @@ impl SafeWriter {
     /// - A non-empty directory exists at the destination path
     /// - The destination path cannot be accessed (permission denied, I/O error)
     /// - The rename operation fails
+    /// - The destination is already occupied and overwriting was not allowed
     pub(crate) fn persist(mut self) -> io::Result<()> {
         self.file.sync_all()?;
+
+        if !self.overwrite {
+            let temp_path = self
+                .temp_path
+                .as_deref()
+                .expect("persist called on already-persisted SafeWriter")
+                .to_path_buf();
+            rename_no_overwrite(&temp_path, &self.final_path)?;
+            self.temp_path = None;
+            return Ok(());
+        }
+
         self.prepare_destination()?;
 
         let temp_path = self
@@ -149,7 +177,7 @@ mod tests {
     fn safe_writer_creates_temp_in_same_directory() {
         let dir = test_dir();
         let target = dir.join("target.txt");
-        let writer = SafeWriter::new(&target).unwrap();
+        let writer = SafeWriter::new(&target, true).unwrap();
 
         let temp_path = writer.temp_path.as_ref().unwrap();
         // Temp file should be in same directory
@@ -171,13 +199,29 @@ mod tests {
         let _ = fs::remove_file(&target);
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn safe_writer_temp_file_denies_group_and_other() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = test_dir();
+        let target = dir.join("mode_test.txt");
+        let writer = SafeWriter::new(&target, true).unwrap();
+        let temp_path = writer.temp_path.as_ref().unwrap().clone();
+
+        let mode = fs::metadata(&temp_path).unwrap().permissions().mode();
+        assert_eq!(mode & 0o077, 0);
+
+        drop(writer);
+    }
+
     #[test]
     fn safe_writer_persist_renames_atomically() {
         let dir = test_dir();
         let target = dir.join("persist_test.txt");
         let _ = fs::remove_file(&target);
 
-        let mut writer = SafeWriter::new(&target).unwrap();
+        let mut writer = SafeWriter::new(&target, true).unwrap();
         let temp_path = writer.temp_path.as_ref().unwrap().clone();
 
         write!(writer.as_file_mut(), "test content").unwrap();
@@ -201,7 +245,7 @@ mod tests {
         let temp_path;
 
         {
-            let writer = SafeWriter::new(&target).unwrap();
+            let writer = SafeWriter::new(&target, true).unwrap();
             temp_path = writer.temp_path.as_ref().unwrap().clone();
             assert!(temp_path.exists());
             // Drop without persist
@@ -223,7 +267,7 @@ mod tests {
         assert_eq!(fs::read_to_string(&target).unwrap(), "old content");
 
         // Create SafeWriter and persist new content
-        let mut writer = SafeWriter::new(&target).unwrap();
+        let mut writer = SafeWriter::new(&target, true).unwrap();
         write!(writer.as_file_mut(), "new content").unwrap();
         writer.persist().unwrap();
 
@@ -244,7 +288,7 @@ mod tests {
         let target = dir.join("rename_failure_test.txt");
         fs::write(&target, "old content").unwrap();
 
-        let mut writer = SafeWriter::new(&target).unwrap();
+        let mut writer = SafeWriter::new(&target, true).unwrap();
         let temp_path = writer.temp_path.as_ref().unwrap().clone();
         write!(writer.as_file_mut(), "new content").unwrap();
 
@@ -274,7 +318,7 @@ mod tests {
         assert!(target.is_dir());
 
         // Create SafeWriter and persist - should replace directory with file
-        let mut writer = SafeWriter::new(&target).unwrap();
+        let mut writer = SafeWriter::new(&target, true).unwrap();
         write!(writer.as_file_mut(), "file content").unwrap();
         writer.persist().unwrap();
 
@@ -285,7 +329,6 @@ mod tests {
         // Cleanup
         let _ = fs::remove_file(&target);
     }
-
     #[test]
     fn safe_writer_fails_on_non_empty_directory() {
         let dir = test_dir();
@@ -298,7 +341,7 @@ mod tests {
         assert!(target.is_dir());
 
         // Create SafeWriter and try to persist - should fail
-        let mut writer = SafeWriter::new(&target).unwrap();
+        let mut writer = SafeWriter::new(&target, true).unwrap();
         write!(writer.as_file_mut(), "file content").unwrap();
         let result = writer.persist();
 
@@ -310,5 +353,59 @@ mod tests {
 
         // Cleanup
         let _ = fs::remove_dir_all(&target);
+    }
+
+    #[test]
+    fn persist_without_overwrite_publishes_when_the_destination_is_absent() {
+        let dir = test_dir();
+        let target = dir.join("noclobber_absent.txt");
+        let _ = fs::remove_file(&target);
+
+        let mut writer = SafeWriter::new(&target, false).unwrap();
+        let temp_path = writer.temp_path.as_ref().unwrap().clone();
+        write!(writer.as_file_mut(), "new content").unwrap();
+        writer.persist().unwrap();
+
+        assert_eq!(fs::read_to_string(&target).unwrap(), "new content");
+        assert!(!temp_path.exists());
+
+        let _ = fs::remove_file(&target);
+    }
+
+    #[test]
+    fn persist_without_overwrite_refuses_an_existing_file_atomically() {
+        let dir = test_dir();
+        let target = dir.join("noclobber_existing.txt");
+        fs::write(&target, "original").unwrap();
+
+        let mut writer = SafeWriter::new(&target, false).unwrap();
+        write!(writer.as_file_mut(), "replacement").unwrap();
+        let error = writer.persist().unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+        assert!(error.to_string().contains("already exists"));
+        // The original is untouched.
+        assert_eq!(fs::read_to_string(&target).unwrap(), "original");
+
+        let _ = fs::remove_file(&target);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn persist_without_overwrite_refuses_a_dangling_symlink() {
+        let dir = test_dir();
+        let target = dir.join("noclobber_dangling.txt");
+        let _ = fs::remove_file(&target);
+        std::os::unix::fs::symlink("missing-target", &target).unwrap();
+
+        let mut writer = SafeWriter::new(&target, false).unwrap();
+        write!(writer.as_file_mut(), "replacement").unwrap();
+        let error = writer.persist().unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+        // The symlink itself is preserved, not replaced.
+        assert!(fs::symlink_metadata(&target).unwrap().is_symlink());
+
+        let _ = fs::remove_file(&target);
     }
 }

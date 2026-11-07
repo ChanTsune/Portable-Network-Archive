@@ -70,56 +70,33 @@ where
     }
 }
 
-/// Ownership/permission resolved for read sites: legacy fPRM `permission()`
-/// as the per-field baseline, overwritten by the owner-facet value when
-/// present. SIDs come only from owner facets (fPRM never carried them).
-/// This is the sole place `cli/` reads the deprecated fPRM API.
+/// Ownership/permission resolved for read sites, sourced entirely from the
+/// owner-facet API. A legacy archive's `fPRM` chunk is folded into these
+/// facets by the reader, so no fPRM-specific handling is needed here.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct ResolvedOwnership {
     pub(crate) uid: Option<u64>,
     pub(crate) gid: Option<u64>,
     pub(crate) uname: Option<String>,
     pub(crate) gname: Option<String>,
+    /// `0o7777`-masked permission bits (`fMOd`), never the raw `st_mode`
+    /// stored in a legacy `fPRM` chunk, which also carries file-type bits.
     pub(crate) mode: Option<u16>,
     pub(crate) user_sid: Option<String>,
     pub(crate) group_sid: Option<String>,
 }
 
 impl ResolvedOwnership {
-    #[allow(deprecated)]
     pub(crate) fn from_metadata(m: &pna::Metadata) -> Self {
-        let p = m.permission();
-        let mut r = Self {
-            uid: p.map(|p| p.uid()),
-            gid: p.map(|p| p.gid()),
-            uname: p.map(|p| p.uname().to_owned()),
-            gname: p.map(|p| p.gname().to_owned()),
-            mode: p.map(|p| p.permissions()),
-            user_sid: None,
-            group_sid: None,
-        };
-        if let Some(v) = m.owner_uid() {
-            r.uid = Some(v.get());
+        Self {
+            uid: m.owner_uid().map(|v| v.get()),
+            gid: m.owner_gid().map(|v| v.get()),
+            uname: m.owner_user_name().map(|v| v.as_str().to_owned()),
+            gname: m.owner_group_name().map(|v| v.as_str().to_owned()),
+            mode: m.permission_mode().map(|v| v.get()),
+            user_sid: m.owner_user_sid().map(|v| v.as_str().to_owned()),
+            group_sid: m.owner_group_sid().map(|v| v.as_str().to_owned()),
         }
-        if let Some(v) = m.owner_gid() {
-            r.gid = Some(v.get());
-        }
-        if let Some(v) = m.owner_user_name() {
-            r.uname = Some(v.as_str().to_owned());
-        }
-        if let Some(v) = m.owner_group_name() {
-            r.gname = Some(v.as_str().to_owned());
-        }
-        if let Some(v) = m.permission_mode() {
-            r.mode = Some(v.get());
-        }
-        if let Some(v) = m.owner_user_sid() {
-            r.user_sid = Some(v.as_str().to_owned());
-        }
-        if let Some(v) = m.owner_group_sid() {
-            r.group_sid = Some(v.as_str().to_owned());
-        }
-        r
     }
 
     #[inline]
@@ -146,13 +123,11 @@ impl ResolvedOwnership {
     /// Faithful name/id display: it does NOT substitute the id when the name
     /// is empty. Callers that need "empty name → numeric id" (e.g. the bsdtar
     /// listing format) must apply that fallback themselves.
+    ///
+    /// A missing numeric ID is displayed as `-`.
     #[inline]
     pub(crate) fn owner_display(&self, is_numeric: bool) -> UserDisplay<&str> {
-        UserDisplay::new(
-            self.uname.as_deref().unwrap_or(""),
-            self.uid.unwrap_or(0),
-            is_numeric,
-        )
+        UserDisplay::new(self.uname.as_deref().unwrap_or(""), self.uid, is_numeric)
     }
 
     /// Display helper for group (gname unless numeric → gid).
@@ -160,25 +135,23 @@ impl ResolvedOwnership {
     /// Faithful name/id display: it does NOT substitute the id when the name
     /// is empty. Callers that need "empty name → numeric id" (e.g. the bsdtar
     /// listing format) must apply that fallback themselves.
+    ///
+    /// A missing numeric ID is displayed as `-`.
     #[inline]
     pub(crate) fn group_display(&self, is_numeric: bool) -> UserDisplay<&str> {
-        UserDisplay::new(
-            self.gname.as_deref().unwrap_or(""),
-            self.gid.unwrap_or(0),
-            is_numeric,
-        )
+        UserDisplay::new(self.gname.as_deref().unwrap_or(""), self.gid, is_numeric)
     }
 }
 
 pub(crate) struct UserDisplay<S> {
     name: S,
-    id: u64,
+    id: Option<u64>,
     is_numeric: bool,
 }
 
 impl<S> UserDisplay<S> {
     #[inline]
-    pub(crate) const fn new(name: S, id: u64, is_numeric: bool) -> Self {
+    pub(crate) const fn new(name: S, id: Option<u64>, is_numeric: bool) -> Self {
         Self {
             name,
             id,
@@ -191,7 +164,10 @@ impl<S: Display> Display for UserDisplay<S> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if self.is_numeric {
-            Display::fmt(&self.id, f)
+            match self.id {
+                Some(id) => Display::fmt(&id, f),
+                None => f.write_str("-"),
+            }
         } else {
             Display::fmt(&self.name, f)
         }
@@ -199,29 +175,37 @@ impl<S: Display> Display for UserDisplay<S> {
 }
 
 #[cfg(test)]
-mod resolved_ownership_tests {
+mod tests {
     use super::*;
+    use pna::{
+        Metadata, OwnerGid, OwnerGroupName, OwnerUid, OwnerUserName, OwnerUserSid, PermissionMode,
+    };
+
+    /// A `Metadata` with every owner facet set to a distinct literal, so a
+    /// uid<->gid or uname<->gname mix-up in `from_metadata` surfaces as a
+    /// wrong value: every one of the four fields differs from the other
+    /// three.
+    fn base_metadata() -> Metadata {
+        Metadata::new()
+            .with_owner_uid(Some(OwnerUid::from(501)))
+            .with_owner_gid(Some(OwnerGid::from(20)))
+            .with_owner_user_name(Some(OwnerUserName::new("kaihatsutarou").unwrap()))
+            .with_owner_group_name(Some(OwnerGroupName::new("staff").unwrap()))
+            .with_permission_mode(Some(PermissionMode::from(0o644)))
+    }
 
     #[test]
-    fn owner_facet_overwrites_fprm_baseline() {
-        #[allow(deprecated)]
-        let m = pna::Metadata::new()
-            .with_permission(Some(pna::Permission::new(
-                7,
-                "legacy".into(),
-                8,
-                "grp".into(),
-                0o600,
-            )))
-            .with_owner_uid(Some(pna::OwnerUid::from(1)))
-            .with_owner_user_name(Some(pna::OwnerUserName::new("new").unwrap()))
-            .with_owner_user_sid(Some(pna::OwnerUserSid::new("S-1-1").unwrap()));
-        let r = ResolvedOwnership::from_metadata(&m);
+    fn from_metadata_maps_each_field_without_cross_wiring() {
+        let metadata = base_metadata()
+            .with_owner_uid(Some(OwnerUid::from(1)))
+            .with_owner_group_name(Some(OwnerGroupName::new("grp").unwrap()))
+            .with_owner_user_sid(Some(OwnerUserSid::new("S-1-1").unwrap()));
+        let r = ResolvedOwnership::from_metadata(&metadata);
         assert_eq!(r.uid, Some(1));
-        assert_eq!(r.uname.as_deref(), Some("new"));
-        assert_eq!(r.gid, Some(8));
+        assert_eq!(r.uname.as_deref(), Some("kaihatsutarou"));
+        assert_eq!(r.gid, Some(20));
         assert_eq!(r.gname.as_deref(), Some("grp"));
-        assert_eq!(r.mode, Some(0o600));
+        assert_eq!(r.mode, Some(0o644));
         assert_eq!(r.user_sid.as_deref(), Some("S-1-1"));
         assert_eq!(r.group_sid, None);
     }
@@ -233,18 +217,29 @@ mod resolved_ownership_tests {
     }
 
     #[test]
-    fn fprm_only_is_rescued() {
-        #[allow(deprecated)]
-        let m = pna::Metadata::new().with_permission(Some(pna::Permission::new(
-            5,
-            "u".into(),
-            6,
-            "g".into(),
-            0o644,
-        )));
-        let r = ResolvedOwnership::from_metadata(&m);
-        assert_eq!((r.uid, r.gid, r.mode), (Some(5), Some(6), Some(0o644)));
-        assert_eq!(r.uname.as_deref(), Some("u"));
-        assert_eq!(r.gname.as_deref(), Some("g"));
+    fn numeric_owner_display_distinguishes_missing_ids_from_zero() {
+        let mut owner = ResolvedOwnership {
+            uname: Some("alice".into()),
+            gname: Some("staff".into()),
+            gid: Some(0),
+            ..Default::default()
+        };
+        assert_eq!(owner.owner_display(true).to_string(), "-");
+        assert_eq!(owner.group_display(true).to_string(), "0");
+        assert_eq!(owner.owner_display(false).to_string(), "alice");
+        assert_eq!(owner.group_display(false).to_string(), "staff");
+
+        owner.uid = Some(0);
+        owner.gid = None;
+        assert_eq!(owner.owner_display(true).to_string(), "0");
+        assert_eq!(owner.group_display(true).to_string(), "-");
+    }
+
+    #[test]
+    fn from_metadata_projects_every_owner_facet() {
+        let r = ResolvedOwnership::from_metadata(&base_metadata());
+        assert_eq!((r.uid, r.gid, r.mode), (Some(501), Some(20), Some(0o644)));
+        assert_eq!(r.uname.as_deref(), Some("kaihatsutarou"));
+        assert_eq!(r.gname.as_deref(), Some("staff"));
     }
 }

@@ -69,7 +69,6 @@ fn append_with_exclude_vcs() {
         "append_with_exclude_vcs/append_with_exclude_vcs.pna",
         "append_with_exclude_vcs/in/",
         "--exclude-vcs",
-        "--unstable",
     ])
     .unwrap()
     .execute()

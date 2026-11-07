@@ -1,10 +1,10 @@
 use crate::utils::{
     archive, setup,
-    time::{confirm_time_older_than, wait_until_time_newer_than},
+    time::{birth_time, birth_time_recorded, create_file_born_after},
 };
 use clap::Parser;
 use portable_network_archive::cli;
-use std::{collections::HashSet, fs, thread, time::Duration};
+use std::{collections::HashSet, fs};
 
 /// Precondition: An archive exists with an older file, and the source tree contains a reference file and a newer file.
 /// Action: Run `pna append` with `--older-ctime-than` pointing to the reference file.
@@ -22,12 +22,8 @@ fn append_with_older_ctime_than() {
     fs::create_dir_all(base_dir).unwrap();
     fs::write(&older_file, "older file content").unwrap();
 
-    if fs::metadata(&older_file).unwrap().created().is_err() {
-        eprintln!("Skipping test: creation time (birth time) is not supported on this filesystem");
-        return;
-    }
+    skip_unless!("birthtime", birth_time_recorded(&older_file));
 
-    // Create the initial archive containing only the older file.
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -41,21 +37,12 @@ fn append_with_older_ctime_than() {
     .execute()
     .unwrap();
 
-    thread::sleep(Duration::from_millis(10));
-    fs::write(&reference_file, "reference content").unwrap();
-    let reference_ctime = fs::metadata(&reference_file).unwrap().created().unwrap();
-
-    thread::sleep(Duration::from_millis(10));
-    fs::write(&newer_file, "newer content").unwrap();
-
-    if !confirm_time_older_than(&older_file, reference_ctime, |m| m.created().ok())
-        || !wait_until_time_newer_than(&newer_file, reference_ctime, |m| m.created().ok())
-    {
-        eprintln!(
-            "Skipping test: unable to establish required creation time ordering on this filesystem"
-        );
-        return;
-    }
+    let reference_ctime = create_file_born_after(
+        &reference_file,
+        "reference content",
+        birth_time(&older_file),
+    );
+    create_file_born_after(&newer_file, "newer content", reference_ctime);
 
     cli::Cli::try_parse_from([
         "pna",
@@ -80,22 +67,5 @@ fn append_with_older_ctime_than() {
     })
     .unwrap();
 
-    assert!(
-        seen.contains(&older_file),
-        "older file should remain from initial archive: {older_file}"
-    );
-    assert!(
-        !seen.contains(&reference_file),
-        "reference file should NOT be appended: {reference_file}"
-    );
-    assert!(
-        !seen.contains(&newer_file),
-        "newer file should NOT be appended: {newer_file}"
-    );
-    assert_eq!(
-        seen.len(),
-        1,
-        "Expected exactly 1 entry (older only) but found {}: {seen:?}",
-        seen.len()
-    );
+    assert_eq!(seen, HashSet::from([older_file]));
 }

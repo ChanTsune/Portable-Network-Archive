@@ -6,7 +6,7 @@ use crate::{
     entry::write::derive_key_material,
     error::UnknownValueError,
 };
-use password_hash::Output;
+use password_hash::phc::Output;
 pub(crate) use private::*;
 use std::{
     collections::HashMap,
@@ -61,20 +61,20 @@ mod private {
         }
     }
 
-    /// Maximum number of derived keys retained per cache.
-    ///
-    /// Archives written after key derivation moved to WriteOptions build time
-    /// share a single PHSF across entries, so realistic archives hold only a
-    /// few distinct PHSF values. The bound prevents unbounded growth when
-    /// reading legacy archives that carry a distinct salt per entry.
+    // Maximum number of derived keys retained per cache.
+    //
+    // Archives written after key derivation moved to WriteOptions build time
+    // share a single PHSF across entries, so realistic archives hold only a
+    // few distinct PHSF values. The bound prevents unbounded growth when
+    // reading legacy archives that carry a distinct salt per entry.
     const KEY_CACHE_CAP: usize = 16;
 
-    /// Cache of keys derived from PHC strings.
-    ///
-    /// Clones share the same underlying storage, so a [`ReadOptions`] and its
-    /// clones derive a key at most once per distinct PHC string. Correctness
-    /// relies on all sharers holding the same password: [`ReadOptions`] has no
-    /// password setter and rebuilding via a builder always starts a new cache.
+    // Cache of keys derived from PHC strings.
+    //
+    // Clones share the same underlying storage, so a [`ReadOptions`] and its
+    // clones reuse cached keys for matching PHC strings. Correctness
+    // relies on all sharers holding the same password: [`ReadOptions`] has no
+    // password setter and rebuilding via a builder always starts a new cache.
     #[derive(Clone)]
     pub struct KeyCache {
         inner: Arc<Mutex<HashMap<String, Output>>>,
@@ -246,19 +246,6 @@ impl Compression {
     /// Xz format.
     pub const XZ: Self = Self(4);
 
-    /// Deprecated alias of [`Compression::NO`].
-    #[deprecated(since = "0.36.0", note = "renamed to `Compression::NO`")]
-    #[allow(non_upper_case_globals)]
-    pub const No: Self = Self::NO;
-    /// Deprecated alias of [`Compression::DEFLATE`].
-    #[deprecated(since = "0.36.0", note = "renamed to `Compression::DEFLATE`")]
-    #[allow(non_upper_case_globals)]
-    pub const Deflate: Self = Self::DEFLATE;
-    /// Deprecated alias of [`Compression::ZSTANDARD`].
-    #[deprecated(since = "0.36.0", note = "renamed to `Compression::ZSTANDARD`")]
-    #[allow(non_upper_case_globals)]
-    pub const ZStandard: Self = Self::ZSTANDARD;
-
     /// Deserializes a compression method from its u8 representation.
     ///
     /// Every byte value is a valid compression method, so this conversion
@@ -285,22 +272,6 @@ impl Compression {
         } else {
             None
         }
-    }
-
-    /// Converts a `u8` into a [`Compression`]. Never fails.
-    ///
-    /// Shadows `<Compression as TryFrom<u8>>::try_from` so existing
-    /// `Compression::try_from(..)` call sites receive a deprecation warning;
-    /// both will be removed together in a future release.
-    ///
-    /// # Errors
-    ///
-    /// Never returns `Err`; every byte value is a valid compression method.
-    #[deprecated(since = "0.36.0", note = "use `Compression::from_byte`")]
-    #[allow(clippy::should_implement_trait)]
-    #[inline]
-    pub const fn try_from(value: u8) -> Result<Self, UnknownValueError> {
-        Ok(Self::from_byte(value))
     }
 
     /// Returns `true` if this value is reserved for future PNA specification
@@ -373,22 +344,20 @@ impl FromStr for CompressionLevelImpl {
     }
 }
 
-/// Compression level of each algorithm.
+/// A compression level interpreted by the selected algorithm.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct CompressionLevel(pub(crate) CompressionLevelImpl);
 
 impl CompressionLevel {
     pub(crate) const DEFAULT: Self = Self(CompressionLevelImpl::Default);
 
-    /// Minimum compression level.
-    /// This value will be replaced with the minimum level for each algorithm.
+    /// Returns the minimum compression level of the selected algorithm.
     #[inline]
     pub const fn min() -> Self {
         Self(CompressionLevelImpl::Min)
     }
 
-    /// Maximum compression level.
-    /// This value will be replaced with the maximum level for each algorithm.
+    /// Returns the maximum compression level of the selected algorithm.
     #[inline]
     pub const fn max() -> Self {
         Self(CompressionLevelImpl::Max)
@@ -412,11 +381,14 @@ impl<T: Into<i64>> From<T> for CompressionLevel {
 impl FromStr for CompressionLevel {
     type Err = core::num::ParseIntError;
 
-    /// Parses a string `s` to return a value of this type.
+    /// Parses a string into a [`CompressionLevel`].
     ///
-    /// If parsing succeeds, return the value inside [`Ok`], otherwise
-    /// when the string is ill-formatted return an error specific to the
-    /// inside [`Err`]. The error type is specific to the implementation of the trait.
+    /// Accepts `"min"`, `"max"`, and `"default"` case-insensitively, or an integer level.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`core::num::ParseIntError`] if `s` is neither a recognized
+    /// name nor a valid integer.
     ///
     /// # Examples
     ///
@@ -490,19 +462,6 @@ impl Encryption {
     /// Camellia algorithm.
     pub const CAMELLIA: Self = Self(2);
 
-    /// Deprecated alias of [`Encryption::NO`].
-    #[deprecated(since = "0.36.0", note = "renamed to `Encryption::NO`")]
-    #[allow(non_upper_case_globals)]
-    pub const No: Self = Self::NO;
-    /// Deprecated alias of [`Encryption::AES`].
-    #[deprecated(since = "0.36.0", note = "renamed to `Encryption::AES`")]
-    #[allow(non_upper_case_globals)]
-    pub const Aes: Self = Self::AES;
-    /// Deprecated alias of [`Encryption::CAMELLIA`].
-    #[deprecated(since = "0.36.0", note = "renamed to `Encryption::CAMELLIA`")]
-    #[allow(non_upper_case_globals)]
-    pub const Camellia: Self = Self::CAMELLIA;
-
     /// Deserializes an encryption algorithm from its u8 representation.
     ///
     /// Every byte value is a valid encryption algorithm value, so this
@@ -529,22 +488,6 @@ impl Encryption {
         } else {
             None
         }
-    }
-
-    /// Converts a `u8` into an [`Encryption`]. Never fails.
-    ///
-    /// Shadows `<Encryption as TryFrom<u8>>::try_from` so existing
-    /// `Encryption::try_from(..)` call sites receive a deprecation warning;
-    /// both will be removed together in a future release.
-    ///
-    /// # Errors
-    ///
-    /// Never returns `Err`; every byte value is a valid encryption algorithm.
-    #[deprecated(since = "0.36.0", note = "use `Encryption::from_byte`")]
-    #[allow(clippy::should_implement_trait)]
-    #[inline]
-    pub const fn try_from(value: u8) -> Result<Self, UnknownValueError> {
-        Ok(Self::from_byte(value))
     }
 
     /// Returns `true` if this value is reserved for future PNA specification
@@ -601,6 +544,8 @@ impl CipherMode {
     /// Counter mode.
     pub const CTR: Self = Self(1);
     /// Galois/Counter mode (AEAD, STREAM-based).
+    ///
+    /// Authenticates the encrypted data and detects tampering, unlike CBC and CTR.
     pub const GCM: Self = Self(2);
 
     /// Deserializes a cipher mode from its u8 representation.
@@ -631,22 +576,6 @@ impl CipherMode {
         }
     }
 
-    /// Converts a `u8` into a [`CipherMode`]. Never fails.
-    ///
-    /// Shadows `<CipherMode as TryFrom<u8>>::try_from` so existing
-    /// `CipherMode::try_from(..)` call sites receive a deprecation warning;
-    /// both will be removed together in a future release.
-    ///
-    /// # Errors
-    ///
-    /// Never returns `Err`; every byte value is a valid cipher mode.
-    #[deprecated(since = "0.36.0", note = "use `CipherMode::from_byte`")]
-    #[allow(clippy::should_implement_trait)]
-    #[inline]
-    pub const fn try_from(value: u8) -> Result<Self, UnknownValueError> {
-        Ok(Self::from_byte(value))
-    }
-
     /// Returns `true` if this value is reserved for future PNA specification
     /// (unassigned and raw value < 128).
     #[inline]
@@ -664,11 +593,9 @@ impl CipherMode {
     /// Returns `true` if an entry's header can be rewritten without making its
     /// encrypted data unreadable.
     ///
-    /// [`CipherMode::GCM`] derives its stream key from the entry header bytes,
-    /// so rewriting the header — renaming the entry, for instance — leaves data
-    /// that no key can decrypt. Modes this build does not implement answer
-    /// `false`, so a caller that rewrites headers refuses rather than silently
-    /// destroying data.
+    /// Returns `true` for [`CipherMode::CBC`] and [`CipherMode::CTR`], and
+    /// `false` for [`CipherMode::GCM`] and unsupported modes. GCM binds the
+    /// encrypted data to the entry header, including its name.
     #[inline]
     pub const fn allows_header_rewrite(self) -> bool {
         matches!(self, Self::CBC | Self::CTR)
@@ -724,15 +651,12 @@ pub(crate) enum HashAlgorithmParams {
 pub struct HashAlgorithm(pub(crate) HashAlgorithmParams);
 
 impl HashAlgorithm {
-    /// Creates a PBKDF2-SHA256 password hasher with default iterations.
-    ///
-    /// **Note:** Prefer [`argon2id()`](Self::argon2id) for new archives.
-    /// PBKDF2 is provided for compatibility with systems where Argon2 is unavailable.
+    /// Creates PBKDF2-SHA256 parameters with the default iteration count.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// use libpna::{WriteOptions, Encryption, HashAlgorithm};
+    /// use libpna::{Encryption, HashAlgorithm, WriteOptions};
     ///
     /// let opts = WriteOptions::builder()
     ///     .encryption(Encryption::AES)
@@ -745,17 +669,14 @@ impl HashAlgorithm {
         Self::pbkdf2_sha256_with(None)
     }
 
-    /// Creates a PBKDF2-SHA256 password hasher with custom iteration count.
+    /// Creates PBKDF2-SHA256 parameters with the specified iteration count.
     ///
-    /// Higher iteration counts increase security but also increase key derivation time.
-    /// If `rounds` is `None`, the default iteration count is used.
-    ///
-    /// **Note:** Prefer [`argon2id_with()`](Self::argon2id_with) for new archives.
+    /// `None` uses the default iteration count.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// use libpna::{WriteOptions, Encryption, HashAlgorithm};
+    /// use libpna::{Encryption, HashAlgorithm, WriteOptions};
     ///
     /// let opts = WriteOptions::builder()
     ///     .encryption(Encryption::AES)
@@ -768,15 +689,12 @@ impl HashAlgorithm {
         Self(HashAlgorithmParams::Pbkdf2Sha256 { rounds })
     }
 
-    /// Creates an Argon2id password hasher with default parameters.
-    ///
-    /// **Recommended** for all new archives. Argon2id is memory-hard, providing
-    /// better resistance against GPU/ASIC brute-force attacks compared to PBKDF2.
+    /// Creates Argon2id parameters with the default costs.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// use libpna::{WriteOptions, Encryption, HashAlgorithm};
+    /// use libpna::{Encryption, HashAlgorithm, WriteOptions};
     ///
     /// let opts = WriteOptions::builder()
     ///     .encryption(Encryption::AES)
@@ -789,28 +707,23 @@ impl HashAlgorithm {
         Self::argon2id_with(None, None, None)
     }
 
-    /// Creates an Argon2id password hasher with custom parameters.
+    /// Creates Argon2id parameters with the specified costs.
     ///
-    /// - `time_cost`: Number of iterations (higher = slower, more secure)
-    /// - `memory_cost`: Memory usage in KiB (higher = more memory-hard)
-    /// - `parallelism_cost`: Degree of parallelism (threads)
-    ///
-    /// If any parameter is `None`, the default value is used.
-    ///
-    /// **Recommended** for all new archives when custom tuning is needed.
+    /// `time_cost` is the number of iterations, `memory_cost` is the memory
+    /// usage in KiB, and `parallelism_cost` is the number of lanes.
+    /// `None` uses the default value for the corresponding parameter.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// use libpna::{WriteOptions, Encryption, HashAlgorithm};
+    /// use libpna::{Encryption, HashAlgorithm, WriteOptions};
     ///
-    /// // Custom Argon2id with higher security parameters
     /// let opts = WriteOptions::builder()
     ///     .encryption(Encryption::AES)
     ///     .hash_algorithm(HashAlgorithm::argon2id_with(
-    ///         Some(4),       // time_cost: 4 iterations
-    ///         Some(65536),   // memory_cost: 64 MiB
-    ///         Some(2),       // parallelism: 2 threads
+    ///         Some(4),     // time_cost: 4 iterations
+    ///         Some(65536), // memory_cost: 64 MiB
+    ///         Some(2),     // parallelism: 2 lanes
     ///     ))
     ///     .password(Some("secure_password"))
     ///     .build();
@@ -850,23 +763,6 @@ impl DataKind {
     /// entry within the same archive.
     pub const HARD_LINK: Self = Self(3);
 
-    /// Deprecated alias of [`DataKind::FILE`].
-    #[deprecated(since = "0.36.0", note = "renamed to `DataKind::FILE`")]
-    #[allow(non_upper_case_globals)]
-    pub const File: Self = Self::FILE;
-    /// Deprecated alias of [`DataKind::DIRECTORY`].
-    #[deprecated(since = "0.36.0", note = "renamed to `DataKind::DIRECTORY`")]
-    #[allow(non_upper_case_globals)]
-    pub const Directory: Self = Self::DIRECTORY;
-    /// Deprecated alias of [`DataKind::SYMBOLIC_LINK`].
-    #[deprecated(since = "0.36.0", note = "renamed to `DataKind::SYMBOLIC_LINK`")]
-    #[allow(non_upper_case_globals)]
-    pub const SymbolicLink: Self = Self::SYMBOLIC_LINK;
-    /// Deprecated alias of [`DataKind::HARD_LINK`].
-    #[deprecated(since = "0.36.0", note = "renamed to `DataKind::HARD_LINK`")]
-    #[allow(non_upper_case_globals)]
-    pub const HardLink: Self = Self::HARD_LINK;
-
     /// Deserializes a data kind from its u8 representation.
     ///
     /// Every byte value is a valid data kind, so this conversion never fails.
@@ -892,22 +788,6 @@ impl DataKind {
         } else {
             None
         }
-    }
-
-    /// Converts a `u8` into a [`DataKind`]. Never fails.
-    ///
-    /// Shadows `<DataKind as TryFrom<u8>>::try_from` so existing
-    /// `DataKind::try_from(..)` call sites receive a deprecation warning;
-    /// both will be removed together in a future release.
-    ///
-    /// # Errors
-    ///
-    /// Never returns `Err`; every byte value is a valid data kind.
-    #[deprecated(since = "0.36.0", note = "use `DataKind::from_byte`")]
-    #[allow(clippy::should_implement_trait)]
-    #[inline]
-    pub const fn try_from(value: u8) -> Result<Self, UnknownValueError> {
-        Ok(Self::from_byte(value))
     }
 
     /// Returns `true` if this value is reserved for future PNA specification
@@ -951,86 +831,31 @@ impl TryFrom<u8> for DataKind {
     }
 }
 
-/// Options for writing entries to a PNA archive.
+/// Options for compressing and encrypting archive entries.
 ///
-/// This type configures compression, encryption, and password hashing for archive entries.
-/// Options are created using the builder pattern via [`WriteOptions::builder()`] or by
-/// using the convenience constructor [`WriteOptions::store()`] for uncompressed entries.
+/// Data is compressed before it is encrypted. Use [`WriteOptions::builder`]
+/// to configure the options, or [`WriteOptions::store`] to disable both.
 ///
-/// # Compression and Encryption Order
+/// When encryption is enabled, the password-derived key and KDF salt are
+/// shared by every entry written with these options, including clones.
+/// Build fresh options for each archive to use an independent salt and key.
+/// Each entry receives fresh random encryption material: an IV for CBC/CTR,
+/// or a salt and nonce prefix for GCM.
 ///
-/// When both compression and encryption are enabled, data is **compressed first, then encrypted**.
-/// This order maximizes compression efficiency since encrypted data is essentially random
-/// and cannot be compressed effectively.
-///
-/// Data flow: `Original → Compress → Encrypt → Write to archive`
-///
-/// # Security Considerations
-///
-/// - **Hash Algorithm**: Always use [`HashAlgorithm::argon2id()`] in production for password-based
-///   encryption. [`HashAlgorithm::pbkdf2_sha256()`] is primarily for compatibility with older
-///   systems or when Argon2 is not available.
-/// - **Cipher Mode**: CTR mode ([`CipherMode::CTR`]) is recommended over CBC for most use cases
-///   as it allows parallel processing and has simpler security requirements.
-/// - **Per-Entry Randomness**: Each entry receives its own randomly generated encryption
-///   material — an IV for CBC/CTR, or a salt and nonce prefix for GCM — generated using
-///   cryptographically secure random number generation. You do not need to provide this yourself.
-/// - **Key Derivation**: The encryption key is derived from the password once when the
-///   options are built ([`WriteOptionsBuilder::build()`] / [`WriteOptionsBuilder::try_build()`]),
-///   and shared by every entry written with the same [`WriteOptions`]. Build a fresh
-///   [`WriteOptions`] per archive so that each archive uses an independent salt and key.
-/// - **Password Strength**: Use strong passwords (12+ characters, mixed case, numbers, symbols)
-///   as the encryption key is derived from the password.
+/// Use [`ReadOptions`] with the password to read encrypted entries. Compression
+/// and cipher settings are stored in the archive.
 ///
 /// # Examples
 ///
-/// Store without compression or encryption:
-/// ```rust
-/// use libpna::WriteOptions;
-///
-/// let opts = WriteOptions::store();
 /// ```
+/// use libpna::{Compression, Encryption, WriteOptions};
 ///
-/// Compress only (no encryption):
-/// ```rust
-/// use libpna::{WriteOptions, Compression, CompressionLevel};
-///
-/// let opts = WriteOptions::builder()
-///     .compression(Compression::ZSTANDARD)
-///     .compression_level(CompressionLevel::max())
-///     .build();
-/// ```
-///
-/// Encrypt only (no compression):
-/// ```rust
-/// use libpna::{WriteOptions, Encryption, CipherMode, HashAlgorithm};
-///
-/// let opts = WriteOptions::builder()
-///     .encryption(Encryption::AES)
-///     .cipher_mode(CipherMode::CTR)
-///     .hash_algorithm(HashAlgorithm::argon2id())
-///     .password(Some("secure_password"))
-///     .build();
-/// ```
-///
-/// Both compression and encryption (recommended for sensitive data):
-/// ```rust
-/// use libpna::{WriteOptions, Compression, Encryption, CipherMode, HashAlgorithm};
-///
-/// let opts = WriteOptions::builder()
+/// let options = WriteOptions::builder()
 ///     .compression(Compression::ZSTANDARD)
 ///     .encryption(Encryption::AES)
-///     .cipher_mode(CipherMode::CTR)
-///     .hash_algorithm(HashAlgorithm::argon2id())
-///     .password(Some("secure_password"))
+///     .password(Some("password"))
 ///     .build();
 /// ```
-///
-/// # Relationship to ReadOptions
-///
-/// When reading an archive, use [`ReadOptions`] to provide the password for decryption.
-/// The compression algorithm and cipher mode are stored in the archive metadata, so you
-/// only need to provide the password.
 #[derive(Clone, Debug)]
 pub struct WriteOptions {
     compress: Compress,
@@ -1047,8 +872,6 @@ impl WriteOptions {
     ///
     /// FileEntryBuilder::new_with_options("example.txt".into(), WriteOptions::store()).unwrap();
     /// ```
-    ///
-    /// [Entry]: crate::Entry
     #[inline]
     pub const fn store() -> Self {
         Self {
@@ -1074,6 +897,7 @@ impl WriteOptions {
     /// Converts [`WriteOptions`] into a [`WriteOptionsBuilder`].
     ///
     /// # Examples
+    ///
     /// ```rust
     /// use libpna::WriteOptions;
     ///
@@ -1086,16 +910,19 @@ impl WriteOptions {
     }
 }
 
+const DEFAULT_CIPHER_MODE: CipherMode = CipherMode::GCM;
+const DEFAULT_HASH_ALGORITHM: HashAlgorithm = HashAlgorithm::argon2id();
+
 /// Builder for [`WriteOptions`].
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct WriteOptionsBuilder {
     compression: Compression,
     compression_level: CompressionLevel,
     encryption: Encryption,
-    cipher_mode: CipherMode,
-    hash_algorithm: HashAlgorithm,
+    cipher_mode: Option<CipherMode>,
+    hash_algorithm: Option<HashAlgorithm>,
     password: Option<Vec<u8>>,
-    segment_size: u32,
+    segment_size: Option<u32>,
 }
 
 impl Default for WriteOptionsBuilder {
@@ -1118,12 +945,13 @@ impl From<WriteOptions> for WriteOptionsBuilder {
             compression,
             compression_level,
             encryption: value.encryption(),
-            cipher_mode: value.cipher_mode(),
-            hash_algorithm: value.hash_algorithm(),
+            // Unencrypted options carry nothing to inherit for these three, so
+            // leave the choice open rather than adopting the values they report
+            // — those are fallbacks, not decisions the caller made.
+            cipher_mode: value.cipher().map(|it| it.mode),
+            hash_algorithm: value.cipher().map(|it| it.hash_algorithm),
             password: value.password().map(|p| p.to_vec()),
-            segment_size: value
-                .cipher()
-                .map_or(DEFAULT_SEGMENT_SIZE, |it| it.segment_size.get()),
+            segment_size: value.cipher().map(|it| it.segment_size.get()),
         }
     }
 }
@@ -1134,45 +962,49 @@ impl WriteOptionsBuilder {
             compression: Compression::NO,
             compression_level: CompressionLevel::DEFAULT,
             encryption: Encryption::NO,
-            cipher_mode: CipherMode::CTR,
-            hash_algorithm: HashAlgorithm::argon2id(),
+            cipher_mode: None,
+            hash_algorithm: None,
             password: None,
-            segment_size: DEFAULT_SEGMENT_SIZE,
+            segment_size: None,
         }
     }
 
-    /// Sets the [`Compression`].
+    /// Sets the compression method.
     #[inline]
     pub fn compression(&mut self, compression: Compression) -> &mut Self {
         self.compression = compression;
         self
     }
 
-    /// Sets the [`CompressionLevel`].
+    /// Sets the compression level.
     #[inline]
     pub fn compression_level(&mut self, compression_level: CompressionLevel) -> &mut Self {
         self.compression_level = compression_level;
         self
     }
 
-    /// Sets the [`Encryption`].
+    /// Sets the encryption algorithm.
     #[inline]
     pub fn encryption(&mut self, encryption: Encryption) -> &mut Self {
         self.encryption = encryption;
         self
     }
 
-    /// Sets the [`CipherMode`].
+    /// Sets the cipher mode.
+    ///
+    /// The default is [`CipherMode::GCM`].
     #[inline]
     pub fn cipher_mode(&mut self, cipher_mode: CipherMode) -> &mut Self {
-        self.cipher_mode = cipher_mode;
+        self.cipher_mode = Some(cipher_mode);
         self
     }
 
-    /// Sets the [`HashAlgorithm`].
+    /// Sets the password hash algorithm.
+    ///
+    /// The default is [`HashAlgorithm::argon2id`].
     #[inline]
     pub fn hash_algorithm(&mut self, algorithm: HashAlgorithm) -> &mut Self {
-        self.hash_algorithm = algorithm;
+        self.hash_algorithm = Some(algorithm);
         self
     }
 
@@ -1181,6 +1013,7 @@ impl WriteOptionsBuilder {
     /// Accepts both UTF-8 strings and arbitrary byte slices.
     ///
     /// # Examples
+    ///
     /// ```rust
     /// use libpna::WriteOptions;
     ///
@@ -1201,24 +1034,20 @@ impl WriteOptionsBuilder {
     #[cfg(test)]
     #[inline]
     pub(crate) fn segment_size(&mut self, size: u32) -> &mut Self {
-        self.segment_size = size;
+        self.segment_size = Some(size);
         self
     }
 
     /// Creates a new [`WriteOptions`] from this builder, deriving the encryption
     /// key when encryption is enabled.
     ///
-    /// The key derivation function (KDF) runs once here with a freshly generated
-    /// random salt. Every entry written with the resulting [`WriteOptions`] shares
-    /// the derived key and salt; fresh per-entry encryption material — an IV for
-    /// CBC/CTR, or a salt and nonce prefix for GCM — is still generated per entry.
-    /// Build a fresh [`WriteOptions`] for each archive so that no two archives
-    /// reuse the same KDF salt.
+    /// Generates a fresh KDF salt when encryption is enabled. The resulting
+    /// options share the salt and derived key as described in [`WriteOptions`].
     ///
     /// # Errors
     ///
     /// - Encryption is enabled but no password was provided.
-    /// - The configured KDF parameters are invalid.
+    /// - Key derivation or random salt generation fails, including invalid KDF parameters.
     /// - An unsupported encryption or compression method was specified.
     ///
     /// # Examples
@@ -1254,20 +1083,21 @@ impl WriteOptionsBuilder {
             let password = self.password.as_deref().ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidInput, "Password was not provided.")
             })?;
-            let segment_size = SegmentSize::new(self.segment_size).ok_or_else(|| {
+            let requested = self.segment_size.unwrap_or(DEFAULT_SEGMENT_SIZE);
+            let segment_size = SegmentSize::new(requested).ok_or_else(|| {
                 io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    format!("segment size out of range: {}", self.segment_size),
+                    format!("segment size out of range: {requested}"),
                 )
             })?;
-            let hash_algorithm = self.hash_algorithm;
+            let hash_algorithm = self.hash_algorithm.unwrap_or(DEFAULT_HASH_ALGORITHM);
             let derived = derive_key_material(cipher_algorithm, hash_algorithm, password)?;
             Some(Cipher::new(
                 password.into(),
                 derived,
                 hash_algorithm,
                 cipher_algorithm,
-                self.cipher_mode,
+                self.cipher_mode.unwrap_or(DEFAULT_CIPHER_MODE),
                 segment_size,
             ))
         } else {
@@ -1293,36 +1123,11 @@ impl WriteOptionsBuilder {
         })
     }
 
-    /// Creates a new [`WriteOptions`] from this builder.
-    ///
-    /// This finalizes the builder configuration and creates an immutable [`WriteOptions`]
-    /// that can be used when creating entries.
+    /// Builds the configured [`WriteOptions`].
     ///
     /// # Panics
     ///
-    /// Panics if [`encryption()`](Self::encryption) was set to [`Encryption::AES`] or
-    /// [`Encryption::CAMELLIA`] but [`password()`](Self::password) was not called with
-    /// a password, or if key derivation fails (see [`try_build()`](Self::try_build) for
-    /// the fallible variant).
-    ///
-    /// **Always provide a password when enabling encryption.** The following code will panic:
-    /// ```no_run
-    /// use libpna::{WriteOptions, Encryption};
-    ///
-    /// let opts = WriteOptions::builder()
-    ///     .encryption(Encryption::AES)
-    ///     .build();  // PANICS: "Password was not provided."
-    /// ```
-    ///
-    /// **Correct usage:**
-    /// ```rust
-    /// use libpna::{WriteOptions, Encryption};
-    ///
-    /// let opts = WriteOptions::builder()
-    ///     .encryption(Encryption::AES)
-    ///     .password(Some("secure_password"))
-    ///     .build();  // OK
-    /// ```
+    /// Panics if [`try_build`](Self::try_build) returns an error.
     #[inline]
     #[must_use = "building options without using them is wasteful"]
     pub fn build(&self) -> WriteOptions {
@@ -1335,11 +1140,9 @@ impl WriteOptionsBuilder {
 
 /// Options for reading an entry.
 ///
-/// Derived encryption keys are cached inside the options and shared between
-/// clones: reading many entries that carry the same PHC string (the default
-/// for archives written by this crate) runs the key derivation function only
-/// once. Rebuilding via [`ReadOptions::into_builder`] always starts with an
-/// empty cache.
+/// Derived encryption keys are cached and reused when reading entries with
+/// the same password hash parameters and salt. Clones share the cache;
+/// rebuilding through [`ReadOptions::into_builder`] starts with an empty cache.
 #[derive(Clone, Debug)]
 pub struct ReadOptions {
     password: Option<Vec<u8>>,
@@ -1352,6 +1155,7 @@ impl ReadOptions {
     /// Accepts both UTF-8 strings and arbitrary byte slices.
     ///
     /// # Examples
+    ///
     /// ```rust
     /// use libpna::ReadOptions;
     ///
@@ -1373,6 +1177,7 @@ impl ReadOptions {
     /// Returns a builder for [`ReadOptions`].
     ///
     /// # Examples
+    ///
     /// ```rust
     /// use libpna::ReadOptions;
     ///
@@ -1386,6 +1191,7 @@ impl ReadOptions {
     /// Converts [`ReadOptions`] into a [`ReadOptionsBuilder`].
     ///
     /// # Examples
+    ///
     /// ```rust
     /// use libpna::ReadOptions;
     ///
@@ -1482,7 +1288,7 @@ mod tests {
             let mut builder = WriteOptions::builder();
             builder
                 .encryption(Encryption::AES)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"));
             builder.segment_size(size);
             let err = builder.try_build().unwrap_err();
@@ -1496,7 +1302,7 @@ mod tests {
             let mut builder = WriteOptions::builder();
             builder
                 .encryption(Encryption::AES)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"));
             builder.segment_size(size);
             let options = builder.try_build().unwrap();
@@ -1521,19 +1327,44 @@ mod tests {
     }
 
     #[test]
-    fn cipher_mode_2_from_byte_returns_gcm() {
-        assert_eq!(CipherMode::from_byte(2), CipherMode::GCM);
+    fn default_cipher_mode_is_gcm() {
+        let options = WriteOptions::builder()
+            .encryption(Encryption::AES)
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
+            .password(Some("password"))
+            .try_build()
+            .unwrap();
+        assert_eq!(options.cipher_mode(), CipherMode::GCM);
+        assert_eq!(
+            options.hash_algorithm(),
+            HashAlgorithm::pbkdf2_sha256_with(Some(1000))
+        );
     }
 
     #[test]
-    fn cipher_mode_gcm_to_byte_is_2() {
-        assert_eq!(CipherMode::GCM.to_byte(), 2);
+    fn into_builder_of_unencrypted_options_keeps_the_default_cipher_mode() {
+        assert_eq!(WriteOptions::store().cipher_mode(), CipherMode::CTR);
+        let options = WriteOptions::store()
+            .into_builder()
+            .encryption(Encryption::AES)
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
+            .password(Some("password"))
+            .try_build()
+            .unwrap();
+        assert_eq!(options.cipher_mode(), CipherMode::GCM);
     }
 
     #[test]
-    fn cipher_mode_gcm_roundtrips_through_byte() {
-        let byte = CipherMode::GCM.to_byte();
-        assert_eq!(CipherMode::from_byte(byte), CipherMode::GCM);
+    fn into_builder_preserves_an_explicit_cipher_mode() {
+        let options = WriteOptions::builder()
+            .encryption(Encryption::AES)
+            .cipher_mode(CipherMode::CTR)
+            .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
+            .password(Some("password"))
+            .try_build()
+            .unwrap();
+        let rebuilt = options.into_builder().try_build().unwrap();
+        assert_eq!(rebuilt.cipher_mode(), CipherMode::CTR);
     }
 
     fn test_output(byte: u8) -> Output {
@@ -1623,20 +1454,9 @@ mod tests {
         assert_eq!(format!("{:?}", DataKind::from_byte(200)), "Private(200)");
     }
 
-    #[allow(deprecated)]
-    #[test]
-    fn data_kind_deprecated_aliases_equal_new_constants() {
-        assert_eq!(DataKind::File, DataKind::FILE);
-        assert_eq!(DataKind::Directory, DataKind::DIRECTORY);
-        assert_eq!(DataKind::SymbolicLink, DataKind::SYMBOLIC_LINK);
-        assert_eq!(DataKind::HardLink, DataKind::HARD_LINK);
-    }
-
-    #[allow(deprecated)]
     #[test]
     fn data_kind_try_from_is_infallible_and_matches_from_byte() {
         for v in 0..=u8::MAX {
-            assert_eq!(DataKind::try_from(v).unwrap(), DataKind::from_byte(v));
             assert_eq!(
                 <DataKind as TryFrom<u8>>::try_from(v).unwrap(),
                 DataKind::from_byte(v)
@@ -1696,19 +1516,9 @@ mod tests {
         assert_eq!(format!("{:?}", Compression::from_byte(200)), "Private(200)");
     }
 
-    #[allow(deprecated)]
-    #[test]
-    fn compression_deprecated_aliases_equal_new_constants() {
-        assert_eq!(Compression::No, Compression::NO);
-        assert_eq!(Compression::Deflate, Compression::DEFLATE);
-        assert_eq!(Compression::ZStandard, Compression::ZSTANDARD);
-    }
-
-    #[allow(deprecated)]
     #[test]
     fn compression_try_from_is_infallible_and_matches_from_byte() {
         for v in 0..=u8::MAX {
-            assert_eq!(Compression::try_from(v).unwrap(), Compression::from_byte(v));
             assert_eq!(
                 <Compression as TryFrom<u8>>::try_from(v).unwrap(),
                 Compression::from_byte(v)
@@ -1775,19 +1585,9 @@ mod tests {
         assert_eq!(format!("{:?}", Encryption::from_byte(200)), "Private(200)");
     }
 
-    #[allow(deprecated)]
-    #[test]
-    fn encryption_deprecated_aliases_equal_new_constants() {
-        assert_eq!(Encryption::No, Encryption::NO);
-        assert_eq!(Encryption::Aes, Encryption::AES);
-        assert_eq!(Encryption::Camellia, Encryption::CAMELLIA);
-    }
-
-    #[allow(deprecated)]
     #[test]
     fn encryption_try_from_is_infallible_and_matches_from_byte() {
         for v in 0..=u8::MAX {
-            assert_eq!(Encryption::try_from(v).unwrap(), Encryption::from_byte(v));
             assert_eq!(
                 <Encryption as TryFrom<u8>>::try_from(v).unwrap(),
                 Encryption::from_byte(v)
@@ -1816,6 +1616,8 @@ mod tests {
     fn cipher_mode_known_constants_map_to_spec_bytes() {
         assert_eq!(CipherMode::CBC.to_byte(), 0);
         assert_eq!(CipherMode::CTR.to_byte(), 1);
+        assert_eq!(CipherMode::GCM.to_byte(), 2);
+        assert_eq!(CipherMode::from_byte(2), CipherMode::GCM);
     }
 
     #[test]
@@ -1872,11 +1674,9 @@ mod tests {
         assert_eq!(format!("{:?}", CipherMode::from_byte(200)), "Private(200)");
     }
 
-    #[allow(deprecated)]
     #[test]
     fn cipher_mode_try_from_is_infallible_and_matches_from_byte() {
         for v in 0..=u8::MAX {
-            assert_eq!(CipherMode::try_from(v).unwrap(), CipherMode::from_byte(v));
             assert_eq!(
                 <CipherMode as TryFrom<u8>>::try_from(v).unwrap(),
                 CipherMode::from_byte(v)

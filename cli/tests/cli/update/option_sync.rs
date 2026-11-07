@@ -173,7 +173,6 @@ fn update_with_sync() {
         "--overwrite",
         "--out-dir",
         "update_with_sync/out/",
-        "--keep-timestamp",
         "--strip-components",
         "2",
     ])

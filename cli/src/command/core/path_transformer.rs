@@ -1,4 +1,4 @@
-use super::re::{
+use crate::command::core::re::{
     bsd::{SubstitutionRule, SubstitutionRules},
     gnu::{TransformRule, TransformRules},
 };

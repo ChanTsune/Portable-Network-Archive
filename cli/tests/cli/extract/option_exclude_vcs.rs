@@ -69,7 +69,6 @@ fn extract_with_exclude_vcs() {
         "--strip-components",
         "2",
         "--exclude-vcs",
-        "--unstable",
     ])
     .unwrap()
     .execute()

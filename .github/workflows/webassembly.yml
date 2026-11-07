@@ -43,15 +43,15 @@ jobs:
           - wasm32-wasip2
         include:
           - target: wasm32-unknown-emscripten
-            container: emscripten/emsdk:6.0.2@sha256:644883f58ca15c38c8be59b3a727ba0eff347729bc31d50a3348a6c9ed92bc07
+            container: emscripten/emsdk:6.0.13@sha256:fb7864e398acfda863dfcea78b8bc8adad359fa60c6a0bbeb845931de64aa68a
             runner: ubuntu-latest
           - target: wasm32-unknown-unknown
             runner: ubuntu-24.04-arm
           - target: wasm32-wasip1
-            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-27@sha256:c683f8ea612f05ca7e5113696f0bb20b6ad28188074532dfdc3c64977ed5fbaf
+            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-29@sha256:7eaf85f80cd0a5196e3f03d2526a8bdf01d8d20edd70ac23fb935b7e6effd0d5
             runner: ubuntu-24.04-arm
           - target: wasm32-wasip2
-            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-27@sha256:c683f8ea612f05ca7e5113696f0bb20b6ad28188074532dfdc3c64977ed5fbaf
+            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-29@sha256:7eaf85f80cd0a5196e3f03d2526a8bdf01d8d20edd70ac23fb935b7e6effd0d5
             runner: ubuntu-24.04-arm
 
     runs-on: ${{ matrix.runner }}
@@ -109,7 +109,7 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
       - if: ${{ endsWith(matrix.target, 'unknown') }}
         name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@e00d2c94cc0067b77737821097a62d91c0301baa # v1.21.1
+        uses: cargo-bins/cargo-binstall@851112458b5f28a29e5bc14a690c3f283d9dcc6f # v1.26.2
       - if: ${{ endsWith(matrix.target, 'unknown') }}
         name: Install wasm-bindgen-cli from crates.io
         run: |

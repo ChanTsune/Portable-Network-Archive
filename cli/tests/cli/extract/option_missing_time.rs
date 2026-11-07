@@ -58,9 +58,9 @@ fn extract_missing_time_exclude_skips_entry() {
 
 /// Precondition: Archive entry has no mtime.
 /// Action: Run `pna extract` with a newer-mtime filter and no `--missing-time`.
-/// Expectation: Default `include` policy extracts the mtime-missing entry.
+/// Expectation: The mtime-missing entry is skipped.
 #[test]
-fn extract_missing_time_default_extracts_entry() {
+fn extract_missing_time_default_skips_entry() {
     setup();
     create_archive("extract_missing_time_default");
 
@@ -82,8 +82,8 @@ fn extract_missing_time_default_extracts_entry() {
     .unwrap();
 
     assert!(
-        Path::new("extract_missing_time_default/out/extract_missing_time_default/file.txt")
+        !Path::new("extract_missing_time_default/out/extract_missing_time_default/file.txt")
             .exists(),
-        "default include policy should extract mtime-missing entries"
+        "mtime-missing entries should be skipped by default"
     );
 }

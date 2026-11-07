@@ -1,13 +1,18 @@
 use crate::{
-    cli::PasswordArgs,
+    cli::{
+        ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategy,
+        SolidEntriesTransformStrategyArgs,
+    },
     command::{
         Command, ask_password,
-        core::{SplitArchiveReader, StagedArchive, collect_split_archives},
+        core::{
+            SplitArchiveReader, StagedArchive, Umask, collect_split_archives,
+            resolve_rewrite_output,
+        },
     },
-    utils::PathPartExt,
 };
-use clap::{Parser, ValueHint};
-use pna::{Archive, NormalEntry, ReadOptions};
+use clap::{ArgAction, Parser, ValueHint};
+use pna::{Archive, NormalEntry, ReadEntry, ReadOptions, SolidEntryBuilder, WriteOptions};
 use std::{
     fmt::{self, Display, Formatter},
     path::PathBuf,
@@ -120,10 +125,23 @@ impl FromStr for SortKey {
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) struct SortCommand {
-    #[arg(short = 'f', long = "file", help = "Archive file path", value_hint = ValueHint::FilePath)]
-    archive: PathBuf,
+    #[command(flatten)]
+    archive: ArchiveFileArgs,
     #[arg(long, help = "Output archive file path", value_hint = ValueHint::FilePath)]
     output: Option<PathBuf>,
+    #[arg(
+        long,
+        conflicts_with = "no_overwrite",
+        help = "Overwrite the output file (rewrite in place when --output is omitted)"
+    )]
+    overwrite: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not overwrite output file. This is the inverse option of --overwrite",
+        requires = "output"
+    )]
+    no_overwrite: (),
     #[arg(
         long = "by",
         value_name = "KEY",
@@ -133,34 +151,88 @@ pub(crate) struct SortCommand {
     )]
     by: Vec<SortKey>,
     #[command(flatten)]
+    transform_strategy: SolidEntriesTransformStrategyArgs,
+    #[command(flatten)]
     password: PasswordArgs,
 }
 
 impl Command for SortCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
-        sort_archive(self)
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
+        sort_archive(self, ctx.umask())
     }
 }
 
 #[hooq::hooq(anyhow)]
-fn sort_archive(args: SortCommand) -> anyhow::Result<()> {
+fn sort_archive(args: SortCommand, umask: Umask) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    let archives = collect_split_archives(&args.archive)?;
+    let archives = collect_split_archives(&args.archive.file)?;
     let mut source = SplitArchiveReader::new(archives)?;
     let read_options = ReadOptions::with_password(password.as_deref());
+    let unsolid = args.transform_strategy.strategy() == SolidEntriesTransformStrategy::UnSolid;
     let mut entries = Vec::<NormalEntry<_>>::new();
-    source.for_each_entry(
-        &read_options,
+    let mut sorted = Vec::<ReadEntry<_>>::new();
+    source.for_each_read_entry(
         #[hooq::skip_all]
         |entry| {
-            entries.push(entry?);
+            match entry? {
+                ReadEntry::Normal(entry) => entries.push(entry),
+                ReadEntry::Solid(entry) => {
+                    if unsolid {
+                        for entry in entry.entries(&read_options)? {
+                            entries.push(entry?.into());
+                        }
+                    } else {
+                        sort_entries(&mut entries, &args.by);
+                        sorted.extend(entries.drain(..).map(ReadEntry::Normal));
+                        let mut inner = entry
+                            .entries(&read_options)?
+                            .collect::<std::io::Result<Vec<_>>>()?;
+                        sort_entries(&mut inner, &args.by);
+                        let header = entry.header();
+                        let options = WriteOptions::builder()
+                            .compression(header.compression())
+                            .encryption(header.encryption())
+                            .cipher_mode(header.cipher_mode())
+                            .password(password.as_deref())
+                            .build();
+                        let mut solid = SolidEntryBuilder::new(options)?;
+                        for chunk in entry.extra_chunks() {
+                            solid.add_extra_chunk(chunk.clone());
+                        }
+                        for entry in inner {
+                            solid.add_entry(entry)?;
+                        }
+                        sorted.push(ReadEntry::Solid(solid.build()?.into()));
+                    }
+                }
+            }
             Ok(())
         },
+        false,
     )?;
 
+    sort_entries(&mut entries, &args.by);
+    sorted.extend(entries.into_iter().map(ReadEntry::Normal));
+
+    let destination = resolve_rewrite_output(&args.archive.file, args.output, args.overwrite)?;
+    let mut staged = StagedArchive::new(destination.path, umask, destination.overwrite)?;
+    let mut archive = Archive::write_header(staged.as_file_mut())?;
+    for entry in sorted {
+        archive.add_entry(entry)?;
+    }
+    archive.finalize()?;
+
+    drop(source);
+
+    staged.commit()?;
+
+    Ok(())
+}
+
+fn sort_entries<T>(entries: &mut [NormalEntry<T>], keys: &[SortKey]) {
     entries.sort_by(|a, b| {
-        for key in &args.by {
+        for key in keys {
             let ord = match key.by {
                 SortBy::Name => a.name().cmp(b.name()),
                 SortBy::Ctime => a.metadata().created().cmp(&b.metadata().created()),
@@ -176,20 +248,6 @@ fn sort_archive(args: SortCommand) -> anyhow::Result<()> {
         }
         std::cmp::Ordering::Equal
     });
-
-    let output = args.output.unwrap_or_else(|| args.archive.remove_part());
-    let mut staged = StagedArchive::new(output)?;
-    let mut archive = Archive::write_header(staged.as_file_mut())?;
-    for entry in entries {
-        archive.add_entry(entry)?;
-    }
-    archive.finalize()?;
-
-    drop(source);
-
-    staged.commit(None)?;
-
-    Ok(())
 }
 
 #[cfg(test)]

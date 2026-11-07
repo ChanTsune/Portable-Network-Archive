@@ -12,7 +12,7 @@ fuzz_target!(|data: &[u8]| {
         .encryption(Encryption::CAMELLIA)
         .cipher_mode(CipherMode::GCM)
         .compression(Compression::NO)
-        .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+        .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
         .build();
     let mut builder = FileEntryBuilder::new_with_options("fuzz".into(), write_option).unwrap();
     builder.write_all(data).unwrap();
