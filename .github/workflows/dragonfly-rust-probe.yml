@@ -87,10 +87,13 @@ jobs:
             chown -R $(whoami):$(id -gn) ./
             chmod -R a+rw ./
             cargo build --locked --release -p libpna -p pna -p portable-network-archive
-            # Diagnose DragonFly filesystem atime behavior independently of PNA.
+            # Compare timestamp restoration on tmpfs and the workspace's HAMMER2.
             mount
-            probe_file=$(mktemp)
-            touch -a -t 202401010000 "$probe_file"
-            stat -f 'atime=%a mtime=%m path=%N' "$probe_file"
-            rm -f "$probe_file"
+            for probe_dir in /tmp .; do
+              probe_file=$(mktemp "$probe_dir/atime-probe.XXXXXX")
+              touch -a -t 202401010000 "$probe_file"
+              touch -m -t 202401020000 "$probe_file"
+              stat -f 'atime=%a mtime=%m path=%N' "$probe_file"
+              rm -f "$probe_file"
+            done
             cargo test --locked -p libpna -p pna -p portable-network-archive
