@@ -67,6 +67,15 @@ jobs:
               exit 1
             fi
             export LD_LIBRARY_PATH="$gcc_libdir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+            # The DragonFly Rust distribution embeds a Raven-specific linker path.
+            # Override it with the GCC 14 compiler installed in this VM.
+            linker=/usr/local/bin/gcc14
+            if [ ! -x "$linker" ]; then
+              pkg info -l gcc14
+              echo "GCC 14 linker is missing" >&2
+              exit 1
+            fi
+            export CARGO_TARGET_X86_64_UNKNOWN_DRAGONFLY_LINKER="$linker"
             uname -a
             rustc --version
             cargo --version
