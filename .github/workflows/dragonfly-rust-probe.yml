@@ -87,3 +87,4 @@ jobs:
             chown -R $(whoami):$(id -gn) ./
             chmod -R a+rw ./
             cargo build --locked --release -p libpna -p pna -p portable-network-archive
+            cargo test --locked -p libpna -p pna -p portable-network-archive
