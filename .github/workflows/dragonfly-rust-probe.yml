@@ -25,7 +25,7 @@ jobs:
           usesh: true
           prepare: |
             set -e
-            pkg install -y rust gcc14 cmake libnghttp2 curl zstd
+            pkg install -y rust gcc14 cmake libnghttp2 curl zstd ca_root_nss git
             rust_minor=$(rustc --version | awk '{split($2, v, /[.]/); print v[2]}')
             if [ "$rust_minor" -lt 95 ]; then
               # DragonFly 6.4 packages have shipped Rust 1.85.1; install a
@@ -48,6 +48,7 @@ jobs:
               export PATH="/opt/rust-1.98.0/bin:$PATH"
             fi
             export LC_ALL=C LANG=C
+            export CARGO_NET_GIT_FETCH_WITH_CLI=true
             # Use the runtime from gcc14, not an older GCC found first.
             gcc_libdir=/usr/local/lib/gcc14
             if [ ! -f "$gcc_libdir/libstdc++.so.6" ]; then
