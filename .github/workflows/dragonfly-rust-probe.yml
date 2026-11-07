@@ -49,6 +49,16 @@ jobs:
             fi
             export LC_ALL=C LANG=C
             export CARGO_NET_GIT_FETCH_WITH_CLI=true
+            # The Rust tarball's libcurl expects a Raven-specific CA path.
+            # Use DragonFly's installed trust store without disabling verification.
+            ca_bundle=/usr/local/share/certs/ca-root-nss.crt
+            if [ ! -s "$ca_bundle" ]; then
+              pkg info -l ca_root_nss
+              echo "DragonFly CA certificate bundle is missing" >&2
+              exit 1
+            fi
+            export CARGO_HTTP_CAINFO="$ca_bundle"
+            export SSL_CERT_FILE="$ca_bundle"
             # Use the runtime from gcc14, not an older GCC found first.
             gcc_libdir=/usr/local/lib/gcc14
             if [ ! -f "$gcc_libdir/libstdc++.so.6" ]; then
