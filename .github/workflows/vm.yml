@@ -212,8 +212,9 @@ jobs:
           disable-cache: true
           usesh: true
           prepare: |
+            set -e
             pkg install -y rust cmake libnghttp2 curl zstd
-            rust_minor=$(rustc --version | awk '{split($2, v, "."); print v[2]}')
+            rust_minor=$(rustc --version | awk '{split($2, v, /[.]/); print v[2]}')
             if [ "$rust_minor" -lt 95 ]; then
               # DragonFly 6.4 packages have shipped Rust 1.85.1; install a
               # newer, DragonFly-native compiler only when needed.
@@ -235,7 +236,7 @@ jobs:
             uname -a
             rustc --version
             cargo --version
-            rust_minor=$(rustc --version | awk '{split($2, v, "."); print v[2]}')
+            rust_minor=$(rustc --version | awk '{split($2, v, /[.]/); print v[2]}')
             if [ "$rust_minor" -lt 95 ]; then
               echo "Rust 1.95 or newer required; the DragonFly package is too old" >&2
               exit 1
