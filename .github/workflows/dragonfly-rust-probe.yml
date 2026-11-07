@@ -30,7 +30,7 @@ jobs:
             if [ "$rust_minor" -lt 95 ]; then
               # DragonFly 6.4 packages have shipped Rust 1.85.1; install a
               # newer, DragonFly-native compiler only when needed.
-              version=1.99.1
+              version=1.98.0
               prefix="/opt/rust-$version"
               base="https://leaf.dragonflybsd.org/~marino/dports-src/rust"
               mkdir -p "$prefix"
@@ -44,8 +44,8 @@ jobs:
             fi
           run: |
             set -e
-            if [ -x /opt/rust-1.99.1/bin/rustc ]; then
-              export PATH="/opt/rust-1.99.1/bin:$PATH"
+            if [ -x /opt/rust-1.98.0/bin/rustc ]; then
+              export PATH="/opt/rust-1.98.0/bin:$PATH"
             fi
             export LC_ALL=C LANG=C
             uname -a
