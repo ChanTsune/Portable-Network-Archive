@@ -99,6 +99,10 @@ jobs:
             # CARGO_TARGET_TMPDIR is target/tmp (not target/debug/tmp).
             # HAMMER2 normalizes atime to mtime; keep test fixtures on tmpfs.
             mkdir -p target /tmp/pna-test-fixtures
+            # /tmp's default tmpfs capacity is insufficient for the CLI fixture suite.
+            # Allocate a separate 3 GiB tmpfs while leaving build artifacts on HAMMER2.
+            mount -t tmpfs -o size=3g tmpfs /tmp/pna-test-fixtures
+            df -h /tmp/pna-test-fixtures
             if [ -e target/tmp ] || [ -L target/tmp ]; then
               echo "Cargo test fixture directory already exists; refusing to replace it" >&2
               exit 1
