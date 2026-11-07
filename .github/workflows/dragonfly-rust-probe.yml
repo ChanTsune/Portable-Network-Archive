@@ -96,13 +96,13 @@ jobs:
               stat -f 'atime=%a mtime=%m path=%N' "$probe_file"
               rm -f "$probe_file"
             done
-            # Cargo integration tests use target/debug/tmp as their working directory.
-            # HAMMER2 normalizes atime to mtime even for touch; tmpfs preserves both.
-            # Keep compiled artifacts on HAMMER2 and run test fixtures on tmpfs.
-            mkdir -p target/debug /tmp/pna-test-fixtures
-            if [ -e target/debug/tmp ] || [ -L target/debug/tmp ]; then
+            # CARGO_TARGET_TMPDIR is target/tmp (not target/debug/tmp).
+            # HAMMER2 normalizes atime to mtime; keep test fixtures on tmpfs.
+            mkdir -p target /tmp/pna-test-fixtures
+            if [ -e target/tmp ] || [ -L target/tmp ]; then
               echo "Cargo test fixture directory already exists; refusing to replace it" >&2
               exit 1
             fi
-            ln -s /tmp/pna-test-fixtures target/debug/tmp
+            ln -s /tmp/pna-test-fixtures target/tmp
+            test "$(cd target/tmp && pwd -P)" = /tmp/pna-test-fixtures
             cargo test --locked -p libpna -p pna -p portable-network-archive
