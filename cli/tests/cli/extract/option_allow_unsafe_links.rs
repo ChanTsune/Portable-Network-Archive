@@ -47,6 +47,7 @@ fn extract_allow_unsafe_links_flag_allows_parent_dir_link_targets() {
 
     let root = Path::new("extract_allow_unsafe_links_flag_allows_parent_dir_targets");
     let out_dir = root.join("out");
+    fs::create_dir_all(root).unwrap();
     fs::write(root.join("file.txt"), b"content").unwrap();
     build_archive_with_parent_dir_links(&root.join("archive.pna"));
 
@@ -96,6 +97,7 @@ fn extract_blocks_parent_dir_link_targets_by_default_and_with_no_allow_flag() {
     setup();
 
     let root = Path::new("extract_blocks_parent_dir_link_targets_by_default_and_no_allow_flag");
+    fs::create_dir_all(root).unwrap();
     fs::write(root.join("file.txt"), b"content").unwrap();
     build_archive_with_parent_dir_links(&root.join("archive.pna"));
 
