@@ -1,5 +1,6 @@
 mod hardlink;
 mod missing_file;
+mod option_allow_unsafe_links;
 mod option_exclude;
 mod option_exclude_vcs;
 mod option_files_from;
