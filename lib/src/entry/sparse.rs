@@ -207,6 +207,25 @@ mod tests {
     }
 
     #[test]
+    fn all_hole_map_has_no_data_regions() {
+        let map = SparseMap::try_new(1024, Vec::new()).unwrap();
+        assert_eq!(map.logical_size(), 1024);
+        assert!(map.regions().is_empty());
+        assert_eq!(map.data_size(), 0);
+        assert_eq!(map.to_bytes(), vec![0, 0, 0, 0, 0, 0, 4, 0]);
+        assert_eq!(SparseMap::try_from_bytes(&map.to_bytes()).unwrap(), map);
+    }
+
+    #[test]
+    fn zero_logical_size_with_no_regions_is_valid() {
+        let map = SparseMap::try_new(0, Vec::new()).unwrap();
+        assert_eq!(map.logical_size(), 0);
+        assert!(map.regions().is_empty());
+        assert_eq!(map.data_size(), 0);
+        assert_eq!(SparseMap::try_from_bytes(&map.to_bytes()).unwrap(), map);
+    }
+
+    #[test]
     fn zero_region_inside_data_region_is_unambiguous() {
         let map =
             SparseMap::try_new(100, vec![DataRegion::new(10, 20), DataRegion::new(20, 0)]).unwrap();
@@ -241,5 +260,10 @@ mod tests {
     #[test]
     fn rejects_malformed_wire_length() {
         assert!(SparseMap::try_from_bytes(&[0; 9]).is_err());
+    }
+
+    #[test]
+    fn rejects_wire_shorter_than_logical_size_field() {
+        assert!(SparseMap::try_from_bytes(&[0; 4]).is_err());
     }
 }

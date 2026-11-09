@@ -236,3 +236,34 @@ pub(crate) fn mark_sparse(file: &File) -> io::Result<()> {
 pub(crate) fn mark_sparse(_file: &File) -> io::Result<()> {
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write as _;
+
+    fn create_temp_file(name: &str, content: &[u8]) -> (std::path::PathBuf, File) {
+        let path =
+            std::env::temp_dir().join(format!("pna_sparse_detect_{name}_{}", std::process::id()));
+        let mut file = File::create(&path).unwrap();
+        file.write_all(content).unwrap();
+        file.flush().unwrap();
+        drop(file);
+        let file = File::open(&path).unwrap();
+        (path, file)
+    }
+
+    #[test]
+    fn detect_non_sparse_file() {
+        let (path, file) = create_temp_file("dense", b"hello world");
+        assert!(detect_sparse_map(&file).unwrap().is_none());
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn detect_empty_file() {
+        let (path, file) = create_temp_file("empty", b"");
+        assert!(detect_sparse_map(&file).unwrap().is_none());
+        std::fs::remove_file(&path).ok();
+    }
+}

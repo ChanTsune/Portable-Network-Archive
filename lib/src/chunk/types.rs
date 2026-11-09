@@ -364,23 +364,27 @@ mod tests {
     #[test]
     fn is_critical() {
         assert!(ChunkType::AHED.is_critical());
+        assert!(ChunkType::SPAR.is_critical());
         assert!(!ChunkType::cTIM.is_critical());
     }
 
     #[test]
     fn is_private() {
         assert!(!ChunkType::AHED.is_private());
+        assert!(!ChunkType::SPAR.is_private());
         assert!(ChunkType::private(*b"myTy").unwrap().is_private());
     }
 
     #[test]
     fn is_set_reserved() {
         assert!(!ChunkType::AHED.is_set_reserved());
+        assert!(!ChunkType::SPAR.is_set_reserved());
     }
 
     #[test]
     fn is_safe_to_copy() {
         assert!(!ChunkType::AHED.is_safe_to_copy());
+        assert!(!ChunkType::SPAR.is_safe_to_copy());
     }
 
     #[test]

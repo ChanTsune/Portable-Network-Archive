@@ -96,7 +96,7 @@ pub fn skip_or_fail(capability: &str, condition: &str) {
 /// Leaves the current test when a runtime-only precondition is unmet.
 /// Capability names are the vocabulary of `PNA_TEST_REQUIRE`; keep them
 /// stable: `birthtime`, `mtime_nanos`, `xattr`, `nodump`, `chmod`, `setuid`,
-/// `root`, `unprivileged`, `mount`.
+/// `root`, `unprivileged`, `mount`, `sparse`.
 macro_rules! skip_unless {
     ($capability:literal, $cond:expr) => {
         if !$cond {

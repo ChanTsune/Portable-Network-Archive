@@ -203,4 +203,25 @@ mod tests {
 
         assert_eq!(entry.metadata().raw_file_size(), Some(10));
     }
+
+    #[test]
+    fn all_hole_sparse_map_builds_without_payload() {
+        let map = SparseMap::try_new(1024 * 1024, Vec::new()).unwrap();
+        let mut builder = FileEntryBuilder::new("hole".into()).unwrap();
+        builder.sparse_map(Some(map.clone()));
+        let entry = builder.build().unwrap();
+
+        assert_eq!(entry.sparse_map(), Some(&map));
+        assert_eq!(entry.metadata().raw_file_size(), Some(1024 * 1024));
+    }
+
+    #[test]
+    fn sparse_map_size_mismatch_fails_build() {
+        let map = SparseMap::try_new(1000, vec![DataRegion::new(0, 100)]).unwrap();
+        let mut builder = FileEntryBuilder::new("sparse".into()).unwrap();
+        builder.write_all(&[0u8; 50]).unwrap();
+        builder.sparse_map(Some(map));
+
+        assert!(builder.build().is_err());
+    }
 }
