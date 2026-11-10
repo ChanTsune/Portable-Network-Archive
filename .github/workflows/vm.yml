@@ -195,30 +195,100 @@ jobs:
             ulimit -n 2048
             cargo hack test --locked --release --each-feature --exclude-features wasm -p libpna -p pna -p portable-network-archive
 
-#  DragonflyBSD-test:
-#    runs-on: ubuntu-latest
-#    timeout-minutes: 60
-#    name: Test on DragonflyBSD
-#    steps:
-#      - uses: actions/checkout@v4
-#      - name: Test in DragonflyBSD
-#        id: test
-#        uses: vmactions/dragonflybsd-vm@v1.0.9
-#        with:
-#          envs: "RUST_BACKTRACE"
-#          copyback: false
-#          usesh: true
-#          prepare: |
-#            pkg install -y curl cmake libnghttp2
-#            pkg install -y rust
-#          run: |
-#            set -e
-#            export LC_ALL=C LANG=C
-#            uname -a
-#            chown -R $(whoami):$(id -gn) ./
-#            chmod -R a+rw ./
-#            cargo install -f cargo-hack --locked
-#            cargo hack test --locked --release --each-feature --exclude-features wasm -p libpna -p pna -p portable-network-archive
+  DragonflyBSD-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    name: Test on DragonFly BSD
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test in DragonFly BSD
+        id: test
+        uses: vmactions/dragonflybsd-vm@4ab776fa9f914fbea72f13715b451e77e7ef5c41 # v1.3.4
+        with:
+          envs: "RUST_BACKTRACE PNA_TEST_REQUIRE"
+          copyback: false
+          disable-cache: true
+          usesh: true
+          prepare: |
+            set -e
+            pkg install -y rust gcc14 cmake libnghttp2 curl zstd ca_root_nss git
+            rust_minor=$(rustc --version | awk '{split($2, v, /[.]/); print v[2]}')
+            if [ "$rust_minor" -lt 95 ]; then
+              # DragonFly 6.4 packages have shipped Rust 1.85.1; install a
+              # newer, DragonFly-native compiler only when needed.
+              version=1.98.0
+              prefix="/opt/rust-$version"
+              base="https://leaf.dragonflybsd.org/~marino/dports-src/rust"
+              mkdir -p "$prefix"
+              for component in rustc cargo rust-std; do
+                artifact="$component-$version-x86_64-unknown-dragonfly"
+                curl -fLS --retry 3 "$base/$artifact.tar.zst" -o "/tmp/$artifact.tar.zst"
+                zstd -dc "/tmp/$artifact.tar.zst" | tar -xf - -C /tmp
+                (cd "/tmp/$artifact" && sh ./install.sh --prefix="$prefix" --disable-ldconfig)
+                rm -rf "/tmp/$artifact" "/tmp/$artifact.tar.zst"
+              done
+            fi
+          run: |
+            set -e
+            if [ -x /opt/rust-1.98.0/bin/rustc ]; then
+              export PATH="/opt/rust-1.98.0/bin:$PATH"
+            fi
+            export LC_ALL=C LANG=C
+            export CARGO_NET_GIT_FETCH_WITH_CLI=true
+            # The Rust tarball's libcurl expects a Raven-specific CA path.
+            # Use DragonFly's installed trust store without disabling verification.
+            ca_bundle=/usr/local/share/certs/ca-root-nss.crt
+            if [ ! -s "$ca_bundle" ]; then
+              pkg info -l ca_root_nss
+              echo "DragonFly CA certificate bundle is missing" >&2
+              exit 1
+            fi
+            export CARGO_HTTP_CAINFO="$ca_bundle"
+            export SSL_CERT_FILE="$ca_bundle"
+            # Use the runtime from gcc14, not an older GCC found first.
+            gcc_libdir=/usr/local/lib/gcc14
+            if [ ! -f "$gcc_libdir/libstdc++.so.6" ]; then
+              pkg info -l gcc14
+              echo "GCC 14 C++ runtime libstdc++.so.6 is missing" >&2
+              exit 1
+            fi
+            export LD_LIBRARY_PATH="$gcc_libdir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+            # The DragonFly Rust distribution embeds a Raven-specific linker path.
+            # Override it with the GCC 14 compiler installed in this VM.
+            linker=/usr/local/bin/gcc14
+            if [ ! -x "$linker" ]; then
+              pkg info -l gcc14
+              echo "GCC 14 linker is missing" >&2
+              exit 1
+            fi
+            export CARGO_TARGET_X86_64_UNKNOWN_DRAGONFLY_LINKER="$linker"
+            uname -a
+            rustc --version
+            cargo --version
+            rust_minor=$(rustc --version | awk '{split($2, v, /[.]/); print v[2]}')
+            if [ "$rust_minor" -lt 95 ]; then
+              echo "Rust 1.95 or newer required; the DragonFly package is too old" >&2
+              exit 1
+            fi
+            chown -R $(whoami):$(id -gn) ./
+            chmod -R a+rw ./
+            # CARGO_TARGET_TMPDIR is target/tmp (not target/debug/tmp).
+            # HAMMER2 normalizes atime to mtime; keep test fixtures on tmpfs.
+            mkdir -p target /tmp/pna-test-fixtures
+            # /tmp's default tmpfs capacity is insufficient for the CLI fixture suite.
+            # Allocate a separate 3 GiB tmpfs while leaving build artifacts on HAMMER2.
+            mount -t tmpfs -o size=3g tmpfs /tmp/pna-test-fixtures
+            df -h /tmp/pna-test-fixtures
+            if [ -e target/tmp ] || [ -L target/tmp ]; then
+              echo "Cargo test fixture directory already exists; refusing to replace it" >&2
+              exit 1
+            fi
+            ln -s /tmp/pna-test-fixtures target/tmp
+            test "$(cd target/tmp && pwd -P)" = /tmp/pna-test-fixtures
+            cargo install -f cargo-hack --locked
+            cargo hack test --locked --release --each-feature --exclude-features wasm -p libpna -p pna -p portable-network-archive
 
   OmniOS-test:
     runs-on: ubuntu-latest
