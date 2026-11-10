@@ -28,6 +28,7 @@ use std::{
 /// Entries marked as `optional` are skipped if the file doesn't exist.
 pub(crate) fn transform_mtree_entries<R: Read>(
     reader: R,
+    base: &Path,
     create_options: &CreateOptions,
     filter: &PathFilter<'_>,
     time_filters: &TimeFilters,
@@ -43,16 +44,16 @@ pub(crate) fn transform_mtree_entries<R: Read>(
                 if filter.excluded(entry_path.to_string_lossy()) {
                     continue;
                 }
-                let source_path = entry.contents().unwrap_or(entry_path);
+                let source_path = base.join(entry.contents().unwrap_or(entry_path));
                 // When nochange is set, always use filesystem mtime (bsdtar behavior)
                 // Reference: libarchive's parse_file() in archive_read_support_format_mtree.c
                 let mtime = if entry.no_change() {
-                    fs::symlink_metadata(source_path)
+                    fs::symlink_metadata(&source_path)
                         .and_then(|m| m.modified())
                         .ok()
                 } else {
                     entry.time().or_else(|| {
-                        fs::symlink_metadata(source_path)
+                        fs::symlink_metadata(&source_path)
                             .and_then(|m| m.modified())
                             .ok()
                     })
@@ -62,7 +63,7 @@ pub(crate) fn transform_mtree_entries<R: Read>(
                 if !time_filters.matches(mtime, mtime) {
                     continue;
                 }
-                match create_entry_from_mtree(&entry, create_options) {
+                match create_entry_from_mtree(&entry, &source_path, create_options) {
                     Ok(Some(normal_entry)) => results.push(Ok(Some(normal_entry))),
                     Ok(None) => {}
                     Err(e) if entry.optional() && e.kind() == io::ErrorKind::NotFound => {
@@ -237,6 +238,7 @@ fn is_mtree_whitespace(byte: u8) -> bool {
 /// Creates a single archive entry from an mtree entry.
 fn create_entry_from_mtree(
     mtree_entry: &MtreeEntry,
+    source_path: &Path,
     CreateOptions {
         option,
         keep_options,
@@ -248,8 +250,6 @@ fn create_entry_from_mtree(
     let Some(entry_name) = pathname_editor.edit_entry_name(entry_path) else {
         return Ok(None);
     };
-
-    let source_path = mtree_entry.contents().unwrap_or(entry_path);
 
     match mtree_entry.file_type() {
         Some(MtreeFileType::File) => {

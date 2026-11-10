@@ -8,18 +8,18 @@ use crate::{
         Command, ask_password,
         core::{
             AclStrategy, CollectOptions, CollectedEntry, CreateOptions, FflagsStrategy,
-            KeepOptions, MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
-            PermissionStrategyResolver, SplitArchiveReader, StagedArchive, TimeFilterResolver,
-            TimestampStrategyResolver, TransformContext, TransformStrategy,
+            FilesystemInput, KeepOptions, MacMetadataStrategy, PathFilter, PathTransformers,
+            PathnameEditor, PermissionStrategyResolver, SplitArchiveReader, StagedArchive,
+            TimeFilterResolver, TimestampStrategyResolver, TransformContext, TransformStrategy,
             TransformStrategyKeepSolid, TransformStrategyUnSolid, Umask, XattrStrategy,
-            cmp_at_stored_precision, collect_items_from_paths, collect_split_archives,
+            cmp_at_stored_precision, collect_items_from_filesystem_inputs, collect_split_archives,
             create_entry, entry_option,
             iter::ReorderByIndex,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin, resolve_rewrite_output,
         },
     },
-    utils::{VCS_FILES, fs::HardlinkResolver},
+    utils::{VCS_FILES, WorkingDirectory, fs::HardlinkResolver},
 };
 use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
 use indexmap::IndexMap;
@@ -528,7 +528,16 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
         time_filters: &time_filters,
     };
     let mut resolver = HardlinkResolver::new(collect_options.follow_links);
-    let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
+    let base = WorkingDirectory::current()?;
+    let inputs = files.iter().map(|path| {
+        let path = PathBuf::from(path);
+        FilesystemInput {
+            fs_path: base.resolve(&path),
+            path,
+        }
+    });
+    let target_items =
+        collect_items_from_filesystem_inputs(inputs, &collect_options, &mut resolver)?;
 
     let destination = resolve_rewrite_output(archive_path, args.output, args.overwrite)?;
     let mut staged = StagedArchive::new(destination.path, umask, destination.overwrite)?;
