@@ -636,12 +636,12 @@ pub(crate) struct BsdtarCommand {
         help = "Continue reading concatenated archives after the first archive ends instead of stopping at the first archive boundary"
     )]
     ignore_zeros: bool,
-    #[arg(long, hide = true, overrides_with = "no_safe_writes")]
+    #[arg(long, hide = true, overrides_with_all = ["safe_writes", "no_safe_writes"])]
     safe_writes: bool,
     #[arg(
         long,
         hide = true,
-        overrides_with = "safe_writes",
+        overrides_with_all = ["safe_writes", "no_safe_writes"],
         action = clap::ArgAction::SetTrue
     )]
     no_safe_writes: (),
