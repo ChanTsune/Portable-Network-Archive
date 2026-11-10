@@ -1,4 +1,6 @@
+pub(crate) mod junction;
 pub(crate) mod owner;
+pub(crate) mod reparse;
 
 use crate::utils::os::windows::security::{Sid, apply_security_info};
 use crate::utils::str::encode_wide;

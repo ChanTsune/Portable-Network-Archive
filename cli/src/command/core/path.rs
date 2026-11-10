@@ -77,11 +77,7 @@ impl PathnameEditor {
         Some((sanitized, had_root))
     }
 
-    /// Edit a symlink target path.
-    ///
-    /// Only user-specified substitutions (`-s`) are applied.
-    /// Leading `/` and `--strip-components` are NOT applied, matching bsdtar.
-    pub(crate) fn edit_symlink(&self, target: &Path) -> EntryReference {
+    fn transform_link_target_preserving_root(&self, target: &Path) -> EntryReference {
         let transformed: Cow<'_, Path> = if let Some(t) = &self.transformers {
             Cow::Owned(PathBuf::from(t.apply(
                 target.to_string_lossy(),
@@ -92,6 +88,18 @@ impl PathnameEditor {
             Cow::Borrowed(target)
         };
         EntryReference::from_path_lossy_preserve_root(&transformed)
+    }
+
+    /// Edit a symlink target path.
+    ///
+    /// Only user-specified substitutions (`-s`) are applied.
+    /// Leading `/` and `--strip-components` are NOT applied, matching bsdtar.
+    pub(crate) fn edit_symlink(&self, target: &Path) -> EntryReference {
+        self.transform_link_target_preserving_root(target)
+    }
+
+    pub(crate) fn edit_junction(&self, target: &Path) -> EntryReference {
+        self.transform_link_target_preserving_root(target)
     }
 
     /// Apply substitution transforms and strip leading components.
@@ -1156,5 +1164,44 @@ mod tests {
         assert!(!has_parent_dir_component("a/..name"));
         // NOT parent dir: "..." is a normal component
         assert!(!has_parent_dir_component("a/.../b"));
+    }
+
+    #[test]
+    fn editor_junction_preserves_unix_absolute() {
+        let editor = PathnameEditor::new(None, None, false, false);
+        let out = editor.edit_junction(Path::new("/abs/target"));
+        assert_eq!(out.as_str(), "/abs/target");
+    }
+
+    #[test]
+    fn editor_junction_preserves_windows_absolute() {
+        let editor = PathnameEditor::new(None, None, false, false);
+        let out = editor.edit_junction(Path::new("C:\\abs\\target"));
+        assert_eq!(out.as_str(), "C:\\abs\\target");
+    }
+
+    #[test]
+    fn editor_junction_preserves_relative_unchanged() {
+        let editor = PathnameEditor::new(None, None, false, false);
+        let out = editor.edit_junction(Path::new("rel/target"));
+        assert_eq!(out.as_str(), "rel/target");
+    }
+
+    #[test]
+    fn editor_junction_does_not_apply_strip_components() {
+        let editor = PathnameEditor::new(Some(1), None, false, false);
+        let out = editor.edit_junction(Path::new("/abs/target"));
+        assert_eq!(out.as_str(), "/abs/target");
+    }
+
+    #[test]
+    fn editor_junction_applies_substitution() {
+        use super::super::{PathTransformers, re::bsd::SubstitutionRules};
+
+        let rules = SubstitutionRules::new(vec!["#/old/#/new/#".parse().unwrap()]);
+        let transformers = Some(PathTransformers::BsdSubstitutions(rules));
+        let editor = PathnameEditor::new(None, transformers, false, false);
+        let out = editor.edit_junction(Path::new("/old/target"));
+        assert_eq!(out.as_str(), "/new/target");
     }
 }
