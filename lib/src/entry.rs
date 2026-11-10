@@ -993,7 +993,14 @@ where
                     permission_mode = Some(PermissionMode::try_from_bytes(chunk.data())?)
                 }
                 ChunkType::xATR => xattrs.push(ExtendedAttribute::try_from_bytes(chunk.data())?),
-                ChunkType::fLTP => link_target_type = LinkTargetType::try_from_bytes(chunk.data())?,
+                ChunkType::fLTP => {
+                    if matches!(
+                        header.data_kind(),
+                        DataKind::SYMBOLIC_LINK | DataKind::HARD_LINK
+                    ) {
+                        link_target_type = LinkTargetType::try_from_bytes(chunk.data())?;
+                    }
+                }
                 _ => {
                     if chunk.ty.is_critical() {
                         return Err(io::Error::new(

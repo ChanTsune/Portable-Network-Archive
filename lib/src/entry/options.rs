@@ -67,7 +67,7 @@ mod private {
     // share a single PHSF across entries, so realistic archives hold only a
     // few distinct PHSF values. The bound prevents unbounded growth when
     // reading legacy archives that carry a distinct salt per entry.
-    const KEY_CACHE_CAP: usize = 16;
+    pub(super) const KEY_CACHE_CAP: usize = 16;
 
     // Cache of keys derived from PHC strings.
     //
@@ -1380,16 +1380,15 @@ mod tests {
     }
 
     #[test]
-    fn key_cache_clears_when_full() {
+    fn key_cache_stays_bounded_and_retains_newly_inserted_keys() {
         let cache = KeyCache::new();
-        for i in 0..16 {
-            cache.insert(&format!("phsf-{i}"), test_output(i as u8));
+        for i in 0..=private::KEY_CACHE_CAP * 3 {
+            let phsf = format!("phsf-{i}");
+            let key = test_output(i as u8);
+            cache.insert(&phsf, key);
+            assert!(cache.len() <= private::KEY_CACHE_CAP);
+            assert_eq!(cache.get(&phsf), Some(key));
         }
-        assert_eq!(cache.len(), 16);
-        cache.insert("phsf-16", test_output(16));
-        assert_eq!(cache.len(), 1);
-        assert!(cache.get("phsf-0").is_none());
-        assert_eq!(cache.get("phsf-16").unwrap(), test_output(16));
     }
 
     #[test]
