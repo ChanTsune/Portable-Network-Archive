@@ -213,6 +213,9 @@ jobs:
           usesh: true
           prepare: |
             set -e
+            # The VM image may contain packages built against an older OpenSSL.
+            # Upgrade the installed set together to keep shared-library ABIs aligned.
+            pkg upgrade -y
             pkg install -y rust gcc14 cmake libnghttp2 curl zstd ca_root_nss git openssl
             rust_minor=$(rustc --version | awk '{split($2, v, /[.]/); print v[2]}')
             if [ "$rust_minor" -lt 95 ]; then
