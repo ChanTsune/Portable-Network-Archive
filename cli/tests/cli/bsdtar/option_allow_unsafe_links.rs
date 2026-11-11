@@ -145,3 +145,47 @@ fn bsdtar_extract_no_allow_unsafe_links_flag_blocks_parent_dir_link_targets() {
         "hardlink with .. target should be blocked"
     );
 }
+
+/// Precondition: Archive contains a symbolic link with a parent directory target.
+/// Action: Extract with opposing unsafe-link flags in each order, including repeated flags.
+/// Expectation: The last flag controls whether the link is extracted.
+#[test]
+fn bsdtar_extract_unsafe_link_flags_use_last_occurrence() {
+    setup();
+    let root = PathBuf::from("bsdtar_extract_unsafe_link_flags_use_last_occurrence");
+    let archive = root.join("archive.pna");
+    build_archive_with_file_and_parent_dir_links(&archive, false);
+
+    let allowed = root.join("allowed");
+    cargo_bin_cmd!("pna")
+        .args(["compat", "bsdtar", "-x", "--unstable", "-f"])
+        .arg(&archive)
+        .args([
+            "--no-allow-unsafe-links",
+            "--allow-unsafe-links",
+            "--allow-unsafe-links",
+            "--out-dir",
+        ])
+        .arg(&allowed)
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_link(allowed.join("a/link")).unwrap(),
+        Path::new("../file.txt")
+    );
+
+    let blocked = root.join("blocked");
+    cargo_bin_cmd!("pna")
+        .args(["compat", "bsdtar", "-x", "--unstable", "-f"])
+        .arg(&archive)
+        .args([
+            "--allow-unsafe-links",
+            "--no-allow-unsafe-links",
+            "--no-allow-unsafe-links",
+            "--out-dir",
+        ])
+        .arg(&blocked)
+        .assert()
+        .failure();
+    assert!(!blocked.join("a/link").is_symlink());
+}
