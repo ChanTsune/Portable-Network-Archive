@@ -24,6 +24,7 @@ mod option_keep_dir;
 mod option_mac_metadata;
 mod option_no_recursive;
 mod option_options;
+mod option_overwrite;
 mod option_safe_writes;
 mod option_same_permissions;
 mod option_substitution;
