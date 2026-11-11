@@ -315,3 +315,160 @@ fn extract_keep_timestamp_restores_hardlink_times() {
         "hardlink should share the same inode as the original file"
     );
 }
+
+const ARCHIVED_MTIME: Duration = Duration::from_secs(1_704_067_200);
+const ARCHIVED_ATIME: Duration = Duration::from_secs(1_704_240_000);
+
+fn create_fixture(base: &str) -> String {
+    let archive = format!("{base}/archive.pna");
+    fs::create_dir_all(format!("{base}/in")).unwrap();
+    fs::write(format!("{base}/in/file.txt"), "content").unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        archive.as_str(),
+        "--overwrite",
+        &format!("{base}/in/file.txt"),
+        "--keep-timestamp",
+        "--mtime",
+        "2024-01-01T00:00:00Z",
+        "--ctime",
+        "2024-01-02T00:00:00Z",
+        "--atime",
+        "2024-01-03T00:00:00Z",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+    archive
+}
+
+fn extract_fixture(base: &str, archive: &str, flags: &[&str]) -> String {
+    let out_dir = format!("{base}/out");
+    let mut args = vec![
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        archive,
+        "--overwrite",
+        "--out-dir",
+        out_dir.as_str(),
+    ];
+    args.extend_from_slice(flags);
+    cli::Cli::try_parse_from(args).unwrap().execute().unwrap();
+    format!("{out_dir}/{base}/in/file.txt")
+}
+
+fn assert_not_stored(actual: SystemTime, archived: Duration, label: &str) {
+    let actual = actual
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let archived = archived.as_secs();
+    assert!(
+        actual > archived,
+        "{label}: expected extraction time, got {actual} (archived {archived})"
+    );
+}
+
+/// Precondition: An archive stores a file with explicit mtime and atime.
+/// Action: Extract with `--preserve-timestamps`.
+/// Expectation: The extracted file has the archived mtime and atime.
+#[test]
+fn extract_preserve_timestamps_restores_file_times() {
+    setup();
+    let base = "extract_preserve_timestamps_restores_file_times";
+    let archive = create_fixture(base);
+
+    let extracted = extract_fixture(base, &archive, &["--preserve-timestamps"]);
+
+    let (modified, accessed, _) = extract_time(extracted);
+    assert_same_second(modified, SystemTime::UNIX_EPOCH + ARCHIVED_MTIME, "mtime");
+    assert_same_second(accessed, SystemTime::UNIX_EPOCH + ARCHIVED_ATIME, "atime");
+}
+
+/// Precondition: An archive stores a file with explicit mtime and atime.
+/// Action: Extract without a timestamp preservation flag.
+/// Expectation: The extracted file uses the extraction time instead of the archived times.
+#[test]
+fn extract_without_preserve_flag_uses_extraction_time() {
+    setup();
+    let base = "extract_without_preserve_flag_uses_extraction_time";
+    let archive = create_fixture(base);
+
+    let extracted = extract_fixture(base, &archive, &[]);
+
+    let (modified, accessed, _) = extract_time(extracted);
+    assert_not_stored(modified, ARCHIVED_MTIME, "mtime");
+    assert_not_stored(accessed, ARCHIVED_ATIME, "atime");
+}
+
+/// Precondition: An archive stores a file with explicit mtime and atime.
+/// Action: Extract with `--no-preserve-timestamps`.
+/// Expectation: The extracted file uses the extraction time instead of the archived times.
+#[test]
+fn extract_with_no_preserve_timestamps_uses_extraction_time() {
+    setup();
+    let base = "extract_with_no_preserve_timestamps_uses_extraction_time";
+    let archive = create_fixture(base);
+
+    let extracted = extract_fixture(base, &archive, &["--no-preserve-timestamps"]);
+
+    let (modified, accessed, _) = extract_time(extracted);
+    assert_not_stored(modified, ARCHIVED_MTIME, "mtime");
+    assert_not_stored(accessed, ARCHIVED_ATIME, "atime");
+}
+
+/// Precondition: An archive stores a file with explicit mtime and atime.
+/// Action: Extract with the `--no-keep-timestamp` alias.
+/// Expectation: The extracted file uses the extraction time instead of the archived times.
+#[test]
+fn extract_with_no_keep_timestamp_alias_uses_extraction_time() {
+    setup();
+    let base = "extract_with_no_keep_timestamp_alias_uses_extraction_time";
+    let archive = create_fixture(base);
+
+    let extracted = extract_fixture(base, &archive, &["--no-keep-timestamp"]);
+
+    let (modified, accessed, _) = extract_time(extracted);
+    assert_not_stored(modified, ARCHIVED_MTIME, "mtime");
+    assert_not_stored(accessed, ARCHIVED_ATIME, "atime");
+}
+
+/// Precondition: A file has known timestamps.
+/// Action: Use a negative preservation flag with each time override.
+/// Expectation: The negative flag takes precedence over the override.
+#[test]
+fn extract_negative_timestamp_flag_overrides_time_options() {
+    setup();
+    for (index, flags) in [
+        [
+            "--no-preserve-timestamps",
+            "--mtime",
+            "2001-01-01T00:00:00Z",
+        ],
+        [
+            "--no-preserve-timestamps",
+            "--ctime",
+            "2001-01-01T00:00:00Z",
+        ],
+        [
+            "--no-preserve-timestamps",
+            "--atime",
+            "2001-01-01T00:00:00Z",
+        ],
+    ]
+    .iter()
+    .enumerate()
+    {
+        let base = format!("extract_negative_timestamp_flag_overrides_time_options_{index}");
+        let archive = create_fixture(&base);
+        let extracted = extract_fixture(&base, &archive, flags);
+        let (modified, accessed, _) = extract_time(extracted);
+        assert_not_stored(modified, ARCHIVED_MTIME, "mtime");
+        assert_not_stored(accessed, ARCHIVED_ATIME, "atime");
+    }
+}

@@ -4,6 +4,7 @@ mod entry_order;
 mod mtime;
 mod option_exclude;
 mod option_exclude_vcs;
+mod option_keep_timestamp;
 #[cfg(any(windows, target_os = "macos"))]
 mod option_newer_ctime;
 mod option_newer_ctime_than;

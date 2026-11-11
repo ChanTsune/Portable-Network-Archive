@@ -15,6 +15,7 @@ mod option_exclude_vcs;
 mod option_files_from_stdin;
 mod option_include;
 mod option_keep_solid;
+mod option_keep_timestamp;
 mod option_missing_time;
 mod option_mtime;
 mod option_newer_ctime;

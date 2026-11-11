@@ -12,6 +12,7 @@ mod option_files_from;
 mod option_files_from_stdin;
 mod option_gitignore;
 mod option_include;
+mod option_keep_timestamp;
 #[cfg(any(windows, target_os = "macos"))]
 mod option_newer_ctime;
 mod option_newer_ctime_than;
