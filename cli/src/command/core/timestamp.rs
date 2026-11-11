@@ -61,18 +61,6 @@ pub(crate) enum TimestampStrategy {
     },
 }
 
-impl TimestampStrategy {
-    /// Preserve all source timestamps as-is.
-    #[must_use]
-    pub(crate) const fn preserve() -> Self {
-        Self::Preserve {
-            mtime: TimeSource::FromSource,
-            ctime: TimeSource::FromSource,
-            atime: TimeSource::FromSource,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -234,14 +234,10 @@ pub(crate) struct KeepOptions {
 
 /// Resolves CLI timestamp options into a `TimestampStrategy`.
 ///
-/// This struct encapsulates the CLI-specific logic for determining timestamp behavior:
-/// - `no_keep_timestamp` forces `NoPreserve`
-/// - `keep_timestamp` or any time override enables `Preserve`
-/// - `default_preserve` determines behavior when no flags are specified
+/// The clap command arguments resolve defaults, negative flags, and implicit
+/// preservation for time overrides before constructing this strategy
 pub(crate) struct TimestampStrategyResolver {
     pub(crate) keep_timestamp: bool,
-    pub(crate) no_keep_timestamp: bool,
-    pub(crate) default_preserve: bool,
     pub(crate) mtime: Option<SystemTime>,
     pub(crate) clamp_mtime: bool,
     pub(crate) ctime: Option<SystemTime>,
@@ -259,22 +255,14 @@ impl TimestampStrategyResolver {
         }
     }
 
-    fn has_any_override(&self) -> bool {
-        self.mtime.is_some() || self.ctime.is_some() || self.atime.is_some()
-    }
-
     /// Resolves CLI options into a `TimestampStrategy`.
     pub(crate) fn resolve(self) -> TimestampStrategy {
-        if self.no_keep_timestamp {
-            TimestampStrategy::NoPreserve
-        } else if self.keep_timestamp || self.has_any_override() {
+        if self.keep_timestamp {
             TimestampStrategy::Preserve {
                 mtime: Self::time_source_from(self.mtime, self.clamp_mtime),
                 ctime: Self::time_source_from(self.ctime, self.clamp_ctime),
                 atime: Self::time_source_from(self.atime, self.clamp_atime),
             }
-        } else if self.default_preserve {
-            TimestampStrategy::preserve()
         } else {
             TimestampStrategy::NoPreserve
         }
