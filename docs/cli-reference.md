@@ -739,7 +739,7 @@ Extract files from archive
   Default value: `false`
 * `--no-allow-unsafe-links` — Do not allow extracting symbolic links and hard links that contain root or parent paths (default)
 
-  Default value: `true`
+  Default value: `false`
 * `--safe-writes` — Extract files atomically via temp file and rename
 
   Default value: `false`
