@@ -1,9 +1,32 @@
 use std::{
-    fs, thread,
+    fs,
+    path::Path,
+    thread,
     time::{Duration, SystemTime},
 };
 
 pub const DURATION_24_HOURS: Duration = Duration::from_secs(24 * 60 * 60);
+
+#[cfg(not(target_family = "wasm"))]
+#[track_caller]
+pub fn set_file_times(path: impl AsRef<Path>, modified: SystemTime, accessed: SystemTime) {
+    let file = fs::File::options().write(true).open(path).unwrap();
+    file.set_times(
+        fs::FileTimes::new()
+            .set_modified(modified)
+            .set_accessed(accessed),
+    )
+    .unwrap();
+}
+
+#[track_caller]
+pub fn stored_time(time: SystemTime) -> pna::Duration {
+    let elapsed = time
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .expect("timestamp is after the Unix epoch");
+    pna::Duration::seconds(elapsed.as_secs() as i64)
+        + pna::Duration::nanoseconds(elapsed.subsec_nanos().into())
+}
 
 #[cfg(not(target_family = "wasm"))]
 #[track_caller]

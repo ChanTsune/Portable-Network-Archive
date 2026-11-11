@@ -327,3 +327,155 @@ fn extract_with_multiple_time_overrides() {
     assert_same_second(mtime, expected_mtime, "mtime");
     assert_same_second(atime, expected_atime, "atime");
 }
+
+const ARCHIVED_MTIME: Duration = Duration::from_secs(1_579_046_400); // 2020-01-15
+const ARCHIVED_ATIME: Duration = Duration::from_secs(1_579_132_800); // 2020-01-16
+
+fn create_fixture(base: &str) -> String {
+    let archive = format!("{base}/archive.pna");
+    fs::create_dir_all(format!("{base}/in")).unwrap();
+    fs::write(format!("{base}/in/file.txt"), "content").unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "-f",
+        archive.as_str(),
+        "--overwrite",
+        &format!("{base}/in/file.txt"),
+        "--keep-timestamp",
+        "--mtime",
+        "2020-01-15T00:00:00Z",
+        "--atime",
+        "2020-01-16T00:00:00Z",
+        "--ctime",
+        "2020-01-17T00:00:00Z",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+    archive
+}
+
+fn extract_fixture(base: &str, archive: &str, flags: &[&str]) -> String {
+    let out_dir = format!("{base}/out");
+    let mut args = vec![
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        archive,
+        "--overwrite",
+        "--out-dir",
+        out_dir.as_str(),
+    ];
+    args.extend_from_slice(flags);
+    cli::Cli::try_parse_from(args).unwrap().execute().unwrap();
+    format!("{out_dir}/{base}/in/file.txt")
+}
+
+/// Precondition: An archive stores a file with explicit mtime, ctime, and atime.
+/// Action: Extract with `--mtime` but no preservation flag.
+/// Expectation: The extracted file overrides mtime and implicitly restores the other archived timestamps.
+#[test]
+fn extract_with_mtime_implicitly_preserves_other_timestamps() {
+    setup();
+    let base = "extract_with_mtime_implicitly_preserves_other_timestamps";
+    let archive = create_fixture(base);
+
+    let extracted = extract_fixture(base, &archive, &["--mtime", "2024-06-01T00:00:00Z"]);
+
+    let meta = fs::metadata(extracted).unwrap();
+    assert_same_second(
+        meta.modified().unwrap(),
+        SystemTime::UNIX_EPOCH + Duration::from_secs(1717200000),
+        "mtime",
+    );
+    assert_same_second(
+        meta.accessed().unwrap(),
+        SystemTime::UNIX_EPOCH + ARCHIVED_ATIME,
+        "atime",
+    );
+}
+
+/// Precondition: An archive stores a file with explicit mtime, ctime, and atime.
+/// Action: Extract with `--atime` but no preservation flag.
+/// Expectation: The extracted file overrides atime and implicitly restores the other archived timestamps.
+#[test]
+fn extract_with_atime_implicitly_preserves_other_timestamps() {
+    setup();
+    let base = "extract_with_atime_implicitly_preserves_other_timestamps";
+    let archive = create_fixture(base);
+
+    let extracted = extract_fixture(base, &archive, &["--atime", "2024-07-01T00:00:00Z"]);
+
+    let meta = fs::metadata(extracted).unwrap();
+    assert_same_second(
+        meta.modified().unwrap(),
+        SystemTime::UNIX_EPOCH + ARCHIVED_MTIME,
+        "mtime",
+    );
+    assert_same_second(
+        meta.accessed().unwrap(),
+        SystemTime::UNIX_EPOCH + Duration::from_secs(1719792000),
+        "atime",
+    );
+}
+
+/// Precondition: An archive stores a file with explicit mtime, ctime, and atime.
+/// Action: Extract with `--ctime` but no preservation flag.
+/// Expectation: The extracted file keeps the archived mtime and atime; on supported platforms ctime is overridden.
+#[test]
+fn extract_with_ctime_keeps_other_timestamps() {
+    setup();
+    let base = "extract_with_ctime_keeps_other_timestamps";
+    let archive = create_fixture(base);
+
+    let extracted = extract_fixture(base, &archive, &["--ctime", "2024-06-01T00:00:00Z"]);
+
+    let meta = fs::metadata(extracted).unwrap();
+    assert_same_second(
+        meta.modified().unwrap(),
+        SystemTime::UNIX_EPOCH + ARCHIVED_MTIME,
+        "mtime",
+    );
+    assert_same_second(
+        meta.accessed().unwrap(),
+        SystemTime::UNIX_EPOCH + ARCHIVED_ATIME,
+        "atime",
+    );
+    #[cfg(any(windows, target_os = "macos"))]
+    assert_same_second(
+        meta.created().unwrap(),
+        SystemTime::UNIX_EPOCH + Duration::from_secs(1717200000),
+        "ctime",
+    );
+}
+
+/// Precondition: An archive stores a file with explicit mtime, ctime, and atime.
+/// Action: Extract with `--mtime` and `--clamp-mtime` where the clamp is older than the archived mtime.
+/// Expectation: The extracted file uses the clamp value and keeps the archived atime.
+#[test]
+fn extract_with_clamp_mtime_keeps_other_timestamps() {
+    setup();
+    let base = "extract_with_clamp_mtime_keeps_other_timestamps";
+    let archive = create_fixture(base);
+
+    let extracted = extract_fixture(
+        base,
+        &archive,
+        &["--mtime", "2019-01-01T00:00:00Z", "--clamp-mtime"],
+    );
+
+    let meta = fs::metadata(extracted).unwrap();
+    assert_same_second(
+        meta.modified().unwrap(),
+        SystemTime::UNIX_EPOCH + Duration::from_secs(1546300800),
+        "mtime",
+    );
+    assert_same_second(
+        meta.accessed().unwrap(),
+        SystemTime::UNIX_EPOCH + ARCHIVED_ATIME,
+        "atime",
+    );
+}
