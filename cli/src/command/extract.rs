@@ -74,9 +74,10 @@ pub(crate) struct ExtractCommand {
     overwrite: bool,
     #[arg(
         long,
+        action = ArgAction::SetTrue,
         help = "Do not overwrite files. This is the inverse option of --overwrite"
     )]
-    no_overwrite: bool,
+    no_overwrite: (),
     #[arg(
         long,
         requires = "unstable",
@@ -448,7 +449,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     .resolve()?;
     let overwrite_strategy = OverwriteStrategy::from_flags(
         args.overwrite,
-        args.no_overwrite,
+        false,
         args.keep_newer_files,
         args.keep_old_files,
         OverwriteStrategy::Never,
