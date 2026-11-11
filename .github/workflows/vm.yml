@@ -213,7 +213,10 @@ jobs:
           usesh: true
           prepare: |
             set -e
-            pkg install -y rust gcc14 cmake libnghttp2 curl zstd ca_root_nss git
+            # The VM image may contain packages built against an older OpenSSL.
+            # Upgrade the installed set together to keep shared-library ABIs aligned.
+            pkg upgrade -y
+            pkg install -y rust gcc14 cmake libnghttp2 curl zstd ca_root_nss git openssl
             rust_minor=$(rustc --version | awk '{split($2, v, /[.]/); print v[2]}')
             if [ "$rust_minor" -lt 95 ]; then
               # DragonFly 6.4 packages have shipped Rust 1.85.1; install a
@@ -255,15 +258,17 @@ jobs:
               exit 1
             fi
             export LD_LIBRARY_PATH="$gcc_libdir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-            # The DragonFly Rust distribution embeds a Raven-specific linker path.
-            # Override it with the GCC 14 compiler installed in this VM.
-            linker=/usr/local/bin/gcc14
-            if [ ! -x "$linker" ]; then
-              pkg info -l gcc14
-              echo "GCC 14 linker is missing" >&2
-              exit 1
+            # Only the optional Rust tarball needs its embedded Raven linker
+            # overridden. Packaged Rust uses the DragonFly system linker.
+            if [ -x /opt/rust-1.98.0/bin/rustc ]; then
+              linker=/usr/local/bin/gcc14
+              if [ ! -x "$linker" ]; then
+                pkg info -l gcc14
+                echo "GCC 14 linker is missing" >&2
+                exit 1
+              fi
+              export CARGO_TARGET_X86_64_UNKNOWN_DRAGONFLY_LINKER="$linker"
             fi
-            export CARGO_TARGET_X86_64_UNKNOWN_DRAGONFLY_LINKER="$linker"
             uname -a
             rustc --version
             cargo --version
