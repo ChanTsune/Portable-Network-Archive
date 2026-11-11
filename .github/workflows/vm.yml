@@ -213,11 +213,11 @@ jobs:
           usesh: true
           prepare: |
             set -e
-            pkg install -y rust gcc14 cmake libnghttp2 curl zstd ca_root_nss git
+            pkg install -y rust gcc14 cmake libnghttp2 curl zstd ca_root_nss git openssl
             rust_minor=$(rustc --version | awk '{split($2, v, /[.]/); print v[2]}')
-            # The packaged Cargo may have unresolved shared-library dependencies
-            # even when rustc is new enough. Fall back to a known-working toolchain.
-            if [ "$rust_minor" -lt 95 ] || ! cargo --version; then
+            if [ "$rust_minor" -lt 95 ]; then
+              # DragonFly 6.4 packages have shipped Rust 1.85.1; install a
+              # newer, DragonFly-native compiler only when needed.
               version=1.98.0
               prefix="/opt/rust-$version"
               base="https://leaf.dragonflybsd.org/~marino/dports-src/rust"
