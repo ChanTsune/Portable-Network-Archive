@@ -162,8 +162,8 @@ pub(crate) struct BsdtarCommand {
         help = "Do not recursively add directories to the archives. This is the inverse option of --recursive"
     )]
     no_recursive: bool,
-    #[arg(long, help = "Overwrite file")]
-    overwrite: bool,
+    #[arg(long, action = clap::ArgAction::SetTrue, help = "Overwrite file")]
+    overwrite: (),
     #[arg(
         long,
         help = "Do not overwrite files. This is the inverse option of --overwrite"
@@ -1038,13 +1038,15 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
 
-    let overwrite_strategy = OverwriteStrategy::from_flags(
-        args.overwrite,
-        args.no_overwrite,
-        args.keep_newer_files,
-        args.keep_old_files,
-        OverwriteStrategy::Always,
-    );
+    let overwrite_strategy = if args.no_overwrite {
+        OverwriteStrategy::Never
+    } else if args.keep_newer_files {
+        OverwriteStrategy::KeepNewer
+    } else if args.keep_old_files {
+        OverwriteStrategy::KeepOlder
+    } else {
+        OverwriteStrategy::Always
+    };
     let time_filters = TimeFilterResolver {
         newer_ctime_than: args.newer_ctime_than.as_deref(),
         older_ctime_than: args.older_ctime_than.as_deref(),
