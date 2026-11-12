@@ -20,7 +20,7 @@
 
 ## Coding Conventions
 
-- Rust edition 2024; MSRV 1.88; rustfmt defaults.
+- Rust edition 2024; MSRV 1.95; rustfmt defaults.
 - New deprecated APIs use `since = "TBD"`; release preparation replaces it with the release version.
 - Shell/Bats scripts use 2-space indentation (`.editorconfig`).
 
