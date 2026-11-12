@@ -1567,7 +1567,7 @@ bsdtar-like CLI semantics for PNA archives
   Default value: `false`
 * `--preserve-timestamps` [alias: `keep-timestamp`] — Preserve file timestamps
 
-  Default value: `false`
+  Default value: `true`
 * `-m`, `--no-preserve-timestamps` [aliases: `no-keep-timestamp`, `modification-time`] — Do not archive timestamp of files. This is the inverse option of --preserve-timestamps
 
   Default value: `false`
