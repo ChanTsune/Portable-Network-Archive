@@ -117,6 +117,7 @@ pub enum OwnerType {
     Group(Identifier),
     Mask,
     Other,
+    Everyone,
 }
 
 impl Display for OwnerType {
@@ -129,6 +130,7 @@ impl Display for OwnerType {
             OwnerType::Group(i) => write!(f, "g:{i}"),
             OwnerType::Mask => f.write_str("m:"),
             OwnerType::Other => f.write_str("o:"),
+            OwnerType::Everyone => f.write_str("e:"),
         }
     }
 }
@@ -229,6 +231,7 @@ impl FromStr for Ace {
             },
             "m" | "mask" => OwnerType::Mask,
             "o" | "other" => OwnerType::Other,
+            "e" | "everyone" => OwnerType::Everyone,
             o => return Err(Self::Err::UnexpectedOwnerType(o.into())),
         };
         let allow = match it.next().ok_or(Self::Err::NotEnoughElement)? {
@@ -758,6 +761,24 @@ mod tests {
             },
         };
         assert_eq!(AceWithPlatform::from_str(&ace.to_string()), Ok(ace));
+    }
+
+    /// Precondition: ACL metadata has distinct principals for legacy Other and Everyone.
+    /// Action: Serialize and parse each principal.
+    /// Expectation: New encoding preserves Everyone and legacy Other remains unchanged.
+    #[test]
+    fn acl_principal_encoding_distinguishes_everyone() {
+        let ace = Ace {
+            flags: Flag::empty(),
+            owner_type: OwnerType::Everyone,
+            allow: true,
+            permission: Permission::READ,
+        };
+        assert_eq!(ace.to_string(), ":e::allow:r");
+        assert_eq!(Ace::from_str(":e::allow:r"), Ok(ace.clone()));
+        assert_eq!(Ace::from_str(":everyone::allow:r"), Ok(ace));
+        let legacy = Ace::from_str(":o::allow:r").unwrap();
+        assert_eq!(legacy.owner_type, OwnerType::Other);
     }
 
     #[test]
