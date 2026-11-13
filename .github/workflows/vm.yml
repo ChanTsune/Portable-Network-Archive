@@ -14,7 +14,8 @@ on:
       - "rust-toolchain.toml"
       - ".github/workflows/vm.yml"
   pull_request:
-    branches: ["*"]
+    # Include nested stacked-PR target branches (fix/*, test/*, ci/*).
+    branches: ["**"]
     paths:
       - "lib/**"
       - "pna/**"
