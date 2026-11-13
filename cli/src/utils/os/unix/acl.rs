@@ -46,20 +46,66 @@ pub(crate) fn freebsd_acl_kind(path: &Path, follow_links: bool) -> io::Result<Fr
     }
 }
 
-/// Interprets legacy POSIX-style `Other` as NFSv4 `Everyone` on NFSv4 mounts.
+/// Applies the compatibility mapping supported by the destination ACL model.
+///
+/// POSIX Other and NFSv4 Everyone are mapped according to the destination to
+/// preserve historic archives. Rights that cannot be faithfully represented
+/// are rejected before attempting a native ACL write.
 #[cfg(target_os = "freebsd")]
-fn adapt_freebsd_acl_entries(entries: &mut [exacl::AclEntry], kind: FreeBsdAclKind) {
-    for entry in entries {
-        match (kind, entry.kind) {
-            (FreeBsdAclKind::Nfs4, exacl::AclEntryKind::Other) => {
-                entry.kind = exacl::AclEntryKind::Everyone;
+fn adapt_freebsd_acl_entries(
+    entries: &mut [exacl::AclEntry],
+    kind: FreeBsdAclKind,
+) -> io::Result<()> {
+    for (index, entry) in entries.iter_mut().enumerate() {
+        let incompatible = match kind {
+            FreeBsdAclKind::Nfs4 => {
+                if entry.kind == exacl::AclEntryKind::Mask {
+                    Some("POSIX.1e mask has no NFSv4 equivalent")
+                } else if entry.flags.contains(exacl::Flag::DEFAULT) {
+                    Some("POSIX.1e default ACL cannot be represented as NFSv4 inheritance")
+                } else {
+                    if entry.kind == exacl::AclEntryKind::Other {
+                        entry.kind = exacl::AclEntryKind::Everyone;
+                    }
+                    None
+                }
             }
-            (FreeBsdAclKind::Posix1e, exacl::AclEntryKind::Everyone) => {
-                entry.kind = exacl::AclEntryKind::Other;
+            FreeBsdAclKind::Posix1e => {
+                if !entry.allow {
+                    Some("NFSv4 deny ACE cannot be represented by POSIX.1e")
+                } else if entry.flags.intersects(exacl::Flag::NFS4_SPECIFIC) {
+                    Some("NFSv4 inheritance flags have no POSIX.1e equivalent")
+                } else {
+                    let unsupported = entry.perms
+                        & exacl::Perm::NFS4_SPECIFIC
+                        & !(exacl::Perm::READ_DATA | exacl::Perm::WRITE_DATA);
+                    if !unsupported.is_empty() {
+                        Some("NFSv4-specific rights have no POSIX.1e equivalent")
+                    } else {
+                        if entry.kind == exacl::AclEntryKind::Everyone {
+                            entry.kind = exacl::AclEntryKind::Other;
+                        }
+                        if entry.perms.contains(exacl::Perm::READ_DATA) {
+                            entry.perms.remove(exacl::Perm::READ_DATA);
+                            entry.perms.insert(exacl::Perm::READ);
+                        }
+                        if entry.perms.contains(exacl::Perm::WRITE_DATA) {
+                            entry.perms.remove(exacl::Perm::WRITE_DATA);
+                            entry.perms.insert(exacl::Perm::WRITE);
+                        }
+                        None
+                    }
+                }
             }
-            _ => {}
+        };
+        if let Some(reason) = incompatible {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("FreeBSD {kind:?} ACL cannot represent ACE {index}: {reason}"),
+            ));
         }
     }
+    Ok(())
 }
 
 fn acl_option(follow_links: bool) -> Option<exacl::AclOption> {
@@ -77,7 +123,7 @@ pub fn set_facl<P: AsRef<Path>>(path: P, acl: Acl, follow_links: bool) -> io::Re
     let mut acl_entries: Vec<exacl::AclEntry> =
         acl.entries.into_iter().map(Into::into).collect::<Vec<_>>();
     #[cfg(target_os = "freebsd")]
-    adapt_freebsd_acl_entries(&mut acl_entries, native_kind);
+    adapt_freebsd_acl_entries(&mut acl_entries, native_kind)?;
     #[cfg(target_os = "macos")]
     {
         use std::os::unix::fs::MetadataExt;
@@ -476,11 +522,11 @@ mod tests {
             allow: true,
         };
         let mut nfs4 = [legacy.clone()];
-        adapt_freebsd_acl_entries(&mut nfs4, FreeBsdAclKind::Nfs4);
+        adapt_freebsd_acl_entries(&mut nfs4, FreeBsdAclKind::Nfs4).unwrap();
         assert_eq!(nfs4[0].kind, exacl::AclEntryKind::Everyone);
 
         let mut posix = [legacy.clone()];
-        adapt_freebsd_acl_entries(&mut posix, FreeBsdAclKind::Posix1e);
+        adapt_freebsd_acl_entries(&mut posix, FreeBsdAclKind::Posix1e).unwrap();
         assert_eq!(posix[0].kind, exacl::AclEntryKind::Other);
 
         let new = exacl::AclEntry {
@@ -488,8 +534,85 @@ mod tests {
             ..legacy
         };
         let mut posix_from_nfs4 = [new];
-        adapt_freebsd_acl_entries(&mut posix_from_nfs4, FreeBsdAclKind::Posix1e);
+        adapt_freebsd_acl_entries(&mut posix_from_nfs4, FreeBsdAclKind::Posix1e).unwrap();
         assert_eq!(posix_from_nfs4[0].kind, exacl::AclEntryKind::Other);
+    }
+
+    /// Precondition: The destination uses native NFSv4 ACL semantics.
+    /// Action: Convert a POSIX.1e mask or default ACL entry.
+    /// Expectation: Reject the unrepresentable ACL without silently dropping rules.
+    #[cfg(target_os = "freebsd")]
+    #[test]
+    fn rejects_unrepresentable_posix_entries_on_nfs4() {
+        let template = exacl::AclEntry {
+            kind: exacl::AclEntryKind::Mask,
+            name: String::new(),
+            perms: exacl::Perm::READ,
+            flags: exacl::Flag::empty(),
+            allow: true,
+        };
+        let mut masked = [template.clone()];
+        let err = adapt_freebsd_acl_entries(&mut masked, FreeBsdAclKind::Nfs4)
+            .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        assert!(err.to_string().contains("mask"));
+
+        let mut default = [exacl::AclEntry {
+            kind: exacl::AclEntryKind::User,
+            flags: exacl::Flag::DEFAULT,
+            ..template
+        }];
+        let err = adapt_freebsd_acl_entries(&mut default, FreeBsdAclKind::Nfs4)
+            .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        assert!(err.to_string().contains("default ACL"));
+    }
+
+    /// Precondition: A source ACL uses NFSv4-only semantics.
+    /// Action: Convert it to POSIX.1e.
+    /// Expectation: Compatible data rights map to read/write; deny and other
+    /// NFSv4-specific rules fail explicitly.
+    #[cfg(target_os = "freebsd")]
+    #[test]
+    fn rejects_unrepresentable_nfs4_entries_on_posix() {
+        let template = exacl::AclEntry {
+            kind: exacl::AclEntryKind::Everyone,
+            name: String::new(),
+            perms: exacl::Perm::READ_DATA | exacl::Perm::WRITE_DATA,
+            flags: exacl::Flag::empty(),
+            allow: true,
+        };
+        let mut compatible = [template.clone()];
+        adapt_freebsd_acl_entries(&mut compatible, FreeBsdAclKind::Posix1e).unwrap();
+        assert_eq!(compatible[0].kind, exacl::AclEntryKind::Other);
+        assert!(compatible[0].perms.contains(exacl::Perm::READ | exacl::Perm::WRITE));
+
+        let mut denied = [exacl::AclEntry {
+            allow: false,
+            ..template.clone()
+        }];
+        let err = adapt_freebsd_acl_entries(&mut denied, FreeBsdAclKind::Posix1e)
+            .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        assert!(err.to_string().contains("deny"));
+
+        let mut inherited = [exacl::AclEntry {
+            flags: exacl::Flag::FILE_INHERIT,
+            ..template.clone()
+        }];
+        let err = adapt_freebsd_acl_entries(&mut inherited, FreeBsdAclKind::Posix1e)
+            .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        assert!(err.to_string().contains("inheritance"));
+
+        let mut special = [exacl::AclEntry {
+            perms: exacl::Perm::DELETE,
+            ..template
+        }];
+        let err = adapt_freebsd_acl_entries(&mut special, FreeBsdAclKind::Posix1e)
+            .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        assert!(err.to_string().contains("rights"));
     }
 
     #[test]
