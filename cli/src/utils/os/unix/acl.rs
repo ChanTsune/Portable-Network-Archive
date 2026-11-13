@@ -2,6 +2,50 @@ use crate::chunk::{Ace, AcePlatform, Acl, Flag, Identifier, OwnerType, Permissio
 use std::io;
 use std::path::Path;
 
+// FreeBSD exposes lpathconf(2), but the libc crate does not bind it.
+#[cfg(target_os = "freebsd")]
+unsafe extern "C" {
+    fn lpathconf(path: *const libc::c_char, name: libc::c_int) -> libc::c_long;
+}
+
+/// FreeBSD selects the ACL model per filesystem, not per OS.
+#[cfg(target_os = "freebsd")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum FreeBsdAclKind {
+    Posix1e,
+    Nfs4,
+}
+
+/// Identifies the native ACL model of a path, respecting symlink handling.
+///
+/// This is separate from `AcePlatform::FreeBSD`: an archive's platform tag
+/// cannot tell us which ACL model the destination filesystem accepts.
+#[cfg(target_os = "freebsd")]
+pub(crate) fn freebsd_acl_kind(path: &Path, follow_links: bool) -> io::Result<FreeBsdAclKind> {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+
+    let c_path = CString::new(path.as_os_str().as_bytes())
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "path contains a NUL byte"))?;
+    // SAFETY: c_path is a NUL-terminated pathname valid for the duration of the call.
+    let result = unsafe {
+        if follow_links {
+            libc::pathconf(c_path.as_ptr(), libc::_PC_ACL_NFS4)
+        } else {
+            lpathconf(c_path.as_ptr(), libc::_PC_ACL_NFS4)
+        }
+    };
+    match result {
+        0 => Ok(FreeBsdAclKind::Posix1e),
+        1 => Ok(FreeBsdAclKind::Nfs4),
+        -1 => Err(io::Error::last_os_error()),
+        _ => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "unexpected _PC_ACL_NFS4 value",
+        )),
+    }
+}
+
 fn acl_option(follow_links: bool) -> Option<exacl::AclOption> {
     (!follow_links).then_some(exacl::AclOption::SYMLINK_ACL)
 }
@@ -105,6 +149,14 @@ pub fn get_facl<P: AsRef<Path>>(path: P, follow_links: bool) -> io::Result<Acl> 
             platform: AcePlatform::CURRENT,
             entries: vec![],
         });
+    }
+    #[cfg(target_os = "freebsd")]
+    if log::log_enabled!(log::Level::Trace) {
+        log::trace!(
+            "Native FreeBSD ACL model for {}: {:?}",
+            path.display(),
+            freebsd_acl_kind(path, follow_links)
+        );
     }
     let ace_list = exacl::getfacl(path, acl_option(follow_links))?;
     Ok(Acl {
@@ -353,6 +405,32 @@ impl Into<exacl::AclEntry> for Ace {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Precondition: The test file resides on the selected FreeBSD ACL filesystem.
+    /// Action: Query the ACL model through the native pathconf interface.
+    /// Expectation: The reported model matches the CI filesystem configuration.
+    #[cfg(target_os = "freebsd")]
+    #[test]
+    fn detects_native_acl_kind() {
+        let root = std::env::var_os("CARGO_TARGET_DIR")
+            .map(std::path::PathBuf::from)
+            .map(|path| path.join("tmp"))
+            .unwrap_or_else(std::env::temp_dir);
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join(format!("pna-freebsd-acl-kind-{}", std::process::id()));
+        std::fs::write(&path, []).unwrap();
+
+        let kind = freebsd_acl_kind(&path, true).unwrap();
+        if let Ok(expected) = std::env::var("PNA_TEST_FREEBSD_ACL_KIND") {
+            let expected = match expected.as_str() {
+                "posix1e" => FreeBsdAclKind::Posix1e,
+                "nfsv4" => FreeBsdAclKind::Nfs4,
+                _ => panic!("unsupported expected ACL model: {expected}"),
+            };
+            assert_eq!(kind, expected);
+        }
+        std::fs::remove_file(path).unwrap();
+    }
 
     #[test]
     fn ace_mutual_convert() {
