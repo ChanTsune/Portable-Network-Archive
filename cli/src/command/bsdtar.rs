@@ -100,7 +100,6 @@ impl CompressionAlgorithmArgs {
     group(ArgGroup::new("owner-flag").args(["same_owner", "no_same_owner"])),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
-    group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
     group(ArgGroup::new("keep-dir-flag").args(["keep_dir", "no_keep_dir"])),
     group(ArgGroup::new("keep-xattr-flag").args(["keep_xattr", "no_keep_xattr"])),
     group(ArgGroup::new("keep-timestamp-flag").args(["keep_timestamp", "no_keep_timestamp"])),
@@ -151,16 +150,24 @@ pub(crate) struct BsdtarCommand {
         long,
         visible_alias = "recursion",
         help = "Add directories to the archive recursively",
-        default_value_t = true
+        default_value_t = true,
+        default_value_if(
+            "no_recursive",
+            clap::builder::ArgPredicate::Equals("true".into()),
+            "false"
+        ),
+        overrides_with_all = ["recursive", "no_recursive"]
     )]
     recursive: bool,
     #[arg(
         short = 'n',
         long,
         visible_aliases = ["norecurse", "no-recursion"],
-        help = "Do not recursively add directories to the archives. This is the inverse option of --recursive"
+        help = "Do not recursively add directories to the archives. This is the inverse option of --recursive",
+        overrides_with_all = ["recursive", "no_recursive"],
+        action = clap::ArgAction::SetTrue
     )]
-    no_recursive: bool,
+    no_recursive: (),
     #[arg(long, action = clap::ArgAction::SetTrue, help = "Overwrite file")]
     overwrite: (),
     #[arg(
@@ -931,7 +938,7 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
     let sources = ItemSource::parse_many(&files);
     validate_no_duplicate_stdin(&sources)?;
     let collect_options = CollectOptions {
-        recursive: !args.no_recursive,
+        recursive: args.recursive,
         keep_dir: args.keep_dir,
         gitignore: args.gitignore,
         nodump: args.nodump,
@@ -1163,7 +1170,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
             files,
             || password.as_deref(),
             out_option,
-            args.no_recursive,
+            !args.recursive,
             args.fast_read,
             args.ignore_zeros,
         )?
@@ -1173,7 +1180,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
             files,
             || password.as_deref(),
             out_option,
-            args.no_recursive,
+            !args.recursive,
             args.fast_read,
             args.ignore_zeros,
         )?
@@ -1233,8 +1240,8 @@ fn run_list_archive(args: BsdtarCommand) -> anyhow::Result<()> {
     if let Some(path) = args.files_from {
         files.extend(read_paths(path, args.null)?);
     }
-    let files_globs = BsdGlobMatcher::new(files.iter().map(|it| it.as_str()))
-        .with_no_recursive(args.no_recursive);
+    let files_globs =
+        BsdGlobMatcher::new(files.iter().map(|it| it.as_str())).with_no_recursive(!args.recursive);
 
     let mut exclude = args.exclude;
     if let Some(p) = args.exclude_from {
@@ -1389,7 +1396,7 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
     let sources = ItemSource::parse_many(&files);
     validate_no_duplicate_stdin(&sources)?;
     let collect_options = CollectOptions {
-        recursive: !args.no_recursive,
+        recursive: args.recursive,
         keep_dir: args.keep_dir,
         gitignore: args.gitignore,
         nodump: args.nodump,
@@ -1567,7 +1574,7 @@ fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
     }
     .resolve()?;
     let collect_options = CollectOptions {
-        recursive: !args.no_recursive,
+        recursive: args.recursive,
         keep_dir: args.keep_dir,
         gitignore: args.gitignore,
         nodump: args.nodump,
