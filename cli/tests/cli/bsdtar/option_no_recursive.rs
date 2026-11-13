@@ -1,6 +1,15 @@
-use crate::utils::{EmbedExt, TestResources, list_lines, setup};
+use crate::utils::{EmbedExt, TestResources, archive, list_lines, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
-use std::fs;
+use std::{fs, path::Path};
+
+fn sorted_entry_names(path: &Path) -> Vec<String> {
+    let mut names = archive::get_archive_entry_names(path)
+        .into_iter()
+        .map(|name| name.trim_end_matches('/').to_owned())
+        .collect::<Vec<_>>();
+    names.sort();
+    names
+}
 
 /// Precondition: An archive contains entries under 'raw/images/' directory.
 /// Action: Run `pna compat bsdtar -t` with 'raw/images' as positional argument (default recursive).
@@ -206,4 +215,127 @@ fn bsdtar_list_recursive_vs_no_recursive() {
         1,
         "no-recursive should match exactly 1 entry"
     );
+}
+
+/// Precondition: A directory tree contains a nested file.
+/// Action: Create an archive from the directory with and without the negative recursion flag.
+/// Expectation: Without the flag the tree is archived recursively; with it only the directory itself is archived.
+#[test]
+fn bsdtar_create_no_recursive_archives_directory_only() {
+    setup();
+    let base = Path::new("bsdtar_no_recursive_create");
+    fs::create_dir_all(base.join("source/sub")).unwrap();
+    fs::write(base.join("source/file.txt"), "content").unwrap();
+    fs::write(base.join("source/sub/nested.txt"), "nested").unwrap();
+
+    for (archive_name, flags, expected) in [
+        (
+            "default.pna",
+            &[][..],
+            &[
+                "source",
+                "source/file.txt",
+                "source/sub",
+                "source/sub/nested.txt",
+            ][..],
+        ),
+        ("negative.pna", &["--no-recursive"][..], &["source"][..]),
+    ] {
+        let output = base.join(archive_name);
+        cargo_bin_cmd!("pna")
+            .args([
+                "--quiet",
+                "compat",
+                "bsdtar",
+                "--create",
+                "--overwrite",
+                "-f",
+                output.to_str().unwrap(),
+                "-C",
+                base.to_str().unwrap(),
+            ])
+            .args(flags)
+            .arg("source")
+            .assert()
+            .success();
+
+        assert_eq!(sorted_entry_names(&output), expected, "{archive_name}");
+    }
+}
+
+/// Precondition: A directory tree contains a nested file, and each target archive already contains one file.
+/// Action: Append or update the archive from the directory with and without the negative recursion flag.
+/// Expectation: Without the flag the tree is archived recursively; with it only the directory itself is added.
+#[test]
+fn bsdtar_append_update_no_recursive_archives_directory_only() {
+    setup();
+    let base = Path::new("bsdtar_no_recursive_append_update");
+    fs::create_dir_all(base.join("source/sub")).unwrap();
+    fs::write(base.join("source/file.txt"), "content").unwrap();
+    fs::write(base.join("source/sub/nested.txt"), "nested").unwrap();
+
+    for (archive_name, action, flags, expected) in [
+        (
+            "append_default.pna",
+            "--append",
+            &[][..],
+            &[
+                "initial.txt",
+                "source",
+                "source/file.txt",
+                "source/sub",
+                "source/sub/nested.txt",
+            ][..],
+        ),
+        (
+            "append_negative.pna",
+            "--append",
+            &["--no-recursive"][..],
+            &["initial.txt", "source"][..],
+        ),
+        (
+            "append_negative_short.pna",
+            "--append",
+            &["-n"][..],
+            &["initial.txt", "source"][..],
+        ),
+        (
+            "update_default.pna",
+            "--update",
+            &[][..],
+            &[
+                "initial.txt",
+                "source",
+                "source/file.txt",
+                "source/sub",
+                "source/sub/nested.txt",
+            ][..],
+        ),
+        (
+            "update_negative.pna",
+            "--update",
+            &["--no-recursive"][..],
+            &["initial.txt", "source"][..],
+        ),
+    ] {
+        let output = base.join(archive_name);
+        archive::create_test_archive(&output, &[("initial.txt", "initial")]);
+        cargo_bin_cmd!("pna")
+            .args([
+                "--quiet",
+                "compat",
+                "bsdtar",
+                action,
+                "-f",
+                output.to_str().unwrap(),
+                "-C",
+                base.to_str().unwrap(),
+            ])
+            .args(flags)
+            .arg("source")
+            .assert()
+            .success();
+
+        assert_eq!(sorted_entry_names(&output), expected, "{archive_name}");
+    }
 }

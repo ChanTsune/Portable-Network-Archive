@@ -1389,7 +1389,7 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
     let sources = ItemSource::parse_many(&files);
     validate_no_duplicate_stdin(&sources)?;
     let collect_options = CollectOptions {
-        recursive: args.recursive,
+        recursive: !args.no_recursive,
         keep_dir: args.keep_dir,
         gitignore: args.gitignore,
         nodump: args.nodump,
