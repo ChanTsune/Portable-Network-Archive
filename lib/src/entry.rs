@@ -27,7 +27,7 @@ pub use self::{
 pub(crate) use self::{private::*, read::*, write::*};
 use crate::{
     Duration,
-    chunk::{Chunk, ChunkExt, ChunkType, MIN_CHUNK_BYTES_SIZE, RawChunk, chunk_data_split},
+    chunk::{Chunk, ChunkType, RawChunk},
     ext::time::DurationExt,
     io::WriteChunk,
     util::io::ChainReader,
@@ -35,7 +35,6 @@ use crate::{
 };
 use std::{
     borrow::Cow,
-    collections::VecDeque,
     convert::Infallible,
     io::{self, Read},
 };
@@ -1430,81 +1429,6 @@ impl From<NormalEntry<Box<[u8]>>> for NormalEntry<Vec<u8>> {
     }
 }
 
-/// A structure representing the split [`Entry`] for archive splitting.
-#[deprecated(since = "0.38.0", note = "use Archive::write_split_header instead")]
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct EntryPart<T = Vec<u8>>(pub(crate) Vec<RawChunk<T>>);
-
-#[allow(deprecated)]
-impl<T> EntryPart<T>
-where
-    RawChunk<T>: Chunk,
-{
-    /// Returns the total length of this entry part in bytes.
-    #[inline]
-    pub fn bytes_len(&self) -> usize {
-        self.0.iter().map(|chunk| chunk.bytes_len()).sum()
-    }
-
-    /// Get reference.
-    #[doc(hidden)]
-    #[inline]
-    pub fn as_ref(&self) -> EntryPart<&[u8]> {
-        EntryPart(self.0.iter().map(|it| it.as_ref()).collect())
-    }
-}
-
-#[allow(deprecated)]
-impl EntryPart<&[u8]> {
-    /// Splits this [`EntryPart`] into two parts if its length exceeds the given value.
-    ///
-    /// # Errors
-    ///
-    /// If it can't split into smaller than the given value,
-    /// it returns an error containing the original value.
-    #[inline]
-    pub fn try_split(self, max_bytes_len: usize) -> Result<(Self, Option<Self>), Self> {
-        if self.bytes_len() <= max_bytes_len {
-            return Ok((self, None));
-        }
-        let mut remaining = VecDeque::from(self.0);
-        let mut first = Vec::new();
-        let mut total_size = 0;
-        while let Some(chunk) = remaining.pop_front() {
-            // NOTE: If over max size, restore to the remaining chunk
-            if max_bytes_len < total_size + chunk.bytes_len() {
-                if chunk.ty.is_stream() && total_size + MIN_CHUNK_BYTES_SIZE < max_bytes_len {
-                    let available_bytes_len = max_bytes_len - total_size;
-                    let chunk_split_index = available_bytes_len - MIN_CHUNK_BYTES_SIZE;
-                    let (x, y) = chunk_data_split(chunk.ty, chunk.data, chunk_split_index);
-                    first.push(x);
-                    if let Some(y) = y {
-                        remaining.push_front(y);
-                    }
-                } else {
-                    remaining.push_front(chunk);
-                }
-                break;
-            }
-            total_size += chunk.bytes_len();
-            first.push(chunk);
-        }
-        if first.is_empty() {
-            return Err(Self(Vec::from(remaining)));
-        }
-        Ok((Self(first), Some(Self(Vec::from(remaining)))))
-    }
-}
-
-#[doc(hidden)]
-#[allow(deprecated)]
-impl<T: SealedEntryExt> From<T> for EntryPart {
-    #[inline]
-    fn from(value: T) -> Self {
-        Self(value.into_chunks())
-    }
-}
-
 #[inline]
 fn seconds(bytes: &[u8]) -> io::Result<i64> {
     Ok(i64::from_be_bytes(bytes.try_into().map_err(|e| {
@@ -1569,7 +1493,6 @@ mod tests {
     use super::*;
     use crate::entry::test_support::entry_chunks;
     use std::io::Write;
-    use std::sync::LazyLock;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
@@ -1831,129 +1754,6 @@ mod tests {
         }
     }
 
-    static TEST_ENTRY: LazyLock<RawEntry> = LazyLock::new(|| {
-        RawEntry(vec![
-            RawChunk::from_data(
-                ChunkType::FHED,
-                vec![0, 0, 0, 0, 0, 1, 116, 101, 115, 116, 46, 116, 120, 116],
-            ),
-            RawChunk::from_data(ChunkType::FDAT, vec![116, 101, 120, 116]),
-            RawChunk::from_data(ChunkType::FEND, vec![]),
-        ])
-    });
-
-    #[allow(deprecated)]
-    mod entry_part_try_split {
-        use super::*;
-        #[cfg(all(target_family = "wasm", target_os = "unknown"))]
-        use wasm_bindgen_test::wasm_bindgen_test as test;
-
-        #[test]
-        fn split_zero() {
-            let entry = TEST_ENTRY.clone();
-            let part = EntryPart::from(entry.clone());
-            assert_eq!(
-                part.as_ref().try_split(0),
-                Err(EntryPart::from(entry).as_ref())
-            )
-        }
-
-        #[test]
-        fn bounds_check_spans_unsplittable_chunks() {
-            assert_eq!(26, TEST_ENTRY.0.first().unwrap().bytes_len());
-            let entry = TEST_ENTRY.clone();
-            let part = EntryPart::from(entry.clone());
-            assert_eq!(
-                part.as_ref().try_split(25),
-                Err(EntryPart::from(entry).as_ref())
-            )
-        }
-
-        #[test]
-        fn bounds_check_just_end_unsplittable_chunks() {
-            assert_eq!(26, TEST_ENTRY.0.first().unwrap().bytes_len());
-            let entry = TEST_ENTRY.clone();
-            let part = EntryPart::from(entry.clone());
-
-            assert_eq!(
-                part.as_ref().try_split(26),
-                Ok((
-                    EntryPart(vec![RawChunk::from_slice(
-                        ChunkType::FHED,
-                        &[0, 0, 0, 0, 0, 1, 116, 101, 115, 116, 46, 116, 120, 116],
-                    )]),
-                    Some(EntryPart(vec![
-                        RawChunk::from_slice(ChunkType::FDAT, &[116, 101, 120, 116]),
-                        RawChunk::from_slice(ChunkType::FEND, &[]),
-                    ]))
-                ))
-            )
-        }
-
-        #[test]
-        fn spans_splittable_chunks_below_minimum_chunk_size() {
-            let entry = TEST_ENTRY.clone();
-            let part = EntryPart::from(entry.clone());
-
-            assert_eq!(
-                part.as_ref().try_split(27),
-                Ok((
-                    EntryPart(vec![RawChunk::from_slice(
-                        ChunkType::FHED,
-                        &[0, 0, 0, 0, 0, 1, 116, 101, 115, 116, 46, 116, 120, 116],
-                    )]),
-                    Some(EntryPart(vec![
-                        RawChunk::from_slice(ChunkType::FDAT, &[116, 101, 120, 116]),
-                        RawChunk::from_slice(ChunkType::FEND, &[]),
-                    ]))
-                ))
-            )
-        }
-
-        #[test]
-        fn spans_splittable_chunks() {
-            let entry = TEST_ENTRY.clone();
-            let part = EntryPart::from(entry.clone());
-
-            assert_eq!(
-                part.as_ref().try_split(39),
-                Ok((
-                    EntryPart(vec![
-                        RawChunk::from_slice(
-                            ChunkType::FHED,
-                            &[0, 0, 0, 0, 0, 1, 116, 101, 115, 116, 46, 116, 120, 116],
-                        ),
-                        RawChunk::from_slice(ChunkType::FDAT, &[116]),
-                    ]),
-                    Some(EntryPart(vec![
-                        RawChunk::from_slice(ChunkType::FDAT, &[101, 120, 116]),
-                        RawChunk::from_slice(ChunkType::FEND, &[]),
-                    ]))
-                )),
-            )
-        }
-
-        #[test]
-        fn spans_just_end_of_splittable_chunks() {
-            let entry = TEST_ENTRY.clone();
-            let part = EntryPart::from(entry.clone());
-
-            assert_eq!(
-                part.as_ref().try_split(42),
-                Ok((
-                    EntryPart(vec![
-                        RawChunk::from_slice(
-                            ChunkType::FHED,
-                            &[0, 0, 0, 0, 0, 1, 116, 101, 115, 116, 46, 116, 120, 116],
-                        ),
-                        RawChunk::from_slice(ChunkType::FDAT, &[116, 101, 120, 116]),
-                    ]),
-                    Some(EntryPart(vec![RawChunk::from_slice(ChunkType::FEND, &[])]))
-                ))
-            );
-        }
-    }
-
     #[test]
     fn normal_entry_with_name_updates_path() {
         let entry = DirEntryBuilder::new("original".into()).build().unwrap();
@@ -1973,8 +1773,8 @@ mod tests {
         )
         .to_bytes();
         let raw = RawEntry(vec![
-            RawChunk::from_slice(ChunkType::FHED, &header),
-            RawChunk::from_slice(ChunkType::FEND, &[]),
+            RawChunk::from((ChunkType::FHED, &header[..])),
+            RawChunk::from((ChunkType::FEND, &[][..])),
         ]);
         let entry: NormalEntry<&[u8]> = NormalEntry::parse_chunks(raw.0).unwrap();
 

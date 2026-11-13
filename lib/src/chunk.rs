@@ -116,18 +116,6 @@ impl From<(ChunkType, Box<[u8]>)> for RawChunk<Vec<u8>> {
     }
 }
 
-impl<'d> RawChunk<&'d [u8]> {
-    pub(crate) fn from_slice(ty: ChunkType, data: &'d [u8]) -> Self {
-        let chunk = (ty, data);
-        Self {
-            length: chunk.length(),
-            crc: chunk.crc(),
-            ty,
-            data,
-        }
-    }
-}
-
 impl<'a> From<RawChunk<Cow<'a, [u8]>>> for RawChunk<Vec<u8>> {
     #[inline]
     fn from(value: RawChunk<Cow<'a, [u8]>>) -> Self {
@@ -248,21 +236,6 @@ impl<'a> From<RawChunk<&'a [u8]>> for RawChunk<Cow<'a, [u8]>> {
     }
 }
 
-impl<D> RawChunk<D>
-where
-    Self: Chunk,
-{
-    #[inline]
-    pub(crate) fn as_ref(&self) -> RawChunk<&[u8]> {
-        RawChunk {
-            length: self.length,
-            ty: self.ty,
-            data: self.data(),
-            crc: self.crc,
-        }
-    }
-}
-
 impl<T: AsRef<[u8]>> Chunk for RawChunk<T> {
     #[inline]
     fn length(&self) -> u32 {
@@ -370,26 +343,6 @@ impl<T: Chunk + ?Sized> Chunk for &mut T {
     #[inline]
     fn crc(&self) -> u32 {
         T::crc(*self)
-    }
-}
-
-#[inline]
-pub(crate) fn chunk_data_split(
-    ty: ChunkType,
-    data: &[u8],
-    mid: usize,
-) -> (RawChunk<&[u8]>, Option<RawChunk<&[u8]>>) {
-    if let Some((first, last)) = data.split_at_checked(mid) {
-        if last.is_empty() {
-            (RawChunk::from_slice(ty, first), None)
-        } else {
-            (
-                RawChunk::from_slice(ty, first),
-                Some(RawChunk::from_slice(ty, last)),
-            )
-        }
-    } else {
-        (RawChunk::from_slice(ty, data), None)
     }
 }
 
@@ -577,61 +530,6 @@ mod tests {
         check_impl::<RawChunk<&[u8]>>();
         check_impl::<RawChunk<[u8; 1]>>();
         check_impl::<RawChunk<Box<[u8]>>>();
-    }
-
-    #[test]
-    fn data_split_at_zero() {
-        let data = vec![0xAA, 0xBB, 0xCC, 0xDD];
-        let chunk = RawChunk::from_data(ChunkType::FDAT, data);
-        assert_eq!(
-            chunk_data_split(chunk.ty, chunk.data(), 0),
-            (
-                RawChunk::from_slice(ChunkType::FDAT, &[]),
-                Some(RawChunk::from_slice(
-                    ChunkType::FDAT,
-                    &[0xAA, 0xBB, 0xCC, 0xDD]
-                )),
-            )
-        )
-    }
-
-    #[test]
-    fn data_split_at_middle() {
-        let data = vec![0xAA, 0xBB, 0xCC, 0xDD];
-        let chunk = RawChunk::from_data(ChunkType::FDAT, data);
-        assert_eq!(
-            chunk_data_split(chunk.ty, chunk.data(), 2),
-            (
-                RawChunk::from_slice(ChunkType::FDAT, &[0xAA, 0xBB]),
-                Some(RawChunk::from_slice(ChunkType::FDAT, &[0xCC, 0xDD])),
-            )
-        )
-    }
-
-    #[test]
-    fn data_split_at_just() {
-        let data = vec![0xAA, 0xBB, 0xCC, 0xDD];
-        let chunk = RawChunk::from_data(ChunkType::FDAT, data);
-        assert_eq!(
-            chunk_data_split(chunk.ty, chunk.data(), 4),
-            (
-                RawChunk::from_slice(ChunkType::FDAT, &[0xAA, 0xBB, 0xCC, 0xDD]),
-                None,
-            )
-        )
-    }
-
-    #[test]
-    fn data_split_at_over() {
-        let data = vec![0xAA, 0xBB, 0xCC, 0xDD];
-        let chunk = RawChunk::from_data(ChunkType::FDAT, data);
-        assert_eq!(
-            chunk_data_split(chunk.ty, chunk.data(), 5),
-            (
-                RawChunk::from_slice(ChunkType::FDAT, &[0xAA, 0xBB, 0xCC, 0xDD]),
-                None,
-            )
-        )
     }
 
     fn archive_with_broken_chunk() -> Vec<u8> {
