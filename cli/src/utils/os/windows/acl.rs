@@ -222,6 +222,7 @@ impl chunk::Ace {
             OwnerType::Group(i) => Sid::try_from_name(&i.0, None).unwrap(),
             OwnerType::Mask => Sid::try_from_name("", None).unwrap(),
             OwnerType::Other => Sid::try_from_name("Guest", None).unwrap(),
+            OwnerType::Everyone => Sid::try_from_name("Everyone", None).unwrap(),
         };
         let ace_type = if slf.allow {
             AceType::AccessAllow
