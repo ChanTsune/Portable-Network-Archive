@@ -218,8 +218,8 @@ fn bsdtar_list_recursive_vs_no_recursive() {
 }
 
 /// Precondition: A directory tree contains a nested file.
-/// Action: Create an archive from the directory with and without the negative recursion flag.
-/// Expectation: Without the flag the tree is archived recursively; with it only the directory itself is archived.
+/// Action: Create an archive from the directory with the recursion flags alone and in combination.
+/// Expectation: The negative flag alone archives only the directory itself; in combination the last specified flag decides.
 #[test]
 fn bsdtar_create_no_recursive_archives_directory_only() {
     setup();
@@ -240,6 +240,21 @@ fn bsdtar_create_no_recursive_archives_directory_only() {
             ][..],
         ),
         ("negative.pna", &["--no-recursive"][..], &["source"][..]),
+        (
+            "both_no_recursive_last.pna",
+            &["--recursive", "--no-recursive"][..],
+            &["source"][..],
+        ),
+        (
+            "both_recursive_last.pna",
+            &["--no-recursive", "--recursive"][..],
+            &[
+                "source",
+                "source/file.txt",
+                "source/sub",
+                "source/sub/nested.txt",
+            ][..],
+        ),
     ] {
         let output = base.join(archive_name);
         cargo_bin_cmd!("pna")
@@ -264,8 +279,8 @@ fn bsdtar_create_no_recursive_archives_directory_only() {
 }
 
 /// Precondition: A directory tree contains a nested file, and each target archive already contains one file.
-/// Action: Append or update the archive from the directory with and without the negative recursion flag.
-/// Expectation: Without the flag the tree is archived recursively; with it only the directory itself is added.
+/// Action: Append or update the archive from the directory with the recursion flags alone and in combination.
+/// Expectation: The negative flag alone adds only the directory itself; in combination the last specified flag decides.
 #[test]
 fn bsdtar_append_update_no_recursive_archives_directory_only() {
     setup();
@@ -298,6 +313,24 @@ fn bsdtar_append_update_no_recursive_archives_directory_only() {
             "--append",
             &["-n"][..],
             &["initial.txt", "source"][..],
+        ),
+        (
+            "append_both_no_recursive_last.pna",
+            "--append",
+            &["--recursive", "--no-recursive"][..],
+            &["initial.txt", "source"][..],
+        ),
+        (
+            "append_both_recursive_last.pna",
+            "--append",
+            &["--no-recursive", "--recursive"][..],
+            &[
+                "initial.txt",
+                "source",
+                "source/file.txt",
+                "source/sub",
+                "source/sub/nested.txt",
+            ][..],
         ),
         (
             "update_default.pna",
