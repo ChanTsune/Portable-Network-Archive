@@ -138,7 +138,7 @@ pub fn fs_supports_xattr(path: impl AsRef<Path>) -> bool {
 /// own umask, which `libc::umask` would otherwise change process-wide (it is
 /// not thread-local) and race with unrelated tests running concurrently in
 /// this binary.
-#[cfg(unix)]
+#[cfg(all(unix, not(target_family = "wasm")))]
 pub fn pna_cmd_with_umask(mask: u16) -> assert_cmd::Command {
     use assert_cmd::cargo::CommandCargoExt as _;
     use std::os::unix::process::CommandExt as _;
