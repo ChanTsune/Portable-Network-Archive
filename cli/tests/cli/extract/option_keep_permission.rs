@@ -508,7 +508,7 @@ fn extract_preserves_directory_permission() {
 /// Expectation: The extracted file has no special bits (setuid/setgid/sticky), and its
 /// permission bits are masked by the umask instead of the archived mode.
 #[test]
-#[cfg(unix)]
+#[cfg(all(unix, not(target_family = "wasm")))]
 fn extract_encrypted_gcm_without_keep_permission_drops_setuid() {
     setup();
     TestResources::extract_in("raw/", "extract_gcm_setuid/in/").unwrap();
