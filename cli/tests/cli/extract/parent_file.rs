@@ -31,7 +31,7 @@ fn init_file_archive<P: AsRef<Path>>(path: P, entry_name: &str, modified: Option
     archive.finalize().unwrap();
 }
 
-fn init_dir_archive<P: AsRef<Path>>(path: P) {
+fn init_dir_archive<P: AsRef<Path>>(path: P, entry_name: &str) {
     let path = path.as_ref();
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).unwrap();
@@ -40,7 +40,7 @@ fn init_dir_archive<P: AsRef<Path>>(path: P) {
     let file = fs::File::create(path).unwrap();
     let mut archive = Archive::write_header(file).unwrap();
     archive
-        .add_entry(DirEntryBuilder::new("a/b".into()).build().unwrap())
+        .add_entry(DirEntryBuilder::new(entry_name.into()).build().unwrap())
         .unwrap();
     archive.finalize().unwrap();
 }
@@ -258,7 +258,7 @@ fn parent_file_preserved_with_keep_newer_files() {
 #[test]
 fn parent_file_blocks_directory_entry_by_default() {
     setup();
-    init_dir_archive("parent_file/dir_default/archive.pna");
+    init_dir_archive("parent_file/dir_default/archive.pna", "a/b");
 
     let out_dir = init_out_dir("parent_file/dir_default/out");
     let blocking = out_dir.join("a");
@@ -286,7 +286,7 @@ fn parent_file_blocks_directory_entry_by_default() {
 #[test]
 fn parent_file_replaced_for_directory_entry_with_overwrite() {
     setup();
-    init_dir_archive("parent_file/dir_overwrite/archive.pna");
+    init_dir_archive("parent_file/dir_overwrite/archive.pna", "a/b");
 
     let out_dir = init_out_dir("parent_file/dir_overwrite/out");
     let blocking = out_dir.join("a");
@@ -336,4 +336,77 @@ fn parent_file_blocks_symlink_entry_by_default() {
 
     assert!(result.is_err());
     assert_eq!(fs::read(&blocking).unwrap(), b"existing");
+}
+
+/// Precondition: All, some, or none of the entry's parent directories exist.
+/// Action: Extract a nested file from an archive containing no directory entries.
+/// Expectation: Missing parents are created and existing contents are preserved.
+#[test]
+fn nested_file_extracts_with_existing_or_missing_parents() {
+    setup();
+    let root = Path::new("parent_file/nested_file");
+    let archive = root.join("archive.pna");
+    init_file_archive(&archive, "a/b/c.txt", None);
+
+    for (name, parent) in [("existing", "a/b"), ("partial", "a"), ("missing", "")] {
+        let out = init_out_dir(root.join(name).to_str().unwrap());
+        fs::create_dir_all(out.join(parent)).unwrap();
+        let marker = out.join(parent).join("marker");
+        fs::write(&marker, b"keep").unwrap();
+
+        cli::Cli::try_parse_from([
+            "pna",
+            "--quiet",
+            "x",
+            "--out-dir",
+            out.to_str().unwrap(),
+            "-f",
+            archive.to_str().unwrap(),
+        ])
+        .unwrap()
+        .execute()
+        .unwrap();
+
+        for dir in ["a", "a/b"] {
+            assert!(fs::symlink_metadata(out.join(dir)).unwrap().is_dir());
+        }
+        assert_eq!(fs::read(out.join("a/b/c.txt")).unwrap(), b"from archive");
+        assert_eq!(fs::read(&marker).unwrap(), b"keep");
+    }
+}
+
+/// Precondition: All, some, or none of the entry's parent directories exist.
+/// Action: Extract a nested directory from an archive containing only that entry.
+/// Expectation: The directory and missing parents are created and existing contents are preserved.
+#[test]
+fn nested_directory_extracts_with_existing_or_missing_parents() {
+    setup();
+    let root = Path::new("parent_file/nested_directory");
+    let archive = root.join("archive.pna");
+    init_dir_archive(&archive, "a/b/c");
+
+    for (name, parent) in [("existing", "a/b"), ("partial", "a"), ("missing", "")] {
+        let out = init_out_dir(root.join(name).to_str().unwrap());
+        fs::create_dir_all(out.join(parent)).unwrap();
+        let marker = out.join(parent).join("marker");
+        fs::write(&marker, b"keep").unwrap();
+
+        cli::Cli::try_parse_from([
+            "pna",
+            "--quiet",
+            "x",
+            "--out-dir",
+            out.to_str().unwrap(),
+            "-f",
+            archive.to_str().unwrap(),
+        ])
+        .unwrap()
+        .execute()
+        .unwrap();
+
+        for dir in ["a", "a/b", "a/b/c"] {
+            assert!(fs::symlink_metadata(out.join(dir)).unwrap().is_dir());
+        }
+        assert_eq!(fs::read(&marker).unwrap(), b"keep");
+    }
 }
