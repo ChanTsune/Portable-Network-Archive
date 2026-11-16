@@ -131,14 +131,27 @@ impl User {
     }
 
     #[inline]
-    pub(crate) fn primary_gid(&self) -> Option<u64> {
+    pub(crate) fn primary_group(&self) -> io::Result<Group> {
         #[cfg(unix)]
         {
-            self.0.primary_gid().map(|gid| gid as _)
+            let gid = self.0.primary_gid().ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::Unsupported,
+                    "cannot get user's primary group",
+                )
+            })?;
+            Group::from_gid(u64::from(gid))
         }
-        #[cfg(not(unix))]
+        #[cfg(windows)]
         {
-            None
+            self.0.primary_group().map(Group)
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "cannot get user's primary group",
+            ))
         }
     }
 }

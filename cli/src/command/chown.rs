@@ -196,15 +196,7 @@ impl RawOwnership {
 
         let group = match self.group {
             _ if self.use_login_group => match &user {
-                Some(OwnerSpecifier::System(u)) => {
-                    let gid = u.primary_gid().ok_or_else(|| {
-                        io::Error::new(
-                            io::ErrorKind::Unsupported,
-                            "cannot get user's primary group",
-                        )
-                    })?;
-                    Some(OwnerSpecifier::System(Group::from_gid(gid)?))
-                }
+                Some(OwnerSpecifier::System(u)) => Some(OwnerSpecifier::System(u.primary_group()?)),
                 _ => None,
             },
             Some(group) if lookup => Some(OwnerSpecifier::System(if numeric_owner {
