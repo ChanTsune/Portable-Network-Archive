@@ -43,14 +43,8 @@ impl User {
         let account = security::Sid::try_from(self.0.as_psid())?;
         let name = encode_wide(account.name.as_ref())?;
         let mut buf = null_mut();
-        let status = unsafe {
-            NetUserGetInfo(
-                PCWSTR::null(),
-                PCWSTR::from_raw(name.as_ptr()),
-                4,
-                &mut buf,
-            )
-        };
+        let status =
+            unsafe { NetUserGetInfo(PCWSTR::null(), PCWSTR::from_raw(name.as_ptr()), 4, &mut buf) };
         let _buffer = scopeguard::guard(buf, |buf| {
             if !buf.is_null() {
                 unsafe { NetApiBufferFree(Some(buf.cast())) };
