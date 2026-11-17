@@ -154,6 +154,18 @@ impl User {
             ))
         }
     }
+
+    #[inline]
+    pub(crate) fn sid(&self) -> io::Result<Option<String>> {
+        #[cfg(windows)]
+        {
+            self.0.sid().map(Some)
+        }
+        #[cfg(not(windows))]
+        {
+            Ok(None)
+        }
+    }
 }
 
 pub(crate) struct Group(pub(super) imp::Group);
@@ -239,6 +251,18 @@ impl Group {
         #[cfg(not(unix))]
         {
             None
+        }
+    }
+
+    #[inline]
+    pub(crate) fn sid(&self) -> io::Result<Option<String>> {
+        #[cfg(windows)]
+        {
+            self.0.sid().map(Some)
+        }
+        #[cfg(not(windows))]
+        {
+            Ok(None)
         }
     }
 }
