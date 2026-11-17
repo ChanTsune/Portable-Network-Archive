@@ -10,7 +10,7 @@ use windows::Win32::Security::Authorization::{ConvertSidToStringSidW, ConvertStr
 use windows::Win32::Security::{LookupAccountSidW, PSID, SID_NAME_USE};
 use windows::core::{PCWSTR, PWSTR};
 
-fn primary_group_name(username: &str) -> String {
+fn primary_group_identity(username: &str) -> (String, String, String) {
     let username: Vec<u16> = username.encode_utf16().chain([0]).collect();
     let mut buf = null_mut();
     let status = unsafe {
@@ -38,7 +38,8 @@ fn primary_group_name(username: &str) -> String {
     });
     let account_sid = unsafe { account_sid.to_string() }.unwrap();
     let (domain_sid, _) = account_sid.rsplit_once('-').unwrap();
-    let group_sid: Vec<u16> = format!("{domain_sid}-{}", info.usri4_primary_group_id)
+    let group_sid_string = format!("{domain_sid}-{}", info.usri4_primary_group_id);
+    let group_sid: Vec<u16> = group_sid_string
         .encode_utf16()
         .chain([0])
         .collect();
@@ -79,7 +80,11 @@ fn primary_group_name(username: &str) -> String {
         )
     }
     .unwrap();
-    unsafe { name_ptr.to_string() }.unwrap()
+    (
+        unsafe { name_ptr.to_string() }.unwrap(),
+        account_sid,
+        group_sid_string,
+    )
 }
 
 /// Precondition: An archive contains an entry and the current account is local.
@@ -92,7 +97,8 @@ fn chown_login_group() {
     let domain = std::env::var("USERDOMAIN").unwrap();
     let computer = std::env::var("COMPUTERNAME").unwrap();
     skip_unless!("local_account", domain.eq_ignore_ascii_case(&computer));
-    let expected_group = primary_group_name(&username);
+    let (expected_group, expected_user_sid, expected_group_sid) =
+        primary_group_identity(&username);
     let path = "chown_login_group.pna";
     archive::create_archive_with_permissions(
         path,
@@ -129,10 +135,18 @@ fn chown_login_group() {
         );
         assert!(m.owner_uid().is_none());
         assert_eq!(
+            m.owner_user_sid().unwrap().as_str(),
+            expected_user_sid.as_str()
+        );
+        assert_eq!(
             m.owner_group_name().unwrap().as_str(),
             expected_group.as_str()
         );
         assert!(m.owner_gid().is_none());
+        assert_eq!(
+            m.owner_group_sid().unwrap().as_str(),
+            expected_group_sid.as_str()
+        );
         assert_eq!(m.permission_mode().unwrap().get(), 0o644);
     })
     .unwrap();
