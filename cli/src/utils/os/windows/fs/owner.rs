@@ -86,6 +86,11 @@ impl User {
     pub(crate) fn name(&self) -> &str {
         &self.0.name
     }
+
+    #[inline]
+    pub(crate) fn sid(&self) -> io::Result<String> {
+        self.0.to_sid_string()
+    }
 }
 
 impl From<User> for security::Sid {
@@ -128,6 +133,11 @@ impl Group {
     #[inline]
     pub(crate) fn name(&self) -> &str {
         &self.0.name
+    }
+
+    #[inline]
+    pub(crate) fn sid(&self) -> io::Result<String> {
+        self.0.to_sid_string()
     }
 }
 
