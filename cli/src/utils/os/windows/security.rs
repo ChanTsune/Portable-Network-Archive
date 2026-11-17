@@ -270,7 +270,10 @@ impl FromStr for Sid {
         let mut psid = PSID::default();
         let s = encode_wide(s.as_ref())?;
         unsafe { ConvertStringSidToSidW(PCWSTR::from_raw(s.as_ptr()), &mut psid as _) }?;
-        Self::try_from(psid)
+        let sid = scopeguard::guard(psid, |sid| {
+            unsafe { LocalFree(Some(HLOCAL(sid.0))) };
+        });
+        Self::try_from(*sid)
     }
 }
 
