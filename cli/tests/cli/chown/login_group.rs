@@ -39,10 +39,7 @@ fn primary_group_identity(username: &str) -> (String, String, String) {
     let account_sid = unsafe { account_sid.to_string() }.unwrap();
     let (domain_sid, _) = account_sid.rsplit_once('-').unwrap();
     let group_sid_string = format!("{domain_sid}-{}", info.usri4_primary_group_id);
-    let group_sid: Vec<u16> = group_sid_string
-        .encode_utf16()
-        .chain([0])
-        .collect();
+    let group_sid: Vec<u16> = group_sid_string.encode_utf16().chain([0]).collect();
     let mut sid = PSID::default();
     unsafe { ConvertStringSidToSidW(PCWSTR::from_raw(group_sid.as_ptr()), &mut sid) }.unwrap();
     let sid = scopeguard::guard(sid, |sid| unsafe {
@@ -97,8 +94,7 @@ fn chown_login_group() {
     let domain = std::env::var("USERDOMAIN").unwrap();
     let computer = std::env::var("COMPUTERNAME").unwrap();
     skip_unless!("local_account", domain.eq_ignore_ascii_case(&computer));
-    let (expected_group, expected_user_sid, expected_group_sid) =
-        primary_group_identity(&username);
+    let (expected_group, expected_user_sid, expected_group_sid) = primary_group_identity(&username);
     let path = "chown_login_group.pna";
     archive::create_archive_with_permissions(
         path,

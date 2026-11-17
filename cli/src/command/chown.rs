@@ -201,7 +201,7 @@ impl RawOwnership {
                 };
                 let sid = account.sid()?;
                 Some(OwnerSpecifier::System { account, sid })
-            },
+            }
             Some(user) => Some(if numeric_owner {
                 OwnerSpecifier::ID(
                     user.parse()
@@ -219,9 +219,9 @@ impl RawOwnership {
                     let account = user.primary_group()?;
                     let sid = account.sid()?;
                     Some(OwnerSpecifier::System { account, sid })
-                },
+                }
                 _ => None,
-            },
+            }
             Some(group) if lookup => {
                 let account = if numeric_owner {
                     Group::from_gid(
@@ -234,7 +234,7 @@ impl RawOwnership {
                 };
                 let sid = account.sid()?;
                 Some(OwnerSpecifier::System { account, sid })
-            },
+            }
             Some(group) => Some(if numeric_owner {
                 OwnerSpecifier::ID(
                     group
@@ -421,5 +421,4 @@ mod tests {
         assert_eq!(m.owner_uid().unwrap().get(), 1000);
         assert_eq!(m.owner_user_sid().unwrap().as_str(), "S-1-5-21-1111");
     }
-
 }
