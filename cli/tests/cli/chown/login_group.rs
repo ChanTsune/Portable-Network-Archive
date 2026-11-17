@@ -13,8 +13,14 @@ use windows::core::{PCWSTR, PWSTR};
 fn primary_group_name(username: &str) -> String {
     let username: Vec<u16> = username.encode_utf16().chain([0]).collect();
     let mut buf = null_mut();
-    let status =
-        unsafe { NetUserGetInfo(PCWSTR::null(), PCWSTR::from_raw(username.as_ptr()), 4, &mut buf) };
+    let status = unsafe {
+        NetUserGetInfo(
+            PCWSTR::null(),
+            PCWSTR::from_raw(username.as_ptr()),
+            4,
+            &mut buf,
+        )
+    };
     let _buffer = scopeguard::guard(buf, |buf| {
         if !buf.is_null() {
             unsafe { NetApiBufferFree(Some(buf.cast())) };
@@ -122,7 +128,10 @@ fn chown_login_group() {
             format!("{domain}\\{username}")
         );
         assert!(m.owner_uid().is_none());
-        assert_eq!(m.owner_group_name().unwrap().as_str(), expected_group.as_str());
+        assert_eq!(
+            m.owner_group_name().unwrap().as_str(),
+            expected_group.as_str()
+        );
         assert!(m.owner_gid().is_none());
         assert_eq!(m.permission_mode().unwrap().get(), 0o644);
     })
