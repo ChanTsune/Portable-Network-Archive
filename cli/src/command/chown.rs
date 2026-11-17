@@ -221,7 +221,7 @@ impl RawOwnership {
                     Some(OwnerSpecifier::System { account, sid })
                 }
                 _ => None,
-            }
+            },
             Some(group) if lookup => {
                 let account = if numeric_owner {
                     Group::from_gid(
