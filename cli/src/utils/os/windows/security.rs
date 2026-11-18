@@ -251,16 +251,21 @@ impl Sid {
     pub(crate) fn as_psid(&self) -> PSID {
         PSID(self.as_ptr() as _)
     }
+
+    /// Returns the canonical string SID, preserving conversion errors.
+    pub(crate) fn to_sid_string(&self) -> io::Result<String> {
+        let mut raw_str = PWSTR::null();
+        unsafe { ConvertSidToStringSidW(self.as_psid(), &mut raw_str) }?;
+        let raw_str = scopeguard::guard(raw_str, |raw_str| {
+            unsafe { LocalFree(Some(HLOCAL(raw_str.as_ptr().cast()))) };
+        });
+        unsafe { raw_str.to_string() }.map_err(io::Error::other)
+    }
 }
 
 impl Display for Sid {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut raw_str = PWSTR::null();
-        unsafe { ConvertSidToStringSidW(self.as_psid(), &mut raw_str) }
-            .map_err(|_| std::fmt::Error)?;
-        let r = Display::fmt(&unsafe { raw_str.display() }, f);
-        unsafe { LocalFree(Some(HLOCAL(raw_str.as_ptr() as _))) };
-        r
+        f.write_str(&self.to_sid_string().map_err(|_| std::fmt::Error)?)
     }
 }
 
@@ -391,7 +396,8 @@ mod tests {
     fn current_user() {
         let username = get_current_username().unwrap();
         let sid = Sid::try_from_name(&username, None).unwrap();
-        let string_sid = sid.to_string();
+        let string_sid = sid.to_sid_string().unwrap();
+        assert_eq!(string_sid, sid.to_string());
         let s = Sid::from_str(&string_sid).unwrap();
         assert_eq!(sid, s);
         assert_eq!(username, s.name);

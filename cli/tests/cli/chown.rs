@@ -1,5 +1,7 @@
 mod empty_files;
 mod group_only;
+#[cfg(windows)]
+mod login_group;
 mod missing_file;
 mod option_no_owner_lookup;
 mod option_no_owner_lookup_numeric;
