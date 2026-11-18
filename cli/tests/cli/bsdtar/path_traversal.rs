@@ -863,3 +863,65 @@ fn bsdtar_extract_blocks_hardlink_with_windows_style_parent_dir_target() {
         "hardlink with backslash .. target should be blocked by --no-allow-unsafe-links"
     );
 }
+
+/// Precondition: The extraction directory contains a symlink to a directory outside it, and the archive contains a hardlink whose target path passes through that symlink
+/// Action: Extract with bsdtar -x and --absolute-paths
+/// Expectation: Extraction succeeds and the hardlink is created to the outside file
+#[test]
+fn bsdtar_extract_allows_hardlink_through_symlink_parent_with_absolute_paths() {
+    setup();
+
+    let root = PathBuf::from("bsdtar_extract_allows_hardlink_through_symlink_parent_abs");
+    let archive_path = root.join("archive.pna");
+    let out_dir = root.join("out");
+    if fs::exists(&root).unwrap() {
+        fs::remove_dir_all(&root).unwrap();
+    }
+    fs::create_dir_all(root.join("outside")).unwrap();
+    fs::write(root.join("outside/secret.txt"), b"outside secret\n").unwrap();
+    fs::create_dir_all(&out_dir).unwrap();
+    pna::fs::symlink(Path::new("../outside"), out_dir.join("linkdir")).unwrap();
+
+    if let Some(parent) = archive_path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    let file = fs::File::create(&archive_path).unwrap();
+    let mut writer = Archive::write_header(file).unwrap();
+    writer
+        .add_entry({
+            let builder =
+                HardLinkEntryBuilder::new("esc.txt".into(), "linkdir/secret.txt".into()).unwrap();
+            builder.build().unwrap()
+        })
+        .unwrap();
+    writer.finalize().unwrap();
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "compat",
+            "bsdtar",
+            "--extract",
+            "--unstable",
+            "--overwrite",
+            "--absolute-paths",
+            "--file",
+            archive_path.to_str().unwrap(),
+            "--out-dir",
+            out_dir.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    assert_eq!(
+        fs::read(out_dir.join("esc.txt")).unwrap(),
+        b"outside secret\n",
+        "hardlink should resolve to the outside file"
+    );
+    #[cfg(not(target_family = "wasm"))]
+    assert!(
+        same_file::is_same_file(out_dir.join("esc.txt"), root.join("outside/secret.txt"))
+            .unwrap(),
+        "hardlink should share the outside file's inode"
+    );
+}

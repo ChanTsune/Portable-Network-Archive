@@ -1546,6 +1546,15 @@ where
                 );
                 return Ok(ExtractResult::SecuritySkipped);
             }
+            if !allow_unsafe_links
+                && !absolute_paths
+                && hardlink_target_has_symlink_parent(out_dir.as_deref(), original.as_path())?
+            {
+                log::warn!(
+                    "Skipped extracting a hard link whose target passes through a symbolic link. If you need to extract it, use `--allow-unsafe-links`."
+                );
+                return Ok(ExtractResult::SecuritySkipped);
+            }
             let original = if let Some(out_dir) = out_dir {
                 Cow::from(out_dir.join(original))
             } else {
@@ -2198,6 +2207,59 @@ fn ensure_directory_components(
 #[inline]
 fn is_unsafe_link(reference: &EntryReference) -> bool {
     crate::command::core::path::is_unsafe_link_path(reference.as_str())
+}
+
+/// Returns `true` if a parent component of a hard link target, resolved
+/// under `out_dir`, is a symbolic link.
+///
+/// The textual check in [`is_unsafe_link`] cannot see this: the target
+/// string itself is safe, but resolving it would follow a symbolic link
+/// planted in the destination tree and link a file outside it. The final
+/// component is deliberately not checked; a hard link to a symbolic link
+/// itself is created as a link to that symbolic link, mirroring bsdtar.
+/// Missing parents are not an error here; `fs::hard_link` reports them
+/// exactly as it did before this check existed. The walk handles every
+/// component kind itself instead of assuming the caller's textual check
+/// has already excluded parent, root, or prefix components.
+fn hardlink_target_has_symlink_parent(out_dir: Option<&Path>, target: &Path) -> io::Result<bool> {
+    let mut current = out_dir.map(PathBuf::from);
+    let mut components = target.components().peekable();
+    while let Some(component) = components.next() {
+        if components.peek().is_none() {
+            break;
+        }
+        match component {
+            Component::CurDir => continue,
+            Component::ParentDir => {
+                if let Some(current) = &mut current {
+                    current.pop();
+                }
+                continue;
+            }
+            Component::RootDir | Component::Prefix(_) | Component::Normal(_) => {
+                match &mut current {
+                    Some(current) => current.push(component.as_os_str()),
+                    None => current = Some(PathBuf::from(component.as_os_str())),
+                }
+            }
+        }
+        let Some(path) = &current else {
+            continue;
+        };
+        if path.as_os_str().is_empty() {
+            continue;
+        }
+        match fs::symlink_metadata(path) {
+            Ok(meta) => {
+                if meta.file_type().is_symlink() {
+                    return Ok(true);
+                }
+            }
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+            Err(err) => return Err(err),
+        }
+    }
+    Ok(false)
 }
 
 /// Create a symbolic link. On Windows, dispatches on the archive's fLTP
