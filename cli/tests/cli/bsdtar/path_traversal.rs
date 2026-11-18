@@ -920,8 +920,7 @@ fn bsdtar_extract_allows_hardlink_through_symlink_parent_with_absolute_paths() {
     );
     #[cfg(not(target_family = "wasm"))]
     assert!(
-        same_file::is_same_file(out_dir.join("esc.txt"), root.join("outside/secret.txt"))
-            .unwrap(),
+        same_file::is_same_file(out_dir.join("esc.txt"), root.join("outside/secret.txt")).unwrap(),
         "hardlink should share the outside file's inode"
     );
 }
