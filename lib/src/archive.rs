@@ -516,7 +516,10 @@ mod tests {
         };
 
         let read_options = ReadOptions::with_password(Some("password"));
-        assert_eq!(read_contents(read_options).unwrap().as_slice(), b"plain text");
+        assert_eq!(
+            read_contents(read_options).unwrap().as_slice(),
+            b"plain text"
+        );
 
         let mut builder = ReadOptions::with_password(Some("password")).into_builder();
         builder.kdf_cost_limits(crate::KdfCostLimits::bounded());
