@@ -56,7 +56,7 @@ filetime = "0.2"
 
 [target.'cfg(unix)'.dependencies]
 mtree2 = "0.6.15"
-nix = { version = "0.31.3", features = ["user"] }
+nix = { version = "0.32.0", features = ["user"] }
 xattr = "1.6.1"
 
 [target.'cfg(any(target_os = "dragonfly", target_os = "netbsd", target_os = "openbsd"))'.dependencies]
