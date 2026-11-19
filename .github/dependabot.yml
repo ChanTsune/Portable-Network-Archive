@@ -48,3 +48,7 @@ updates:
           - "crypto-common"
           - "hkdf"
           - "sha2"
+      datetime-crates:
+        patterns:
+          - "jiff"
+          - "parse_datetime"
