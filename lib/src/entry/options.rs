@@ -1161,7 +1161,7 @@ pub struct KdfCostLimits(pub(crate) KdfCostLimitsKind);
 /// Whether [`KdfCostLimits`] bounds key derivation costs.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) enum KdfCostLimitsKind {
-    /// Costs are bounded by the default limits.
+    /// Costs are bounded by the predefined limits.
     Capped,
     /// Costs of any size are accepted.
     Unbounded,
