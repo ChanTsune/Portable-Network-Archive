@@ -492,13 +492,10 @@ mod tests {
         assert_eq!(read_options.cached_key_count(), 1);
     }
 
-    /// Precondition: an archive created with Argon2 parameters whose
-    /// parallelism cost exceeds the default KDF cost limits for reading.
-    /// Action: read it with default ReadOptions, then with unbounded limits.
-    /// Expectation: the default read fails with InvalidData, and the
-    /// unbounded read round-trips the contents.
+    /// Checks that default reading accepts high-cost archives and explicit
+    /// limits reject them.
     #[test]
-    fn read_options_kdf_cost_limits_gate_expensive_archive() {
+    fn read_options_kdf_cost_limits_are_opt_in() {
         let archived = create_archive(
             b"plain text",
             WriteOptions::builder()
@@ -509,31 +506,29 @@ mod tests {
         )
         .unwrap();
 
-        let mut archive_reader = Archive::read_header(archived.as_slice()).unwrap();
-        let item = archive_reader
-            .entries()
-            .skip_solid()
-            .next()
-            .unwrap()
-            .unwrap();
-        let Err(err) = item.reader(ReadOptions::with_password(Some("password"))) else {
-            panic!("reading over the default KDF cost limits must fail");
+        let read_contents = |options: ReadOptions| -> io::Result<Vec<u8>> {
+            let mut archive_reader = Archive::read_header(archived.as_slice())?;
+            let item = archive_reader.entries().skip_solid().next().unwrap()?;
+            let mut reader = item.reader(options)?;
+            let mut contents = Vec::new();
+            io::copy(&mut reader, &mut contents)?;
+            Ok(contents)
         };
+
+        let read_options = ReadOptions::with_password(Some("password"));
+        assert_eq!(read_contents(read_options).unwrap().as_slice(), b"plain text");
+
+        let mut builder = ReadOptions::with_password(Some("password")).into_builder();
+        builder.kdf_cost_limits(crate::KdfCostLimits::bounded());
+        let err = read_contents(builder.build()).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
 
         let mut builder = ReadOptions::with_password(Some("password")).into_builder();
         builder.kdf_cost_limits(crate::KdfCostLimits::unbounded());
-        let mut archive_reader = Archive::read_header(archived.as_slice()).unwrap();
-        let item = archive_reader
-            .entries()
-            .skip_solid()
-            .next()
-            .unwrap()
-            .unwrap();
-        let mut reader = item.reader(builder.build()).unwrap();
-        let mut dist = Vec::new();
-        io::copy(&mut reader, &mut dist).unwrap();
-        assert_eq!(b"plain text", dist.as_slice());
+        assert_eq!(
+            read_contents(builder.build()).unwrap().as_slice(),
+            b"plain text"
+        );
     }
 
     /// Precondition: encryption-enabled WriteOptions built once.

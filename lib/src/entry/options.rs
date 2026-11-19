@@ -1151,23 +1151,10 @@ impl WriteOptionsBuilder {
     }
 }
 
-/// Limits on the key derivation costs accepted from an archive's
-/// password hash parameters when reading.
+/// Controls the cost of key derivation when reading encrypted entries.
 ///
-/// Password hash parameters are stored in each encrypted entry, so a
-/// crafted archive could otherwise make a reader spend unbounded CPU
-/// time and memory deriving a key before the password is verified.
-/// The default limits bound a single derivation to about 2 GiB of
-/// Argon2 block work and 512 MiB of memory, or ten times the PBKDF2
-/// rounds the `pbkdf2` crate recommends, which is far above the
-/// parameters used by default while keeping the worst case at a few
-/// seconds.
-///
-/// Archives intentionally created with stronger parameters, for
-/// example through [`HashAlgorithm::argon2id_with`], can exceed the
-/// default limits. Use [`KdfCostLimits::unbounded`] to read such
-/// archives, but only when their cost is acceptable: derivation then
-/// runs with the parameters exactly as stored in the archive.
+/// The default does not impose a cost limit. Use [`Self::bounded`] to reject
+/// expensive key derivation parameters.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct KdfCostLimits(pub(crate) KdfCostLimitsKind);
 
@@ -1181,20 +1168,30 @@ pub(crate) enum KdfCostLimitsKind {
 }
 
 impl KdfCostLimits {
-    /// The default limits, applied unless overridden.
-    pub const DEFAULT: Self = Self(KdfCostLimitsKind::Capped);
+    /// The default policy, which does not impose cost limits.
+    pub const DEFAULT: Self = Self(KdfCostLimitsKind::Unbounded);
 
-    /// Limits that accept password hash parameters of any cost.
+    /// Returns a policy that rejects expensive key derivation parameters.
+    ///
+    /// This limits Argon2 memory and computation costs and PBKDF2 rounds.
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use libpna::{KdfCostLimits, ReadOptions};
     ///
-    /// let mut builder = ReadOptions::with_password(Some("password")).into_builder();
-    /// builder.kdf_cost_limits(KdfCostLimits::unbounded());
-    /// let read_option = builder.build();
+    /// let mut builder = ReadOptions::builder();
+    /// builder.kdf_cost_limits(KdfCostLimits::bounded());
+    /// let read_options = builder.build();
     /// ```
+    #[inline]
+    pub const fn bounded() -> Self {
+        Self(KdfCostLimitsKind::Capped)
+    }
+
+    /// Returns a policy without key derivation cost limits.
+    ///
+    /// Expensive parameters may consume substantial CPU time or memory.
     #[inline]
     pub const fn unbounded() -> Self {
         Self(KdfCostLimitsKind::Unbounded)
@@ -1213,10 +1210,6 @@ impl Default for KdfCostLimits {
 }
 
 /// Options for reading an entry.
-///
-/// Derived encryption keys are cached and reused when reading entries with
-/// the same password hash parameters and salt. Clones share the cache;
-/// rebuilding through [`ReadOptions::into_builder`] starts with an empty cache.
 #[derive(Clone, Debug)]
 pub struct ReadOptions {
     password: Option<Vec<u8>>,
@@ -1311,9 +1304,9 @@ impl ReadOptionsBuilder {
         }
     }
 
-    /// Sets the limits on key derivation costs accepted when reading.
+    /// Sets the key derivation cost policy.
     ///
-    /// The default is [`KdfCostLimits::DEFAULT`].
+    /// By default, costs are unrestricted.
     #[inline]
     pub fn kdf_cost_limits(&mut self, limits: KdfCostLimits) -> &mut Self {
         self.kdf_cost_limits = limits;
@@ -1494,13 +1487,17 @@ mod tests {
     #[test]
     fn read_options_kdf_cost_limits_default_and_propagate() {
         let options = ReadOptions::with_password(Some("password"));
-        assert_eq!(options.kdf_cost_limits(), KdfCostLimits::default());
-        let mut builder = options.into_builder();
-        builder.kdf_cost_limits(KdfCostLimits::unbounded());
-        let options = builder.build();
         assert_eq!(options.kdf_cost_limits(), KdfCostLimits::unbounded());
+        assert_eq!(
+            ReadOptions::builder().build().kdf_cost_limits(),
+            KdfCostLimits::unbounded()
+        );
+        let mut builder = options.into_builder();
+        builder.kdf_cost_limits(KdfCostLimits::bounded());
+        let options = builder.build();
+        assert_eq!(options.kdf_cost_limits(), KdfCostLimits::bounded());
         let rebuilt = options.into_builder().build();
-        assert_eq!(rebuilt.kdf_cost_limits(), KdfCostLimits::unbounded());
+        assert_eq!(rebuilt.kdf_cost_limits(), KdfCostLimits::bounded());
     }
 
     #[test]

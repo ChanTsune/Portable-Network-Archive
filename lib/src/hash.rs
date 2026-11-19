@@ -298,7 +298,7 @@ mod tests {
         .unwrap();
         let crafted = ps.replace("m=19456,t=2,p=1", "m=136,t=1,p=17");
         assert_ne!(crafted, ps);
-        let Err(err) = derive_password_hash(&crafted, b"pass", KdfCostLimits::default()) else {
+        let Err(err) = derive_password_hash(&crafted, b"pass", KdfCostLimits::bounded()) else {
             panic!("derivation over the limit must fail");
         };
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
@@ -319,7 +319,7 @@ mod tests {
         .unwrap();
         let crafted = ps.replace("m=19456,t=2,p=1", "m=524289,t=1,p=1");
         assert_ne!(crafted, ps);
-        let Err(err) = derive_password_hash(&crafted, b"pass", KdfCostLimits::default()) else {
+        let Err(err) = derive_password_hash(&crafted, b"pass", KdfCostLimits::bounded()) else {
             panic!("derivation over the limit must fail");
         };
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
@@ -333,7 +333,7 @@ mod tests {
             pbkdf2_with_salt(b"pass", pbkdf2::Algorithm::Pbkdf2Sha256, params, &salt).unwrap();
         let crafted = ps.replace("i=1000,", "i=6000001,");
         assert_ne!(crafted, ps);
-        let Err(err) = derive_password_hash(&crafted, b"pass", KdfCostLimits::default()) else {
+        let Err(err) = derive_password_hash(&crafted, b"pass", KdfCostLimits::bounded()) else {
             panic!("derivation over the limit must fail");
         };
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
@@ -357,7 +357,7 @@ mod tests {
             pbkdf2_with_salt(b"pass", pbkdf2::Algorithm::Pbkdf2Sha512, params, &salt).unwrap();
         let crafted = ps.replace("i=1000,", "i=2100001,");
         assert_ne!(crafted, ps);
-        let Err(err) = derive_password_hash(&crafted, b"pass", KdfCostLimits::default()) else {
+        let Err(err) = derive_password_hash(&crafted, b"pass", KdfCostLimits::bounded()) else {
             panic!("derivation over the limit must fail");
         };
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
