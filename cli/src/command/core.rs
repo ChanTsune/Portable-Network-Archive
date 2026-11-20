@@ -1198,24 +1198,34 @@ pub(crate) fn collect_extra_chunks(
             windows
         ))]
         if let AclStrategy::Always = keep_options.acl_strategy {
-            use crate::chunk;
             let follow_links = !meta.file_type().is_symlink();
-            let acl_result = utils::acl::get_facl(path, follow_links);
-            match acl_result {
-                Ok(acl) => {
-                    chunks.push(RawChunk::from_data(chunk::faCl, acl.platform.to_bytes()));
-                    for ace in acl.entries {
-                        chunks.push(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
+            #[cfg(target_os = "linux")]
+            {
+                match crate::acl_draft::capture(path, follow_links) {
+                    Ok(Some(chunk)) => chunks.push(chunk),
+                    Ok(None) => {}
+                    Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
+                        log::warn!("ACL unsupported for '{}': {}", path.display(), e);
                     }
+                    Err(e) => return Err(e),
                 }
-                Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
-                    log::warn!(
-                        "ACL not supported on this filesystem, skipping '{}': {}",
-                        path.display(),
-                        e
-                    );
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                use crate::chunk;
+                let acl_result = utils::acl::get_facl(path, follow_links);
+                match acl_result {
+                    Ok(acl) => {
+                        chunks.push(RawChunk::from_data(chunk::faCl, acl.platform.to_bytes()));
+                        for ace in acl.entries {
+                            chunks.push(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
+                        }
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
+                        log::warn!("ACL unsupported for '{}': {}", path.display(), e);
+                    }
+                    Err(e) => return Err(e),
                 }
-                Err(e) => return Err(e),
             }
         }
         #[cfg(not(any(
