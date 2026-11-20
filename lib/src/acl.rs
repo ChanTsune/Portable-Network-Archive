@@ -4,9 +4,7 @@
 //! It does not resolve principals or apply ACLs to a filesystem.
 use std::io::{self, ErrorKind};
 
-use crate::{ChunkType, RawChunk};
-#[cfg(test)]
-use crate::Chunk;
+use crate::{Chunk, ChunkType, RawChunk};
 
 /// POSIX.1e ACL, draft version 1.
 pub const POSIX1E: u16 = 1;
@@ -129,6 +127,7 @@ pub enum PosixTag {
 
 impl TryFrom<u8> for PosixTag {
     type Error = io::Error;
+    #[inline]
     fn try_from(value: u8) -> io::Result<Self> {
         match value {
             0 => Ok(Self::UserObj),
