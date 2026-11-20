@@ -6,7 +6,7 @@ RUN rustup component add clippy rustfmt
 
 RUN apt update && apt install -y libacl1-dev g++ cmake git bats shfmt shellcheck
 
-FROM ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-32 as wasi
+FROM ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-33 as wasi
 
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
