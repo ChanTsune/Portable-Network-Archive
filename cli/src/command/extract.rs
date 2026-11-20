@@ -1803,9 +1803,33 @@ where
         log::warn!("Currently extended attribute is not supported on this platform.");
     }
     #[cfg(feature = "acl")]
-    if !skip_xattr_acl {
+    if !skip_xattr_acl && matches!(keep_options.acl_strategy, AclStrategy::Always) {
         let follow_links = item.header().data_kind() != DataKind::SYMBOLIC_LINK;
-        restore_acls(path, item.acl()?, keep_options.acl_strategy, follow_links)?;
+        if let Some(draft) = item.acl_chunk()? {
+            #[cfg(target_os = "linux")]
+            {
+                match crate::acl_draft::restore_chunk(path, &draft, follow_links) {
+                    Ok(()) => {}
+                    Err(e) if e.kind() == io::ErrorKind::Unsupported => {
+                        log::warn!(
+                            "Cannot restore aCLS format {} for '{}': {}",
+                            draft.format_id(),
+                            path.display(),
+                            e
+                        );
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+            #[cfg(not(target_os = "linux"))]
+            log::warn!(
+                "Cannot restore experimental aCLS format {} on this platform: '{}'",
+                draft.format_id(),
+                path.display()
+            );
+        } else {
+            restore_acls(path, item.acl()?, keep_options.acl_strategy, follow_links)?;
+        }
     }
     #[cfg(not(feature = "acl"))]
     if let AclStrategy::Always = keep_options.acl_strategy {
