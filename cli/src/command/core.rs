@@ -1977,6 +1977,7 @@ pub(crate) fn read_archive_source(
     limits: KdfCostLimits,
     allow_concatenated_archives: bool,
 ) -> io::Result<Vec<io::Result<Option<NormalEntry>>>> {
+    #[allow(clippy::too_many_arguments)]
     fn process_source<R: io::BufRead>(
         mut reader: R,
         source_name: &str,

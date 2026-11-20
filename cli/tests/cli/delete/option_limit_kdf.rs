@@ -26,7 +26,13 @@ fn delete_default_accepts_high_cost_archive() {
 
     cargo_bin_cmd!("pna")
         .args([
-            "--quiet", "delete", "-f", &target, "secret.txt", "--password", PASSWORD,
+            "--quiet",
+            "delete",
+            "-f",
+            &target,
+            "secret.txt",
+            "--password",
+            PASSWORD,
         ])
         .assert()
         .success();

@@ -237,7 +237,10 @@ pub(crate) struct ListCommand {
     null: bool,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
-    #[arg(long, help = "Limit key derivation cost when reading encrypted entries")]
+    #[arg(
+        long,
+        help = "Limit key derivation cost when reading encrypted entries"
+    )]
     limit_kdf: bool,
     #[arg(
         long,
@@ -657,6 +660,7 @@ pub(crate) struct ListOptions {
     pub(crate) line_ending: LineEnding,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn run_list_archive<'a>(
     archive_provider: impl IntoIterator<Item = impl Read>,
     password: Option<&[u8]>,

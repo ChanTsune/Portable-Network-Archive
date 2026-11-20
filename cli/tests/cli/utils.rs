@@ -259,7 +259,8 @@ pub fn create_high_cost_encrypted_solid_archive(
         fs::create_dir_all(parent).unwrap();
     }
     let options = high_cost_write_options(password);
-    let mut writer = pna::Archive::write_solid_header(fs::File::create(path).unwrap(), options).unwrap();
+    let mut writer =
+        pna::Archive::write_solid_header(fs::File::create(path).unwrap(), options).unwrap();
     let mut builder = pna::FileEntryBuilder::new(name.into()).unwrap();
     builder.write_all(contents).unwrap();
     writer.add_entry(builder.build().unwrap()).unwrap();

@@ -23,12 +23,22 @@ fn extract_default_accepts_high_cost_archive() {
 
     cargo_bin_cmd!("pna")
         .args([
-            "--quiet", "x", "-f", &archive, "--out-dir", &out_dir, "--password", PASSWORD,
+            "--quiet",
+            "x",
+            "-f",
+            &archive,
+            "--out-dir",
+            &out_dir,
+            "--password",
+            PASSWORD,
         ])
         .assert()
         .success();
 
-    assert_eq!(fs::read(format!("{out_dir}/secret.txt")).unwrap(), b"secret content");
+    assert_eq!(
+        fs::read(format!("{out_dir}/secret.txt")).unwrap(),
+        b"secret content"
+    );
 }
 
 /// Precondition: An encrypted archive uses KDF parallelism above the bounded cap.
@@ -79,7 +89,10 @@ fn extract_with_no_limit_kdf_accepts_high_cost_archive() {
         .assert()
         .success();
 
-    assert_eq!(fs::read(format!("{out_dir}/secret.txt")).unwrap(), b"secret content");
+    assert_eq!(
+        fs::read(format!("{out_dir}/secret.txt")).unwrap(),
+        b"secret content"
+    );
 }
 
 /// Precondition: A command accepts both KDF limit flags.

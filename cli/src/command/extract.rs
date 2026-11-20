@@ -4,7 +4,9 @@ use crate::ext::*;
 #[cfg(any(unix, windows))]
 use crate::utils::fs::{GroupId, UserId, lchown};
 use crate::{
-    cli::{ArchiveFileArgs, DateTime, FileOperands, MissingTimePolicy, PasswordArgs, kdf_cost_limits},
+    cli::{
+        ArchiveFileArgs, DateTime, FileOperands, MissingTimePolicy, PasswordArgs, kdf_cost_limits,
+    },
     command::{
         Command, ExitCodeError, ask_password,
         core::{
@@ -97,7 +99,10 @@ pub(crate) struct ExtractCommand {
     out_dir: Option<PathBuf>,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
-    #[arg(long, help = "Limit key derivation cost when reading encrypted entries")]
+    #[arg(
+        long,
+        help = "Limit key derivation cost when reading encrypted entries"
+    )]
     limit_kdf: bool,
     #[arg(
         long,
@@ -593,6 +598,7 @@ pub(crate) struct OutputOption<'a> {
     pub(crate) warned_lead_slash: Arc<AtomicBool>,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn run_extract_archive_reader<'a, 'p, Provider>(
     reader: impl IntoIterator<Item = impl Read>,
     files: Vec<String>,

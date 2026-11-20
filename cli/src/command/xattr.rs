@@ -82,7 +82,10 @@ pub(crate) struct GetXattrCommand {
     encoding: Option<Encoding>,
     #[command(flatten)]
     password: PasswordArgs,
-    #[arg(long, help = "Limit key derivation cost when reading encrypted entries")]
+    #[arg(
+        long,
+        help = "Limit key derivation cost when reading encrypted entries"
+    )]
     limit_kdf: bool,
     #[arg(
         long,
@@ -151,7 +154,10 @@ pub(crate) struct SetXattrCommand {
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
     password: PasswordArgs,
-    #[arg(long, help = "Limit key derivation cost when reading encrypted entries")]
+    #[arg(
+        long,
+        help = "Limit key derivation cost when reading encrypted entries"
+    )]
     limit_kdf: bool,
     #[arg(
         long,

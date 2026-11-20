@@ -26,8 +26,8 @@ use crate::{
     utils::{self, BsdGlobMatcher, VCS_FILES, fs::HardlinkResolver},
 };
 use clap::{ArgAction, ArgGroup, Args, Parser, ValueHint, builder::ArgPredicate};
-use pna::{Archive, KdfCostLimits};
 use pna::prelude::PathPartExt;
+use pna::{Archive, KdfCostLimits};
 use std::{
     env, io,
     path::{Path, PathBuf},
@@ -323,7 +323,10 @@ pub(crate) struct BsdtarCommand {
     pub(crate) hash: HashAlgorithmArgs,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
-    #[arg(long, help = "Limit key derivation cost when reading encrypted entries")]
+    #[arg(
+        long,
+        help = "Limit key derivation cost when reading encrypted entries"
+    )]
     limit_kdf: bool,
     #[arg(
         long,

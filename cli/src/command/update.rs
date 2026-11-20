@@ -384,7 +384,10 @@ pub(crate) struct UpdateCommand {
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
-    #[arg(long, help = "Limit key derivation cost when reading encrypted entries")]
+    #[arg(
+        long,
+        help = "Limit key derivation cost when reading encrypted entries"
+    )]
     limit_kdf: bool,
     #[arg(
         long,
