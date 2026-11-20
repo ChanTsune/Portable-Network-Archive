@@ -6,7 +6,7 @@ permissions:
 on:
   workflow_dispatch:
   schedule:
-    - cron: "37 3 * * 0" # Sundays at 03:37 UTC
+    - cron: "37 3 * * 6" # Saturdays at 03:37 UTC
   push:
     branches:
       - main
