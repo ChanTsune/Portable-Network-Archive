@@ -116,6 +116,58 @@ mod tests {
     use super::*;
 
     #[test]
+    fn create_archive_extract_and_restore_native_acl() -> io::Result<()> {
+        use pna::{Archive, Chunk, FileEntryBuilder, ReadOptions};
+        use std::{fs, io::{Read, Write}, time::{SystemTime, UNIX_EPOCH}};
+
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(io::Error::other)?
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "pna_acl_draft_{}_{}", std::process::id(), now
+        ));
+        fs::create_dir(&root)?;
+        let original = root.join("original.txt");
+        let restored = root.join("restored.txt");
+        fs::write(&original, b"draft ACL file roundtrip")?;
+
+        let expected = PosixAcl {
+            access: vec![
+                PosixAce { tag: PosixTag::UserObj, permissions: 6, qualifier: None, name: String::new() },
+                PosixAce { tag: PosixTag::User, permissions: 4, qualifier: Some(65432), name: String::new() },
+                PosixAce { tag: PosixTag::GroupObj, permissions: 4, qualifier: None, name: String::new() },
+                PosixAce { tag: PosixTag::Mask, permissions: 4, qualifier: None, name: String::new() },
+                PosixAce { tag: PosixTag::Other, permissions: 0, qualifier: None, name: String::new() },
+            ],
+            default: vec![],
+        };
+        restore(&original, &expected, true)?;
+        let acl_chunk = capture(&original, true)?.expect("regular files have ACLs");
+        let mut serialized = Vec::new();
+        {
+            let mut archive = Archive::write_header(&mut serialized)?;
+            let mut entry = FileEntryBuilder::new("original.txt".into())?;
+            entry.add_extra_chunk(acl_chunk);
+            entry.write_all(&fs::read(&original)?)?;
+            archive.add_entry(entry.build()?)?;
+            archive.finalize()?;
+        }
+        let mut archive = Archive::read_header(&serialized[..])?;
+        let extracted = archive.entries().skip_solid().next().unwrap()?;
+        let acl = extracted.acl_chunk()?.unwrap();
+        let mut content = Vec::new();
+        extracted.reader(ReadOptions::builder().build())?.read_to_end(&mut content)?;
+        fs::write(&restored, &content)?;
+        restore_chunk(&restored, &acl, true)?;
+        let actual = capture(&restored, true)?.unwrap();
+        assert_eq!(acl.payload(), &actual.data()[2..]);
+        assert_eq!(fs::read(&restored)?, b"draft ACL file roundtrip");
+        fs::remove_dir_all(&root)?;
+        Ok(())
+    }
+
+    #[test]
     fn named_numeric_id_and_default_roundtrip() {
         let acl = PosixAcl {
             access: vec![
