@@ -430,6 +430,33 @@ fn validate_darwin(data: &[u8]) -> io::Result<()> {
     Ok(())
 }
 
+impl<T> crate::NormalEntry<T>
+where
+    RawChunk<T>: crate::Chunk,
+{
+    /// Returns the draft ACL of an entry, if present.
+    ///
+    /// Unknown formats are kept as opaque payloads.
+    ///
+    /// # Errors
+    /// Returns an error for multiple ACL chunks or a malformed known payload.
+    #[inline]
+    pub fn acl_chunk(&self) -> io::Result<Option<AclChunk>> {
+        let mut found = None;
+        for chunk in self.extra_chunks() {
+            if chunk.ty() == ChunkType::aCLS {
+                if found.is_some() {
+                    return Err(invalid("duplicate aCLS chunks"));
+                }
+                let acl = AclChunk::from_bytes(chunk.data())?;
+                acl.validate()?;
+                found = Some(acl);
+            }
+        }
+        Ok(found)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -483,6 +510,54 @@ mod tests {
         }
         AclChunk::new(NFS41, bytes).unwrap().validate().unwrap();
     }
+    #[test]
+    fn archive_entry_roundtrip_all_draft_formats() {
+        use crate::{Archive, FileEntryBuilder};
+        let posix = base_acl().encode().unwrap();
+        let nfs4 = 0u32.to_be_bytes().to_vec();
+        let mut nfs41 = Vec::new();
+        for n in [3u32, 2, 0, 4, 0] { nfs41.extend_from_slice(&n.to_be_bytes()); }
+        let mut sd = vec![0u8; 20];
+        sd[0] = 1;
+        sd[2..4].copy_from_slice(&0x8000u16.to_le_bytes());
+        let mut windows = vec![1];
+        windows.extend_from_slice(&sd);
+        let mut darwin = vec![];
+        darwin.extend_from_slice(&u32::MAX.to_be_bytes());
+        darwin.extend_from_slice(&0u32.to_be_bytes());
+        for (id, payload) in [
+            (POSIX1E, posix), (NFS4, nfs4), (NFS41, nfs41),
+            (WINDOWS_NT, windows), (DARWIN, darwin),
+            (0x8001, vec![0xfe, 0xff]),
+        ] {
+            let acl = AclChunk::new(id, payload).unwrap();
+            acl.validate().unwrap();
+            let mut serialized = Vec::new();
+            {
+                let mut archive = Archive::write_header(&mut serialized).unwrap();
+                let mut entry = FileEntryBuilder::new("file.txt".into()).unwrap();
+                entry.add_extra_chunk(acl.clone().into_raw_chunk());
+                use std::io::Write;
+                entry.write_all(b"ACL payload roundtrip").unwrap();
+                archive.add_entry(entry.build().unwrap()).unwrap();
+                archive.finalize().unwrap();
+            }
+            let mut archive = Archive::read_header(&serialized[..]).unwrap();
+            let entry = archive.entries().skip_solid().next().unwrap().unwrap();
+            let actual = entry.acl_chunk().unwrap().unwrap();
+            assert_eq!(actual, acl);
+        }
+    }
+
+    #[test]
+    fn duplicate_acl_chunk_is_invalid_metadata() {
+        use crate::DirEntryBuilder;
+        let entry = DirEntryBuilder::new("dir".into()).build().unwrap();
+        let chunk = AclChunk::new(0x8001, vec![42]).unwrap().into_raw_chunk();
+        let entry = entry.with_extra_chunks(vec![chunk.clone(), chunk]);
+        assert!(entry.acl_chunk().is_err());
+    }
+
     #[test]
     fn windows_and_darwin_envelopes() {
         let mut sd = vec![0u8; 20];
