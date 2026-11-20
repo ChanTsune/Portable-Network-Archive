@@ -19,7 +19,7 @@ use nom::{
     character::complete::char,
     combinator::{map, opt},
 };
-use pna::{Chunk, NormalEntry, RawChunk, ReadOptions};
+use pna::{Chunk, KdfCostLimits, NormalEntry, RawChunk, ReadOptions};
 use regex::Regex;
 use std::{
     borrow::Cow,
@@ -378,6 +378,7 @@ fn archive_set_acl(args: SetAclCommand, umask: Umask) -> anyhow::Result<()> {
         destination,
         umask,
         password.as_deref(),
+        KdfCostLimits::unbounded(),
         args.transform_strategy.strategy(),
         set_strategy,
     )

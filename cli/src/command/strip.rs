@@ -13,7 +13,7 @@ use crate::{
     utils::GlobPatterns,
 };
 use clap::{ArgAction, Args, Parser, ValueHint};
-use pna::{Metadata, NormalEntry, RawChunk, prelude::*};
+use pna::{KdfCostLimits, Metadata, NormalEntry, RawChunk, prelude::*};
 use std::{borrow::Cow, io, path::PathBuf};
 
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
@@ -99,6 +99,7 @@ fn strip_metadata(args: StripCommand, umask: Umask) -> anyhow::Result<()> {
         destination,
         umask,
         password.as_deref(),
+        KdfCostLimits::unbounded(),
         args.transform_strategy.strategy(),
         StripTransform {
             options: args.strip_options,

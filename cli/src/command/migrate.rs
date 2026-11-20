@@ -11,7 +11,7 @@ use crate::{
     utils::GlobPatterns,
 };
 use clap::{ArgAction, Parser, ValueHint};
-use pna::{NormalEntry, RawChunk, prelude::*};
+use pna::{KdfCostLimits, NormalEntry, RawChunk, prelude::*};
 use std::{borrow::Cow, io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
@@ -56,6 +56,7 @@ fn migrate_metadata(args: MigrateCommand, umask: Umask) -> anyhow::Result<()> {
         destination,
         umask,
         password.as_deref(),
+        KdfCostLimits::unbounded(),
         args.transform_strategy.strategy(),
         MigrateTransform,
     )

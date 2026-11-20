@@ -26,7 +26,7 @@ use crate::{
     utils::{self, BsdGlobMatcher, VCS_FILES, fs::HardlinkResolver},
 };
 use clap::{ArgAction, ArgGroup, Args, Parser, ValueHint, builder::ArgPredicate};
-use pna::Archive;
+use pna::{Archive, KdfCostLimits};
 use pna::prelude::PathPartExt;
 use std::{
     env, io,
@@ -1596,6 +1596,7 @@ fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
     run_update_archive(
         &mut source,
         password,
+        KdfCostLimits::unbounded(),
         &create_options,
         target_items,
         false,

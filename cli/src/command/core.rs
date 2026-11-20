@@ -31,8 +31,8 @@ use path_slash::*;
 pub(crate) use path_transformer::PathTransformers;
 use pna::{
     Archive, DataKind, DirEntryBuilder, EntryContent, FileEntryBuilder, HardLinkEntryBuilder,
-    LinkTargetType, Metadata, NormalEntry, OpaqueEntryBuilder, PNA_SIGNATURE, ReadEntry,
-    ReadOptions, SymlinkEntryBuilder, WriteOptions, prelude::*,
+    KdfCostLimits, LinkTargetType, Metadata, NormalEntry, OpaqueEntryBuilder, PNA_SIGNATURE,
+    ReadEntry, ReadOptions, SymlinkEntryBuilder, WriteOptions, prelude::*,
 };
 use std::{
     borrow::Cow,
@@ -1289,10 +1289,10 @@ pub(crate) struct TransformContext<'a> {
 
 impl<'a> TransformContext<'a> {
     #[inline]
-    pub(crate) fn new(password: Option<&'a [u8]>) -> Self {
+    pub(crate) fn new(password: Option<&'a [u8]>, limits: KdfCostLimits) -> Self {
         Self {
             password,
-            read_options: ReadOptions::with_password(password),
+            read_options: crate::command::read_options(password, limits),
         }
     }
 }
@@ -1696,6 +1696,7 @@ fn run_transform_entries_bytes<'d, 'p, W, Provider, F, Transform>(
     writer: W,
     archives: impl IntoIterator<Item = &'d [u8]>,
     mut password_provider: Provider,
+    limits: KdfCostLimits,
     mut processor: F,
     _strategy: Transform,
 ) -> anyhow::Result<()>
@@ -1708,7 +1709,7 @@ where
     Transform: TransformStrategy,
 {
     let password = password_provider();
-    let context = TransformContext::new(password);
+    let context = TransformContext::new(password, limits);
     let mut out_archive = Archive::write_header(writer)?;
     run_read_entries_bytes(
         archives,
@@ -1763,6 +1764,7 @@ fn run_transform_entries_readers<'d, 'p, W, Provider, F, Transform>(
     writer: W,
     archives: impl IntoIterator<Item = impl Read>,
     mut password_provider: Provider,
+    limits: KdfCostLimits,
     mut processor: F,
     _strategy: Transform,
 ) -> anyhow::Result<()>
@@ -1775,7 +1777,7 @@ where
     Transform: TransformStrategy,
 {
     let password = password_provider();
-    let context = TransformContext::new(password);
+    let context = TransformContext::new(password, limits);
     let mut out_archive = Archive::write_header(writer)?;
     run_read_entries_readers(
         archives,
@@ -2292,7 +2294,7 @@ mod tests {
         let mut src = Archive::read_header(&bytes[..]).unwrap();
         let read_entry = src.entries().next().unwrap();
         let mut out = Archive::write_header(Vec::new()).unwrap();
-        let context = TransformContext::new(None);
+        let context = TransformContext::new(None, KdfCostLimits::unbounded());
         let mut seen = 0;
         let err = TransformStrategyKeepSolid::transform(&mut out, &context, read_entry, |entry| {
             let entry = entry?;

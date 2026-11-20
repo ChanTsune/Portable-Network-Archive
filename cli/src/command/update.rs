@@ -24,7 +24,7 @@ use crate::{
 use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
 use indexmap::IndexMap;
 use pna::prelude::SystemTimeDurationExt;
-use pna::{Archive, EntryName, Metadata};
+use pna::{Archive, EntryName, KdfCostLimits, Metadata};
 use std::{
     cmp::Ordering,
     fs, io,
@@ -543,6 +543,7 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
         SolidEntriesTransformStrategy::UnSolid => run_update_archive(
             &mut source,
             password,
+            KdfCostLimits::unbounded(),
             &create_options,
             target_items,
             sync,
@@ -555,6 +556,7 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
         SolidEntriesTransformStrategy::KeepSolid => run_update_archive(
             &mut source,
             password,
+            KdfCostLimits::unbounded(),
             &create_options,
             target_items,
             sync,
@@ -577,6 +579,7 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
 pub(crate) fn run_update_archive<Strategy, W>(
     source: &mut SplitArchiveReader,
     password: Option<&[u8]>,
+    limits: KdfCostLimits,
     create_options: &CreateOptions,
     target_items: Vec<CollectedEntry>,
     sync: bool,
@@ -591,7 +594,7 @@ where
     W: io::Write,
 {
     let (tx, rx) = std::sync::mpsc::channel();
-    let context = TransformContext::new(password);
+    let context = TransformContext::new(password, limits);
 
     // Overlapping source arguments (e.g. a directory and a file within it)
     // routinely collect the same path spelling twice; that case is

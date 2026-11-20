@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::{fs, io};
 
-use pna::{NormalEntry, ReadEntry, ReadOptions};
+use pna::{KdfCostLimits, NormalEntry, ReadEntry, ReadOptions};
 
 use super::TransformStrategy;
 
@@ -33,6 +33,7 @@ impl SplitArchiveReader {
         &'s mut self,
         writer: W,
         password: Option<&[u8]>,
+        limits: KdfCostLimits,
         processor: F,
         strategy: S,
     ) -> anyhow::Result<()>
@@ -47,6 +48,7 @@ impl SplitArchiveReader {
             writer,
             self.files.drain(..),
             || password,
+            limits,
             processor,
             strategy,
         )
@@ -57,6 +59,7 @@ impl SplitArchiveReader {
         &'s mut self,
         writer: W,
         password: Option<&[u8]>,
+        limits: KdfCostLimits,
         processor: F,
         strategy: S,
     ) -> anyhow::Result<()>
@@ -71,6 +74,7 @@ impl SplitArchiveReader {
             writer,
             self.mmaps.iter().map(|m| m.as_ref()),
             || password,
+            limits,
             processor,
             strategy,
         )

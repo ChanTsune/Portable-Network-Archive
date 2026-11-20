@@ -13,7 +13,7 @@ use base64::Engine;
 use bstr::{ByteSlice, io::BufReadExt};
 use clap::{ArgAction, ArgGroup, Parser, ValueEnum, ValueHint};
 use indexmap::IndexMap;
-use pna::{NormalEntry, ReadOptions};
+use pna::{KdfCostLimits, NormalEntry, ReadOptions};
 use regex::Regex;
 use std::{
     borrow::Cow,
@@ -294,6 +294,7 @@ fn archive_set_xattr(args: SetXattrCommand, umask: Umask) -> anyhow::Result<()> 
         destination,
         umask,
         password.as_deref(),
+        KdfCostLimits::unbounded(),
         args.transform_strategy.strategy(),
         set_strategy,
     )

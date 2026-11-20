@@ -10,7 +10,7 @@ use crate::{
     utils::{GlobPatterns, VCS_FILES},
 };
 use clap::{ArgAction, ArgGroup, Parser, ValueHint};
-use pna::NormalEntry;
+use pna::{KdfCostLimits, NormalEntry};
 use std::{borrow::Cow, io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
@@ -139,6 +139,7 @@ fn delete_file_from_archive(args: DeleteCommand, umask: Umask) -> anyhow::Result
         destination,
         umask,
         password.as_deref(),
+        KdfCostLimits::unbounded(),
         args.transform_strategy.strategy(),
         DeleteTransform { globs, filter },
     )

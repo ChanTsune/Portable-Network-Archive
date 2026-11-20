@@ -18,7 +18,7 @@ use nom::{
     combinator::{map, opt},
     multi::{many0, many1, separated_list1},
 };
-use pna::{DataKind, NormalEntry};
+use pna::{DataKind, KdfCostLimits, NormalEntry};
 use std::{borrow::Cow, io, ops::BitOr, path::PathBuf, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -70,6 +70,7 @@ fn archive_chmod(args: ChmodCommand, umask: Umask) -> anyhow::Result<()> {
         destination,
         umask,
         password.as_deref(),
+        KdfCostLimits::unbounded(),
         args.transform_strategy.strategy(),
         ChmodTransform {
             globs,

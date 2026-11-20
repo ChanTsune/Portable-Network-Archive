@@ -13,7 +13,7 @@ use crate::{
     },
 };
 use clap::{ArgAction, Parser, ValueHint, builder::ArgPredicate};
-use pna::NormalEntry;
+use pna::{KdfCostLimits, NormalEntry};
 use std::{borrow::Cow, io, ops::Not, path::PathBuf, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -81,6 +81,7 @@ fn archive_chown(args: ChownCommand, umask: Umask) -> anyhow::Result<()> {
         destination,
         umask,
         password.as_deref(),
+        KdfCostLimits::unbounded(),
         args.transform_strategy.strategy(),
         ChownTransform { globs, owner },
     )
