@@ -49,11 +49,15 @@ pub(crate) fn freebsd_acl_kind(path: &Path, follow_links: bool) -> io::Result<Fr
 /// Interprets legacy POSIX-style `Other` as NFSv4 `Everyone` on NFSv4 mounts.
 #[cfg(target_os = "freebsd")]
 fn adapt_freebsd_acl_entries(entries: &mut [exacl::AclEntry], kind: FreeBsdAclKind) {
-    if kind == FreeBsdAclKind::Nfs4 {
-        for entry in entries {
-            if entry.kind == exacl::AclEntryKind::Other {
+    for entry in entries {
+        match (kind, entry.kind) {
+            (FreeBsdAclKind::Nfs4, exacl::AclEntryKind::Other) => {
                 entry.kind = exacl::AclEntryKind::Everyone;
             }
+            (FreeBsdAclKind::Posix1e, exacl::AclEntryKind::Everyone) => {
+                entry.kind = exacl::AclEntryKind::Other;
+            }
+            _ => {}
         }
     }
 }
@@ -288,7 +292,7 @@ impl Into<Ace> for exacl::AclEntry {
                 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
                 exacl::AclEntryKind::Other => OwnerType::Other,
                 #[cfg(target_os = "freebsd")]
-                exacl::AclEntryKind::Everyone => OwnerType::Other,
+                exacl::AclEntryKind::Everyone => OwnerType::Everyone,
                 exacl::AclEntryKind::Unknown => panic!("Unknown acl owner"),
             },
             allow: self.allow,
@@ -323,6 +327,12 @@ impl Into<exacl::AclEntry> for Ace {
             OwnerType::Other => (exacl::AclEntryKind::Group, "everyone".into()),
             #[cfg(any(target_os = "linux", target_os = "freebsd"))]
             OwnerType::Other => (exacl::AclEntryKind::Other, String::new()),
+            #[cfg(target_os = "freebsd")]
+            OwnerType::Everyone => (exacl::AclEntryKind::Everyone, String::new()),
+            #[cfg(target_os = "linux")]
+            OwnerType::Everyone => (exacl::AclEntryKind::Other, String::new()),
+            #[cfg(target_os = "macos")]
+            OwnerType::Everyone => (exacl::AclEntryKind::Group, "everyone".into()),
         };
         let mut perms = exacl::Perm::empty();
         if slf.permission.contains(Permission::READ) {
@@ -472,6 +482,14 @@ mod tests {
         let mut posix = [legacy.clone()];
         adapt_freebsd_acl_entries(&mut posix, FreeBsdAclKind::Posix1e);
         assert_eq!(posix[0].kind, exacl::AclEntryKind::Other);
+
+        let new = exacl::AclEntry {
+            kind: exacl::AclEntryKind::Everyone,
+            ..legacy
+        };
+        let mut posix_from_nfs4 = [new];
+        adapt_freebsd_acl_entries(&mut posix_from_nfs4, FreeBsdAclKind::Posix1e);
+        assert_eq!(posix_from_nfs4[0].kind, exacl::AclEntryKind::Other);
     }
 
     #[test]

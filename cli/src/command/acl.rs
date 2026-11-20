@@ -222,6 +222,9 @@ impl FromStr for AclEntries {
         fn kw_other(s: &str) -> nom::IResult<&str, (char, Option<&str>)> {
             (char('o'), opt(tag("ther"))).parse(s)
         }
+        fn kw_everyone(s: &str) -> nom::IResult<&str, (char, Option<&str>)> {
+            (char('e'), opt(tag("veryone"))).parse(s)
+        }
         fn kw_mask(s: &str) -> nom::IResult<&str, (char, Option<&str>)> {
             (char('m'), opt(tag("ask"))).parse(s)
         }
@@ -232,6 +235,7 @@ impl FromStr for AclEntries {
                 opt(map((kw_default, char(':')), |_| true)),
                 alt((
                     map((kw_other, opt(char(':'))), |_| OwnerType::Other),
+                    map((kw_everyone, opt(char(':'))), |_| OwnerType::Everyone),
                     map((kw_mask, opt(char(':'))), |_| OwnerType::Mask),
                     map(
                         (kw_group, char(':'), take_while(|c| c != ':')),
@@ -674,6 +678,24 @@ mod tests {
                 permissions: None,
             }
         );
+    }
+
+    /// Precondition: An ACL selector names the NFSv4 Everyone principal.
+    /// Action: Parse both abbreviated and canonical forms.
+    /// Expectation: Everyone remains distinct from the legacy Other selector.
+    #[test]
+    fn parse_acl_everyone() {
+        for source in ["e:", "everyone:"] {
+            assert_eq!(
+                AclEntries::from_str(source).unwrap(),
+                AclEntries {
+                    default: false,
+                    allow: None,
+                    owner: OwnerType::Everyone,
+                    permissions: None,
+                }
+            );
+        }
     }
 
     #[test]
