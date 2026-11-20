@@ -1021,6 +1021,7 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
             &filter,
             &time_filters,
             password,
+            KdfCostLimits::unbounded(),
             args.verbose,
             args.ignore_zeros,
         )
@@ -1032,6 +1033,7 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
             &filter,
             &time_filters,
             password,
+            KdfCostLimits::unbounded(),
             args.verbose,
             args.ignore_zeros,
         )
@@ -1417,6 +1419,7 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
             &filter,
             &time_filters,
             password,
+            KdfCostLimits::unbounded(),
             args.verbose,
             args.ignore_zeros,
         )
@@ -1441,6 +1444,7 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
             &filter,
             &time_filters,
             password,
+            KdfCostLimits::unbounded(),
             args.verbose,
             args.ignore_zeros,
         )
