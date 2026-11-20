@@ -5,6 +5,8 @@
 use std::io::{self, ErrorKind};
 
 use crate::{ChunkType, RawChunk};
+#[cfg(test)]
+use crate::Chunk;
 
 /// POSIX.1e ACL, draft version 1.
 pub const POSIX1E: u16 = 1;
@@ -34,6 +36,10 @@ impl AclChunk {
     /// Constructs the envelope from a format identifier and its payload.
     ///
     /// The payload is not validated as a supported ACL model by this method.
+    ///
+    /// # Errors
+    /// Returns an error if the identifier is zero.
+    #[inline]
     pub fn new(format_id: u16, payload: impl Into<Vec<u8>>) -> io::Result<Self> {
         if format_id == 0 {
             return Err(invalid("reserved ACL format ID"));
@@ -45,6 +51,10 @@ impl AclChunk {
     }
 
     /// Parses the enclosing chunk's data.
+    ///
+    /// # Errors
+    /// Returns an error for a missing or reserved format identifier.
+    #[inline]
     pub fn from_bytes(data: &[u8]) -> io::Result<Self> {
         let id = data
             .get(..2)
@@ -53,16 +63,19 @@ impl AclChunk {
     }
 
     /// Returns the ACL format identifier.
+    #[inline]
     pub const fn format_id(&self) -> u16 {
         self.format_id
     }
 
     /// Returns the model-specific payload bytes.
+    #[inline]
     pub fn payload(&self) -> &[u8] {
         &self.payload
     }
 
     /// Encodes the chunk data.
+    #[inline]
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut result = Vec::with_capacity(2 + self.payload.len());
         result.extend_from_slice(&self.format_id.to_be_bytes());
@@ -71,13 +84,18 @@ impl AclChunk {
     }
 
     /// Produces the public, ancillary, unsafe-to-copy aCLS chunk.
+    #[inline]
     pub fn into_raw_chunk(self) -> RawChunk {
         RawChunk::from_data(ChunkType::aCLS, self.to_bytes())
     }
 
     /// Checks the supported draft model representation.
     ///
+    /// # Errors
+    /// Returns an error for truncated or structurally invalid known formats.
+    ///
     /// Unknown identifiers are opaque and are not treated as malformed.
+    #[inline]
     pub fn validate(&self) -> io::Result<()> {
         match self.format_id {
             POSIX1E => { PosixAcl::decode(&self.payload)?; }
@@ -95,11 +113,17 @@ impl AclChunk {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum PosixTag {
+    /// The file owner.
     UserObj = 0,
+    /// A named user.
     User = 1,
+    /// The owning group.
     GroupObj = 2,
+    /// A named group.
     Group = 3,
+    /// The group-class mask.
     Mask = 4,
+    /// Everyone else.
     Other = 5,
 }
 
@@ -142,6 +166,10 @@ pub struct PosixAcl {
 
 impl PosixAcl {
     /// Decodes a complete POSIX.1e payload, rejecting structural violations.
+    ///
+    /// # Errors
+    /// Returns an error for invalid entries, counts, or UTF-8.
+    #[inline]
     pub fn decode(bytes: &[u8]) -> io::Result<Self> {
         let mut reader = Reader::new(bytes);
         let access = read_posix_entries(&mut reader)?;
@@ -155,6 +183,10 @@ impl PosixAcl {
     }
 
     /// Encodes a validated POSIX.1e payload.
+    ///
+    /// # Errors
+    /// Returns an error for invalid entries or oversized names.
+    #[inline]
     pub fn encode(&self) -> io::Result<Vec<u8>> {
         validate_posix_list(&self.access, false)?;
         validate_posix_list(&self.default, true)?;
@@ -180,6 +212,10 @@ impl PosixAcl {
     }
 
     /// Encodes a public aCLS chunk carrying this POSIX ACL.
+    ///
+    /// # Errors
+    /// Returns an error for an invalid POSIX ACL.
+    #[inline]
     pub fn into_acl_chunk(self) -> io::Result<AclChunk> {
         AclChunk::new(POSIX1E, self.encode()?)
     }
