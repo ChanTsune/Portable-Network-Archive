@@ -154,9 +154,11 @@ jobs:
           echo "BSDTAR_BIN=${BSDTAR_BIN}" >> "$GITHUB_ENV"
           echo "BSDTAR_TEST_BIN=${BSDTAR_TEST_BIN}" >> "$GITHUB_ENV"
 
-      # Tar preserves executable bits and symlinks that artifact uploads would normalize.
+      # Tar preserves executable bits needed by bsdtar_test.
       - name: Package libarchive build
-        run: tar -czf "libarchive-${MATRIX_NAME}.tar.gz" libarchive
+        # Dependency test suites are not used by bsdtar_test and may contain
+        # symlinks that cannot be restored on Windows runners.
+        run: tar -czf "libarchive-${MATRIX_NAME}.tar.gz" --exclude='libarchive/build_ci/libs/*/tests' libarchive
 
       - name: Upload libarchive build
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
