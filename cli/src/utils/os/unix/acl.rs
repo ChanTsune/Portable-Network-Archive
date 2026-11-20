@@ -46,6 +46,18 @@ pub(crate) fn freebsd_acl_kind(path: &Path, follow_links: bool) -> io::Result<Fr
     }
 }
 
+/// Interprets legacy POSIX-style `Other` as NFSv4 `Everyone` on NFSv4 mounts.
+#[cfg(target_os = "freebsd")]
+fn adapt_freebsd_acl_entries(entries: &mut [exacl::AclEntry], kind: FreeBsdAclKind) {
+    if kind == FreeBsdAclKind::Nfs4 {
+        for entry in entries {
+            if entry.kind == exacl::AclEntryKind::Other {
+                entry.kind = exacl::AclEntryKind::Everyone;
+            }
+        }
+    }
+}
+
 fn acl_option(follow_links: bool) -> Option<exacl::AclOption> {
     (!follow_links).then_some(exacl::AclOption::SYMLINK_ACL)
 }
@@ -56,8 +68,12 @@ pub fn set_facl<P: AsRef<Path>>(path: P, acl: Acl, follow_links: bool) -> io::Re
     if !follow_links && path.symlink_metadata()?.file_type().is_symlink() {
         return Ok(());
     }
+    #[cfg(target_os = "freebsd")]
+    let native_kind = freebsd_acl_kind(path, follow_links)?;
     let mut acl_entries: Vec<exacl::AclEntry> =
         acl.entries.into_iter().map(Into::into).collect::<Vec<_>>();
+    #[cfg(target_os = "freebsd")]
+    adapt_freebsd_acl_entries(&mut acl_entries, native_kind);
     #[cfg(target_os = "macos")]
     {
         use std::os::unix::fs::MetadataExt;
@@ -82,8 +98,12 @@ pub fn set_facl<P: AsRef<Path>>(path: P, acl: Acl, follow_links: bool) -> io::Re
             })
             .collect();
     }
+    #[cfg(target_os = "linux")]
+    let needs_posix_entries = true;
+    #[cfg(target_os = "freebsd")]
+    let needs_posix_entries = native_kind == FreeBsdAclKind::Posix1e;
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-    {
+    if needs_posix_entries {
         let mut exist_user = false;
         let mut exist_group = false;
         let mut exist_other = false;
@@ -430,6 +450,28 @@ mod tests {
             assert_eq!(kind, expected);
         }
         std::fs::remove_file(path).unwrap();
+    }
+
+    /// Precondition: An archive contains a legacy POSIX-style Other ACE.
+    /// Action: Apply destination-dialect adaptation without filesystem I/O.
+    /// Expectation: NFSv4 uses Everyone while POSIX.1e keeps Other.
+    #[cfg(target_os = "freebsd")]
+    #[test]
+    fn maps_legacy_other_to_native_acl_kind() {
+        let legacy = exacl::AclEntry {
+            kind: exacl::AclEntryKind::Other,
+            name: String::new(),
+            perms: exacl::Perm::READ,
+            flags: exacl::Flag::empty(),
+            allow: true,
+        };
+        let mut nfs4 = [legacy.clone()];
+        adapt_freebsd_acl_entries(&mut nfs4, FreeBsdAclKind::Nfs4);
+        assert_eq!(nfs4[0].kind, exacl::AclEntryKind::Everyone);
+
+        let mut posix = [legacy.clone()];
+        adapt_freebsd_acl_entries(&mut posix, FreeBsdAclKind::Posix1e);
+        assert_eq!(posix[0].kind, exacl::AclEntryKind::Other);
     }
 
     #[test]
