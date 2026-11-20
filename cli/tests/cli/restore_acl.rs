@@ -98,6 +98,16 @@ fn assert_extracted_payload_matches_baseline(baseline_path: &Path, keep_acl_path
     );
 }
 
+/// Checks FreeBSD native NFSv4 ACLs independently of the archive's legacy
+/// platform identifier; POSIX.1e ACLs and NFSv4 ACLs share that identifier.
+#[cfg(target_os = "freebsd")]
+fn native_acl_is_nfs4(path: &Path) -> bool {
+    exacl::getfacl(path, None)
+        .unwrap()
+        .iter()
+        .any(|entry| entry.kind == exacl::AclEntryKind::Everyone)
+}
+
 fn assert_current_platform_acl_roundtrip(case: &RestoreAclCase, out_dir: &Path) {
     let current_platform = current_platform();
 
@@ -133,6 +143,26 @@ fn assert_current_platform_acl_roundtrip(case: &RestoreAclCase, out_dir: &Path) 
         .stdout
         .clone();
     let output = String::from_utf8(output).unwrap();
+    #[cfg(target_os = "freebsd")]
+    if native_acl_is_nfs4(&out_dir.join(case.entry)) {
+        let prefix = format!(
+            "# file: {}\n# owner: \n# group: \n# platform: freebsd\n",
+            case.entry
+        );
+        assert!(
+            output.starts_with(&prefix),
+            "unexpected FreeBSD NFSv4 ACL header:\n{output}"
+        );
+        assert!(
+            output.lines().any(|line| line.starts_with(":e::allow:")),
+            "restoring a legacy archive on NFSv4 must produce native Everyone:\n{output}"
+        );
+        assert!(
+            !output.lines().any(|line| line.starts_with(":o::")),
+            "native NFSv4 ACLs must not serialize POSIX Other:\n{output}"
+        );
+        return;
+    }
     if case.platform.is_empty() {
         assert_generic_current_platform_acl_dump(&output, case.entry, current_platform);
     } else {
