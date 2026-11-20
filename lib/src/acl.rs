@@ -559,6 +559,39 @@ mod tests {
     }
 
     #[test]
+    fn independent_archive_fixture_decodes_all_formats() {
+        use crate::{Archive, ReadOptions};
+        use std::io::Read;
+        let bytes = include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../resources/test/acl_draft_probe.pna"
+        ));
+        let mut archive = Archive::read_header(&bytes[..]).unwrap();
+        let mut entries = archive.entries().skip_solid();
+        for (name, format) in [
+            ("posix.txt", POSIX1E),
+            ("nfs4.txt", NFS4),
+            ("windows.txt", WINDOWS_NT),
+            ("darwin.txt", DARWIN),
+            ("nfsv41.txt", NFS41),
+            ("unknown.txt", 0x8001),
+        ] {
+            let entry = entries.next().unwrap().unwrap();
+            assert_eq!(entry.name().as_str(), name);
+            let acl = entry.acl_chunk().unwrap().unwrap();
+            assert_eq!(acl.format_id(), format);
+            acl.validate().unwrap();
+            let mut result = String::new();
+            entry.reader(ReadOptions::builder().build())
+                .unwrap()
+                .read_to_string(&mut result)
+                .unwrap();
+            assert_eq!(result, format!("content for {name}"));
+        }
+        assert!(entries.next().is_none());
+    }
+
+    #[test]
     fn windows_and_darwin_envelopes() {
         let mut sd = vec![0u8; 20];
         sd[0] = 1;
