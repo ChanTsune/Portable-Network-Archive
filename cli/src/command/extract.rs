@@ -4,7 +4,7 @@ use crate::ext::*;
 #[cfg(any(unix, windows))]
 use crate::utils::fs::{GroupId, UserId, lchown};
 use crate::{
-    cli::{ArchiveFileArgs, DateTime, FileOperands, MissingTimePolicy, PasswordArgs},
+    cli::{ArchiveFileArgs, DateTime, FileOperands, MissingTimePolicy, PasswordArgs, kdf_cost_limits},
     command::{
         Command, ExitCodeError, ask_password,
         core::{
@@ -28,8 +28,8 @@ use anyhow::Context;
 use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
 use jiff::{SignedDuration, Unit};
 use pna::{
-    DataKind, EntryContent, EntryName, EntryReference, LinkTargetType, NormalEntry, ReadOptions,
-    prelude::*,
+    DataKind, EntryContent, EntryName, EntryReference, KdfCostLimits, LinkTargetType, NormalEntry,
+    ReadOptions, prelude::*,
 };
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
@@ -57,6 +57,7 @@ use std::{
     group(ArgGroup::new("null-requires").arg("null").requires("from-input")),
     group(ArgGroup::new("keep-timestamp-flag").args(["keep_timestamp", "no_keep_timestamp"])),
     group(ArgGroup::new("path-transform").args(["substitutions", "transforms"])),
+    group(ArgGroup::new("kdf-cost-limit").args(["limit_kdf", "no_limit_kdf"])),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
     group(ArgGroup::new("ctime-older-than-source").args(["older_ctime", "older_ctime_than"])),
@@ -96,6 +97,14 @@ pub(crate) struct ExtractCommand {
     out_dir: Option<PathBuf>,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
+    #[arg(long, help = "Limit key derivation cost when reading encrypted entries")]
+    limit_kdf: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not limit key derivation cost. This is the inverse option of --limit-kdf"
+    )]
+    no_limit_kdf: (),
     #[arg(
         long = "preserve-timestamps",
         visible_alias = "keep-timestamp",
@@ -405,6 +414,7 @@ impl Command for ExtractCommand {
 #[hooq::hooq(anyhow)]
 fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password).with_context(|| "reading password")?;
+    let limits = kdf_cost_limits(args.limit_kdf);
     let start = Instant::now();
     let archive = args.archive.file;
     log::info!("Extract archive {}", PathWithCwd::new(&archive));
@@ -516,6 +526,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
             .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
         files,
         || password.as_deref(),
+        limits,
         output_options,
         true,
         false,
@@ -537,6 +548,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         archives,
         files,
         || password.as_deref(),
+        limits,
         output_options,
         true,
         false,
@@ -585,6 +597,7 @@ pub(crate) fn run_extract_archive_reader<'a, 'p, Provider>(
     reader: impl IntoIterator<Item = impl Read>,
     files: Vec<String>,
     mut password_provider: Provider,
+    limits: KdfCostLimits,
     args: OutputOption<'a>,
     no_recursive: bool,
     fast_read: bool,
@@ -594,7 +607,7 @@ where
     Provider: FnMut() -> Option<&'p [u8]> + Send,
 {
     let password = password_provider();
-    let read_options = ReadOptions::with_password(password);
+    let read_options = crate::command::read_options(password, limits);
     let read_options = &read_options;
     let args = &args;
     let patterns = files;
@@ -791,6 +804,7 @@ pub(crate) fn run_extract_archive<'a, 'd, 'p, Provider>(
     archives: impl IntoIterator<Item = &'d [u8]> + Send,
     files: Vec<String>,
     mut password_provider: Provider,
+    limits: KdfCostLimits,
     args: OutputOption<'a>,
     no_recursive: bool,
     fast_read: bool,
@@ -799,7 +813,7 @@ where
     Provider: FnMut() -> Option<&'p [u8]> + Send,
 {
     let password = password_provider();
-    let read_options = ReadOptions::with_password(password);
+    let read_options = crate::command::read_options(password, limits);
     let read_options = &read_options;
     let args = &args;
     let mut globs =

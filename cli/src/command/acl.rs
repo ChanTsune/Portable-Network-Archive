@@ -1,6 +1,9 @@
 use crate::{
     chunk::{Ace, AcePlatform, Flag, Identifier, OwnerType, Permission},
-    cli::{ArchiveFileArgs, FileOperands, PasswordArgs, SolidEntriesTransformStrategyArgs},
+    cli::{
+        ArchiveFileArgs, FileOperands, PasswordArgs, SolidEntriesTransformStrategyArgs,
+        kdf_cost_limits,
+    },
     command::{
         Command, ask_password,
         core::{
@@ -19,7 +22,7 @@ use nom::{
     character::complete::char,
     combinator::{map, opt},
 };
-use pna::{Chunk, KdfCostLimits, NormalEntry, RawChunk, ReadOptions};
+use pna::{Chunk, KdfCostLimits, NormalEntry, RawChunk};
 use regex::Regex;
 use std::{
     borrow::Cow,
@@ -56,6 +59,7 @@ pub(crate) enum AclCommands {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
+#[command(group(ArgGroup::new("kdf-cost-limit").args(["limit_kdf", "no_limit_kdf"])))]
 pub(crate) struct GetAclCommand {
     #[arg(long, help = "Display specified ACL platform", value_delimiter = ',')]
     platform: Vec<AcePlatform>,
@@ -67,6 +71,14 @@ pub(crate) struct GetAclCommand {
     files: FileOperands,
     #[command(flatten)]
     password: PasswordArgs,
+    #[arg(long, help = "Limit key derivation cost when reading encrypted entries")]
+    limit_kdf: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not limit key derivation cost. This is the inverse option of --limit-kdf"
+    )]
+    no_limit_kdf: (),
 }
 
 impl Command for GetAclCommand {
@@ -304,6 +316,7 @@ impl FromStr for AclEntries {
 
 #[hooq::hooq(anyhow)]
 fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
+    let limits = kdf_cost_limits(args.limit_kdf);
     let password = ask_password(args.password)?;
     if args.files.files.is_empty() {
         return Ok(());
@@ -314,7 +327,7 @@ fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
     let numeric_owner = args.numeric;
 
     let mut source = SplitArchiveReader::new(collect_split_archives(args.archive.file)?)?;
-    let read_options = ReadOptions::with_password(password.as_deref());
+    let read_options = crate::command::read_options(password.as_deref(), limits);
 
     source.for_each_entry(
         &read_options,

@@ -1171,6 +1171,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
                 .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
             files,
             || password.as_deref(),
+            KdfCostLimits::unbounded(),
             out_option,
             !args.recursive,
             args.fast_read,
@@ -1181,6 +1182,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
             std::iter::once_with(|| io::stdin().lock()),
             files,
             || password.as_deref(),
+            KdfCostLimits::unbounded(),
             out_option,
             !args.recursive,
             args.fast_read,
@@ -1268,6 +1270,7 @@ fn run_list_archive(args: BsdtarCommand) -> anyhow::Result<()> {
                 .into_iter()
                 .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
             password.as_deref(),
+            KdfCostLimits::unbounded(),
             files_globs,
             filter,
             list_options,
@@ -1278,6 +1281,7 @@ fn run_list_archive(args: BsdtarCommand) -> anyhow::Result<()> {
         crate::command::list::run_list_archive(
             std::iter::once_with(|| io::stdin().lock()),
             password.as_deref(),
+            KdfCostLimits::unbounded(),
             files_globs,
             filter,
             list_options,

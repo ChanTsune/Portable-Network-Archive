@@ -1,7 +1,7 @@
 use crate::{
     cli::{
         ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategy,
-        SolidEntriesTransformStrategyArgs,
+        SolidEntriesTransformStrategyArgs, kdf_cost_limits,
     },
     command::{
         Command, ask_password,
@@ -11,8 +11,8 @@ use crate::{
         },
     },
 };
-use clap::{ArgAction, Parser, ValueHint};
-use pna::{Archive, NormalEntry, ReadEntry, ReadOptions, SolidEntryBuilder, WriteOptions};
+use clap::{ArgAction, ArgGroup, Parser, ValueHint};
+use pna::{Archive, NormalEntry, ReadEntry, SolidEntryBuilder, WriteOptions};
 use std::{
     fmt::{self, Display, Formatter},
     path::PathBuf,
@@ -124,6 +124,7 @@ impl FromStr for SortKey {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
+#[command(group(ArgGroup::new("kdf-cost-limit").args(["limit_kdf", "no_limit_kdf"])))]
 pub(crate) struct SortCommand {
     #[command(flatten)]
     archive: ArchiveFileArgs,
@@ -154,6 +155,14 @@ pub(crate) struct SortCommand {
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
     password: PasswordArgs,
+    #[arg(long, help = "Limit key derivation cost when reading encrypted entries")]
+    limit_kdf: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not limit key derivation cost. This is the inverse option of --limit-kdf"
+    )]
+    no_limit_kdf: (),
 }
 
 impl Command for SortCommand {
@@ -165,10 +174,11 @@ impl Command for SortCommand {
 
 #[hooq::hooq(anyhow)]
 fn sort_archive(args: SortCommand, umask: Umask) -> anyhow::Result<()> {
+    let limits = kdf_cost_limits(args.limit_kdf);
     let password = ask_password(args.password)?;
     let archives = collect_split_archives(&args.archive.file)?;
     let mut source = SplitArchiveReader::new(archives)?;
-    let read_options = ReadOptions::with_password(password.as_deref());
+    let read_options = crate::command::read_options(password.as_deref(), limits);
     let unsolid = args.transform_strategy.strategy() == SolidEntriesTransformStrategy::UnSolid;
     let mut entries = Vec::<NormalEntry<_>>::new();
     let mut sorted = Vec::<ReadEntry<_>>::new();

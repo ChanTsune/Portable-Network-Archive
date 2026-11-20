@@ -1,6 +1,9 @@
 use crate::{
     chunk,
-    cli::{ArchiveFileArgs, ColorChoice, DateTime, FileOperands, MissingTimePolicy, PasswordArgs},
+    cli::{
+        ArchiveFileArgs, ColorChoice, DateTime, FileOperands, MissingTimePolicy, PasswordArgs,
+        kdf_cost_limits,
+    },
     command::{
         Command, ask_password,
         core::{
@@ -21,8 +24,8 @@ use clap::{
 };
 use jiff::{Timestamp, Zoned, tz::TimeZone};
 use pna::{
-    ChunkType, Compression, DataKind, Encryption, EntryContent, ExtendedAttribute, NormalEntry,
-    RawChunk, ReadEntry, ReadOptions, SolidHeader, prelude::*,
+    ChunkType, Compression, DataKind, Encryption, EntryContent, ExtendedAttribute, KdfCostLimits,
+    NormalEntry, RawChunk, ReadEntry, ReadOptions, SolidHeader, prelude::*,
 };
 use rayon::prelude::*;
 use serde::{Serialize, Serializer};
@@ -52,6 +55,7 @@ use tabled::{
     group(ArgGroup::new("mtime-older-than-source").args(["older_mtime", "older_mtime_than"])),
     group(ArgGroup::new("mtime-newer-than-source").args(["newer_mtime", "newer_mtime_than"])),
     group(ArgGroup::new("time-filter").args(["older_ctime", "older_ctime_than", "newer_ctime", "newer_ctime_than", "older_mtime", "older_mtime_than", "newer_mtime", "newer_mtime_than"]).multiple(true)),
+    group(ArgGroup::new("kdf-cost-limit").args(["limit_kdf", "no_limit_kdf"])),
 )]
 pub(crate) struct ListCommand {
     #[arg(short, long, help = "Display extended file metadata as a table")]
@@ -233,6 +237,14 @@ pub(crate) struct ListCommand {
     null: bool,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
+    #[arg(long, help = "Limit key derivation cost when reading encrypted entries")]
+    limit_kdf: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not limit key derivation cost. This is the inverse option of --limit-kdf"
+    )]
+    no_limit_kdf: (),
     #[command(flatten)]
     pub(crate) archive: ArchiveFileArgs,
     #[command(flatten)]
@@ -487,6 +499,7 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
             format
         );
     }
+    let limits = kdf_cost_limits(args.limit_kdf);
     let password = ask_password(args.password)?;
     let time_filters = TimeFilterResolver {
         newer_ctime_than: args.newer_ctime_than.as_deref(),
@@ -547,7 +560,7 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
 
     let mut source = SplitArchiveReader::new(collect_split_archives(&archive)?)?;
     let password = password.as_deref();
-    let read_options = ReadOptions::with_password(password);
+    let read_options = crate::command::read_options(password, limits);
     let mut entries = Vec::new();
     let collect_opts = CollectOptions::from_list_options(&options);
     source.for_each_read_entry(
@@ -647,6 +660,7 @@ pub(crate) struct ListOptions {
 pub(crate) fn run_list_archive<'a>(
     archive_provider: impl IntoIterator<Item = impl Read>,
     password: Option<&[u8]>,
+    limits: KdfCostLimits,
     files_globs: BsdGlobMatcher,
     filter: PathFilter<'a>,
     args: ListOptions,
@@ -654,7 +668,7 @@ pub(crate) fn run_list_archive<'a>(
     allow_concatenated_archives: bool,
 ) -> anyhow::Result<()> {
     let collect_opts = CollectOptions::from_list_options(&args);
-    let read_options = ReadOptions::with_password(password);
+    let read_options = crate::command::read_options(password, limits);
 
     if !fast_read || files_globs.is_empty() {
         let mut entries = Vec::new();
