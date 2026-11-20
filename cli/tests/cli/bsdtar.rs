@@ -24,6 +24,7 @@ mod option_help;
 mod option_ignore_zeros;
 mod option_keep_dir;
 mod option_keep_timestamp;
+mod option_limit_kdf;
 mod option_mac_metadata;
 mod option_mtime;
 mod option_no_recursive;
