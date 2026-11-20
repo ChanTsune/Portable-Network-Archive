@@ -133,6 +133,7 @@
     clippy::missing_errors_doc,
     clippy::missing_safety_doc
 )]
+pub mod acl;
 pub(crate) mod archive;
 #[cfg(feature = "unstable-async")]
 pub mod async_io;
@@ -150,6 +151,7 @@ pub mod prelude;
 pub(crate) mod random;
 pub(crate) mod util;
 
+pub use acl::{AclChunk, PosixAce, PosixAcl, PosixTag};
 pub use archive::*;
 pub use chunk::*;
 pub use entry::*;
