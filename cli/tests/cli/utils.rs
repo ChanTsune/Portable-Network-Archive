@@ -214,6 +214,34 @@ pub fn remove_with_empty_parents(path: impl AsRef<Path>) -> io::Result<()> {
     inner(path.as_ref())
 }
 
+pub fn create_high_cost_encrypted_archive(
+    path: impl AsRef<Path>,
+    password: &str,
+    name: &str,
+    contents: &[u8],
+) {
+    use std::io::Write;
+
+    let path = path.as_ref();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    let options = pna::WriteOptions::builder()
+        .encryption(pna::Encryption::AES)
+        .hash_algorithm(pna::HashAlgorithm::argon2id_with(
+            Some(1),
+            Some(136),
+            Some(17),
+        ))
+        .password(Some(password))
+        .build();
+    let mut writer = pna::Archive::write_header(fs::File::create(path).unwrap()).unwrap();
+    let mut builder = pna::FileEntryBuilder::new_with_options(name.into(), &options).unwrap();
+    builder.write_all(contents).unwrap();
+    writer.add_entry(builder.build().unwrap()).unwrap();
+    writer.finalize().unwrap();
+}
+
 #[cfg(test)]
 mod tests {
     use super::is_required;

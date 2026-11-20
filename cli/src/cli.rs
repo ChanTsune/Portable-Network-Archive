@@ -16,7 +16,7 @@ use crate::{
 };
 use clap::{ArgGroup, Args, Parser, Subcommand, ValueEnum, ValueHint};
 use log::{Level, LevelFilter};
-use pna::HashAlgorithm;
+use pna::{HashAlgorithm, KdfCostLimits};
 use std::{io, path::PathBuf};
 pub(crate) use value::*;
 
@@ -231,6 +231,14 @@ pub(crate) struct FileOperands {
     pub(crate) files: Vec<String>,
 }
 
+pub(crate) const fn kdf_cost_limits(limit_kdf: bool) -> KdfCostLimits {
+    if limit_kdf {
+        KdfCostLimits::bounded()
+    } else {
+        KdfCostLimits::unbounded()
+    }
+}
+
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(group(
     ArgGroup::new("password_provider").args(["password", "password_file", "password_file_raw"])
@@ -389,6 +397,12 @@ impl HashAlgorithmArgs {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn kdf_cost_limits_maps_flag_to_policy() {
+        assert_eq!(kdf_cost_limits(false), KdfCostLimits::unbounded());
+        assert_eq!(kdf_cost_limits(true), KdfCostLimits::bounded());
+    }
 
     #[test]
     fn camellia_flag_maps_to_camellia_algorithm() {
