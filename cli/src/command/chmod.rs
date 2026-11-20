@@ -1,5 +1,7 @@
 use crate::{
-    cli::{ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategyArgs},
+    cli::{
+        ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategyArgs, kdf_cost_limits,
+    },
     command::{
         Command, ask_password,
         core::{
@@ -10,7 +12,7 @@ use crate::{
     utils::GlobPatterns,
 };
 use bitflags::bitflags;
-use clap::{ArgAction, Parser, ValueHint};
+use clap::{ArgAction, ArgGroup, Parser, ValueHint};
 use nom::{
     Parser as _,
     branch::alt,
@@ -18,10 +20,11 @@ use nom::{
     combinator::{map, opt},
     multi::{many0, many1, separated_list1},
 };
-use pna::{DataKind, KdfCostLimits, NormalEntry};
+use pna::{DataKind, NormalEntry};
 use std::{borrow::Cow, io, ops::BitOr, path::PathBuf, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[command(group(ArgGroup::new("kdf-cost-limit").args(["limit_kdf", "no_limit_kdf"])))]
 pub(crate) struct ChmodCommand {
     #[command(flatten)]
     archive: ArchiveFileArgs,
@@ -48,6 +51,14 @@ pub(crate) struct ChmodCommand {
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
     password: PasswordArgs,
+    #[arg(long, help = "Limit key derivation cost when reading encrypted entries")]
+    limit_kdf: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not limit key derivation cost. This is the inverse option of --limit-kdf"
+    )]
+    no_limit_kdf: (),
 }
 
 impl Command for ChmodCommand {
@@ -59,6 +70,7 @@ impl Command for ChmodCommand {
 
 #[hooq::hooq(anyhow)]
 fn archive_chmod(args: ChmodCommand, umask: Umask) -> anyhow::Result<()> {
+    let limits = kdf_cost_limits(args.limit_kdf);
     let password = ask_password(args.password)?;
     if args.files.is_empty() {
         return Ok(());
@@ -70,7 +82,7 @@ fn archive_chmod(args: ChmodCommand, umask: Umask) -> anyhow::Result<()> {
         destination,
         umask,
         password.as_deref(),
-        KdfCostLimits::unbounded(),
+        limits,
         args.transform_strategy.strategy(),
         ChmodTransform {
             globs,

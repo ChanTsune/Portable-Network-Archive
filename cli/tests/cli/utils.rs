@@ -214,6 +214,18 @@ pub fn remove_with_empty_parents(path: impl AsRef<Path>) -> io::Result<()> {
     inner(path.as_ref())
 }
 
+fn high_cost_write_options(password: &str) -> pna::WriteOptions {
+    pna::WriteOptions::builder()
+        .encryption(pna::Encryption::AES)
+        .hash_algorithm(pna::HashAlgorithm::argon2id_with(
+            Some(1),
+            Some(136),
+            Some(17),
+        ))
+        .password(Some(password))
+        .build()
+}
+
 pub fn create_high_cost_encrypted_archive(
     path: impl AsRef<Path>,
     password: &str,
@@ -226,17 +238,29 @@ pub fn create_high_cost_encrypted_archive(
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).unwrap();
     }
-    let options = pna::WriteOptions::builder()
-        .encryption(pna::Encryption::AES)
-        .hash_algorithm(pna::HashAlgorithm::argon2id_with(
-            Some(1),
-            Some(136),
-            Some(17),
-        ))
-        .password(Some(password))
-        .build();
+    let options = high_cost_write_options(password);
     let mut writer = pna::Archive::write_header(fs::File::create(path).unwrap()).unwrap();
     let mut builder = pna::FileEntryBuilder::new_with_options(name.into(), &options).unwrap();
+    builder.write_all(contents).unwrap();
+    writer.add_entry(builder.build().unwrap()).unwrap();
+    writer.finalize().unwrap();
+}
+
+pub fn create_high_cost_encrypted_solid_archive(
+    path: impl AsRef<Path>,
+    password: &str,
+    name: &str,
+    contents: &[u8],
+) {
+    use std::io::Write;
+
+    let path = path.as_ref();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    let options = high_cost_write_options(password);
+    let mut writer = pna::Archive::write_solid_header(fs::File::create(path).unwrap(), options).unwrap();
+    let mut builder = pna::FileEntryBuilder::new(name.into()).unwrap();
     builder.write_all(contents).unwrap();
     writer.add_entry(builder.build().unwrap()).unwrap();
     writer.finalize().unwrap();

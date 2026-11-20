@@ -1,7 +1,7 @@
 use crate::{
     cli::{
         ArchiveFileArgs, FileOperands, PasswordArgs, PrivateChunkType,
-        SolidEntriesTransformStrategyArgs,
+        SolidEntriesTransformStrategyArgs, kdf_cost_limits,
     },
     command::{
         Command, ask_password,
@@ -12,8 +12,8 @@ use crate::{
     },
     utils::GlobPatterns,
 };
-use clap::{ArgAction, Args, Parser, ValueHint};
-use pna::{KdfCostLimits, Metadata, NormalEntry, RawChunk, prelude::*};
+use clap::{ArgAction, ArgGroup, Args, Parser, ValueHint};
+use pna::{Metadata, NormalEntry, RawChunk, prelude::*};
 use std::{borrow::Cow, io, path::PathBuf};
 
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
@@ -47,6 +47,7 @@ pub(crate) struct StripOptions {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
+#[command(group(ArgGroup::new("kdf-cost-limit").args(["limit_kdf", "no_limit_kdf"])))]
 pub(crate) struct StripCommand {
     #[command(flatten)]
     pub(crate) strip_options: StripOptions,
@@ -69,6 +70,14 @@ pub(crate) struct StripCommand {
     no_overwrite: (),
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
+    #[arg(long, help = "Limit key derivation cost when reading encrypted entries")]
+    limit_kdf: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not limit key derivation cost. This is the inverse option of --limit-kdf"
+    )]
+    no_limit_kdf: (),
     #[command(flatten)]
     pub(crate) archive: ArchiveFileArgs,
     #[command(flatten)]
@@ -84,6 +93,7 @@ impl Command for StripCommand {
 
 #[hooq::hooq(anyhow)]
 fn strip_metadata(args: StripCommand, umask: Umask) -> anyhow::Result<()> {
+    let limits = kdf_cost_limits(args.limit_kdf);
     let password = ask_password(args.password)?;
     let archive = args.archive.file;
     let destination = resolve_rewrite_output(&archive, args.output, args.overwrite)?;
@@ -99,7 +109,7 @@ fn strip_metadata(args: StripCommand, umask: Umask) -> anyhow::Result<()> {
         destination,
         umask,
         password.as_deref(),
-        KdfCostLimits::unbounded(),
+        limits,
         args.transform_strategy.strategy(),
         StripTransform {
             options: args.strip_options,

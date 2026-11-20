@@ -16,7 +16,7 @@ use base64::Engine;
 use bstr::{ByteSlice, io::BufReadExt};
 use clap::{ArgAction, ArgGroup, Parser, ValueEnum, ValueHint};
 use indexmap::IndexMap;
-use pna::{KdfCostLimits, NormalEntry};
+use pna::NormalEntry;
 use regex::Regex;
 use std::{
     borrow::Cow,
@@ -100,9 +100,10 @@ impl Command for GetXattrCommand {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
-#[command(group(
-    ArgGroup::new("restore-source").args(["restore", "restore_from_stdin"])
-))]
+#[command(
+    group(ArgGroup::new("restore-source").args(["restore", "restore_from_stdin"])),
+    group(ArgGroup::new("kdf-cost-limit").args(["limit_kdf", "no_limit_kdf"])),
+)]
 pub(crate) struct SetXattrCommand {
     #[command(flatten)]
     archive: ArchiveFileArgs,
@@ -150,6 +151,14 @@ pub(crate) struct SetXattrCommand {
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
     password: PasswordArgs,
+    #[arg(long, help = "Limit key derivation cost when reading encrypted entries")]
+    limit_kdf: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not limit key derivation cost. This is the inverse option of --limit-kdf"
+    )]
+    no_limit_kdf: (),
 }
 
 impl Command for SetXattrCommand {
@@ -275,6 +284,7 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
 
 #[hooq::hooq(anyhow)]
 fn archive_set_xattr(args: SetXattrCommand, umask: Umask) -> anyhow::Result<()> {
+    let limits = kdf_cost_limits(args.limit_kdf);
     let password = ask_password(args.password)?;
     let files = args.files.files;
     let set_strategy = if args.restore_from_stdin {
@@ -307,7 +317,7 @@ fn archive_set_xattr(args: SetXattrCommand, umask: Umask) -> anyhow::Result<()> 
         destination,
         umask,
         password.as_deref(),
-        KdfCostLimits::unbounded(),
+        limits,
         args.transform_strategy.strategy(),
         set_strategy,
     )

@@ -1,5 +1,8 @@
 use crate::{
-    cli::{ArchiveFileArgs, FileOperands, PasswordArgs, SolidEntriesTransformStrategyArgs},
+    cli::{
+        ArchiveFileArgs, FileOperands, PasswordArgs, SolidEntriesTransformStrategyArgs,
+        kdf_cost_limits,
+    },
     command::{
         Command, ask_password,
         core::{
@@ -10,7 +13,7 @@ use crate::{
     utils::{GlobPatterns, VCS_FILES},
 };
 use clap::{ArgAction, ArgGroup, Parser, ValueHint};
-use pna::{KdfCostLimits, NormalEntry};
+use pna::NormalEntry;
 use std::{borrow::Cow, io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
@@ -22,6 +25,7 @@ use std::{borrow::Cow, io, path::PathBuf};
             .multiple(true)
     ),
     group(ArgGroup::new("null-requires").arg("null").requires("from-input")),
+    group(ArgGroup::new("kdf-cost-limit").args(["limit_kdf", "no_limit_kdf"])),
 )]
 pub(crate) struct DeleteCommand {
     #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
@@ -93,6 +97,14 @@ pub(crate) struct DeleteCommand {
     null: bool,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
+    #[arg(long, help = "Limit key derivation cost when reading encrypted entries")]
+    limit_kdf: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not limit key derivation cost. This is the inverse option of --limit-kdf"
+    )]
+    no_limit_kdf: (),
     #[command(flatten)]
     pub(crate) transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
@@ -110,6 +122,7 @@ impl Command for DeleteCommand {
 
 #[hooq::hooq(anyhow)]
 fn delete_file_from_archive(args: DeleteCommand, umask: Umask) -> anyhow::Result<()> {
+    let limits = kdf_cost_limits(args.limit_kdf);
     let password = ask_password(args.password)?;
     let mut files = args.files.files;
     if args.files_from_stdin {
@@ -139,7 +152,7 @@ fn delete_file_from_archive(args: DeleteCommand, umask: Umask) -> anyhow::Result
         destination,
         umask,
         password.as_deref(),
-        KdfCostLimits::unbounded(),
+        limits,
         args.transform_strategy.strategy(),
         DeleteTransform { globs, filter },
     )

@@ -1,5 +1,7 @@
 use crate::{
-    cli::{ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategyArgs},
+    cli::{
+        ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategyArgs, kdf_cost_limits,
+    },
     command::{
         Command, ask_password,
         core::{
@@ -12,11 +14,12 @@ use crate::{
         fs::{Group, User},
     },
 };
-use clap::{ArgAction, Parser, ValueHint, builder::ArgPredicate};
-use pna::{KdfCostLimits, NormalEntry};
+use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
+use pna::NormalEntry;
 use std::{borrow::Cow, io, ops::Not, path::PathBuf, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[command(group(ArgGroup::new("kdf-cost-limit").args(["limit_kdf", "no_limit_kdf"])))]
 pub(crate) struct ChownCommand {
     #[command(flatten)]
     archive: ArchiveFileArgs,
@@ -55,6 +58,14 @@ pub(crate) struct ChownCommand {
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
     password: PasswordArgs,
+    #[arg(long, help = "Limit key derivation cost when reading encrypted entries")]
+    limit_kdf: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not limit key derivation cost. This is the inverse option of --limit-kdf"
+    )]
+    no_limit_kdf: (),
 }
 
 impl Command for ChownCommand {
@@ -66,6 +77,7 @@ impl Command for ChownCommand {
 
 #[hooq::hooq(anyhow)]
 fn archive_chown(args: ChownCommand, umask: Umask) -> anyhow::Result<()> {
+    let limits = kdf_cost_limits(args.limit_kdf);
     let password = ask_password(args.password)?;
     if args.files.is_empty() {
         return Ok(());
@@ -81,7 +93,7 @@ fn archive_chown(args: ChownCommand, umask: Umask) -> anyhow::Result<()> {
         destination,
         umask,
         password.as_deref(),
-        KdfCostLimits::unbounded(),
+        limits,
         args.transform_strategy.strategy(),
         ChownTransform { globs, owner },
     )

@@ -11,6 +11,7 @@ mod option_files_from;
 mod option_files_from_stdin;
 mod option_include;
 mod option_keep_solid;
+mod option_limit_kdf;
 mod option_null;
 mod option_output;
 mod option_password;
