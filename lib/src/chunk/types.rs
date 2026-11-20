@@ -169,6 +169,9 @@ impl ChunkType {
     /// POSIX permission mode.
     #[allow(non_upper_case_globals)]
     pub const fMOd: ChunkType = ChunkType(*b"fMOd");
+    /// Draft public access control list metadata (ancillary, unsafe to copy).
+    #[allow(non_upper_case_globals)]
+    pub const aCLS: ChunkType = ChunkType(*b"aCLS");
 
     /// Returns the length of the chunk type code.
     ///
