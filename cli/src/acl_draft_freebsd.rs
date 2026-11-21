@@ -288,6 +288,52 @@ mod tests {
     use super::*;
 
     #[test]
+    fn native_freebsd_nfs4_archive_roundtrip() -> io::Result<()> {
+        use pna::{Archive, Chunk, FileEntryBuilder};
+        use std::io::Write;
+        let folder = std::env::temp_dir().join(format!(
+            "pna-freebsd-acl-{}", std::process::id()
+        ));
+        std::fs::create_dir_all(&folder)?;
+        let original = folder.join("from.txt");
+        let restored = folder.join("to.txt");
+        std::fs::write(&original, b"FreeBSD native ACL")?;
+        let result = (|| {
+            let native = match capture(&original, true) {
+                Ok(Some(chunk)) => chunk,
+                Err(e) if e.kind() == io::ErrorKind::Unsupported => {
+                    // The CI filesystem may only support POSIX.1e ACL.
+                    eprintln!("SKIP NFSv4 native filesystem test: {e}");
+                    return Ok(());
+                }
+                Err(e) => return Err(e),
+                Ok(None) => return Err(invalid("FreeBSD regular file has no NFSv4 ACL")),
+            };
+            let acl = AclChunk::from_bytes(native.data())?;
+            let mut bytes = Vec::new();
+            {
+                let mut archive = Archive::write_header(&mut bytes)?;
+                let mut builder = FileEntryBuilder::new("from.txt".into())?;
+                builder.add_extra_chunk(native);
+                builder.write_all(b"FreeBSD native ACL")?;
+                archive.add_entry(builder.build()?)?;
+                archive.finalize()?;
+            }
+            let mut archive = Archive::read_header(&bytes[..])?;
+            let entry = archive.entries().skip_solid().next().unwrap()?;
+            let decoded = entry.acl_chunk()?.unwrap();
+            assert_eq!(decoded, acl);
+            std::fs::write(&restored, b"FreeBSD native ACL")?;
+            restore(&restored, &decoded, true)?;
+            let after = capture(&restored, true)?.expect("restored FreeBSD NFSv4 ACL");
+            assert_eq!(after.data(), decoded.to_bytes());
+            Ok(())
+        })();
+        std::fs::remove_dir_all(&folder)?;
+        result
+    }
+
+    #[test]
     fn xdr_principals_have_required_padding() {
         let mut data = vec![];
         put_u32(&mut data, 0);
