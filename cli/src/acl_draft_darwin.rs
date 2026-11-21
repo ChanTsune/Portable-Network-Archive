@@ -200,7 +200,9 @@ mod tests {
             let captured = capture(&path, true)?.expect("Darwin native ACL");
             let captured = AclChunk::from_bytes(captured.data())?;
             captured.validate()?;
-            assert_eq!(captured.payload(), acl.payload());
+            // Numeric IDs and principal kind are optional identity hints.
+            // Native Darwin ACLs preserve the UUID, ACE flags and access mask.
+            assert_eq!(&captured.payload()[..32], &acl.payload()[..32]);
             Ok(())
         })();
         std::fs::remove_file(&path)?;
