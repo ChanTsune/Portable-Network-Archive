@@ -1232,17 +1232,18 @@ pub(crate) fn collect_extra_chunks(
             }
             #[cfg(target_os = "freebsd")]
             {
-                use crate::chunk;
-                let acl_result = utils::acl::get_facl(path, follow_links);
-                match acl_result {
-                    Ok(acl) => {
+                match crate::acl_draft_freebsd::capture(path, follow_links) {
+                    Ok(Some(chunk)) => chunks.push(chunk),
+                    Ok(None) => {}
+                    Err(e) if e.kind() == io::ErrorKind::Unsupported => {
+                        // A filesystem with POSIX.1e ACLs uses the legacy CLI
+                        // encoding until a native numeric-ID bridge is proven.
+                        use crate::chunk;
+                        let acl = utils::acl::get_facl(path, follow_links)?;
                         chunks.push(RawChunk::from_data(chunk::faCl, acl.platform.to_bytes()));
                         for ace in acl.entries {
                             chunks.push(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
                         }
-                    }
-                    Err(e) if e.kind() == io::ErrorKind::Unsupported => {
-                        log::warn!("Legacy ACL unsupported for '{}': {}", path.display(), e);
                     }
                     Err(e) => return Err(e),
                 }
