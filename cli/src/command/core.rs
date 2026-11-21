@@ -1236,13 +1236,14 @@ pub(crate) fn collect_extra_chunks(
                     Ok(Some(chunk)) => chunks.push(chunk),
                     Ok(None) => {}
                     Err(e) if e.kind() == io::ErrorKind::Unsupported => {
-                        // A filesystem with POSIX.1e ACLs uses the legacy CLI
-                        // encoding until a native numeric-ID bridge is proven.
-                        use crate::chunk;
-                        let acl = utils::acl::get_facl(path, follow_links)?;
-                        chunks.push(RawChunk::from_data(chunk::faCl, acl.platform.to_bytes()));
-                        for ace in acl.entries {
-                            chunks.push(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
+                        // Keep the native ACL family rather than converting it.
+                        match crate::acl_draft_freebsd::capture_posix(path, follow_links) {
+                            Ok(Some(acl)) => chunks.push(acl),
+                            Ok(None) => {}
+                            Err(e) if e.kind() == io::ErrorKind::Unsupported => {
+                                log::warn!("FreeBSD ACL unsupported for '{}': {}", path.display(), e);
+                            }
+                            Err(e) => return Err(e),
                         }
                     }
                     Err(e) => return Err(e),
