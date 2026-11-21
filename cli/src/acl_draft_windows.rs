@@ -27,6 +27,7 @@ const SE_SACL_PROTECTED: u16 = 0x2000;
 
 #[link(name = "advapi32")]
 unsafe extern "system" {
+    fn SetKernelObjectSecurity(handle: *mut c_void, info: u32, descriptor: *const c_void) -> i32;
     fn GetKernelObjectSecurity(
         handle: *mut c_void,
         info: u32,
@@ -179,6 +180,24 @@ pub(crate) fn restore(path: &Path, chunk: &AclChunk, follow_links: bool) -> io::
         )
     };
     if status != ERROR_SUCCESS {
+        // Probe the native descriptor setter when the ACL setter denies access.
+        // Both operate on the same handle and require WRITE_DAC for DACL-only data.
+        if status.0 == 5 && coverage == 1 {
+            // SAFETY: the validated self-relative descriptor is aligned and live.
+            let fallback = unsafe {
+                SetKernelObjectSecurity(handle.raw().0 as *mut c_void, DACL, base.cast())
+            };
+            if fallback != 0 {
+                return Ok(());
+            }
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                format!(
+                    "SetSecurityInfo returned ACCESS_DENIED; SetKernelObjectSecurity also failed: {}",
+                    io::Error::last_os_error()
+                ),
+            ));
+        }
         return Err(io::Error::new(
             io::Error::from_raw_os_error(status.0 as i32).kind(),
             format!(
