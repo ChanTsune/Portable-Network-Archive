@@ -1251,6 +1251,25 @@ pub(crate) fn collect_extra_chunks(
             }
             #[cfg(target_os = "macos")]
             {
+                // Experimental aCLS is authoritative; retain the established
+                // private ACL chunks for existing CLI commands and old readers.
+                use crate::chunk;
+                match utils::acl::get_facl(path, follow_links) {
+                    Ok(acl) => {
+                        chunks.push(RawChunk::from_data(chunk::faCl, acl.platform.to_bytes()));
+                        for ace in acl.entries {
+                            chunks.push(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
+                        }
+                    }
+                    Err(e) if e.kind() == io::ErrorKind::Unsupported => {
+                        log::warn!(
+                            "Legacy ACL representation unsupported for '{}': {}",
+                            path.display(),
+                            e
+                        );
+                    }
+                    Err(e) => return Err(e),
+                }
                 match crate::acl_draft_darwin::capture(path, follow_links) {
                     Ok(Some(acl)) => chunks.push(acl),
                     Ok(None) => {}
@@ -1262,6 +1281,25 @@ pub(crate) fn collect_extra_chunks(
             }
             #[cfg(windows)]
             {
+                // Experimental aCLS is authoritative; retain the established
+                // private ACL chunks for existing CLI commands and old readers.
+                use crate::chunk;
+                match utils::acl::get_facl(path, follow_links) {
+                    Ok(acl) => {
+                        chunks.push(RawChunk::from_data(chunk::faCl, acl.platform.to_bytes()));
+                        for ace in acl.entries {
+                            chunks.push(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
+                        }
+                    }
+                    Err(e) if e.kind() == io::ErrorKind::Unsupported => {
+                        log::warn!(
+                            "Legacy ACL representation unsupported for '{}': {}",
+                            path.display(),
+                            e
+                        );
+                    }
+                    Err(e) => return Err(e),
+                }
                 match crate::acl_draft_windows::capture(path, follow_links) {
                     Ok(Some(acl)) => chunks.push(acl),
                     Ok(None) => {}
