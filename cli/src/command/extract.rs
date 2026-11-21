@@ -1842,11 +1842,18 @@ where
                 }
             }
             #[cfg(target_os = "freebsd")]
-            log::warn!(
-                "Cannot restore experimental aCLS format {} on FreeBSD: '{}'",
-                draft.format_id(),
-                path.display()
-            );
+            {
+                match crate::acl_draft_freebsd::restore(path, &draft, follow_links) {
+                    Ok(()) => {}
+                    Err(e) if e.kind() == io::ErrorKind::Unsupported => {
+                        log::warn!(
+                            "Cannot apply aCLS format {} on FreeBSD '{}': {}",
+                            draft.format_id(), path.display(), e
+                        );
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
             #[cfg(not(any(target_os = "linux", target_os = "freebsd", target_os = "macos", windows)))]
             log::warn!(
                 "Cannot restore experimental aCLS format {} on this platform: '{}'",
