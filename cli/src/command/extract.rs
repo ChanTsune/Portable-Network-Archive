@@ -1843,7 +1843,7 @@ where
             }
             #[cfg(target_os = "freebsd")]
             {
-                match crate::acl_draft_freebsd::restore(path, &draft, follow_links) {
+                match crate::acl_draft_freebsd::restore_chunk(path, &draft, follow_links) {
                     Ok(()) => {}
                     Err(e) if e.kind() == io::ErrorKind::Unsupported => {
                         log::warn!(
