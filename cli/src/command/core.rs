@@ -1241,7 +1241,11 @@ pub(crate) fn collect_extra_chunks(
                             Ok(Some(acl)) => chunks.push(acl),
                             Ok(None) => {}
                             Err(e) if e.kind() == io::ErrorKind::Unsupported => {
-                                log::warn!("FreeBSD ACL unsupported for '{}': {}", path.display(), e);
+                                log::warn!(
+                                    "FreeBSD ACL unsupported for '{}': {}",
+                                    path.display(),
+                                    e
+                                );
                             }
                             Err(e) => return Err(e),
                         }

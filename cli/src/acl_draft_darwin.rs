@@ -86,17 +86,21 @@ fn to_native(data: &[u8]) -> io::Result<Vec<u8>> {
             .ok_or_else(|| invalid("truncated Darwin ACE"))?;
         native.extend_from_slice(ace);
         cursor += ACE_SIZE;
-        let id_present = *data.get(cursor + 1).ok_or_else(|| invalid("Darwin identity truncated"))?;
+        let id_present = *data
+            .get(cursor + 1)
+            .ok_or_else(|| invalid("Darwin identity truncated"))?;
         cursor += 2;
         if id_present == 1 {
             cursor += 8;
         }
-        let length: [u8; 2] = data.get(cursor..cursor + 2)
+        let length: [u8; 2] = data
+            .get(cursor..cursor + 2)
             .ok_or_else(|| invalid("truncated Darwin name length"))?
             .try_into()
             .unwrap();
         let name_length = u16::from_be_bytes(length) as usize;
-        cursor = cursor.checked_add(2 + name_length)
+        cursor = cursor
+            .checked_add(2 + name_length)
             .ok_or_else(|| invalid("Darwin ACL name length overflow"))?;
     }
     if cursor != data.len() {
@@ -146,14 +150,21 @@ pub(crate) fn capture(path: &Path, follow_links: bool) -> io::Result<Option<RawC
 /// Applies a Darwin ACL using only its UUID, rights, and native flags.
 pub(crate) fn restore(path: &Path, chunk: &AclChunk, follow_links: bool) -> io::Result<()> {
     if chunk.format_id() != pna::acl::DARWIN {
-        return Err(io::Error::new(io::ErrorKind::Unsupported, "not a Darwin ACL"));
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "not a Darwin ACL",
+        ));
     }
     let native = to_native(chunk.payload())?;
     let path = c_path(path)?;
     // The native API represents a missing ACL as the special (acl_t)1.
     let absent = read_count(&native[36..])? == u32::MAX;
     // SAFETY: acl_copy_int accepts a portable kauth_filesec buffer.
-    let ptr = if absent { 1usize as *mut c_void } else { unsafe { acl_copy_int(native.as_ptr().cast()) } };
+    let ptr = if absent {
+        1usize as *mut c_void
+    } else {
+        unsafe { acl_copy_int(native.as_ptr().cast()) }
+    };
     if ptr.is_null() {
         return Err(io::Error::last_os_error());
     }
@@ -183,9 +194,7 @@ mod tests {
     #[test]
     fn native_acl_file_roundtrip_with_uuid_principal() -> io::Result<()> {
         use pna::{Archive, Chunk, FileEntryBuilder};
-        let path = std::env::temp_dir().join(format!(
-            "pna-darwin-acl-{}.tmp", std::process::id()
-        ));
+        let path = std::env::temp_dir().join(format!("pna-darwin-acl-{}.tmp", std::process::id()));
         std::fs::write(&path, b"acl")?;
         let result = (|| {
             let mut uuid = [0u8; 16];

@@ -81,8 +81,7 @@ pub(crate) fn open_read_acl(
     read_sacl: bool,
 ) -> io::Result<FileHandle> {
     const ACCESS_SYSTEM_SECURITY: u32 = 0x0100_0000;
-    let access = READ_CONTROL.0
-        | if read_sacl { ACCESS_SYSTEM_SECURITY } else { 0 };
+    let access = READ_CONTROL.0 | if read_sacl { ACCESS_SYSTEM_SECURITY } else { 0 };
     open_path(path, access, follow_symlink)
 }
 
@@ -95,7 +94,11 @@ pub(crate) fn open_write_acl(
 ) -> io::Result<FileHandle> {
     const ACCESS_SYSTEM_SECURITY: u32 = 0x0100_0000;
     let access = WRITE_DAC.0
-        | if write_sacl { ACCESS_SYSTEM_SECURITY } else { 0 };
+        | if write_sacl {
+            ACCESS_SYSTEM_SECURITY
+        } else {
+            0
+        };
     open_path(path, access, follow_symlink)
 }
 

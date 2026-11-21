@@ -1848,13 +1848,20 @@ where
                     Err(e) if e.kind() == io::ErrorKind::Unsupported => {
                         log::warn!(
                             "Cannot apply aCLS format {} on FreeBSD '{}': {}",
-                            draft.format_id(), path.display(), e
+                            draft.format_id(),
+                            path.display(),
+                            e
                         );
                     }
                     Err(e) => return Err(e),
                 }
             }
-            #[cfg(not(any(target_os = "linux", target_os = "freebsd", target_os = "macos", windows)))]
+            #[cfg(not(any(
+                target_os = "linux",
+                target_os = "freebsd",
+                target_os = "macos",
+                windows
+            )))]
             log::warn!(
                 "Cannot restore experimental aCLS format {} on this platform: '{}'",
                 draft.format_id(),

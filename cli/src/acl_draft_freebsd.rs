@@ -23,10 +23,20 @@ const GROUP: c_int = 8;
 const EVERYONE: c_int = 64;
 const FLAGS: [u32; 7] = [1, 2, 4, 8, 16, 32, 128];
 const PERMISSIONS: [(u32, u32); 14] = [
-    (0x8, 0x1), (0x10, 0x2), (0x20, 0x4), (0x40, 0x8),
-    (0x80, 0x10), (0x1, 0x20), (0x100, 0x40), (0x200, 0x80),
-    (0x400, 0x100), (0x800, 0x10000), (0x1000, 0x20000),
-    (0x2000, 0x40000), (0x4000, 0x80000), (0x8000, 0x100000),
+    (0x8, 0x1),
+    (0x10, 0x2),
+    (0x20, 0x4),
+    (0x40, 0x8),
+    (0x80, 0x10),
+    (0x1, 0x20),
+    (0x100, 0x40),
+    (0x200, 0x80),
+    (0x400, 0x100),
+    (0x800, 0x10000),
+    (0x1000, 0x20000),
+    (0x2000, 0x40000),
+    (0x4000, 0x80000),
+    (0x8000, 0x100000),
 ];
 
 unsafe extern "C" {
@@ -68,22 +78,36 @@ fn unsupported(reason: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::Unsupported, reason)
 }
 fn checked(code: c_int) -> io::Result<()> {
-    if code == -1 { Err(io::Error::last_os_error()) } else { Ok(()) }
+    if code == -1 {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
 }
 fn path_c(path: &Path) -> io::Result<CString> {
     CString::new(path.as_os_str().as_bytes()).map_err(|_| invalid("NUL in FreeBSD path"))
 }
-fn put_u32(data: &mut Vec<u8>, n: u32) { data.extend_from_slice(&n.to_be_bytes()); }
+fn put_u32(data: &mut Vec<u8>, n: u32) {
+    data.extend_from_slice(&n.to_be_bytes());
+}
 
 fn get_bits(set: *mut c_void, kinds: &[(u32, u32)], flag: bool) -> io::Result<u32> {
     let mut result = 0;
     for &(native, wire) in kinds {
         // SAFETY: set is a live ACL permission or flag set.
         let found = unsafe {
-            if flag { acl_get_flag_np(set, native as c_int) } else { acl_get_perm_np(set, native as c_int) }
+            if flag {
+                acl_get_flag_np(set, native as c_int)
+            } else {
+                acl_get_perm_np(set, native as c_int)
+            }
         };
-        if found == -1 { return Err(io::Error::last_os_error()); }
-        if found == 1 { result |= wire; }
+        if found == -1 {
+            return Err(io::Error::last_os_error());
+        }
+        if found == 1 {
+            result |= wire;
+        }
     }
     Ok(result)
 }
@@ -104,7 +128,9 @@ fn write_principal(data: &mut Vec<u8>, tag: c_int, entry: *mut c_void) -> io::Re
     } else {
         // SAFETY: named NFSv4 entries have allocated native numeric qualifiers.
         let qualifier = unsafe { acl_get_qualifier(entry) };
-        if qualifier.is_null() { return Err(io::Error::last_os_error()); }
+        if qualifier.is_null() {
+            return Err(io::Error::last_os_error());
+        }
         // SAFETY: uid_t and gid_t are 32-bit values on FreeBSD.
         let uid = unsafe { *(qualifier as *const u32) };
         let qualifier = OwnedAcl(qualifier);
@@ -122,14 +148,19 @@ pub(crate) fn capture(path: &Path, follow_links: bool) -> io::Result<Option<RawC
     let path = path_c(path)?;
     // SAFETY: path is NUL-terminated, returned ACL is owned by libC.
     let ptr = unsafe {
-        if follow_links { acl_get_file(path.as_ptr(), TYPE_NFS4) }
-        else { acl_get_link_np(path.as_ptr(), TYPE_NFS4) }
+        if follow_links {
+            acl_get_file(path.as_ptr(), TYPE_NFS4)
+        } else {
+            acl_get_link_np(path.as_ptr(), TYPE_NFS4)
+        }
     };
     if ptr.is_null() {
         let e = io::Error::last_os_error();
         return if matches!(e.raw_os_error(), Some(libc::EINVAL | libc::ENOTSUP)) {
             Err(unsupported("filesystem does not support NFSv4 ACLs"))
-        } else { Err(e) };
+        } else {
+            Err(e)
+        };
     }
     let acl = OwnedAcl(ptr);
     let mut data = vec![0u8; 4]; // count patched after reading entries
@@ -139,8 +170,12 @@ pub(crate) fn capture(path: &Path, follow_links: bool) -> io::Result<Option<RawC
         let mut entry = std::ptr::null_mut();
         // SAFETY: the ACL is owned for the duration of this loop.
         let got = unsafe { acl_get_entry(acl.0, index, &mut entry) };
-        if got == 0 { break; }
-        if got == -1 { return Err(io::Error::last_os_error()); }
+        if got == 0 {
+            break;
+        }
+        if got == -1 {
+            return Err(io::Error::last_os_error());
+        }
         index = NEXT;
         let mut tag = 0;
         let mut entry_type = 0;
@@ -154,7 +189,10 @@ pub(crate) fn capture(path: &Path, follow_links: bool) -> io::Result<Option<RawC
             checked(acl_get_flagset_np(entry, &mut flagset))?;
         }
         let ty = match entry_type {
-            0x100 => 0, 0x200 => 1, 0x400 => 2, 0x800 => 3,
+            0x100 => 0,
+            0x200 => 1,
+            0x400 => 2,
+            0x800 => 3,
             _ => return Err(unsupported("unknown FreeBSD NFSv4 ACE type")),
         };
         let flags_map: Vec<_> = FLAGS.into_iter().map(|n| (n, n)).collect();
@@ -164,7 +202,9 @@ pub(crate) fn capture(path: &Path, follow_links: bool) -> io::Result<Option<RawC
         put_u32(&mut data, flags | if tag == GROUP { 0x40 } else { 0 });
         put_u32(&mut data, mask);
         write_principal(&mut data, tag, entry)?;
-        count = count.checked_add(1).ok_or_else(|| invalid("NFSv4 entry count overflow"))?;
+        count = count
+            .checked_add(1)
+            .ok_or_else(|| invalid("NFSv4 entry count overflow"))?;
     }
     data[..4].copy_from_slice(&count.to_be_bytes());
     let chunk = AclChunk::new(pna::acl::NFS4, data)?;
@@ -179,8 +219,12 @@ fn posix_entries(acl: *mut c_void) -> io::Result<Vec<PosixAce>> {
         let mut entry = std::ptr::null_mut();
         // SAFETY: entry is borrowed from an owned ACL.
         let result = unsafe { acl_get_entry(acl, direction, &mut entry) };
-        if result == 0 { break; }
-        if result == -1 { return Err(io::Error::last_os_error()); }
+        if result == 0 {
+            break;
+        }
+        if result == -1 {
+            return Err(io::Error::last_os_error());
+        }
         direction = NEXT;
         let mut native_tag = 0;
         let mut set = std::ptr::null_mut();
@@ -202,14 +246,20 @@ fn posix_entries(acl: *mut c_void) -> io::Result<Vec<PosixAce>> {
         for bit in [1u8, 2, 4] {
             // SAFETY: set belongs to this ACL entry.
             let yes = unsafe { acl_get_perm_np(set, c_int::from(bit)) };
-            if yes == -1 { return Err(io::Error::last_os_error()); }
-            if yes == 1 { permissions |= bit; }
+            if yes == -1 {
+                return Err(io::Error::last_os_error());
+            }
+            if yes == 1 {
+                permissions |= bit;
+            }
         }
         let qualifier = match tag {
             PosixTag::User | PosixTag::Group => {
                 // SAFETY: named qualifiers are native uid_t/gid_t pointers.
                 let value = unsafe { acl_get_qualifier(entry) };
-                if value.is_null() { return Err(io::Error::last_os_error()); }
+                if value.is_null() {
+                    return Err(io::Error::last_os_error());
+                }
                 let id = unsafe { *(value as *const u32) };
                 let owned = OwnedAcl(value);
                 let _ = owned;
@@ -217,7 +267,12 @@ fn posix_entries(acl: *mut c_void) -> io::Result<Vec<PosixAce>> {
             }
             _ => None,
         };
-        entries.push(PosixAce { tag, permissions, qualifier, name: String::new() });
+        entries.push(PosixAce {
+            tag,
+            permissions,
+            qualifier,
+            name: String::new(),
+        });
     }
     Ok(entries)
 }
@@ -225,10 +280,15 @@ fn posix_entries(acl: *mut c_void) -> io::Result<Vec<PosixAce>> {
 fn read_posix(path: &CString, follow_links: bool, kind: c_int) -> io::Result<Vec<PosixAce>> {
     // SAFETY: path is NUL-terminated and the returned ACL is library-allocated.
     let ptr = unsafe {
-        if follow_links { acl_get_file(path.as_ptr(), kind) }
-        else { acl_get_link_np(path.as_ptr(), kind) }
+        if follow_links {
+            acl_get_file(path.as_ptr(), kind)
+        } else {
+            acl_get_link_np(path.as_ptr(), kind)
+        }
     };
-    if ptr.is_null() { return Err(io::Error::last_os_error()); }
+    if ptr.is_null() {
+        return Err(io::Error::last_os_error());
+    }
     let acl = OwnedAcl(ptr);
     posix_entries(acl.0)
 }
@@ -243,7 +303,11 @@ pub(crate) fn capture_posix(path: &Path, follow_links: bool) -> io::Result<Optio
     let dir = metadata.is_dir();
     let p = path_c(path)?;
     let access = read_posix(&p, follow_links, TYPE_ACCESS)?;
-    let default = if dir { read_posix(&p, follow_links, TYPE_DEFAULT)? } else { vec![] };
+    let default = if dir {
+        read_posix(&p, follow_links, TYPE_DEFAULT)?
+    } else {
+        vec![]
+    };
     let chunk = PosixAcl { access, default }.into_acl_chunk()?;
     chunk.validate()?;
     Ok(Some(chunk.into_raw_chunk()))
@@ -253,7 +317,9 @@ fn construct_posix(entries: &[PosixAce]) -> io::Result<OwnedAcl> {
     let count = c_int::try_from(entries.len()).map_err(|_| invalid("POSIX ACL too large"))?;
     // SAFETY: requests a native ACL with sufficient entry capacity.
     let ptr = unsafe { acl_init(count) };
-    if ptr.is_null() { return Err(io::Error::last_os_error()); }
+    if ptr.is_null() {
+        return Err(io::Error::last_os_error());
+    }
     let mut acl = OwnedAcl(ptr);
     for e in entries {
         let mut raw = std::ptr::null_mut();
@@ -270,7 +336,8 @@ fn construct_posix(entries: &[PosixAce]) -> io::Result<OwnedAcl> {
             checked(acl_create_entry(&mut acl.0, &mut raw))?;
             checked(acl_set_tag_type(raw, native_tag))?;
             if let Some(uid) = e.qualifier {
-                let uid = u32::try_from(uid).map_err(|_| unsupported("POSIX UID or GID too large"))?;
+                let uid =
+                    u32::try_from(uid).map_err(|_| unsupported("POSIX UID or GID too large"))?;
                 checked(acl_set_qualifier(raw, (&uid as *const u32).cast()))?;
             }
             let mut set = std::ptr::null_mut();
@@ -288,8 +355,11 @@ fn construct_posix(entries: &[PosixAce]) -> io::Result<OwnedAcl> {
 fn set_posix(path: &CString, kind: c_int, acl: *mut c_void, follow_links: bool) -> io::Result<()> {
     // SAFETY: both path and acl are valid for the native API.
     let code = unsafe {
-        if follow_links { acl_set_file(path.as_ptr(), kind, acl) }
-        else { acl_set_link_np(path.as_ptr(), kind, acl) }
+        if follow_links {
+            acl_set_file(path.as_ptr(), kind, acl)
+        } else {
+            acl_set_link_np(path.as_ptr(), kind, acl)
+        }
     };
     checked(code)
 }
@@ -304,7 +374,9 @@ pub(crate) fn restore_posix(path: &Path, chunk: &AclChunk, follow_links: bool) -
     };
     let directory = metadata.is_dir();
     if !directory && !acl.default.is_empty() {
-        return Err(unsupported("default POSIX ACL cannot apply to a non-directory"));
+        return Err(unsupported(
+            "default POSIX ACL cannot apply to a non-directory",
+        ));
     }
     let path = path_c(path)?;
     // An invalid default ACL must be detected before changing the access ACL.
@@ -333,41 +405,60 @@ pub(crate) fn restore_chunk(path: &Path, chunk: &AclChunk, follow_links: bool) -
     }
 }
 
-struct Reader<'a> { bytes: &'a [u8] }
+struct Reader<'a> {
+    bytes: &'a [u8],
+}
 impl<'a> Reader<'a> {
     fn u32(&mut self) -> io::Result<u32> {
-        let (a, rest) = self.bytes.split_at_checked(4).ok_or_else(|| invalid("truncated XDR"))?;
+        let (a, rest) = self
+            .bytes
+            .split_at_checked(4)
+            .ok_or_else(|| invalid("truncated XDR"))?;
         self.bytes = rest;
         Ok(u32::from_be_bytes(a.try_into().unwrap()))
     }
     fn u64(&mut self) -> io::Result<u64> {
-        let (a, rest) = self.bytes.split_at_checked(8).ok_or_else(|| invalid("truncated XDR"))?;
+        let (a, rest) = self
+            .bytes
+            .split_at_checked(8)
+            .ok_or_else(|| invalid("truncated XDR"))?;
         self.bytes = rest;
         Ok(u64::from_be_bytes(a.try_into().unwrap()))
     }
     fn bytes(&mut self, n: usize) -> io::Result<&'a [u8]> {
-        let (a, rest) = self.bytes.split_at_checked(n).ok_or_else(|| invalid("truncated XDR bytes"))?;
+        let (a, rest) = self
+            .bytes
+            .split_at_checked(n)
+            .ok_or_else(|| invalid("truncated XDR bytes"))?;
         self.bytes = rest;
         Ok(a)
     }
     fn name(&mut self) -> io::Result<String> {
         let len = self.u32()? as usize;
-        let value = String::from_utf8(self.bytes(len)?.to_vec()).map_err(|_| invalid("invalid NFSv4 name"))?;
+        let value = String::from_utf8(self.bytes(len)?.to_vec())
+            .map_err(|_| invalid("invalid NFSv4 name"))?;
         let pad = (4 - len % 4) % 4;
-        if self.bytes(pad)?.iter().any(|b| *b != 0) { return Err(invalid("invalid XDR padding")); }
+        if self.bytes(pad)?.iter().any(|b| *b != 0) {
+            return Err(invalid("invalid XDR padding"));
+        }
         Ok(value)
     }
 }
 
 fn add_bits(set: *mut c_void, bits: u32, map: &[(u32, u32)], flag: bool) -> io::Result<()> {
     let known = map.iter().fold(0, |a, (_, wire)| a | wire);
-    if bits & !known != 0 { return Err(unsupported("unmapped NFSv4 permission or flag")); }
+    if bits & !known != 0 {
+        return Err(unsupported("unmapped NFSv4 permission or flag"));
+    }
     for &(native, wire) in map {
         if bits & wire != 0 {
             // SAFETY: the ACL permission/flag set is live.
             let result = unsafe {
-                if flag { acl_add_flag_np(set, native as c_int) }
-                else { acl_add_perm(set, native as c_int) }
+                if flag {
+                    acl_add_flag_np(set, native as c_int)
+                } else {
+                    acl_add_perm(set, native as c_int)
+                }
             };
             checked(result)?;
         }
@@ -381,16 +472,23 @@ pub(crate) fn restore(path: &Path, chunk: &AclChunk, follow_links: bool) -> io::
         return Err(unsupported("not a FreeBSD-compatible NFSv4 ACL"));
     }
     chunk.validate()?;
-    let mut reader = Reader { bytes: chunk.payload() };
+    let mut reader = Reader {
+        bytes: chunk.payload(),
+    };
     let count = reader.u32()?;
     let native_count = c_int::try_from(count).map_err(|_| invalid("NFSv4 ACL too large"))?;
     // SAFETY: allocates a new FreeBSD ACL with the requested entry capacity.
     let ptr = unsafe { acl_init(native_count) };
-    if ptr.is_null() { return Err(io::Error::last_os_error()); }
+    if ptr.is_null() {
+        return Err(io::Error::last_os_error());
+    }
     let mut acl = OwnedAcl(ptr);
     for _ in 0..count {
         let ty = match reader.u32()? {
-            0 => 0x100, 1 => 0x200, 2 => 0x400, 3 => 0x800,
+            0 => 0x100,
+            1 => 0x200,
+            2 => 0x400,
+            3 => 0x800,
             _ => return Err(unsupported("unknown NFSv4 ACE type")),
         };
         let flags = reader.u32()?;
@@ -400,7 +498,9 @@ pub(crate) fn restore(path: &Path, chunk: &AclChunk, follow_links: bool) -> io::
             0 => {
                 let special = reader.name()?;
                 let tag = match special.as_str() {
-                    "OWNER@" => OWNER, "GROUP@" => GROUP_OWNER, "EVERYONE@" => EVERYONE,
+                    "OWNER@" => OWNER,
+                    "GROUP@" => GROUP_OWNER,
+                    "EVERYONE@" => EVERYONE,
                     _ => return Err(unsupported("non-FreeBSD NFSv4 special principal")),
                 };
                 (tag, None)
@@ -409,13 +509,21 @@ pub(crate) fn restore(path: &Path, chunk: &AclChunk, follow_links: bool) -> io::
                 let has_id = reader.u32()?;
                 let uid = if has_id == 1 {
                     Some(reader.u64()?)
-                } else if has_id == 0 { None } else {
+                } else if has_id == 0 {
+                    None
+                } else {
                     return Err(invalid("invalid optional numeric ID"));
                 };
                 let _name = reader.name()?;
-                let uid = uid.ok_or_else(|| unsupported("native FreeBSD ACL requires numeric UID/GID"))?;
-                if uid > u32::MAX as u64 { return Err(unsupported("UID/GID out of FreeBSD range")); }
-                (if flags & 0x40 != 0 { GROUP } else { USER }, Some(uid as u32))
+                let uid =
+                    uid.ok_or_else(|| unsupported("native FreeBSD ACL requires numeric UID/GID"))?;
+                if uid > u32::MAX as u64 {
+                    return Err(unsupported("UID/GID out of FreeBSD range"));
+                }
+                (
+                    if flags & 0x40 != 0 { GROUP } else { USER },
+                    Some(uid as u32),
+                )
             }
             _ => return Err(unsupported("unsupported NFSv4 principal discriminator")),
         };
@@ -437,12 +545,17 @@ pub(crate) fn restore(path: &Path, chunk: &AclChunk, follow_links: bool) -> io::
             add_bits(flagset, flags & !0x40, &flag_map, true)?;
         }
     }
-    if !reader.bytes.is_empty() { return Err(invalid("trailing NFSv4 bytes")); }
+    if !reader.bytes.is_empty() {
+        return Err(invalid("trailing NFSv4 bytes"));
+    }
     let path = path_c(path)?;
     // SAFETY: path and native ACL are valid, and ACL is owned until return.
     let code = unsafe {
-        if follow_links { acl_set_file(path.as_ptr(), TYPE_NFS4, acl.0) }
-        else { acl_set_link_np(path.as_ptr(), TYPE_NFS4, acl.0) }
+        if follow_links {
+            acl_set_file(path.as_ptr(), TYPE_NFS4, acl.0)
+        } else {
+            acl_set_link_np(path.as_ptr(), TYPE_NFS4, acl.0)
+        }
     };
     checked(code)
 }
@@ -455,9 +568,7 @@ mod tests {
     fn native_freebsd_nfs4_archive_roundtrip() -> io::Result<()> {
         use pna::{Archive, Chunk, FileEntryBuilder};
         use std::io::Write;
-        let folder = std::env::temp_dir().join(format!(
-            "pna-freebsd-acl-{}", std::process::id()
-        ));
+        let folder = std::env::temp_dir().join(format!("pna-freebsd-acl-{}", std::process::id()));
         std::fs::create_dir_all(&folder)?;
         let original = folder.join("from.txt");
         let restored = folder.join("to.txt");
@@ -500,11 +611,36 @@ mod tests {
     #[test]
     fn native_posix_acl_entries_roundtrip_numeric_principals() -> io::Result<()> {
         let entries = vec![
-            PosixAce { tag: PosixTag::UserObj, permissions: 7, qualifier: None, name: String::new() },
-            PosixAce { tag: PosixTag::User, permissions: 4, qualifier: Some(65432), name: String::new() },
-            PosixAce { tag: PosixTag::GroupObj, permissions: 5, qualifier: None, name: String::new() },
-            PosixAce { tag: PosixTag::Mask, permissions: 5, qualifier: None, name: String::new() },
-            PosixAce { tag: PosixTag::Other, permissions: 0, qualifier: None, name: String::new() },
+            PosixAce {
+                tag: PosixTag::UserObj,
+                permissions: 7,
+                qualifier: None,
+                name: String::new(),
+            },
+            PosixAce {
+                tag: PosixTag::User,
+                permissions: 4,
+                qualifier: Some(65432),
+                name: String::new(),
+            },
+            PosixAce {
+                tag: PosixTag::GroupObj,
+                permissions: 5,
+                qualifier: None,
+                name: String::new(),
+            },
+            PosixAce {
+                tag: PosixTag::Mask,
+                permissions: 5,
+                qualifier: None,
+                name: String::new(),
+            },
+            PosixAce {
+                tag: PosixTag::Other,
+                permissions: 0,
+                qualifier: None,
+                name: String::new(),
+            },
         ];
         let native = construct_posix(&entries)?;
         let restored = posix_entries(native.0)?;

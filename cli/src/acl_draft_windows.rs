@@ -17,8 +17,7 @@ const ATTRIBUTE: u32 = 0x0000_0020;
 const SCOPE: u32 = 0x0000_0040;
 const PROCESS_TRUST_LABEL: u32 = 0x0000_0080;
 const ACCESS_FILTER: u32 = 0x0000_0100;
-const COMPLETE_SACL: u32 =
-    SACL | LABEL | ATTRIBUTE | SCOPE | PROCESS_TRUST_LABEL | ACCESS_FILTER;
+const COMPLETE_SACL: u32 = SACL | LABEL | ATTRIBUTE | SCOPE | PROCESS_TRUST_LABEL | ACCESS_FILTER;
 const PROTECTED_DACL: u32 = 0x8000_0000;
 const PROTECTED_SACL: u32 = 0x4000_0000;
 const UNPROTECTED_DACL: u32 = 0x2000_0000;
@@ -88,7 +87,10 @@ pub(crate) fn capture(path: &Path, follow_links: bool) -> io::Result<Option<RawC
 /// Restores only security-information components declared by the coverage byte.
 pub(crate) fn restore(path: &Path, chunk: &AclChunk, follow_links: bool) -> io::Result<()> {
     if chunk.format_id() != pna::acl::WINDOWS_NT {
-        return Err(io::Error::new(io::ErrorKind::Unsupported, "not Windows ACL data"));
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "not Windows ACL data",
+        ));
     }
     chunk.validate()?;
     let payload = chunk.payload();
@@ -190,9 +192,8 @@ mod tests {
 
     #[test]
     fn native_windows_file_dacl_roundtrip() -> io::Result<()> {
-        let file = std::env::temp_dir().join(format!(
-            "pna-acl-draft-windows-{}.tmp", std::process::id()
-        ));
+        let file =
+            std::env::temp_dir().join(format!("pna-acl-draft-windows-{}.tmp", std::process::id()));
         std::fs::write(&file, b"ACL")?;
         let result = (|| {
             let encoded = capture(&file, true)?.expect("Windows file DACL");
