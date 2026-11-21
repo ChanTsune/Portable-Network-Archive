@@ -5,13 +5,6 @@ on:
   push:
     branches:
       - experiment/acl-draft-roundtrip
-    paths:
-      - "cli/src/acl_draft_freebsd.rs"
-      - "cli/src/lib.rs"
-      - "cli/src/command/core.rs"
-      - "cli/src/command/extract.rs"
-      - "lib/src/acl.rs"
-      - ".github/workflows/acl-draft-freebsd.yml"
 
 permissions:
   contents: read
