@@ -1,6 +1,6 @@
 use crate::utils::{archive, create_high_cost_encrypted_solid_archive, setup};
-use assert_cmd::cargo::cargo_bin_cmd;
-use predicates::prelude::*;
+use clap::Parser;
+use portable_network_archive::cli;
 use std::fs;
 
 const PASSWORD: &str = "testpass";
@@ -24,18 +24,19 @@ fn delete_default_accepts_high_cost_archive() {
     setup();
     let (target, _) = prepare("default");
 
-    cargo_bin_cmd!("pna")
-        .args([
-            "--quiet",
-            "delete",
-            "-f",
-            &target,
-            "secret.txt",
-            "--password",
-            PASSWORD,
-        ])
-        .assert()
-        .success();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "delete",
+        "-f",
+        &target,
+        "secret.txt",
+        "--password",
+        PASSWORD,
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
 
     let mut names = Vec::new();
     archive::for_each_entry_with_password(&target, PASSWORD, |entry| {
@@ -53,20 +54,24 @@ fn delete_with_limit_kdf_rejects_high_cost_archive() {
     setup();
     let (target, reference) = prepare("bounded");
 
-    cargo_bin_cmd!("pna")
-        .args([
-            "--quiet",
-            "delete",
-            "-f",
-            &target,
-            "secret.txt",
-            "--password",
-            PASSWORD,
-            "--limit-kdf",
-        ])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("exceeds maximum"));
+    let err = cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "delete",
+        "-f",
+        &target,
+        "secret.txt",
+        "--password",
+        PASSWORD,
+        "--limit-kdf",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap_err();
+    assert!(
+        format!("{err:?}").contains("exceeds maximum"),
+        "error should be a KDF limit rejection: {err:?}"
+    );
 
     assert_eq!(fs::read(&target).unwrap(), fs::read(reference).unwrap());
 }
