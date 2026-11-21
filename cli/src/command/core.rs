@@ -1230,7 +1230,7 @@ pub(crate) fn collect_extra_chunks(
                     Err(e) => return Err(e),
                 }
             }
-            #[cfg(not(target_os = "linux"))]
+            #[cfg(target_os = "freebsd")]
             {
                 use crate::chunk;
                 let acl_result = utils::acl::get_facl(path, follow_links);
@@ -1241,8 +1241,30 @@ pub(crate) fn collect_extra_chunks(
                             chunks.push(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
                         }
                     }
-                    Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
-                        log::warn!("ACL unsupported for '{}': {}", path.display(), e);
+                    Err(e) if e.kind() == io::ErrorKind::Unsupported => {
+                        log::warn!("Legacy ACL unsupported for '{}': {}", path.display(), e);
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+            #[cfg(target_os = "macos")]
+            {
+                match crate::acl_draft_darwin::capture(path, follow_links) {
+                    Ok(Some(acl)) => chunks.push(acl),
+                    Ok(None) => {}
+                    Err(e) if e.kind() == io::ErrorKind::Unsupported => {
+                        log::warn!("Darwin ACL unsupported for '{}': {}", path.display(), e);
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+            #[cfg(windows)]
+            {
+                match crate::acl_draft_windows::capture(path, follow_links) {
+                    Ok(Some(acl)) => chunks.push(acl),
+                    Ok(None) => {}
+                    Err(e) if e.kind() == io::ErrorKind::Unsupported => {
+                        log::warn!("Windows ACL unsupported for '{}': {}", path.display(), e);
                     }
                     Err(e) => return Err(e),
                 }
