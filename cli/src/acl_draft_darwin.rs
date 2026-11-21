@@ -107,17 +107,23 @@ fn to_native(data: &[u8]) -> io::Result<Vec<u8>> {
 
 /// Captures Darwin ACEs without translating their UUIDs, masks, or flags.
 pub(crate) fn capture(path: &Path, follow_links: bool) -> io::Result<Option<RawChunk>> {
-    let path = c_path(path)?;
+    let native_path = c_path(path)?;
     // SAFETY: path is NUL-terminated, returned ACL is managed by OwnedAcl.
     let ptr = unsafe {
         if follow_links {
-            acl_get_file(path.as_ptr(), EXTENDED)
+            acl_get_file(native_path.as_ptr(), EXTENDED)
         } else {
-            acl_get_link_np(path.as_ptr(), EXTENDED)
+            acl_get_link_np(native_path.as_ptr(), EXTENDED)
         }
     };
     if ptr.is_null() {
-        return Err(io::Error::last_os_error());
+        let error = io::Error::last_os_error();
+        // Darwin reports ENOENT for a path with no extended ACL as well as
+        // for a missing object. Do not conflate the two states.
+        if error.kind() == io::ErrorKind::NotFound && path.symlink_metadata().is_ok() {
+            return Ok(None);
+        }
+        return Err(error);
     }
     let acl = OwnedAcl(ptr);
     // SAFETY: ptr is valid according to acl_get_file or acl_get_link_np.
