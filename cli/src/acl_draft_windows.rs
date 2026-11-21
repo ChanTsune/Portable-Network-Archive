@@ -5,6 +5,9 @@
 //! can be requested in one successful query.
 use crate::utils::os::windows::fs::{open_read_acl, open_write_acl};
 use pna::{AclChunk, RawChunk};
+use windows::Win32::Foundation::ERROR_SUCCESS;
+use windows::Win32::Security::Authorization::{SetSecurityInfo, SE_FILE_OBJECT};
+use windows::Win32::Security::{ACL as Win32Acl, OBJECT_SECURITY_INFORMATION};
 use std::{ffi::c_void, io, path::Path};
 
 const DACL: u32 = 0x0000_0004;
@@ -18,6 +21,10 @@ const COMPLETE_SACL: u32 =
     SACL | LABEL | ATTRIBUTE | SCOPE | PROCESS_TRUST_LABEL | ACCESS_FILTER;
 const PROTECTED_DACL: u32 = 0x8000_0000;
 const PROTECTED_SACL: u32 = 0x4000_0000;
+const UNPROTECTED_DACL: u32 = 0x2000_0000;
+const UNPROTECTED_SACL: u32 = 0x1000_0000;
+const SE_DACL_PRESENT: u16 = 0x0004;
+const SE_SACL_PRESENT: u16 = 0x0010;
 const SE_DACL_PROTECTED: u16 = 0x1000;
 const SE_SACL_PROTECTED: u16 = 0x2000;
 
@@ -29,11 +36,6 @@ unsafe extern "system" {
         descriptor: *mut c_void,
         length: u32,
         needed: *mut u32,
-    ) -> i32;
-    fn SetKernelObjectSecurity(
-        handle: *mut c_void,
-        info: u32,
-        descriptor: *const c_void,
     ) -> i32;
 }
 
@@ -92,27 +94,92 @@ pub(crate) fn restore(path: &Path, chunk: &AclChunk, follow_links: bool) -> io::
     let payload = chunk.payload();
     let coverage = payload[0];
     let sd = &payload[1..];
+
     let control = u16::from_le_bytes([sd[2], sd[3]]);
+    // SetSecurityInfo cannot represent a covered, absent ACL. Do not
+    // reinterpret absence as a NULL ACL (these have different semantics).
+    if coverage & 1 != 0 && control & SE_DACL_PRESENT == 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "covered but absent Windows DACL cannot be restored",
+        ));
+    }
+    if coverage & 2 != 0 && control & SE_SACL_PRESENT == 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "covered but absent Windows SACL cannot be restored",
+        ));
+    }
     let mut info = 0u32;
     if coverage & 1 != 0 {
         info |= DACL;
-        if control & SE_DACL_PROTECTED != 0 {
-            info |= PROTECTED_DACL;
-        }
+        info |= if control & SE_DACL_PROTECTED != 0 {
+            PROTECTED_DACL
+        } else {
+            UNPROTECTED_DACL
+        };
     }
     if coverage & 2 != 0 {
         info |= COMPLETE_SACL;
-        if control & SE_SACL_PROTECTED != 0 {
-            info |= PROTECTED_SACL;
-        }
+        info |= if control & SE_SACL_PROTECTED != 0 {
+            PROTECTED_SACL
+        } else {
+            UNPROTECTED_SACL
+        };
     }
-    let handle = open_write_acl(path, follow_links, coverage & 2 != 0)?;
-    // SAFETY: the chunk holds a validated self-relative Windows descriptor.
-    let success = unsafe {
-        SetKernelObjectSecurity(handle.raw().0, info, sd.as_ptr().cast())
+    // The wire descriptor is self-relative. Its offsets refer to its first
+    // byte. Native ACL parameters must have suitable memory alignment.
+    let mut aligned = vec![0u32; sd.len().div_ceil(4)];
+    // SAFETY: the destination is an allocated u32 buffer large enough for sd.
+    let aligned_bytes = unsafe {
+        std::slice::from_raw_parts_mut(
+            aligned.as_mut_ptr().cast::<u8>(),
+            aligned.len() * std::mem::size_of::<u32>(),
+        )
     };
-    if success == 0 {
-        return Err(io::Error::last_os_error());
+    aligned_bytes[..sd.len()].copy_from_slice(sd);
+    let base = aligned.as_ptr().cast::<u8>();
+    let acl_ptr = |offset: usize| -> io::Result<Option<*const Win32Acl>> {
+        if offset == 0 {
+            return Ok(None);
+        }
+        if offset < 20 || offset >= sd.len() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Windows ACL offset lies outside the descriptor",
+            ));
+        }
+        // SAFETY: the offset is inside the aligned buffer.
+        Ok(Some(unsafe { base.add(offset).cast::<Win32Acl>() }))
+    };
+    let dacl_offset = u32::from_le_bytes(sd[16..20].try_into().unwrap()) as usize;
+    let sacl_offset = u32::from_le_bytes(sd[12..16].try_into().unwrap()) as usize;
+    let dacl = if coverage & 1 != 0 {
+        acl_ptr(dacl_offset)?
+    } else {
+        None
+    };
+    let sacl = if coverage & 2 != 0 {
+        acl_ptr(sacl_offset)?
+    } else {
+        None
+    };
+    let handle = open_write_acl(path, follow_links, coverage & 2 != 0)?;
+    // SAFETY: SetSecurityInfo reads native ACL pointers from the aligned
+    // descriptor while the backing buffer remains live.
+    let status = unsafe {
+        SetSecurityInfo(
+            handle.raw(),
+            SE_FILE_OBJECT,
+            OBJECT_SECURITY_INFORMATION(info),
+            None,
+            None,
+            dacl,
+            sacl,
+        )
+    };
+    if status != ERROR_SUCCESS {
+        return Err(io::Error::from_raw_os_error(status.0 as i32));
     }
     Ok(())
 }
@@ -130,7 +197,8 @@ mod tests {
         let result = (|| {
             let encoded = capture(&file, true)?.expect("Windows file DACL");
             use pna::{Archive, Chunk, FileEntryBuilder};
-            let chunk = AclChunk::from_bytes(encoded.data())?;
+            let original = AclChunk::from_bytes(encoded.data())?;
+            original.validate()?;
             let mut bytes = Vec::new();
             {
                 let mut archive = Archive::write_header(&mut bytes)?;
