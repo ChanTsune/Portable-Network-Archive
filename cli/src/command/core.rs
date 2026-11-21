@@ -1201,6 +1201,22 @@ pub(crate) fn collect_extra_chunks(
             let follow_links = !meta.file_type().is_symlink();
             #[cfg(target_os = "linux")]
             {
+                // Preserve the existing faCl/faCe representation for legacy
+                // readers while also emitting the experimental aCLS chunk.
+                use crate::chunk;
+                let acl_result = utils::acl::get_facl(path, follow_links);
+                match acl_result {
+                    Ok(acl) => {
+                        chunks.push(RawChunk::from_data(chunk::faCl, acl.platform.to_bytes()));
+                        for ace in acl.entries {
+                            chunks.push(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
+                        }
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
+                        log::warn!("ACL not supported on this filesystem, skipping '{}': {}", path.display(), e);
+                    }
+                    Err(e) => return Err(e),
+                }
                 match crate::acl_draft::capture(path, follow_links) {
                     Ok(Some(chunk)) => chunks.push(chunk),
                     Ok(None) => {}
