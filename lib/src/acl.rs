@@ -96,7 +96,9 @@ impl AclChunk {
     #[inline]
     pub fn validate(&self) -> io::Result<()> {
         match self.format_id {
-            POSIX1E => { PosixAcl::decode(&self.payload)?; }
+            POSIX1E => {
+                PosixAcl::decode(&self.payload)?;
+            }
             NFS4 => validate_nfs4(&self.payload)?,
             NFS41 => validate_nfs41(&self.payload)?,
             WINDOWS_NT => validate_windows(&self.payload)?,
@@ -191,8 +193,8 @@ impl PosixAcl {
         validate_posix_list(&self.default, true)?;
         let mut out = Vec::new();
         for entries in [&self.access, &self.default] {
-            let count = u32::try_from(entries.len())
-                .map_err(|_| invalid("too many POSIX ACL entries"))?;
+            let count =
+                u32::try_from(entries.len()).map_err(|_| invalid("too many POSIX ACL entries"))?;
             out.extend_from_slice(&count.to_be_bytes());
             for ace in entries {
                 out.push(ace.tag as u8);
@@ -239,7 +241,12 @@ fn read_posix_entries(reader: &mut Reader<'_>) -> io::Result<Vec<PosixAce>> {
             }
             _ => (None, String::new()),
         };
-        entries.push(PosixAce { tag, permissions, qualifier, name });
+        entries.push(PosixAce {
+            tag,
+            permissions,
+            qualifier,
+            name,
+        });
     }
     Ok(entries)
 }
@@ -263,8 +270,14 @@ fn validate_posix_list(entries: &[PosixAce], default: bool) -> io::Result<()> {
         match ace.tag {
             PosixTag::User | PosixTag::Group => {
                 named = true;
-                let id = ace.qualifier.ok_or_else(|| invalid("missing POSIX qualifier"))?;
-                let ids = if ace.tag == PosixTag::User { &mut users } else { &mut groups };
+                let id = ace
+                    .qualifier
+                    .ok_or_else(|| invalid("missing POSIX qualifier"))?;
+                let ids = if ace.tag == PosixTag::User {
+                    &mut users
+                } else {
+                    &mut groups
+                };
                 if !ids.insert(id) {
                     return Err(invalid("duplicate POSIX named principal"));
                 }
@@ -290,20 +303,32 @@ struct Reader<'a> {
     rest: &'a [u8],
 }
 impl<'a> Reader<'a> {
-    fn new(rest: &'a [u8]) -> Self { Self { rest } }
+    fn new(rest: &'a [u8]) -> Self {
+        Self { rest }
+    }
     fn take(&mut self, len: usize) -> io::Result<&'a [u8]> {
-        let bytes = self.rest.get(..len).ok_or_else(|| invalid("truncated ACL payload"))?;
+        let bytes = self
+            .rest
+            .get(..len)
+            .ok_or_else(|| invalid("truncated ACL payload"))?;
         self.rest = &self.rest[len..];
         Ok(bytes)
     }
-    fn u8(&mut self) -> io::Result<u8> { Ok(self.take(1)?[0]) }
-    fn u16(&mut self) -> io::Result<u16> { Ok(u16::from_be_bytes(self.take(2)?.try_into().unwrap())) }
-    fn u32(&mut self) -> io::Result<u32> { Ok(u32::from_be_bytes(self.take(4)?.try_into().unwrap())) }
-    fn u64(&mut self) -> io::Result<u64> { Ok(u64::from_be_bytes(self.take(8)?.try_into().unwrap())) }
+    fn u8(&mut self) -> io::Result<u8> {
+        Ok(self.take(1)?[0])
+    }
+    fn u16(&mut self) -> io::Result<u16> {
+        Ok(u16::from_be_bytes(self.take(2)?.try_into().unwrap()))
+    }
+    fn u32(&mut self) -> io::Result<u32> {
+        Ok(u32::from_be_bytes(self.take(4)?.try_into().unwrap()))
+    }
+    fn u64(&mut self) -> io::Result<u64> {
+        Ok(u64::from_be_bytes(self.take(8)?.try_into().unwrap()))
+    }
     fn utf8_xdr(&mut self) -> io::Result<()> {
         let len = self.u32()? as usize;
-        std::str::from_utf8(self.take(len)?)
-            .map_err(|_| invalid("invalid NFS ACL UTF-8"))?;
+        std::str::from_utf8(self.take(len)?).map_err(|_| invalid("invalid NFS ACL UTF-8"))?;
         let pad = (4 - len % 4) % 4;
         if self.take(pad)?.iter().any(|b| *b != 0) {
             return Err(invalid("nonzero XDR padding"));
@@ -331,7 +356,10 @@ fn read_nfs_aces(reader: &mut Reader<'_>, expected: Option<bool>) -> io::Result<
             1 => {
                 let has_numeric = match reader.u32()? {
                     0 => false,
-                    1 => { reader.u64()?; true }
+                    1 => {
+                        reader.u64()?;
+                        true
+                    }
                     _ => return Err(invalid("invalid XDR optional principal discriminator")),
                 };
                 let len = reader.u32()? as usize;
@@ -356,7 +384,9 @@ fn read_nfs_aces(reader: &mut Reader<'_>, expected: Option<bool>) -> io::Result<
 fn validate_nfs4(data: &[u8]) -> io::Result<()> {
     let mut reader = Reader::new(data);
     read_nfs_aces(&mut reader, None)?;
-    if !reader.rest.is_empty() { return Err(invalid("trailing NFSv4 ACL data")); }
+    if !reader.rest.is_empty() {
+        return Err(invalid("trailing NFSv4 ACL data"));
+    }
     Ok(())
 }
 fn validate_nfs41(data: &[u8]) -> io::Result<()> {
@@ -371,11 +401,14 @@ fn validate_nfs41(data: &[u8]) -> io::Result<()> {
             read_nfs_aces(&mut reader, Some(is_sacl))?;
         }
     }
-    if !reader.rest.is_empty() { return Err(invalid("trailing NFSv4.1 ACL data")); }
+    if !reader.rest.is_empty() {
+        return Err(invalid("trailing NFSv4.1 ACL data"));
+    }
     Ok(())
 }
 fn validate_windows(data: &[u8]) -> io::Result<()> {
-    let (&coverage, descriptor) = data.split_first()
+    let (&coverage, descriptor) = data
+        .split_first()
         .ok_or_else(|| invalid("missing Windows ACL coverage"))?;
     if coverage == 0 || coverage & !3 != 0 || descriptor.len() < 20 {
         return Err(invalid("invalid Windows ACL envelope"));
@@ -391,10 +424,15 @@ fn validate_windows(data: &[u8]) -> io::Result<()> {
     for start in [12, 16] {
         let offset = u32::from_le_bytes(descriptor[start..start + 4].try_into().unwrap()) as usize;
         if offset != 0 {
-            let header = descriptor.get(offset..offset.saturating_add(8))
+            let header = descriptor
+                .get(offset..offset.saturating_add(8))
                 .ok_or_else(|| invalid("Windows ACL offset out of range"))?;
             let acl_size = u16::from_le_bytes([header[2], header[3]]) as usize;
-            if acl_size < 8 || descriptor.get(offset..offset.saturating_add(acl_size)).is_none() {
+            if acl_size < 8
+                || descriptor
+                    .get(offset..offset.saturating_add(acl_size))
+                    .is_none()
+            {
                 return Err(invalid("Windows ACL size out of range"));
             }
         }
@@ -406,7 +444,11 @@ fn validate_darwin(data: &[u8]) -> io::Result<()> {
     let count = reader.u32()?;
     let _flags = reader.u32()?;
     if count == u32::MAX {
-        return if reader.rest.is_empty() { Ok(()) } else { Err(invalid("trailing Darwin no-ACL data")) };
+        return if reader.rest.is_empty() {
+            Ok(())
+        } else {
+            Err(invalid("trailing Darwin no-ACL data"))
+        };
     }
     if count as usize > reader.rest.len() / 28 {
         return Err(invalid("Darwin ACL entry count exceeds remaining bytes"));
@@ -418,14 +460,19 @@ fn validate_darwin(data: &[u8]) -> io::Result<()> {
         let kind = reader.u8()?;
         let present = reader.u8()?;
         if kind > 2 || present > 1 {
-            return Err(invalid("invalid Darwin ACL principal kind or numeric presence"));
+            return Err(invalid(
+                "invalid Darwin ACL principal kind or numeric presence",
+            ));
         }
-        if present == 1 { reader.u64()?; }
+        if present == 1 {
+            reader.u64()?;
+        }
         let len = reader.u16()? as usize;
-        std::str::from_utf8(reader.take(len)?)
-            .map_err(|_| invalid("invalid Darwin ACL name"))?;
+        std::str::from_utf8(reader.take(len)?).map_err(|_| invalid("invalid Darwin ACL name"))?;
     }
-    if !reader.rest.is_empty() { return Err(invalid("trailing Darwin ACL data")); }
+    if !reader.rest.is_empty() {
+        return Err(invalid("trailing Darwin ACL data"));
+    }
     Ok(())
 }
 
@@ -462,9 +509,24 @@ mod tests {
     fn base_acl() -> PosixAcl {
         PosixAcl {
             access: vec![
-                PosixAce { tag: PosixTag::UserObj, permissions: 7, qualifier: None, name: String::new() },
-                PosixAce { tag: PosixTag::GroupObj, permissions: 5, qualifier: None, name: String::new() },
-                PosixAce { tag: PosixTag::Other, permissions: 0, qualifier: None, name: String::new() },
+                PosixAce {
+                    tag: PosixTag::UserObj,
+                    permissions: 7,
+                    qualifier: None,
+                    name: String::new(),
+                },
+                PosixAce {
+                    tag: PosixTag::GroupObj,
+                    permissions: 5,
+                    qualifier: None,
+                    name: String::new(),
+                },
+                PosixAce {
+                    tag: PosixTag::Other,
+                    permissions: 0,
+                    qualifier: None,
+                    name: String::new(),
+                },
             ],
             default: vec![],
         }
@@ -472,8 +534,21 @@ mod tests {
     #[test]
     fn posix_roundtrip_named_default_and_utf8() {
         let mut a = base_acl();
-        a.access.insert(1, PosixAce { tag: PosixTag::User, permissions: 5, qualifier: Some(1001), name: "ユーザー".into() });
-        a.access.push(PosixAce { tag: PosixTag::Mask, permissions: 5, qualifier: None, name: String::new() });
+        a.access.insert(
+            1,
+            PosixAce {
+                tag: PosixTag::User,
+                permissions: 5,
+                qualifier: Some(1001),
+                name: "ユーザー".into(),
+            },
+        );
+        a.access.push(PosixAce {
+            tag: PosixTag::Mask,
+            permissions: 5,
+            qualifier: None,
+            name: String::new(),
+        });
         a.default = base_acl().access;
         let data = a.clone().into_acl_chunk().unwrap();
         assert_eq!(data.format_id(), POSIX1E);
@@ -496,7 +571,10 @@ mod tests {
     }
     #[test]
     fn nfs4_empty_and_unknown_private_roundtrip() {
-        AclChunk::new(NFS4, 0u32.to_be_bytes()).unwrap().validate().unwrap();
+        AclChunk::new(NFS4, 0u32.to_be_bytes())
+            .unwrap()
+            .validate()
+            .unwrap();
         let b = AclChunk::new(0x8001, vec![0xff, 0x00]).unwrap();
         b.validate().unwrap();
         assert_eq!(AclChunk::from_bytes(&b.to_bytes()).unwrap(), b);
@@ -515,7 +593,9 @@ mod tests {
         let posix = base_acl().encode().unwrap();
         let nfs4 = 0u32.to_be_bytes().to_vec();
         let mut nfs41 = Vec::new();
-        for n in [3u32, 2, 0, 4, 0] { nfs41.extend_from_slice(&n.to_be_bytes()); }
+        for n in [3u32, 2, 0, 4, 0] {
+            nfs41.extend_from_slice(&n.to_be_bytes());
+        }
         let mut sd = vec![0u8; 20];
         sd[0] = 1;
         sd[2..4].copy_from_slice(&0x8000u16.to_le_bytes());
@@ -525,8 +605,11 @@ mod tests {
         darwin.extend_from_slice(&u32::MAX.to_be_bytes());
         darwin.extend_from_slice(&0u32.to_be_bytes());
         for (id, payload) in [
-            (POSIX1E, posix), (NFS4, nfs4), (NFS41, nfs41),
-            (WINDOWS_NT, windows), (DARWIN, darwin),
+            (POSIX1E, posix),
+            (NFS4, nfs4),
+            (NFS41, nfs41),
+            (WINDOWS_NT, windows),
+            (DARWIN, darwin),
             (0x8001, vec![0xfe, 0xff]),
         ] {
             let acl = AclChunk::new(id, payload).unwrap();
@@ -581,7 +664,8 @@ mod tests {
             assert_eq!(acl.format_id(), format);
             acl.validate().unwrap();
             let mut result = String::new();
-            entry.reader(ReadOptions::builder().build())
+            entry
+                .reader(ReadOptions::builder().build())
                 .unwrap()
                 .read_to_string(&mut result)
                 .unwrap();
@@ -597,7 +681,10 @@ mod tests {
         sd[2..4].copy_from_slice(&0x8000u16.to_le_bytes());
         let mut payload = vec![1];
         payload.extend_from_slice(&sd);
-        AclChunk::new(WINDOWS_NT, payload).unwrap().validate().unwrap();
+        AclChunk::new(WINDOWS_NT, payload)
+            .unwrap()
+            .validate()
+            .unwrap();
         let mut payload = vec![];
         payload.extend_from_slice(&u32::MAX.to_be_bytes());
         payload.extend_from_slice(&0u32.to_be_bytes());

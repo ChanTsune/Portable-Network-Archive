@@ -103,23 +103,41 @@ pub(crate) fn restore(path: &Path, acl: &PosixAcl, follow_links: bool) -> io::Re
         for ace in source {
             let (kind, name) = match ace.tag {
                 PosixTag::UserObj => (exacl::AclEntryKind::User, String::new()),
-                PosixTag::User => (exacl::AclEntryKind::User,
-                    ace.qualifier.ok_or_else(|| invalid("missing UID"))?.to_string()),
+                PosixTag::User => (
+                    exacl::AclEntryKind::User,
+                    ace.qualifier
+                        .ok_or_else(|| invalid("missing UID"))?
+                        .to_string(),
+                ),
                 PosixTag::GroupObj => (exacl::AclEntryKind::Group, String::new()),
-                PosixTag::Group => (exacl::AclEntryKind::Group,
-                    ace.qualifier.ok_or_else(|| invalid("missing GID"))?.to_string()),
+                PosixTag::Group => (
+                    exacl::AclEntryKind::Group,
+                    ace.qualifier
+                        .ok_or_else(|| invalid("missing GID"))?
+                        .to_string(),
+                ),
                 PosixTag::Mask => (exacl::AclEntryKind::Mask, String::new()),
                 PosixTag::Other => (exacl::AclEntryKind::Other, String::new()),
             };
             let mut perms = exacl::Perm::empty();
-            if ace.permissions & 4 != 0 { perms.insert(exacl::Perm::READ); }
-            if ace.permissions & 2 != 0 { perms.insert(exacl::Perm::WRITE); }
-            if ace.permissions & 1 != 0 { perms.insert(exacl::Perm::EXECUTE); }
+            if ace.permissions & 4 != 0 {
+                perms.insert(exacl::Perm::READ);
+            }
+            if ace.permissions & 2 != 0 {
+                perms.insert(exacl::Perm::WRITE);
+            }
+            if ace.permissions & 1 != 0 {
+                perms.insert(exacl::Perm::EXECUTE);
+            }
             entries.push(exacl::AclEntry {
                 kind,
                 name,
                 perms,
-                flags: if is_default { exacl::Flag::DEFAULT } else { exacl::Flag::empty() },
+                flags: if is_default {
+                    exacl::Flag::DEFAULT
+                } else {
+                    exacl::Flag::empty()
+                },
                 allow: true,
             });
         }
@@ -147,15 +165,18 @@ mod tests {
     #[test]
     fn create_archive_extract_and_restore_native_acl() -> io::Result<()> {
         use pna::{Archive, Chunk, FileEntryBuilder, ReadOptions};
-        use std::{fs, io::{Read, Write}, time::{SystemTime, UNIX_EPOCH}};
+        use std::{
+            fs,
+            io::{Read, Write},
+            time::{SystemTime, UNIX_EPOCH},
+        };
 
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(io::Error::other)?
             .as_nanos();
-        let root = std::env::temp_dir().join(format!(
-            "pna_acl_draft_{}_{}", std::process::id(), now
-        ));
+        let root =
+            std::env::temp_dir().join(format!("pna_acl_draft_{}_{}", std::process::id(), now));
         fs::create_dir(&root)?;
         let original = root.join("original.txt");
         let restored = root.join("restored.txt");
@@ -163,11 +184,36 @@ mod tests {
 
         let expected = PosixAcl {
             access: vec![
-                PosixAce { tag: PosixTag::UserObj, permissions: 6, qualifier: None, name: String::new() },
-                PosixAce { tag: PosixTag::User, permissions: 4, qualifier: Some(65432), name: String::new() },
-                PosixAce { tag: PosixTag::GroupObj, permissions: 4, qualifier: None, name: String::new() },
-                PosixAce { tag: PosixTag::Mask, permissions: 4, qualifier: None, name: String::new() },
-                PosixAce { tag: PosixTag::Other, permissions: 0, qualifier: None, name: String::new() },
+                PosixAce {
+                    tag: PosixTag::UserObj,
+                    permissions: 6,
+                    qualifier: None,
+                    name: String::new(),
+                },
+                PosixAce {
+                    tag: PosixTag::User,
+                    permissions: 4,
+                    qualifier: Some(65432),
+                    name: String::new(),
+                },
+                PosixAce {
+                    tag: PosixTag::GroupObj,
+                    permissions: 4,
+                    qualifier: None,
+                    name: String::new(),
+                },
+                PosixAce {
+                    tag: PosixTag::Mask,
+                    permissions: 4,
+                    qualifier: None,
+                    name: String::new(),
+                },
+                PosixAce {
+                    tag: PosixTag::Other,
+                    permissions: 0,
+                    qualifier: None,
+                    name: String::new(),
+                },
             ],
             default: vec![],
         };
@@ -186,7 +232,9 @@ mod tests {
         let extracted = archive.entries().skip_solid().next().unwrap()?;
         let acl = extracted.acl_chunk()?.unwrap();
         let mut content = Vec::new();
-        extracted.reader(ReadOptions::builder().build())?.read_to_end(&mut content)?;
+        extracted
+            .reader(ReadOptions::builder().build())?
+            .read_to_end(&mut content)?;
         fs::write(&restored, &content)?;
         restore_chunk(&restored, &acl, true)?;
         let actual = capture(&restored, true)?.unwrap();
@@ -200,11 +248,36 @@ mod tests {
     fn named_numeric_id_and_default_roundtrip() {
         let acl = PosixAcl {
             access: vec![
-                PosixAce { tag: PosixTag::UserObj, permissions: 7, qualifier: None, name: String::new() },
-                PosixAce { tag: PosixTag::User, permissions: 5, qualifier: Some(1234), name: String::new() },
-                PosixAce { tag: PosixTag::GroupObj, permissions: 5, qualifier: None, name: String::new() },
-                PosixAce { tag: PosixTag::Mask, permissions: 5, qualifier: None, name: String::new() },
-                PosixAce { tag: PosixTag::Other, permissions: 0, qualifier: None, name: String::new() },
+                PosixAce {
+                    tag: PosixTag::UserObj,
+                    permissions: 7,
+                    qualifier: None,
+                    name: String::new(),
+                },
+                PosixAce {
+                    tag: PosixTag::User,
+                    permissions: 5,
+                    qualifier: Some(1234),
+                    name: String::new(),
+                },
+                PosixAce {
+                    tag: PosixTag::GroupObj,
+                    permissions: 5,
+                    qualifier: None,
+                    name: String::new(),
+                },
+                PosixAce {
+                    tag: PosixTag::Mask,
+                    permissions: 5,
+                    qualifier: None,
+                    name: String::new(),
+                },
+                PosixAce {
+                    tag: PosixTag::Other,
+                    permissions: 0,
+                    qualifier: None,
+                    name: String::new(),
+                },
             ],
             default: vec![],
         };
