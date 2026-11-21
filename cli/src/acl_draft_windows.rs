@@ -216,10 +216,8 @@ mod tests {
 
     #[test]
     fn native_windows_file_dacl_roundtrip() -> io::Result<()> {
-        let folder = std::env::temp_dir().join(format!(
-            "pna-acl-draft-windows-{}",
-            std::process::id()
-        ));
+        let folder =
+            std::env::temp_dir().join(format!("pna-acl-draft-windows-{}", std::process::id()));
         std::fs::create_dir_all(&folder)?;
         let original_file = folder.join("original.tmp");
         let restored_file = folder.join("restored.tmp");
