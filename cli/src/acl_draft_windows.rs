@@ -20,8 +20,6 @@ const ACCESS_FILTER: u32 = 0x0000_0100;
 const COMPLETE_SACL: u32 = SACL | LABEL | ATTRIBUTE | SCOPE | PROCESS_TRUST_LABEL | ACCESS_FILTER;
 const PROTECTED_DACL: u32 = 0x8000_0000;
 const PROTECTED_SACL: u32 = 0x4000_0000;
-const UNPROTECTED_DACL: u32 = 0x2000_0000;
-const UNPROTECTED_SACL: u32 = 0x1000_0000;
 const SE_DACL_PRESENT: u16 = 0x0004;
 const SE_SACL_PRESENT: u16 = 0x0010;
 const SE_DACL_PROTECTED: u16 = 0x1000;
@@ -115,19 +113,19 @@ pub(crate) fn restore(path: &Path, chunk: &AclChunk, follow_links: bool) -> io::
     let mut info = 0u32;
     if coverage & 1 != 0 {
         info |= DACL;
-        info |= if control & SE_DACL_PROTECTED != 0 {
-            PROTECTED_DACL
-        } else {
-            UNPROTECTED_DACL
-        };
+        // An unprotected DACL on a newly created file is already inheritable.
+        // Requesting UNPROTECTED_DACL here also forces inheritance propagation,
+        // which can fail with ACCESS_DENIED even when WRITE_DAC is available.
+        // Apply protection explicitly only when the archived DACL requires it.
+        if control & SE_DACL_PROTECTED != 0 {
+            info |= PROTECTED_DACL;
+        }
     }
     if coverage & 2 != 0 {
         info |= COMPLETE_SACL;
-        info |= if control & SE_SACL_PROTECTED != 0 {
-            PROTECTED_SACL
-        } else {
-            UNPROTECTED_SACL
-        };
+        if control & SE_SACL_PROTECTED != 0 {
+            info |= PROTECTED_SACL;
+        }
     }
     // The wire descriptor is self-relative. Its offsets refer to its first
     // byte. Native ACL parameters must have suitable memory alignment.
