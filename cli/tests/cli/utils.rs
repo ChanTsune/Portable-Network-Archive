@@ -214,6 +214,7 @@ pub fn remove_with_empty_parents(path: impl AsRef<Path>) -> io::Result<()> {
     inner(path.as_ref())
 }
 
+#[cfg(not(target_family = "wasm"))]
 fn high_cost_write_options(password: &str) -> pna::WriteOptions {
     pna::WriteOptions::builder()
         .encryption(pna::Encryption::AES)
@@ -226,6 +227,7 @@ fn high_cost_write_options(password: &str) -> pna::WriteOptions {
         .build()
 }
 
+#[cfg(not(target_family = "wasm"))]
 pub fn create_high_cost_encrypted_archive(
     path: impl AsRef<Path>,
     password: &str,
@@ -246,6 +248,7 @@ pub fn create_high_cost_encrypted_archive(
     writer.finalize().unwrap();
 }
 
+#[cfg(not(target_family = "wasm"))]
 pub fn create_high_cost_encrypted_solid_archive(
     path: impl AsRef<Path>,
     password: &str,
