@@ -1,0 +1,39 @@
+name: ACL draft FreeBSD native verification
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiment/acl-draft-roundtrip
+    paths:
+      - "cli/src/acl_draft_freebsd.rs"
+      - "cli/src/lib.rs"
+      - "cli/src/command/core.rs"
+      - "cli/src/command/extract.rs"
+      - "lib/src/acl.rs"
+      - ".github/workflows/acl-draft-freebsd.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  freebsd-native-acl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: FreeBSD 14 native Rust and ACL validation
+        uses: vmactions/freebsd-vm@811efaaac0668df8bfb8308c3ec997b5ab50037b # v1
+        with:
+          release: '14.5'
+          usesh: true
+          prepare: |
+            pkg install -y curl git pkgconf
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          run: |
+            . "$HOME/.cargo/env"
+            rustc --version
+            cargo test --locked -p libpna acl::tests -- --nocapture
+            cargo test --locked -p portable-network-archive --features acl --lib acl_draft_freebsd -- --nocapture
