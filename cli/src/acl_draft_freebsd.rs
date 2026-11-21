@@ -9,9 +9,11 @@ use std::{
     path::Path,
 };
 
-use pna::{AclChunk, RawChunk};
+use pna::{AclChunk, PosixAce, PosixAcl, PosixTag, RawChunk};
 
 const TYPE_NFS4: c_int = 4;
+const TYPE_ACCESS: c_int = 2;
+const TYPE_DEFAULT: c_int = 3;
 const FIRST: c_int = 0;
 const NEXT: c_int = 1;
 const OWNER: c_int = 1;
@@ -48,6 +50,7 @@ unsafe extern "C" {
     fn acl_add_perm(set: *mut c_void, permission: c_int) -> c_int;
     fn acl_add_flag_np(set: *mut c_void, flag: c_int) -> c_int;
     fn acl_free(acl: *mut c_void) -> c_int;
+    fn acl_delete_def_file(path: *const i8) -> c_int;
 }
 
 struct OwnedAcl(*mut c_void);
@@ -167,6 +170,159 @@ pub(crate) fn capture(path: &Path, follow_links: bool) -> io::Result<Option<RawC
     let chunk = AclChunk::new(pna::acl::NFS4, data)?;
     chunk.validate()?;
     Ok(Some(chunk.into_raw_chunk()))
+}
+
+fn posix_entries(acl: *mut c_void) -> io::Result<Vec<PosixAce>> {
+    let mut entries = Vec::new();
+    let mut direction = FIRST;
+    loop {
+        let mut entry = std::ptr::null_mut();
+        // SAFETY: entry is borrowed from an owned ACL.
+        let result = unsafe { acl_get_entry(acl, direction, &mut entry) };
+        if result == 0 { break; }
+        if result == -1 { return Err(io::Error::last_os_error()); }
+        direction = NEXT;
+        let mut native_tag = 0;
+        let mut set = std::ptr::null_mut();
+        // SAFETY: entry is a valid native FreeBSD ACL entry.
+        unsafe {
+            checked(acl_get_tag_type(entry, &mut native_tag))?;
+            checked(acl_get_permset(entry, &mut set))?;
+        }
+        let tag = match native_tag {
+            1 => PosixTag::UserObj,
+            2 => PosixTag::User,
+            4 => PosixTag::GroupObj,
+            8 => PosixTag::Group,
+            16 => PosixTag::Mask,
+            32 => PosixTag::Other,
+            _ => return Err(unsupported("unknown FreeBSD POSIX ACL tag")),
+        };
+        let mut permissions = 0;
+        for bit in [1u8, 2, 4] {
+            // SAFETY: set belongs to this ACL entry.
+            let yes = unsafe { acl_get_perm_np(set, c_int::from(bit)) };
+            if yes == -1 { return Err(io::Error::last_os_error()); }
+            if yes == 1 { permissions |= bit; }
+        }
+        let qualifier = match tag {
+            PosixTag::User | PosixTag::Group => {
+                // SAFETY: named qualifiers are native uid_t/gid_t pointers.
+                let value = unsafe { acl_get_qualifier(entry) };
+                if value.is_null() { return Err(io::Error::last_os_error()); }
+                let id = unsafe { *(value as *const u32) };
+                let owned = OwnedAcl(value);
+                let _ = owned;
+                Some(u64::from(id))
+            }
+            _ => None,
+        };
+        entries.push(PosixAce { tag, permissions, qualifier, name: String::new() });
+    }
+    Ok(entries)
+}
+
+fn read_posix(path: &CString, follow_links: bool, kind: c_int) -> io::Result<Vec<PosixAce>> {
+    // SAFETY: path is NUL-terminated and the returned ACL is library-allocated.
+    let ptr = unsafe {
+        if follow_links { acl_get_file(path.as_ptr(), kind) }
+        else { acl_get_link_np(path.as_ptr(), kind) }
+    };
+    if ptr.is_null() { return Err(io::Error::last_os_error()); }
+    let acl = OwnedAcl(ptr);
+    posix_entries(acl.0)
+}
+
+/// Captures the FreeBSD POSIX.1e access ACL and directory default ACL.
+pub(crate) fn capture_posix(path: &Path, follow_links: bool) -> io::Result<Option<RawChunk>> {
+    let dir = if follow_links { path.metadata()? } else { path.symlink_metadata()? }
+        .is_dir();
+    let p = path_c(path)?;
+    let access = read_posix(&p, follow_links, TYPE_ACCESS)?;
+    let default = if dir { read_posix(&p, follow_links, TYPE_DEFAULT)? } else { vec![] };
+    let chunk = PosixAcl { access, default }.into_acl_chunk()?;
+    chunk.validate()?;
+    Ok(Some(chunk.into_raw_chunk()))
+}
+
+fn construct_posix(entries: &[PosixAce]) -> io::Result<OwnedAcl> {
+    let count = c_int::try_from(entries.len()).map_err(|_| invalid("POSIX ACL too large"))?;
+    // SAFETY: requests a native ACL with sufficient entry capacity.
+    let ptr = unsafe { acl_init(count) };
+    if ptr.is_null() { return Err(io::Error::last_os_error()); }
+    let mut acl = OwnedAcl(ptr);
+    for e in entries {
+        let mut raw = std::ptr::null_mut();
+        let native_tag = match e.tag {
+            PosixTag::UserObj => 1,
+            PosixTag::User => 2,
+            PosixTag::GroupObj => 4,
+            PosixTag::Group => 8,
+            PosixTag::Mask => 16,
+            PosixTag::Other => 32,
+        };
+        // SAFETY: allocated ACL is owned and the entry functions update it.
+        unsafe {
+            checked(acl_create_entry(&mut acl.0, &mut raw))?;
+            checked(acl_set_tag_type(raw, native_tag))?;
+            if let Some(uid) = e.qualifier {
+                let uid = u32::try_from(uid).map_err(|_| unsupported("POSIX UID or GID too large"))?;
+                checked(acl_set_qualifier(raw, (&uid as *const u32).cast()))?;
+            }
+            let mut set = std::ptr::null_mut();
+            checked(acl_get_permset(raw, &mut set))?;
+            for bit in [1u8, 2, 4] {
+                if e.permissions & bit != 0 {
+                    checked(acl_add_perm(set, c_int::from(bit)))?;
+                }
+            }
+        }
+    }
+    Ok(acl)
+}
+
+fn set_posix(path: &CString, kind: c_int, acl: *mut c_void, follow_links: bool) -> io::Result<()> {
+    // SAFETY: both path and acl are valid for the native API.
+    let code = unsafe {
+        if follow_links { acl_set_file(path.as_ptr(), kind, acl) }
+        else { acl_set_link_np(path.as_ptr(), kind, acl) }
+    };
+    checked(code)
+}
+
+/// Restores FreeBSD POSIX.1e access and default ACLs using numeric principals.
+pub(crate) fn restore_posix(path: &Path, chunk: &AclChunk, follow_links: bool) -> io::Result<()> {
+    let acl = PosixAcl::decode(chunk.payload())?;
+    let directory = if follow_links { path.metadata()? } else { path.symlink_metadata()? }
+        .is_dir();
+    if !directory && !acl.default.is_empty() {
+        return Err(unsupported("default POSIX ACL cannot apply to a non-directory"));
+    }
+    let path = path_c(path)?;
+    // An invalid default ACL must be detected before changing the access ACL.
+    if directory {
+        if acl.default.is_empty() {
+            // SAFETY: FreeBSD removes a directory default ACL through this API.
+            let rc = unsafe { acl_delete_def_file(path.as_ptr()) };
+            if rc == -1 && io::Error::last_os_error().raw_os_error() != Some(libc::ENOATTR) {
+                return Err(io::Error::last_os_error());
+            }
+        } else {
+            let default = construct_posix(&acl.default)?;
+            set_posix(&path, TYPE_DEFAULT, default.0, follow_links)?;
+        }
+    }
+    let access = construct_posix(&acl.access)?;
+    set_posix(&path, TYPE_ACCESS, access.0, follow_links)
+}
+
+/// Restores the matching ACL model without translating between ACL families.
+pub(crate) fn restore_chunk(path: &Path, chunk: &AclChunk, follow_links: bool) -> io::Result<()> {
+    match chunk.format_id() {
+        pna::acl::POSIX1E => restore_posix(path, chunk, follow_links),
+        pna::acl::NFS4 => restore(path, chunk, follow_links),
+        _ => Err(unsupported("ACL model is unsupported by FreeBSD")),
+    }
 }
 
 struct Reader<'a> { bytes: &'a [u8] }
