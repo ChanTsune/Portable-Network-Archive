@@ -176,7 +176,7 @@ mod tests {
 
     #[test]
     fn native_acl_file_roundtrip_with_uuid_principal() -> io::Result<()> {
-        use pna::Chunk;
+        use pna::{Archive, Chunk, FileEntryBuilder};
         let path = std::env::temp_dir().join(format!(
             "pna-darwin-acl-{}.tmp", std::process::id()
         ));
@@ -200,6 +200,19 @@ mod tests {
             let captured = capture(&path, true)?.expect("Darwin native ACL");
             let captured = AclChunk::from_bytes(captured.data())?;
             captured.validate()?;
+            let mut bytes = Vec::new();
+            {
+                let mut archive = Archive::write_header(&mut bytes)?;
+                let mut builder = FileEntryBuilder::new("darwin.txt".into())?;
+                builder.add_extra_chunk(captured.clone().into_raw_chunk());
+                archive.add_entry(builder.build()?)?;
+                archive.finalize()?;
+            }
+            let mut archive = Archive::read_header(&bytes[..])?;
+            let entry = archive.entries().skip_solid().next().unwrap()?;
+            let extracted = entry.acl_chunk()?.expect("aCLS in PNA archive");
+            assert_eq!(extracted, captured);
+            restore(&path, &extracted, true)?;
             // Numeric IDs and principal kind are optional identity hints.
             // Native Darwin ACLs preserve the UUID, ACE flags and access mask.
             assert_eq!(&captured.payload()[..32], &acl.payload()[..32]);
