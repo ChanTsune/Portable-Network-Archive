@@ -170,6 +170,43 @@ pub(crate) fn restore(path: &Path, chunk: &AclChunk, follow_links: bool) -> io::
 mod tests {
     use super::*;
 
+    unsafe extern "C" {
+        fn mbr_uid_to_uuid(uid: u32, uuid: *mut u8) -> c_int;
+    }
+
+    #[test]
+    fn native_acl_file_roundtrip_with_uuid_principal() -> io::Result<()> {
+        use pna::Chunk;
+        let path = std::env::temp_dir().join(format!(
+            "pna-darwin-acl-{}.tmp", std::process::id()
+        ));
+        std::fs::write(&path, b"acl")?;
+        let result = (|| {
+            let mut uuid = [0u8; 16];
+            // SAFETY: mbr_uid_to_uuid writes exactly 16 bytes on success.
+            let status = unsafe { mbr_uid_to_uuid(libc::getuid(), uuid.as_mut_ptr()) };
+            if status != 0 {
+                return Err(io::Error::last_os_error());
+            }
+            let mut body = Vec::new();
+            body.extend_from_slice(&1u32.to_be_bytes());
+            body.extend_from_slice(&0u32.to_be_bytes());
+            body.extend_from_slice(&uuid);
+            body.extend_from_slice(&1u32.to_be_bytes()); // permit
+            body.extend_from_slice(&2u32.to_be_bytes()); // read data
+            body.extend_from_slice(&[1u8, 0, 0, 0]); // user, no ID or name
+            let acl = AclChunk::new(pna::acl::DARWIN, body)?;
+            restore(&path, &acl, true)?;
+            let captured = capture(&path, true)?.expect("Darwin native ACL");
+            let captured = AclChunk::from_bytes(captured.data())?;
+            captured.validate()?;
+            assert_eq!(captured.payload(), acl.payload());
+            Ok(())
+        })();
+        std::fs::remove_file(&path)?;
+        result
+    }
+
     #[test]
     fn portable_acl_drops_owner_fields_but_keeps_all_aces() {
         let mut native = vec![0; HEADER_SIZE];
