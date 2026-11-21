@@ -26,8 +26,8 @@ use crate::{
     utils::{self, BsdGlobMatcher, VCS_FILES, fs::HardlinkResolver},
 };
 use clap::{ArgAction, ArgGroup, Args, Parser, ValueHint, builder::ArgPredicate};
+use pna::Archive;
 use pna::prelude::PathPartExt;
-use pna::{Archive, KdfCostLimits};
 use std::{
     env, io,
     path::{Path, PathBuf},
@@ -701,7 +701,6 @@ impl Command for BsdtarCommand {
 
 #[hooq::hooq(anyhow)]
 fn run_bsdtar(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Result<()> {
-    let limits = kdf_cost_limits(args.limit_kdf);
     if let Some(format) = &args.format {
         log::warn!("Option '--format {format}' is accepted for compatibility but will be ignored.");
     }
@@ -725,15 +724,15 @@ fn run_bsdtar(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Result<()> {
         anyhow::bail!("-O / --to-stdout is only valid in extract (-x) or list (-t) modes");
     }
     if args.create {
-        run_create_archive(args, limits)
+        run_create_archive(args)
     } else if args.extract {
-        run_extract_archive(ctx, args, limits)
+        run_extract_archive(ctx, args)
     } else if args.list {
-        run_list_archive(args, limits)
+        run_list_archive(args)
     } else if args.append {
-        run_append(args, limits)
+        run_append(args)
     } else if args.update {
-        run_update(args, ctx.umask(), limits)
+        run_update(args, ctx.umask())
     } else {
         unreachable!()
     }
@@ -902,8 +901,9 @@ fn read_files_from(path: impl AsRef<Path>, null: bool) -> io::Result<Vec<String>
 }
 
 #[hooq::hooq(anyhow)]
-fn run_create_archive(args: BsdtarCommand, limits: KdfCostLimits) -> anyhow::Result<()> {
+fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
+    let limits = kdf_cost_limits(args.limit_kdf);
     let password = ask_password(args.password)?;
     // NOTE: "-" will use stdout
     let mut file = args.file;
@@ -1054,11 +1054,8 @@ fn run_create_archive(args: BsdtarCommand, limits: KdfCostLimits) -> anyhow::Res
 }
 
 #[hooq::hooq(anyhow)]
-fn run_extract_archive(
-    ctx: &GlobalContext,
-    args: BsdtarCommand,
-    limits: KdfCostLimits,
-) -> anyhow::Result<()> {
+fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Result<()> {
+    let limits = kdf_cost_limits(args.limit_kdf);
     let password = ask_password(args.password)?;
 
     let mut exclude = args.exclude;
@@ -1213,7 +1210,8 @@ fn run_extract_archive(
 }
 
 #[hooq::hooq(anyhow)]
-fn run_list_archive(args: BsdtarCommand, limits: KdfCostLimits) -> anyhow::Result<()> {
+fn run_list_archive(args: BsdtarCommand) -> anyhow::Result<()> {
+    let limits = kdf_cost_limits(args.limit_kdf);
     let password = ask_password(args.password)?;
     let time_filters = TimeFilterResolver {
         newer_ctime_than: args.newer_ctime_than.as_deref(),
@@ -1309,8 +1307,9 @@ fn run_list_archive(args: BsdtarCommand, limits: KdfCostLimits) -> anyhow::Resul
 }
 
 #[hooq::hooq(anyhow)]
-fn run_append(args: BsdtarCommand, limits: KdfCostLimits) -> anyhow::Result<()> {
+fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
+    let limits = kdf_cost_limits(args.limit_kdf);
     let password = ask_password(args.password)?;
     let password = password.as_deref();
     let option = build_write_options(
@@ -1483,8 +1482,9 @@ fn resolve_name_id(
     }
 }
 
-fn run_update(args: BsdtarCommand, umask: Umask, limits: KdfCostLimits) -> anyhow::Result<()> {
+fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
+    let limits = kdf_cost_limits(args.limit_kdf);
     let password = ask_password(args.password)?;
     let password = password.as_deref();
     let option = build_write_options(
