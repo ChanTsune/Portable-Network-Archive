@@ -196,7 +196,9 @@ mod tests {
             std::env::temp_dir().join(format!("pna-acl-draft-windows-{}.tmp", std::process::id()));
         std::fs::write(&file, b"ACL")?;
         let result = (|| {
-            let encoded = capture(&file, true)?.expect("Windows file DACL");
+            let encoded = capture(&file, true)
+                .map_err(|e| io::Error::new(e.kind(), format!("capture original Windows ACL: {e}")))?
+                .expect("Windows file DACL");
             use pna::{Archive, Chunk, FileEntryBuilder};
             let original = AclChunk::from_bytes(encoded.data())?;
             original.validate()?;
@@ -213,8 +215,11 @@ mod tests {
             let chunk = entry.acl_chunk()?.expect("aCLS in PNA file");
             assert_eq!(chunk.format_id(), pna::acl::WINDOWS_NT);
             chunk.validate()?;
-            restore(&file, &chunk, true)?;
-            let after = capture(&file, true)?.unwrap();
+            restore(&file, &chunk, true)
+                .map_err(|e| io::Error::new(e.kind(), format!("restore Windows ACL: {e}")))?;
+            let after = capture(&file, true)
+                .map_err(|e| io::Error::new(e.kind(), format!("capture restored Windows ACL: {e}")))?
+                .unwrap();
             let after = AclChunk::from_bytes(after.data())?;
             assert_eq!(after.format_id(), pna::acl::WINDOWS_NT);
             after.validate()
