@@ -5,10 +5,10 @@
 //! can be requested in one successful query.
 use crate::utils::os::windows::fs::{open_read_acl, open_write_acl};
 use pna::{AclChunk, RawChunk};
-use windows::Win32::Foundation::ERROR_SUCCESS;
-use windows::Win32::Security::Authorization::{SetSecurityInfo, SE_FILE_OBJECT};
-use windows::Win32::Security::{ACL as Win32Acl, OBJECT_SECURITY_INFORMATION};
 use std::{ffi::c_void, io, path::Path};
+use windows::Win32::Foundation::ERROR_SUCCESS;
+use windows::Win32::Security::Authorization::{SE_FILE_OBJECT, SetSecurityInfo};
+use windows::Win32::Security::{ACL as Win32Acl, OBJECT_SECURITY_INFORMATION};
 
 const DACL: u32 = 0x0000_0004;
 const SACL: u32 = 0x0000_0008;
