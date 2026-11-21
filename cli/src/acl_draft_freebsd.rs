@@ -490,6 +490,21 @@ mod tests {
     }
 
     #[test]
+    fn native_posix_acl_entries_roundtrip_numeric_principals() -> io::Result<()> {
+        let entries = vec![
+            PosixAce { tag: PosixTag::UserObj, permissions: 7, qualifier: None, name: String::new() },
+            PosixAce { tag: PosixTag::User, permissions: 4, qualifier: Some(65432), name: String::new() },
+            PosixAce { tag: PosixTag::GroupObj, permissions: 5, qualifier: None, name: String::new() },
+            PosixAce { tag: PosixTag::Mask, permissions: 5, qualifier: None, name: String::new() },
+            PosixAce { tag: PosixTag::Other, permissions: 0, qualifier: None, name: String::new() },
+        ];
+        let native = construct_posix(&entries)?;
+        let restored = posix_entries(native.0)?;
+        assert_eq!(restored, entries);
+        Ok(())
+    }
+
+    #[test]
     fn xdr_principals_have_required_padding() {
         let mut data = vec![];
         put_u32(&mut data, 0);
