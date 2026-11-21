@@ -1213,7 +1213,11 @@ pub(crate) fn collect_extra_chunks(
                         }
                     }
                     Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
-                        log::warn!("ACL not supported on this filesystem, skipping '{}': {}", path.display(), e);
+                        log::warn!(
+                            "ACL not supported on this filesystem, skipping '{}': {}",
+                            path.display(),
+                            e
+                        );
                     }
                     Err(e) => return Err(e),
                 }
