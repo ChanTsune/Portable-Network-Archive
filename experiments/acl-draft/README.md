@@ -34,19 +34,20 @@ The named-user/group test is in `cli/src/acl_draft.rs`; it writes an actual PNA 
 |---|---|---|---|
 | POSIX.1e 0x0001 | Yes | Yes | Linux native adapter and FreeBSD POSIX adapter; native equivalence not fully proven |
 | Extended NFSv4 0x0002 | Yes (XDR structural) | Yes | FreeBSD native adapter exists; CI filesystem lacks NFSv4 support, so native test currently skips |
-| Windows NT 0x0003 | Yes (basic descriptor structure) | Yes | Windows native adapter exists; prior CI failed with OS error 998, and semantic equivalence is not yet established |
-| Darwin 0x0004 | Yes (basic structure) | Yes | macOS native adapter exists; prior legacy compatibility tests failed; later fix awaits CI verification |
+| Windows NT 0x0003 | Yes (basic descriptor structure) | Yes | Windows native adapter and distinct-file DACL roundtrip test pass on prior HEAD; full descriptor/SACL semantic equivalence is not yet established |
+| Darwin 0x0004 | Yes (basic structure) | Yes | macOS native adapter and legacy compatibility tests pass on prior HEAD; complete native semantic equivalence is not yet established |
 | Extended NFSv4.1 0x0005 | Yes (XDR structural) | Yes | Not implemented |
 | Unknown format ID | Preserved opaque | Yes | Not applied |
 
 **Validation is not authorization equivalence.** The proof of binary roundtrip does not establish that all supported OS ACLs can be extracted losslessly, installed successfully, or have identical effective access checks.
 
-## CI evidence and known gaps (2026-11-21)
+## CI evidence and known gaps (2026-11-22)
 
-- Latest observed HEAD before this documentation update: `5b130f8ec1735d0d6d03c100e60b88b9c419dbb3`. Its format, test, FreeBSD and WASM workflows were still queued at the time of inspection. Do not substitute older runs for HEAD validation.
-- FreeBSD workflow [44873010267](https://github.com/ChanTsune/Portable-Network-Archive/actions/runs/44873010267) succeeded at the job level, but printed `SKIP NFSv4 native filesystem test: filesystem does not support NFSv4 ACLs`. The test returns success on this skip; the job is **not** proof of NFSv4 native equivalence. A suitable NFSv4-enabled filesystem and a non-skippable assertion are required.
-- Earlier Windows/macOS workflow [44872927040](https://github.com/ChanTsune/Portable-Network-Archive/actions/runs/44872927040) failed. Later Windows ACL alignment and macOS legacy-compatibility changes must be independently retested on current HEAD.
-- Windows currently uses an owner/group-free self-relative descriptor with `SetSecurityInfo` on restoration. Its test checks structural validity after recapture, not exact ACL semantic equality. The preferred design is a fully native, valid security descriptor; do not switch to a PNA-defined descriptor envelope without strong native evidence that the preferred design cannot work.
+- Latest inspected branch HEAD: `fc0df239a19ac94666a58118af75b459f7555a14`. [Format run 44951055913](https://github.com/ChanTsune/Portable-Network-Archive/actions/runs/44951055913) passed; [Test run 44951056016](https://github.com/ChanTsune/Portable-Network-Archive/actions/runs/44951056016) was queued and [WASM run 44951055915](https://github.com/ChanTsune/Portable-Network-Archive/actions/runs/44951055915) was in progress when checked. These are not yet evidence of a green HEAD.
+- Prior `fdd11c3e`: [Test run 44944968437](https://github.com/ChanTsune/Portable-Network-Archive/actions/runs/44944968437) passed all 21 jobs (Linux, macOS and Windows toolchains, including Windows x64/ARM64), [WASM run 44944968429](https://github.com/ChanTsune/Portable-Network-Archive/actions/runs/44944968429) passed, but [Format run 44944968522](https://github.com/ChanTsune/Portable-Network-Archive/actions/runs/44944968522) failed. HEAD `fc0df239` fixes only that formatting difference.
+- Windows distinct-file DACL capture → PNA → restoration → recapture passes in the prior test matrix. The test does not prove the full DACL/SACL/owner/group-free descriptor validity matrix, effective authorization equivalence, or SACL category coverage. The native setter fallback also requires explicit verification of which API succeeded.
+- FreeBSD [run 44908816452](https://github.com/ChanTsune/Portable-Network-Archive/actions/runs/44908816452) passed at workflow level, but the NFSv4 native test explicitly returns success on unsupported filesystems (`SKIP NFSv4 native filesystem test`). The [FreeBSD workflow](../../.github/workflows/acl-draft-freebsd.yml) currently uses the VM default filesystem and is path-filtered, so it is not triggered for every HEAD. A dedicated ACL-capable UFS/ZFS filesystem and a mandatory non-skipping native roundtrip are still required.
+- The current FreeBSD POSIX numeric-principal unit test constructs an ACL in memory; it does **not** apply a POSIX/default ACL to a real filesystem or verify a separate-object archive restoration.
 - Do not count a skipped test, a structural-only comparison, or a previously green commit as proof of full native roundtrip.
 
 ## Important unresolved draft issues
