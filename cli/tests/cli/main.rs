@@ -21,6 +21,8 @@ mod delete;
 mod diff;
 mod encrypt;
 mod extract;
+#[cfg(not(target_family = "wasm"))]
+mod fflag;
 mod flag_pairs;
 mod hardlink;
 mod keep_acl;
