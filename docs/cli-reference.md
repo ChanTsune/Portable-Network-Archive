@@ -576,6 +576,12 @@ Update entries in archive
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
+* `--limit-kdf` — Limit key derivation cost when reading encrypted entries
+
+  Default value: `false`
+* `--no-limit-kdf` — Do not limit key derivation cost. This is the inverse option of --limit-kdf
+
+  Default value: `false`
 * `--aes <cipher mode>` — Use aes for encryption
 
   Possible values: `cbc`, `ctr`, `gcm`
@@ -663,6 +669,12 @@ Extract files from archive
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
+* `--limit-kdf` — Limit key derivation cost when reading encrypted entries
+
+  Default value: `false`
+* `--no-limit-kdf` — Do not limit key derivation cost. This is the inverse option of --limit-kdf
+
+  Default value: `false`
 * `--preserve-timestamps` [alias: `keep-timestamp`] — Restore the timestamp of the files
 
   Default value: `false`
@@ -854,6 +866,12 @@ List files in archive
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
+* `--limit-kdf` — Limit key derivation cost when reading encrypted entries
+
+  Default value: `false`
+* `--no-limit-kdf` — Do not limit key derivation cost. This is the inverse option of --limit-kdf
+
+  Default value: `false`
 * `-f`, `--file <ARCHIVE>` — Archive file path
 * `--help` — Print help
 * `--quiet` — Make some output more quiet (alias for --log-level off)
@@ -915,6 +933,12 @@ Delete entry from archive
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
+* `--limit-kdf` — Limit key derivation cost when reading encrypted entries
+
+  Default value: `false`
+* `--no-limit-kdf` — Do not limit key derivation cost. This is the inverse option of --limit-kdf
+
+  Default value: `false`
 * `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
@@ -1072,6 +1096,12 @@ Strip entries metadata
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
+* `--limit-kdf` — Limit key derivation cost when reading encrypted entries
+
+  Default value: `false`
+* `--no-limit-kdf` — Do not limit key derivation cost. This is the inverse option of --limit-kdf
+
+  Default value: `false`
 * `-f`, `--file <ARCHIVE>` — Archive file path
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
@@ -1126,6 +1156,12 @@ Sort entries in archive
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
+* `--limit-kdf` — Limit key derivation cost when reading encrypted entries
+
+  Default value: `false`
+* `--no-limit-kdf` — Do not limit key derivation cost. This is the inverse option of --limit-kdf
+
+  Default value: `false`
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -1168,6 +1204,12 @@ Upgrade archives created by older PNA versions
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
+* `--limit-kdf` — Limit key derivation cost when reading encrypted entries
+
+  Default value: `false`
+* `--no-limit-kdf` — Do not limit key derivation cost. This is the inverse option of --limit-kdf
+
+  Default value: `false`
 * `-f`, `--file <ARCHIVE>` — Archive file path
 * `--output <OUTPUT>` — Output file path
 * `--overwrite` — Overwrite the output file (rewrite in place when --output is omitted)
@@ -1266,6 +1308,12 @@ Get extended attributes of entries
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
+* `--limit-kdf` — Limit key derivation cost when reading encrypted entries
+
+  Default value: `false`
+* `--no-limit-kdf` — Do not limit key derivation cost. This is the inverse option of --limit-kdf
+
+  Default value: `false`
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -1327,6 +1375,12 @@ Set extended attributes of entries
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
+* `--limit-kdf` — Limit key derivation cost when reading encrypted entries
+
+  Default value: `false`
+* `--no-limit-kdf` — Do not limit key derivation cost. This is the inverse option of --limit-kdf
+
+  Default value: `false`
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -1629,6 +1683,12 @@ bsdtar-like CLI semantics for PNA archives
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
+* `--limit-kdf` — Limit key derivation cost when reading encrypted entries
+
+  Default value: `false`
+* `--no-limit-kdf` — Do not limit key derivation cost. This is the inverse option of --limit-kdf
+
+  Default value: `false`
 * `--options <OPTIONS>` — Comma-separated list of options. Format: key=value or module:key=value. Supported: compression-level. Modules: deflate, zstd, xz
 * `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
 * `--exclude <PATTERN>` — Exclude path glob
@@ -1925,6 +1985,12 @@ Update entries in archive (stabilized, use `pna update` command instead. this co
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
+* `--limit-kdf` — Limit key derivation cost when reading encrypted entries
+
+  Default value: `false`
+* `--no-limit-kdf` — Do not limit key derivation cost. This is the inverse option of --limit-kdf
+
+  Default value: `false`
 * `--aes <cipher mode>` — Use aes for encryption
 
   Possible values: `cbc`, `ctr`, `gcm`
@@ -2021,6 +2087,12 @@ Change owner
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
+* `--limit-kdf` — Limit key derivation cost when reading encrypted entries
+
+  Default value: `false`
+* `--no-limit-kdf` — Do not limit key derivation cost. This is the inverse option of --limit-kdf
+
+  Default value: `false`
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -2076,6 +2148,12 @@ Change mode
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
+* `--limit-kdf` — Limit key derivation cost when reading encrypted entries
+
+  Default value: `false`
+* `--no-limit-kdf` — Do not limit key derivation cost. This is the inverse option of --limit-kdf
+
+  Default value: `false`
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -2161,6 +2239,12 @@ Get acl of entries
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
+* `--limit-kdf` — Limit key derivation cost when reading encrypted entries
+
+  Default value: `false`
+* `--no-limit-kdf` — Do not limit key derivation cost. This is the inverse option of --limit-kdf
+
+  Default value: `false`
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -2225,6 +2309,12 @@ Set acl of entries
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
+* `--limit-kdf` — Limit key derivation cost when reading encrypted entries
+
+  Default value: `false`
+* `--no-limit-kdf` — Do not limit key derivation cost. This is the inverse option of --limit-kdf
+
+  Default value: `false`
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -2414,6 +2504,12 @@ Compare archive entries with filesystem
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
+* `--limit-kdf` — Limit key derivation cost when reading encrypted entries
+
+  Default value: `false`
+* `--no-limit-kdf` — Do not limit key derivation cost. This is the inverse option of --limit-kdf
+
+  Default value: `false`
 * `--full-compare` — Compare directory mtime and ownership (by default, only mode is compared for directories)
 
   Default value: `false`
@@ -2479,6 +2575,12 @@ Note: for entries encrypted in CBC or CTR mode, a wrong password is indistinguis
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored
 * `--password-file-raw <FILE>` — Read password from the specified file as-is (entire file content, including newlines)
+* `--limit-kdf` — Limit key derivation cost when reading encrypted entries
+
+  Default value: `false`
+* `--no-limit-kdf` — Do not limit key derivation cost. This is the inverse option of --limit-kdf
+
+  Default value: `false`
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`

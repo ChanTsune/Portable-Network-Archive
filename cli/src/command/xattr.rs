@@ -1,5 +1,8 @@
 use crate::{
-    cli::{ArchiveFileArgs, FileOperands, PasswordArgs, SolidEntriesTransformStrategyArgs},
+    cli::{
+        ArchiveFileArgs, FileOperands, PasswordArgs, SolidEntriesTransformStrategyArgs,
+        kdf_cost_limits,
+    },
     command::{
         Command, ask_password,
         core::{
@@ -13,7 +16,7 @@ use base64::Engine;
 use bstr::{ByteSlice, io::BufReadExt};
 use clap::{ArgAction, ArgGroup, Parser, ValueEnum, ValueHint};
 use indexmap::IndexMap;
-use pna::{NormalEntry, ReadOptions};
+use pna::NormalEntry;
 use regex::Regex;
 use std::{
     borrow::Cow,
@@ -53,6 +56,7 @@ pub(crate) enum XattrCommands {
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(
     group(ArgGroup::new("dump-flags").args(["name", "dump"])),
+    group(ArgGroup::new("kdf-cost-limit").args(["limit_kdf", "no_limit_kdf"])),
 )]
 pub(crate) struct GetXattrCommand {
     #[command(flatten)]
@@ -78,6 +82,17 @@ pub(crate) struct GetXattrCommand {
     encoding: Option<Encoding>,
     #[command(flatten)]
     password: PasswordArgs,
+    #[arg(
+        long,
+        help = "Limit key derivation cost when reading encrypted entries"
+    )]
+    limit_kdf: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not limit key derivation cost. This is the inverse option of --limit-kdf"
+    )]
+    no_limit_kdf: (),
 }
 
 impl Command for GetXattrCommand {
@@ -88,9 +103,10 @@ impl Command for GetXattrCommand {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
-#[command(group(
-    ArgGroup::new("restore-source").args(["restore", "restore_from_stdin"])
-))]
+#[command(
+    group(ArgGroup::new("restore-source").args(["restore", "restore_from_stdin"])),
+    group(ArgGroup::new("kdf-cost-limit").args(["limit_kdf", "no_limit_kdf"])),
+)]
 pub(crate) struct SetXattrCommand {
     #[command(flatten)]
     archive: ArchiveFileArgs,
@@ -138,6 +154,17 @@ pub(crate) struct SetXattrCommand {
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
     password: PasswordArgs,
+    #[arg(
+        long,
+        help = "Limit key derivation cost when reading encrypted entries"
+    )]
+    limit_kdf: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not limit key derivation cost. This is the inverse option of --limit-kdf"
+    )]
+    no_limit_kdf: (),
 }
 
 impl Command for SetXattrCommand {
@@ -213,6 +240,7 @@ impl<'a> DumpOption<'a> {
 
 #[hooq::hooq(anyhow)]
 fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
+    let limits = kdf_cost_limits(args.limit_kdf);
     let password = ask_password(args.password)?;
     if args.files.files.is_empty() {
         return Ok(());
@@ -224,7 +252,7 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
     let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive.file)?)?;
-    let read_options = ReadOptions::with_password(password.as_deref());
+    let read_options = crate::command::read_options(password.as_deref(), limits);
     let stdout = io::stdout();
     let mut output = stdout.lock();
 
@@ -262,6 +290,7 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
 
 #[hooq::hooq(anyhow)]
 fn archive_set_xattr(args: SetXattrCommand, umask: Umask) -> anyhow::Result<()> {
+    let limits = kdf_cost_limits(args.limit_kdf);
     let password = ask_password(args.password)?;
     let files = args.files.files;
     let set_strategy = if args.restore_from_stdin {
@@ -294,6 +323,7 @@ fn archive_set_xattr(args: SetXattrCommand, umask: Umask) -> anyhow::Result<()> 
         destination,
         umask,
         password.as_deref(),
+        limits,
         args.transform_strategy.strategy(),
         set_strategy,
     )

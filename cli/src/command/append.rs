@@ -17,7 +17,7 @@ use crate::{
     utils::{VCS_FILES, fs::HardlinkResolver},
 };
 use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
-use pna::{Archive, prelude::*};
+use pna::{Archive, KdfCostLimits, prelude::*};
 use std::{
     fs, io,
     io::{Seek, SeekFrom},
@@ -510,6 +510,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         &filter,
         &time_filters,
         password,
+        KdfCostLimits::unbounded(),
         false,
         false,
     )
@@ -523,6 +524,7 @@ pub(crate) fn run_append_archive(
     filter: &PathFilter<'_>,
     time_filters: &TimeFilters,
     password: Option<&[u8]>,
+    limits: KdfCostLimits,
     verbose: bool,
     allow_concatenated_archives: bool,
 ) -> anyhow::Result<()> {
@@ -532,6 +534,7 @@ pub(crate) fn run_append_archive(
         filter,
         time_filters,
         password,
+        limits,
         allow_concatenated_archives,
     );
     drain_entry_results(rx, |entry| {

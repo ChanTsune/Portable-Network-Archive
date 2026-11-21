@@ -27,6 +27,7 @@ use crate::{
     cli::{Cli, Commands, GlobalContext, PasswordArgs},
     utils::fs as utils_fs,
 };
+use pna::{KdfCostLimits, ReadOptions};
 use std::{fmt, fs, io};
 
 /// Error that maps to a specific process exit code in `main`.
@@ -103,6 +104,12 @@ fn ask_password(args: PasswordArgs) -> io::Result<Option<Vec<u8>>> {
         ),
         None => None,
     })
+}
+
+pub(crate) fn read_options(password: Option<&[u8]>, limits: KdfCostLimits) -> ReadOptions {
+    let mut builder = ReadOptions::with_password(password).into_builder();
+    builder.kdf_cost_limits(limits);
+    builder.build()
 }
 
 pub(crate) trait Command {

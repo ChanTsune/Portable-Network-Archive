@@ -2,7 +2,7 @@ use crate::{
     cli::{
         ArchiveFileArgs, CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileOperands,
         HashAlgorithmArgs, MissingTimePolicy, PasswordArgs, SolidEntriesTransformStrategy,
-        SolidEntriesTransformStrategyArgs,
+        SolidEntriesTransformStrategyArgs, kdf_cost_limits,
     },
     command::{
         Command, ask_password,
@@ -24,7 +24,7 @@ use crate::{
 use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
 use indexmap::IndexMap;
 use pna::prelude::SystemTimeDurationExt;
-use pna::{Archive, EntryName, Metadata};
+use pna::{Archive, EntryName, KdfCostLimits, Metadata};
 use std::{
     cmp::Ordering,
     fs, io,
@@ -51,6 +51,7 @@ use std::{
     group(ArgGroup::new("ctime-newer-than-source").args(["newer_ctime", "newer_ctime_than"])),
     group(ArgGroup::new("mtime-older-than-source").args(["older_mtime", "older_mtime_than"])),
     group(ArgGroup::new("mtime-newer-than-source").args(["newer_mtime", "newer_mtime_than"])),
+    group(ArgGroup::new("kdf-cost-limit").args(["limit_kdf", "no_limit_kdf"])),
 )]
 pub(crate) struct UpdateCommand {
     #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
@@ -383,6 +384,17 @@ pub(crate) struct UpdateCommand {
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
+    #[arg(
+        long,
+        help = "Limit key derivation cost when reading encrypted entries"
+    )]
+    limit_kdf: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not limit key derivation cost. This is the inverse option of --limit-kdf"
+    )]
+    no_limit_kdf: (),
     #[command(flatten)]
     pub(crate) cipher: CipherAlgorithmArgs,
     #[command(flatten)]
@@ -436,6 +448,7 @@ impl Command for UpdateCommand {
 fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
     let transform_strategy = args.transform_strategy.strategy();
     let sync = args.sync;
+    let limits = kdf_cost_limits(args.limit_kdf);
     let password = ask_password(args.password)?;
     let archive_path = &args.archive.file;
     if !archive_path.exists() {
@@ -543,6 +556,7 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
         SolidEntriesTransformStrategy::UnSolid => run_update_archive(
             &mut source,
             password,
+            limits,
             &create_options,
             target_items,
             sync,
@@ -555,6 +569,7 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
         SolidEntriesTransformStrategy::KeepSolid => run_update_archive(
             &mut source,
             password,
+            limits,
             &create_options,
             target_items,
             sync,
@@ -577,6 +592,7 @@ fn update_archive(args: UpdateCommand, umask: Umask) -> anyhow::Result<()> {
 pub(crate) fn run_update_archive<Strategy, W>(
     source: &mut SplitArchiveReader,
     password: Option<&[u8]>,
+    limits: KdfCostLimits,
     create_options: &CreateOptions,
     target_items: Vec<CollectedEntry>,
     sync: bool,
@@ -591,7 +607,7 @@ where
     W: io::Write,
 {
     let (tx, rx) = std::sync::mpsc::channel();
-    let context = TransformContext::new(password);
+    let context = TransformContext::new(password, limits);
 
     // Overlapping source arguments (e.g. a directory and a file within it)
     // routinely collect the same path spelling twice; that case is

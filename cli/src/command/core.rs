@@ -31,8 +31,8 @@ use path_slash::*;
 pub(crate) use path_transformer::PathTransformers;
 use pna::{
     Archive, DataKind, DirEntryBuilder, EntryContent, FileEntryBuilder, HardLinkEntryBuilder,
-    LinkTargetType, Metadata, NormalEntry, OpaqueEntryBuilder, PNA_SIGNATURE, ReadEntry,
-    ReadOptions, SymlinkEntryBuilder, WriteOptions, prelude::*,
+    KdfCostLimits, LinkTargetType, Metadata, NormalEntry, OpaqueEntryBuilder, PNA_SIGNATURE,
+    ReadEntry, ReadOptions, SymlinkEntryBuilder, WriteOptions, prelude::*,
 };
 use std::{
     borrow::Cow,
@@ -539,6 +539,7 @@ pub(crate) fn spawn_entry_results(
     filter: &PathFilter<'_>,
     time_filters: &TimeFilters,
     password: Option<&[u8]>,
+    limits: KdfCostLimits,
     allow_concatenated_archives: bool,
 ) -> std::sync::mpsc::Receiver<(usize, EntryResult)> {
     let (tx, rx) = std::sync::mpsc::channel();
@@ -563,6 +564,7 @@ pub(crate) fn spawn_entry_results(
                         filter,
                         time_filters,
                         password,
+                        limits,
                         allow_concatenated_archives,
                     );
                     tx.send((idx, EntryResult::Batch(result)))
@@ -1289,10 +1291,10 @@ pub(crate) struct TransformContext<'a> {
 
 impl<'a> TransformContext<'a> {
     #[inline]
-    pub(crate) fn new(password: Option<&'a [u8]>) -> Self {
+    pub(crate) fn new(password: Option<&'a [u8]>, limits: KdfCostLimits) -> Self {
         Self {
             password,
-            read_options: ReadOptions::with_password(password),
+            read_options: crate::command::read_options(password, limits),
         }
     }
 }
@@ -1696,6 +1698,7 @@ fn run_transform_entries_bytes<'d, 'p, W, Provider, F, Transform>(
     writer: W,
     archives: impl IntoIterator<Item = &'d [u8]>,
     mut password_provider: Provider,
+    limits: KdfCostLimits,
     mut processor: F,
     _strategy: Transform,
 ) -> anyhow::Result<()>
@@ -1708,7 +1711,7 @@ where
     Transform: TransformStrategy,
 {
     let password = password_provider();
-    let context = TransformContext::new(password);
+    let context = TransformContext::new(password, limits);
     let mut out_archive = Archive::write_header(writer)?;
     run_read_entries_bytes(
         archives,
@@ -1763,6 +1766,7 @@ fn run_transform_entries_readers<'d, 'p, W, Provider, F, Transform>(
     writer: W,
     archives: impl IntoIterator<Item = impl Read>,
     mut password_provider: Provider,
+    limits: KdfCostLimits,
     mut processor: F,
     _strategy: Transform,
 ) -> anyhow::Result<()>
@@ -1775,7 +1779,7 @@ where
     Transform: TransformStrategy,
 {
     let password = password_provider();
-    let context = TransformContext::new(password);
+    let context = TransformContext::new(password, limits);
     let mut out_archive = Archive::write_header(writer)?;
     run_read_entries_readers(
         archives,
@@ -1925,11 +1929,12 @@ pub(crate) fn transform_archive_entries<R: io::Read>(
     filter: &PathFilter<'_>,
     time_filters: &TimeFilters,
     password: Option<&[u8]>,
+    limits: KdfCostLimits,
     allow_concatenated_archives: bool,
 ) -> io::Result<Vec<io::Result<Option<NormalEntry>>>> {
     let mut results = Vec::new();
     let mut reencrypt_options = HashMap::new();
-    let read_options = ReadOptions::with_password(password);
+    let read_options = crate::command::read_options(password, limits);
     run_process_archive_readers(
         std::iter::once(reader),
         &read_options,
@@ -1947,6 +1952,7 @@ pub(crate) fn transform_archive_entries<R: io::Read>(
                 entry,
                 create_options,
                 password,
+                limits,
                 &mut reencrypt_options,
             ));
             Ok(())
@@ -1968,8 +1974,10 @@ pub(crate) fn read_archive_source(
     filter: &PathFilter<'_>,
     time_filters: &TimeFilters,
     password: Option<&[u8]>,
+    limits: KdfCostLimits,
     allow_concatenated_archives: bool,
 ) -> io::Result<Vec<io::Result<Option<NormalEntry>>>> {
+    #[allow(clippy::too_many_arguments)]
     fn process_source<R: io::BufRead>(
         mut reader: R,
         source_name: &str,
@@ -1977,6 +1985,7 @@ pub(crate) fn read_archive_source(
         filter: &PathFilter<'_>,
         time_filters: &TimeFilters,
         password: Option<&[u8]>,
+        limits: KdfCostLimits,
         allow_concatenated_archives: bool,
     ) -> io::Result<Vec<io::Result<Option<NormalEntry>>>> {
         let format = detect_format(&mut reader)
@@ -1989,6 +1998,7 @@ pub(crate) fn read_archive_source(
                 filter,
                 time_filters,
                 password,
+                limits,
                 allow_concatenated_archives,
             ),
             #[cfg(unix)]
@@ -2016,6 +2026,7 @@ pub(crate) fn read_archive_source(
                 filter,
                 time_filters,
                 password,
+                limits,
                 allow_concatenated_archives,
             )
         }
@@ -2028,6 +2039,7 @@ pub(crate) fn read_archive_source(
                 filter,
                 time_filters,
                 password,
+                limits,
                 allow_concatenated_archives,
             )
         }
@@ -2043,6 +2055,7 @@ fn transform_normal_entry(
         keep_options,
     }: &CreateOptions,
     password: Option<&[u8]>,
+    limits: KdfCostLimits,
     reencrypt_options: &mut ReencryptOptionsCache,
 ) -> io::Result<Option<NormalEntry>> {
     // The editor applies the name policy, which may be to keep the name exactly as
@@ -2074,7 +2087,14 @@ fn transform_normal_entry(
                         ),
                     ));
                 };
-                re_encrypt_entry_with_name(&entry, new_name, password, option, reencrypt_options)?
+                re_encrypt_entry_with_name(
+                    &entry,
+                    new_name,
+                    password,
+                    limits,
+                    option,
+                    reencrypt_options,
+                )?
             }
         }
     };
@@ -2169,6 +2189,7 @@ fn re_encrypt_entry_with_name(
     entry: &NormalEntry,
     new_name: pna::EntryName,
     password: &[u8],
+    limits: KdfCostLimits,
     create_options: &WriteOptions,
     reencrypt_options: &mut ReencryptOptionsCache,
 ) -> io::Result<NormalEntry> {
@@ -2195,7 +2216,7 @@ fn re_encrypt_entry_with_name(
             entry.insert(options)
         }
     };
-    let read_options = pna::ReadOptions::with_password(Some(password));
+    let read_options = crate::command::read_options(Some(password), limits);
     let built = match entry.header().data_kind() {
         DataKind::SYMBOLIC_LINK => {
             let EntryContent::SymbolicLink(reference) = entry.content(read_options)? else {
@@ -2292,7 +2313,7 @@ mod tests {
         let mut src = Archive::read_header(&bytes[..]).unwrap();
         let read_entry = src.entries().next().unwrap();
         let mut out = Archive::write_header(Vec::new()).unwrap();
-        let context = TransformContext::new(None);
+        let context = TransformContext::new(None, KdfCostLimits::unbounded());
         let mut seen = 0;
         let err = TransformStrategyKeepSolid::transform(&mut out, &context, read_entry, |entry| {
             let entry = entry?;
@@ -2326,6 +2347,7 @@ mod tests {
             &source,
             "first".into(),
             b"password",
+            KdfCostLimits::unbounded(),
             &gcm_write_options(),
             &mut cache,
         )
@@ -2334,6 +2356,7 @@ mod tests {
             &source,
             "second".into(),
             b"password",
+            KdfCostLimits::unbounded(),
             &gcm_write_options(),
             &mut cache,
         )
@@ -2379,6 +2402,7 @@ mod tests {
             &source,
             "renamed".into(),
             b"password",
+            KdfCostLimits::unbounded(),
             &run_options,
             &mut cache,
         )
@@ -2423,6 +2447,7 @@ mod tests {
             &aes_source,
             "renamed_aes".into(),
             b"password",
+            KdfCostLimits::unbounded(),
             &gcm_write_options(),
             &mut cache,
         )
@@ -2431,6 +2456,7 @@ mod tests {
             &camellia_source,
             "renamed_camellia".into(),
             b"password",
+            KdfCostLimits::unbounded(),
             &gcm_write_options(),
             &mut cache,
         )
@@ -2468,6 +2494,7 @@ mod tests {
             &source,
             "renamed".into(),
             b"password",
+            KdfCostLimits::unbounded(),
             &create_options,
             &mut cache,
         )
@@ -2502,6 +2529,7 @@ mod tests {
             &source,
             "renamed".into(),
             b"password",
+            KdfCostLimits::unbounded(),
             &gcm_write_options(),
             &mut cache,
         )
@@ -2533,6 +2561,7 @@ mod tests {
             &source,
             "renamed".into(),
             b"password",
+            KdfCostLimits::unbounded(),
             &gcm_write_options(),
             &mut cache,
         )
@@ -2565,6 +2594,7 @@ mod tests {
             &source,
             "renamed".into(),
             b"password",
+            KdfCostLimits::unbounded(),
             &gcm_write_options(),
             &mut cache,
         )
@@ -2590,6 +2620,7 @@ mod tests {
             &source,
             "renamed".into(),
             b"password",
+            KdfCostLimits::unbounded(),
             &gcm_write_options(),
             &mut cache,
         )
@@ -2624,6 +2655,7 @@ mod tests {
             &source,
             "renamed".into(),
             b"password",
+            KdfCostLimits::unbounded(),
             &gcm_write_options(),
             &mut cache,
         )
@@ -2655,6 +2687,7 @@ mod tests {
             &source,
             "renamed".into(),
             b"password",
+            KdfCostLimits::unbounded(),
             &gcm_write_options(),
             &mut cache,
         )
@@ -2706,6 +2739,7 @@ mod tests {
             &source,
             "renamed".into(),
             b"password",
+            KdfCostLimits::unbounded(),
             &gcm_write_options(),
             &mut cache,
         )

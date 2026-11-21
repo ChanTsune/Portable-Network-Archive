@@ -1,5 +1,5 @@
 use crate::{
-    cli::{ArchiveFileArgs, FileOperands, PasswordArgs},
+    cli::{ArchiveFileArgs, FileOperands, PasswordArgs, kdf_cost_limits},
     command::{
         Command, ExitCodeError, ask_password,
         core::{SplitArchiveReader, cmp_at_stored_precision, collect_split_archives},
@@ -7,7 +7,7 @@ use crate::{
     utils::{BsdGlobMatcher, fs::is_same_file, io::streams_equal},
 };
 use bitflags::bitflags;
-use clap::{Parser, ValueEnum};
+use clap::{ArgAction, ArgGroup, Parser, ValueEnum};
 use pna::prelude::SystemTimeDurationExt;
 use pna::{DataKind, EntryContent, NormalEntry, ReadOptions};
 use std::cmp::Ordering;
@@ -19,6 +19,7 @@ use std::time::SystemTime;
 use std::{collections::BTreeMap, fmt, fs, io, path::Path};
 
 #[derive(Parser, Clone, Debug)]
+#[command(group(ArgGroup::new("kdf-cost-limit").args(["limit_kdf", "no_limit_kdf"])))]
 pub(crate) struct DiffCommand {
     #[command(flatten)]
     archive: ArchiveFileArgs,
@@ -26,6 +27,17 @@ pub(crate) struct DiffCommand {
     files: FileOperands,
     #[command(flatten)]
     password: PasswordArgs,
+    #[arg(
+        long,
+        help = "Limit key derivation cost when reading encrypted entries"
+    )]
+    limit_kdf: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not limit key derivation cost. This is the inverse option of --limit-kdf"
+    )]
+    no_limit_kdf: (),
     #[arg(
         long,
         conflicts_with = "compare",
@@ -256,13 +268,14 @@ fn diff_archive(ctx: &crate::cli::GlobalContext, args: DiffCommand) -> anyhow::R
         // Nothing survives to compare, so fail before prompting for a password.
         anyhow::bail!("{uncompared}");
     }
+    let limits = kdf_cost_limits(args.limit_kdf);
     let password = ask_password(args.password)?;
     let archives = collect_split_archives(&args.archive.file)?;
 
     let mut globs = BsdGlobMatcher::new(args.files.files.iter().map(|s| s.as_str()));
     let filter_enabled = !globs.is_empty();
 
-    let read_options = ReadOptions::with_password(password.as_deref());
+    let read_options = crate::command::read_options(password.as_deref(), limits);
     let mut source = SplitArchiveReader::new(archives)?;
     let mut diff_count = 0usize;
     source.for_each_entry(
