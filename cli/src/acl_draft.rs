@@ -1,6 +1,6 @@
 //! Experimental native POSIX.1e bridge for draft aCLS.
 //!
-//! The numeric qualifier is captured directly from exacl's native-ID mode.
+//! Numeric qualifiers are captured directly from Linux POSIX ACL xattrs.
 //! This intentionally does not translate NFSv4 or Darwin ACEs to POSIX.
 use std::{io, path::Path};
 
@@ -10,58 +10,87 @@ fn invalid(message: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, message)
 }
 
-/// Collects the access and default ACL as one draft aCLS chunk.
+/// Decodes Linux's stable POSIX ACL xattr representation without resolving names.
 ///
-/// Symbolic links without a native link ACL are omitted on Linux.
+/// Each disk ACE contains a 16-bit tag, 16-bit permission mask and 32-bit
+/// numeric identifier in native little-endian order.
+fn decode_acl_xattr(data: &[u8]) -> io::Result<Vec<PosixAce>> {
+    const XATTR_ACL_VERSION: u32 = 2;
+    if data.len() < 4 || (data.len() - 4) % 8 != 0 {
+        return Err(invalid("invalid Linux ACL xattr length"));
+    }
+    if u32::from_le_bytes(data[..4].try_into().unwrap()) != XATTR_ACL_VERSION {
+        return Err(invalid("unsupported Linux ACL xattr version"));
+    }
+    data[4..]
+        .chunks_exact(8)
+        .map(|entry| {
+            let tag = match u16::from_le_bytes([entry[0], entry[1]]) {
+                0x01 => PosixTag::UserObj,
+                0x02 => PosixTag::User,
+                0x04 => PosixTag::GroupObj,
+                0x08 => PosixTag::Group,
+                0x10 => PosixTag::Mask,
+                0x20 => PosixTag::Other,
+                _ => return Err(invalid("unknown Linux ACL xattr entry tag")),
+            };
+            let permissions = u16::from_le_bytes([entry[2], entry[3]]);
+            if permissions & !7 != 0 {
+                return Err(invalid("invalid Linux ACL permission bits"));
+            }
+            let id = u32::from_le_bytes(entry[4..8].try_into().unwrap());
+            let qualifier = match tag {
+                PosixTag::User | PosixTag::Group => Some(u64::from(id)),
+                _ if id == u32::MAX => None,
+                _ => return Err(invalid("unexpected Linux ACL qualifier")),
+            };
+            Ok(PosixAce {
+                tag,
+                permissions: permissions as u8,
+                qualifier,
+                name: String::new(),
+            })
+        })
+        .collect()
+}
+
+/// Derives the three base access ACEs when Linux has no extended ACL xattr.
+fn acl_from_mode(path: &Path) -> io::Result<Vec<PosixAce>> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let mode = path.metadata()?.permissions().mode();
+    Ok([
+        (PosixTag::UserObj, (mode >> 6) & 7),
+        (PosixTag::GroupObj, (mode >> 3) & 7),
+        (PosixTag::Other, mode & 7),
+    ]
+    .into_iter()
+    .map(|(tag, permissions)| PosixAce {
+        tag,
+        permissions: permissions as u8,
+        qualifier: None,
+        name: String::new(),
+    })
+    .collect())
+}
+
+/// Collects Linux access and default ACLs as a draft aCLS chunk.
+///
+/// The raw xattr stores numeric UIDs/GIDs, including IDs without account
+/// database entries. Symlinks without a native link ACL are omitted.
 pub(crate) fn capture(path: &Path, follow_links: bool) -> io::Result<Option<pna::RawChunk>> {
     if !follow_links && path.symlink_metadata()?.file_type().is_symlink() {
         return Ok(None);
     }
-    let source = exacl::getfacl(path, Some(exacl::AclOption::NATIVE_ID))?;
-    let mut result = PosixAcl {
-        access: vec![],
-        default: vec![],
+    let access = match xattr::get(path, "system.posix_acl_access")? {
+        Some(data) => decode_acl_xattr(&data)?,
+        None => acl_from_mode(path)?,
     };
-    for entry in source {
-        if !entry.allow {
-            return Err(invalid("POSIX ACL does not support DENY ACE"));
-        }
-        if !entry.flags.is_empty() && entry.flags != exacl::Flag::DEFAULT {
-            return Err(invalid("unexpected POSIX ACL entry flags"));
-        }
-        let is_default = entry.flags.contains(exacl::Flag::DEFAULT);
-        let tag = match entry.kind {
-            exacl::AclEntryKind::User if entry.name.is_empty() => PosixTag::UserObj,
-            exacl::AclEntryKind::User => PosixTag::User,
-            exacl::AclEntryKind::Group if entry.name.is_empty() => PosixTag::GroupObj,
-            exacl::AclEntryKind::Group => PosixTag::Group,
-            exacl::AclEntryKind::Mask => PosixTag::Mask,
-            exacl::AclEntryKind::Other => PosixTag::Other,
-            _ => return Err(invalid("unsupported native POSIX ACL entry kind")),
-        };
-        let qualifier = match tag {
-            PosixTag::User | PosixTag::Group => Some(
-                entry.name.parse::<u64>()
-                    .map_err(|_| invalid("native UID or GID is not numeric"))?,
-            ),
-            _ => None,
-        };
-        let permissions = (if entry.perms.contains(exacl::Perm::READ) { 4 } else { 0 })
-            | (if entry.perms.contains(exacl::Perm::WRITE) { 2 } else { 0 })
-            | (if entry.perms.contains(exacl::Perm::EXECUTE) { 1 } else { 0 });
-        let ace = PosixAce {
-            tag,
-            permissions,
-            qualifier,
-            name: String::new(),
-        };
-        if is_default {
-            result.default.push(ace);
-        } else {
-            result.access.push(ace);
-        }
-    }
-    Ok(Some(result.into_acl_chunk()?.into_raw_chunk()))
+    let default = match xattr::get(path, "system.posix_acl_default")? {
+        Some(data) => decode_acl_xattr(&data)?,
+        None => Vec::new(),
+    };
+    Ok(Some(PosixAcl { access, default }.into_acl_chunk()?.into_raw_chunk()))
 }
 
 /// Applies a previously validated POSIX ACL without resolving names.
