@@ -1,8 +1,8 @@
 //! Native Windows security descriptor bridge for draft aCLS.
 //!
 //! A handle is used rather than a pathname API so symlink ACLs can be read
-//! without following the link. SACL coverage is only claimed after querying
-//! SACL and mandatory-label information together.
+//! without following the link. SACL coverage is only claimed if every known SACL category
+//! can be requested in one successful query.
 use crate::utils::os::windows::fs::{open_read_acl, open_write_acl};
 use pna::{AclChunk, RawChunk};
 use std::{ffi::c_void, io, path::Path};
@@ -10,6 +10,12 @@ use std::{ffi::c_void, io, path::Path};
 const DACL: u32 = 0x0000_0004;
 const SACL: u32 = 0x0000_0008;
 const LABEL: u32 = 0x0000_0010;
+const ATTRIBUTE: u32 = 0x0000_0020;
+const SCOPE: u32 = 0x0000_0040;
+const PROCESS_TRUST_LABEL: u32 = 0x0000_0080;
+const ACCESS_FILTER: u32 = 0x0000_0100;
+const COMPLETE_SACL: u32 =
+    SACL | LABEL | ATTRIBUTE | SCOPE | PROCESS_TRUST_LABEL | ACCESS_FILTER;
 const PROTECTED_DACL: u32 = 0x8000_0000;
 const PROTECTED_SACL: u32 = 0x4000_0000;
 const SE_DACL_PROTECTED: u16 = 0x1000;
@@ -61,7 +67,7 @@ fn query(handle: *mut c_void, info: u32) -> io::Result<Vec<u8>> {
 /// This never mislabels a partial LABEL-only response as complete SACL.
 pub(crate) fn capture(path: &Path, follow_links: bool) -> io::Result<Option<RawChunk>> {
     let complete = open_read_acl(path, follow_links, true)
-        .and_then(|handle| query(handle.raw().0, DACL | SACL | LABEL));
+        .and_then(|handle| query(handle.raw().0, DACL | COMPLETE_SACL));
     let (coverage, sd) = match complete {
         Ok(sd) => (3u8, sd),
         Err(_) => {
@@ -95,7 +101,7 @@ pub(crate) fn restore(path: &Path, chunk: &AclChunk, follow_links: bool) -> io::
         }
     }
     if coverage & 2 != 0 {
-        info |= SACL | LABEL;
+        info |= COMPLETE_SACL;
         if control & SE_SACL_PROTECTED != 0 {
             info |= PROTECTED_SACL;
         }
