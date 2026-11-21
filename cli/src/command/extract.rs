@@ -1821,7 +1821,33 @@ where
                     Err(e) => return Err(e),
                 }
             }
-            #[cfg(not(target_os = "linux"))]
+            #[cfg(target_os = "macos")]
+            {
+                match crate::acl_draft_darwin::restore(path, &draft, follow_links) {
+                    Ok(()) => {}
+                    Err(e) if e.kind() == io::ErrorKind::Unsupported => {
+                        log::warn!("Darwin ACL not applicable to '{}': {}", path.display(), e);
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+            #[cfg(windows)]
+            {
+                match crate::acl_draft_windows::restore(path, &draft, follow_links) {
+                    Ok(()) => {}
+                    Err(e) if e.kind() == io::ErrorKind::Unsupported => {
+                        log::warn!("Windows ACL not applicable to '{}': {}", path.display(), e);
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+            #[cfg(target_os = "freebsd")]
+            log::warn!(
+                "Cannot restore experimental aCLS format {} on FreeBSD: '{}'",
+                draft.format_id(),
+                path.display()
+            );
+            #[cfg(not(any(target_os = "linux", target_os = "freebsd", target_os = "macos", windows)))]
             log::warn!(
                 "Cannot restore experimental aCLS format {} on this platform: '{}'",
                 draft.format_id(),
