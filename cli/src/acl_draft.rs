@@ -90,7 +90,11 @@ pub(crate) fn capture(path: &Path, follow_links: bool) -> io::Result<Option<pna:
         Some(data) => decode_acl_xattr(&data)?,
         None => Vec::new(),
     };
-    Ok(Some(PosixAcl { access, default }.into_acl_chunk()?.into_raw_chunk()))
+    Ok(Some(
+        PosixAcl { access, default }
+            .into_acl_chunk()?
+            .into_raw_chunk(),
+    ))
 }
 
 /// Applies a previously validated POSIX ACL without resolving names.
