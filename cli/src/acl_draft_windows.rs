@@ -216,11 +216,17 @@ mod tests {
 
     #[test]
     fn native_windows_file_dacl_roundtrip() -> io::Result<()> {
-        let file =
-            std::env::temp_dir().join(format!("pna-acl-draft-windows-{}.tmp", std::process::id()));
-        std::fs::write(&file, b"ACL")?;
+        let folder = std::env::temp_dir().join(format!(
+            "pna-acl-draft-windows-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&folder)?;
+        let original_file = folder.join("original.tmp");
+        let restored_file = folder.join("restored.tmp");
+        std::fs::write(&original_file, b"ACL")?;
+        std::fs::write(&restored_file, b"ACL")?;
         let result = (|| {
-            let encoded = capture(&file, true)
+            let encoded = capture(&original_file, true)
                 .map_err(|e| {
                     io::Error::new(e.kind(), format!("capture original Windows ACL: {e}"))
                 })?
@@ -241,18 +247,24 @@ mod tests {
             let chunk = entry.acl_chunk()?.expect("aCLS in PNA file");
             assert_eq!(chunk.format_id(), pna::acl::WINDOWS_NT);
             chunk.validate()?;
-            restore(&file, &chunk, true)
+            assert_eq!(chunk, original, "PNA must preserve the native ACL payload");
+            restore(&restored_file, &chunk, true)
                 .map_err(|e| io::Error::new(e.kind(), format!("restore Windows ACL: {e}")))?;
-            let after = capture(&file, true)
+            let after = capture(&restored_file, true)
                 .map_err(|e| {
                     io::Error::new(e.kind(), format!("capture restored Windows ACL: {e}"))
                 })?
-                .unwrap();
+                .expect("restored Windows DACL");
             let after = AclChunk::from_bytes(after.data())?;
             assert_eq!(after.format_id(), pna::acl::WINDOWS_NT);
-            after.validate()
+            after.validate()?;
+            assert_eq!(
+                after, original,
+                "native DACL changed after PNA roundtrip onto a different file"
+            );
+            Ok(())
         })();
-        std::fs::remove_file(file)?;
+        std::fs::remove_dir_all(folder)?;
         result
     }
 }
