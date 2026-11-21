@@ -235,8 +235,12 @@ fn read_posix(path: &CString, follow_links: bool, kind: c_int) -> io::Result<Vec
 
 /// Captures the FreeBSD POSIX.1e access ACL and directory default ACL.
 pub(crate) fn capture_posix(path: &Path, follow_links: bool) -> io::Result<Option<RawChunk>> {
-    let dir = if follow_links { path.metadata()? } else { path.symlink_metadata()? }
-        .is_dir();
+    let metadata = if follow_links {
+        path.metadata()?
+    } else {
+        path.symlink_metadata()?
+    };
+    let dir = metadata.is_dir();
     let p = path_c(path)?;
     let access = read_posix(&p, follow_links, TYPE_ACCESS)?;
     let default = if dir { read_posix(&p, follow_links, TYPE_DEFAULT)? } else { vec![] };
@@ -293,8 +297,12 @@ fn set_posix(path: &CString, kind: c_int, acl: *mut c_void, follow_links: bool) 
 /// Restores FreeBSD POSIX.1e access and default ACLs using numeric principals.
 pub(crate) fn restore_posix(path: &Path, chunk: &AclChunk, follow_links: bool) -> io::Result<()> {
     let acl = PosixAcl::decode(chunk.payload())?;
-    let directory = if follow_links { path.metadata()? } else { path.symlink_metadata()? }
-        .is_dir();
+    let metadata = if follow_links {
+        path.metadata()?
+    } else {
+        path.symlink_metadata()?
+    };
+    let directory = metadata.is_dir();
     if !directory && !acl.default.is_empty() {
         return Err(unsupported("default POSIX ACL cannot apply to a non-directory"));
     }
