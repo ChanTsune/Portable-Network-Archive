@@ -181,7 +181,14 @@ pub(crate) fn restore(path: &Path, chunk: &AclChunk, follow_links: bool) -> io::
         )
     };
     if status != ERROR_SUCCESS {
-        return Err(io::Error::from_raw_os_error(status.0 as i32));
+        return Err(io::Error::new(
+            io::Error::from_raw_os_error(status.0 as i32).kind(),
+            format!(
+                "SetSecurityInfo failed (status={}, coverage={coverage:#04x}, info={info:#010x}, control={control:#06x}, dacl_offset={dacl_offset}, sacl_offset={sacl_offset}): {}",
+                status.0,
+                io::Error::from_raw_os_error(status.0 as i32)
+            ),
+        ));
     }
     Ok(())
 }
@@ -197,7 +204,9 @@ mod tests {
         std::fs::write(&file, b"ACL")?;
         let result = (|| {
             let encoded = capture(&file, true)
-                .map_err(|e| io::Error::new(e.kind(), format!("capture original Windows ACL: {e}")))?
+                .map_err(|e| {
+                    io::Error::new(e.kind(), format!("capture original Windows ACL: {e}"))
+                })?
                 .expect("Windows file DACL");
             use pna::{Archive, Chunk, FileEntryBuilder};
             let original = AclChunk::from_bytes(encoded.data())?;
@@ -218,7 +227,9 @@ mod tests {
             restore(&file, &chunk, true)
                 .map_err(|e| io::Error::new(e.kind(), format!("restore Windows ACL: {e}")))?;
             let after = capture(&file, true)
-                .map_err(|e| io::Error::new(e.kind(), format!("capture restored Windows ACL: {e}")))?
+                .map_err(|e| {
+                    io::Error::new(e.kind(), format!("capture restored Windows ACL: {e}"))
+                })?
                 .unwrap();
             let after = AclChunk::from_bytes(after.data())?;
             assert_eq!(after.format_id(), pna::acl::WINDOWS_NT);
