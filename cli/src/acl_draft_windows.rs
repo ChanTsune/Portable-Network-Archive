@@ -129,8 +129,19 @@ mod tests {
         std::fs::write(&file, b"ACL")?;
         let result = (|| {
             let encoded = capture(&file, true)?.expect("Windows file DACL");
-            use pna::Chunk;
+            use pna::{Archive, Chunk, FileEntryBuilder};
             let chunk = AclChunk::from_bytes(encoded.data())?;
+            let mut bytes = Vec::new();
+            {
+                let mut archive = Archive::write_header(&mut bytes)?;
+                let mut builder = FileEntryBuilder::new("windows.txt".into())?;
+                builder.add_extra_chunk(encoded);
+                archive.add_entry(builder.build()?)?;
+                archive.finalize()?;
+            }
+            let mut archive = Archive::read_header(&bytes[..])?;
+            let entry = archive.entries().skip_solid().next().unwrap()?;
+            let chunk = entry.acl_chunk()?.expect("aCLS in PNA file");
             assert_eq!(chunk.format_id(), pna::acl::WINDOWS_NT);
             chunk.validate()?;
             restore(&file, &chunk, true)?;
