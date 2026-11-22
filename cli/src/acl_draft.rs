@@ -396,6 +396,80 @@ mod tests {
     }
 
     #[test]
+    fn native_mode_then_acl_restoration_preserves_named_entries() -> io::Result<()> {
+        use std::{
+            fs,
+            os::unix::fs::PermissionsExt,
+            time::{SystemTime, UNIX_EPOCH},
+        };
+
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(io::Error::other)?
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "pna_acl_mode_{}_{}",
+            std::process::id(),
+            now
+        ));
+        fs::create_dir(&root)?;
+        let original = root.join("original");
+        let restored = root.join("restored");
+        let result = (|| {
+            fs::write(&original, b"ACL mode ordering")?;
+            fs::write(&restored, b"ACL mode ordering")?;
+            let expected = PosixAcl {
+                access: vec![
+                    PosixAce {
+                        tag: PosixTag::UserObj,
+                        permissions: 6,
+                        qualifier: None,
+                        name: String::new(),
+                    },
+                    PosixAce {
+                        tag: PosixTag::User,
+                        permissions: 4,
+                        qualifier: Some(65432),
+                        name: String::new(),
+                    },
+                    PosixAce {
+                        tag: PosixTag::GroupObj,
+                        permissions: 4,
+                        qualifier: None,
+                        name: String::new(),
+                    },
+                    PosixAce {
+                        tag: PosixTag::Mask,
+                        permissions: 4,
+                        qualifier: None,
+                        name: String::new(),
+                    },
+                    PosixAce {
+                        tag: PosixTag::Other,
+                        permissions: 0,
+                        qualifier: None,
+                        name: String::new(),
+                    },
+                ],
+                default: Vec::new(),
+            };
+            restore(&original, &expected, true)?;
+            let raw = capture(&original, true)?.expect("original ACL");
+            let chunk = AclChunk::from_bytes(raw.data())?;
+
+            // Extraction restores fMOd before aCLS: a later chmod can change
+            // the POSIX ACL mask and therefore effective named-user rights.
+            fs::set_permissions(&restored, fs::Permissions::from_mode(0o600))?;
+            restore_chunk(&restored, &chunk, true)?;
+            let actual = capture(&restored, true)?.expect("restored ACL");
+            assert_eq!(raw.data(), actual.data());
+            Ok(())
+        })();
+        fs::remove_dir_all(root)?;
+        result
+    }
+
+    #[test]
     fn named_numeric_id_and_default_roundtrip() {
         let acl = PosixAcl {
             access: vec![
