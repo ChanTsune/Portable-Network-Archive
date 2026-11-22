@@ -407,11 +407,8 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .map_err(io::Error::other)?
             .as_nanos();
-        let root = std::env::temp_dir().join(format!(
-            "pna_acl_mode_{}_{}",
-            std::process::id(),
-            now
-        ));
+        let root =
+            std::env::temp_dir().join(format!("pna_acl_mode_{}_{}", std::process::id(), now));
         fs::create_dir(&root)?;
         let original = root.join("original");
         let restored = root.join("restored");
