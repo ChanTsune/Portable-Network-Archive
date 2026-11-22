@@ -328,7 +328,10 @@ mod tests {
             let chunk = entry.acl_chunk()?.expect("directory aCLS");
             let before = PosixAcl::decode(chunk.payload())?;
             assert!(!before.default.is_empty(), "default ACL must be present");
-            assert!(before\n                .access\n                .iter()\n                .any(|ace| ace.tag == PosixTag::Group && ace.qualifier == Some(65433)));
+            assert!(before
+                .access
+                .iter()
+                .any(|ace| ace.tag == PosixTag::Group && ace.qualifier == Some(65433)));
             restore_chunk(&restored, &chunk, true)?;
             let after = capture(&restored, true)?.expect("restored directory ACL");
             assert_eq!(chunk.to_bytes(), after.data());
