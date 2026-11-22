@@ -344,6 +344,58 @@ mod tests {
     }
 
     #[test]
+    fn native_symlink_and_hardlink_acl_semantics() -> io::Result<()> {
+        use std::{
+            fs,
+            os::unix::fs::symlink,
+            time::{SystemTime, UNIX_EPOCH},
+        };
+
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(io::Error::other)?
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "pna_acl_links_{}_{}",
+            std::process::id(),
+            now
+        ));
+        fs::create_dir(&root)?;
+        let original = root.join("original");
+        let hardlink = root.join("hardlink");
+        let symlink_path = root.join("symlink");
+        let result = (|| {
+            fs::write(&original, b"shared inode")?;
+            fs::hard_link(&original, &hardlink)?;
+            symlink(&original, &symlink_path)?;
+
+            // Linux POSIX ACLs belong to the inode, not to each hardlink name.
+            let original_acl = capture(&original, true)?.expect("file ACL");
+            let chunk = AclChunk::from_bytes(original_acl.data())?;
+            assert_eq!(
+                capture(&hardlink, true)?.expect("hardlink ACL").data(),
+                original_acl.data()
+            );
+            restore_chunk(&hardlink, &chunk, true)?;
+            assert_eq!(
+                capture(&original, true)?.expect("original ACL").data(),
+                capture(&hardlink, true)?.expect("hardlink ACL").data()
+            );
+
+            // Linux does not expose a POSIX ACL on the symbolic link itself.
+            assert!(capture(&symlink_path, false)?.is_none());
+            restore_chunk(&symlink_path, &chunk, false)?;
+            assert_eq!(
+                capture(&symlink_path, true)?.expect("target ACL").data(),
+                original_acl.data()
+            );
+            Ok(())
+        })();
+        fs::remove_dir_all(root)?;
+        result
+    }
+
+    #[test]
     fn named_numeric_id_and_default_roundtrip() {
         let acl = PosixAcl {
             access: vec![
