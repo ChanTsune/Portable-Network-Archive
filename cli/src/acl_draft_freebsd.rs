@@ -578,6 +578,11 @@ mod tests {
                 Ok(Some(chunk)) => chunk,
                 Err(e) if e.kind() == io::ErrorKind::Unsupported => {
                     // The CI filesystem may only support POSIX.1e ACL.
+                    if std::env::var_os("PNA_REQUIRE_FREEBSD_NFS4_NATIVE").is_some() {
+                        return Err(io::Error::other(format!(
+                            "NFSv4 native filesystem required for CI verification: {e}"
+                        )));
+                    }
                     eprintln!("SKIP NFSv4 native filesystem test: {e}");
                     return Ok(());
                 }
