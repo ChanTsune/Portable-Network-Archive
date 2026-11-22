@@ -26,7 +26,34 @@ jobs:
             pkg install -y curl git pkgconf
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
           run: |
+            set -eu
             . "$HOME/.cargo/env"
             rustc --version
             cargo test --locked -p libpna acl::tests -- --nocapture
+
+            # The VM root filesystem does not support NFSv4 ACLs. Use UFS.
+            image=/tmp/pna-acl-nfs4.img
+            mountpoint=/tmp/pna-acl-nfs4
+            md_unit=
+            mounted=0
+            cleanup() {
+              if [ "$mounted" -eq 1 ]; then
+                umount "$mountpoint"
+              fi
+              if [ -n "$md_unit" ]; then
+                mdconfig -d -u "$md_unit"
+              fi
+              rm -f "$image"
+            }
+            trap cleanup EXIT
+            truncate -s 256M "$image"
+            md_unit=$(mdconfig -a -t vnode -f "$image")
+            newfs -U "/dev/$md_unit"
+            tunefs -N enable "/dev/$md_unit"
+            mkdir -p "$mountpoint"
+            mount -t ufs "/dev/$md_unit" "$mountpoint"
+            mounted=1
+            chmod 1777 "$mountpoint"
+            mount | grep "$mountpoint"
+            export TMPDIR="$mountpoint"
             PNA_REQUIRE_FREEBSD_NFS4_NATIVE=1 cargo test --locked -p portable-network-archive --features acl --lib acl_draft_freebsd -- --nocapture
