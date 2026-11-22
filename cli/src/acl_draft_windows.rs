@@ -231,10 +231,8 @@ mod tests {
             ) -> u8;
         }
 
-        let folder = std::env::temp_dir().join(format!(
-            "pna-acl-ownerless-validity-{}",
-            std::process::id()
-        ));
+        let folder =
+            std::env::temp_dir().join(format!("pna-acl-ownerless-validity-{}", std::process::id()));
         std::fs::create_dir_all(&folder)?;
         let path = folder.join("original.tmp");
         let result = (|| {
@@ -250,11 +248,7 @@ mod tests {
             // do not switch wire representations based on one API alone.
             let win32_valid = unsafe { IsValidSecurityDescriptor(sd.as_ptr().cast()) } != 0;
             let nt_valid = unsafe {
-                RtlValidRelativeSecurityDescriptor(
-                    sd.as_ptr().cast(),
-                    sd.len() as u32,
-                    DACL,
-                )
+                RtlValidRelativeSecurityDescriptor(sd.as_ptr().cast(), sd.len() as u32, DACL)
             } != 0;
             assert!(
                 win32_valid && nt_valid,
