@@ -75,8 +75,11 @@ mod tests {
                 // Some virtualized clocks are not strictly monotonic. Check
                 // proximity instead of assuming consecutive reads are ordered.
                 const TOLERANCE: std::time::Duration = std::time::Duration::from_secs(60);
+                let close_to = |clock: SystemTime| {
+                    clock.duration_since(t).unwrap_or_else(|e| e.duration()) <= TOLERANCE
+                };
                 assert!(
-                    before.abs_diff(t) <= TOLERANCE || after.abs_diff(t) <= TOLERANCE,
+                    close_to(before) || close_to(after),
                     "parsed now is not close to the system clock"
                 );
             }
