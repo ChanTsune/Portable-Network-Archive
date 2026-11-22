@@ -82,11 +82,13 @@ pub(crate) fn capture(path: &Path, follow_links: bool) -> io::Result<Option<pna:
     if !follow_links && path.symlink_metadata()?.file_type().is_symlink() {
         return Ok(None);
     }
-    let access = match xattr::get(path, "system.posix_acl_access")? {
+    // `xattr::get` operates on the symlink itself, not its target.
+    // Symlinks with follow_links=false have already been excluded above.
+    let access = match xattr::get_deref(path, "system.posix_acl_access")? {
         Some(data) => decode_acl_xattr(&data)?,
         None => acl_from_mode(path)?,
     };
-    let default = match xattr::get(path, "system.posix_acl_default")? {
+    let default = match xattr::get_deref(path, "system.posix_acl_default")? {
         Some(data) => decode_acl_xattr(&data)?,
         None => Vec::new(),
     };
@@ -356,11 +358,8 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .map_err(io::Error::other)?
             .as_nanos();
-        let root = std::env::temp_dir().join(format!(
-            "pna_acl_links_{}_{}",
-            std::process::id(),
-            now
-        ));
+        let root =
+            std::env::temp_dir().join(format!("pna_acl_links_{}_{}", std::process::id(), now));
         fs::create_dir(&root)?;
         let original = root.join("original");
         let hardlink = root.join("hardlink");
