@@ -1137,9 +1137,66 @@ where
 #[derive(Debug, Clone, Copy)]
 enum ExtractionDecision {
     /// Proceed with extraction; `remove_existing` indicates if existing file should be removed first
-    Proceed { remove_existing: bool },
+    Proceed {
+        remove_existing: bool,
+        pending: PendingPreparation,
+    },
     /// Skip extraction (e.g., keep-newer/keep-older strategies)
     Skip,
+}
+
+/// Filesystem mutations decided by the target check but not yet performed.
+///
+/// The target check is read-only: it records the removals it decides on
+/// here instead of executing them, so callers can defer the mutations
+/// until the entry is known to be readable (e.g. its password verified).
+#[derive(Debug, Clone, Copy)]
+struct PendingPreparation {
+    /// Remove the existing target itself (`--unlink-first`).
+    unlink_existing: bool,
+    /// The existing target conflicts with the entry kind (a symlink, or a
+    /// file blocking a directory entry); the value tells whether the
+    /// conflicting target is a symlink.
+    conflicting_symlink: Option<bool>,
+}
+
+impl PendingPreparation {
+    /// Performs the recorded mutations in the order the target check
+    /// decided on: unlink, parent directory preparation, then removal of
+    /// a conflicting target.
+    fn apply(
+        &self,
+        path: &Path,
+        entry_kind: DataKind,
+        unlink_first: bool,
+        secure_symlinks: bool,
+        replace_existing: bool,
+    ) -> io::Result<()> {
+        if self.unlink_existing {
+            utils::io::ignore_not_found(utils::fs::remove_path(path))?;
+        }
+
+        if let Some(parent) = path.parent() {
+            ensure_directory_components(parent, unlink_first, secure_symlinks, replace_existing)?;
+        }
+
+        if let Some(is_symlink) = self.conflicting_symlink {
+            let follow_symlink = !secure_symlinks
+                && is_symlink
+                && entry_kind == DataKind::DIRECTORY
+                && path.metadata().is_ok_and(|m| m.is_dir());
+            if !follow_symlink {
+                match utils::fs::remove_path(path) {
+                    Ok(()) => {}
+                    Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                    // Concurrent extraction already replaced with directory
+                    Err(e) if e.kind() == io::ErrorKind::IsADirectory => {}
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Finds an ancestor of `path` that blocks extraction because it exists as
@@ -1169,17 +1226,18 @@ fn blocking_ancestor(path: &Path) -> io::Result<Option<PathBuf>> {
     Ok(None)
 }
 
-/// Checks overwrite strategy and prepares the target path for extraction.
+/// Checks the overwrite strategy for the target path of an entry.
 ///
-/// This function:
+/// This function is read-only: it never modifies the filesystem.
 /// 1. Checks if a file/directory already exists at the target path
 /// 2. Applies the overwrite strategy to decide whether to proceed
-/// 3. Prepares parent directories
-/// 4. Handles conflicts between entry types (e.g., file vs directory)
+/// 3. Decides which preparations the target needs (parent directories,
+///    conflicts between entry types) and records them as
+///    [`PendingPreparation`] for the caller to apply
 ///
 /// Returns `ExtractionDecision::Skip` if extraction should be skipped,
 /// or `ExtractionDecision::Proceed` with information about whether to remove existing files.
-fn check_and_prepare_target<T>(
+fn check_target<T>(
     path: &Path,
     entry_kind: DataKind,
     item: &NormalEntry<T>,
@@ -1277,40 +1335,21 @@ where
         OverwriteStrategy::Always | OverwriteStrategy::KeepNewer
     ) && had_existing;
 
-    if unlink_existing {
-        utils::io::ignore_not_found(utils::fs::remove_path(path))?;
-    }
+    // Record type conflicts (symlink blocking file, file blocking directory)
+    let conflicting_symlink = metadata.as_ref().and_then(|meta| {
+        (meta.is_symlink() || (meta.is_file() && entry_kind == DataKind::DIRECTORY))
+            .then(|| meta.is_symlink())
+    });
 
-    if let Some(parent) = path.parent() {
-        ensure_directory_components(
-            parent,
-            unlink_first,
-            secure_symlinks,
-            matches!(overwrite_strategy, OverwriteStrategy::Always),
-        )?;
-    }
-
-    // Handle type conflicts (symlink blocking file, file blocking directory)
-    if let Some(meta) = metadata
-        && (meta.is_symlink() || (meta.is_file() && entry_kind == DataKind::DIRECTORY))
-    {
-        let follow_symlink = !secure_symlinks
-            && meta.is_symlink()
-            && entry_kind == DataKind::DIRECTORY
-            && path.metadata().is_ok_and(|m| m.is_dir());
-        if !follow_symlink {
-            match utils::fs::remove_path(path) {
-                Ok(()) => {}
-                Err(e) if e.kind() == io::ErrorKind::NotFound => {}
-                // Concurrent extraction already replaced with directory
-                Err(e) if e.kind() == io::ErrorKind::IsADirectory => {}
-                Err(e) => return Err(e),
-            }
-        }
-    }
-
+    let pending = PendingPreparation {
+        unlink_existing,
+        conflicting_symlink,
+    };
     let remove_existing = should_overwrite_existing && !unlink_existing;
-    Ok(ExtractionDecision::Proceed { remove_existing })
+    Ok(ExtractionDecision::Proceed {
+        remove_existing,
+        pending,
+    })
 }
 
 /// Creates a directory and runs overwrite policy checks, but defers metadata restoration.
@@ -1335,7 +1374,7 @@ where
     let path = build_output_path(args.out_dir.as_deref(), item_path.as_path());
     let secure_symlinks = !args.absolute_paths;
 
-    let ExtractionDecision::Proceed { .. } = check_and_prepare_target(
+    let ExtractionDecision::Proceed { pending, .. } = check_target(
         &path,
         DataKind::DIRECTORY,
         item,
@@ -1346,6 +1385,13 @@ where
     else {
         return Ok(false);
     };
+    pending.apply(
+        &path,
+        DataKind::DIRECTORY,
+        args.unlink_first,
+        secure_symlinks,
+        matches!(args.overwrite_strategy, OverwriteStrategy::Always),
+    )?;
 
     ensure_directory_components(
         &path,
@@ -1359,11 +1405,12 @@ where
     Ok(true)
 }
 
-/// Shared preamble for entry extraction: builds the output path, runs overwrite
-/// policy checks, and prepares the target.
+/// Shared preamble for entry extraction: builds the output path and runs
+/// overwrite policy checks.
 ///
 /// Returns `None` if the entry should be skipped by overwrite policy,
-/// otherwise returns the resolved output path and `remove_existing` flag.
+/// otherwise returns the resolved output path, the `remove_existing` flag,
+/// and the pending target preparation for the caller to apply.
 fn prepare_extraction<'a, T>(
     item: &NormalEntry<T>,
     item_path: &'a EntryName,
@@ -1371,7 +1418,7 @@ fn prepare_extraction<'a, T>(
     overwrite_strategy: OverwriteStrategy,
     unlink_first: bool,
     absolute_paths: bool,
-) -> io::Result<Option<(Cow<'a, Path>, bool)>>
+) -> io::Result<Option<(Cow<'a, Path>, bool, PendingPreparation)>>
 where
     T: AsRef<[u8]>,
 {
@@ -1380,7 +1427,10 @@ where
     let entry_kind = item.header().data_kind();
     log::debug!("start: {}", path.display());
     let secure_symlinks = !absolute_paths;
-    let ExtractionDecision::Proceed { remove_existing } = check_and_prepare_target(
+    let ExtractionDecision::Proceed {
+        remove_existing,
+        pending,
+    } = check_target(
         &path,
         entry_kind,
         item,
@@ -1391,7 +1441,7 @@ where
     else {
         return Ok(None);
     };
-    Ok(Some((path, remove_existing)))
+    Ok(Some((path, remove_existing, pending)))
 }
 
 /// Extracts a regular file entry from the archive to the filesystem.
@@ -1425,7 +1475,7 @@ where
         );
         return Ok(());
     }
-    let Some((path, remove_existing)) = prepare_extraction(
+    let Some((path, remove_existing, pending)) = prepare_extraction(
         &item,
         item_path,
         out_dir.as_deref(),
@@ -1438,6 +1488,13 @@ where
     };
 
     let mut reader = item.reader(read_options)?;
+    pending.apply(
+        &path,
+        DataKind::FILE,
+        *unlink_first,
+        !*absolute_paths,
+        matches!(*overwrite_strategy, OverwriteStrategy::Always),
+    )?;
 
     if *safe_writes {
         let mut safe_writer = SafeWriter::new(&path, true)?;
@@ -1490,7 +1547,7 @@ where
     T: AsRef<[u8]>,
     pna::RawChunk<T>: Chunk,
 {
-    let Some((path, remove_existing)) = prepare_extraction(
+    let Some((path, remove_existing, pending)) = prepare_extraction(
         &item,
         item_path,
         out_dir.as_deref(),
@@ -1501,6 +1558,13 @@ where
     else {
         return Ok(ExtractResult::Skipped);
     };
+    pending.apply(
+        &path,
+        item.header().data_kind(),
+        *unlink_first,
+        !*absolute_paths,
+        matches!(*overwrite_strategy, OverwriteStrategy::Always),
+    )?;
 
     match item.content(read_options)? {
         EntryContent::SymbolicLink(stored) => {
