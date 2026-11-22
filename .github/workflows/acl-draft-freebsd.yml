@@ -35,8 +35,17 @@ jobs:
             image=/tmp/pna-acl-nfs4.img
             mountpoint=/tmp/pna-acl-nfs4
             md_unit=
+            posix_md_unit=
             mounted=0
+            posix_mounted=0
             cleanup() {
+              if [ "$posix_mounted" -eq 1 ]; then
+                umount /tmp/pna-acl-posix
+              fi
+              if [ -n "$posix_md_unit" ]; then
+                mdconfig -d -u "$posix_md_unit"
+              fi
+              rm -f /tmp/pna-acl-posix.img
               if [ "$mounted" -eq 1 ]; then
                 umount "$mountpoint"
               fi
@@ -56,4 +65,17 @@ jobs:
             chmod 1777 "$mountpoint"
             mount | grep "$mountpoint"
             export TMPDIR="$mountpoint"
+            # POSIX.1e must use a different UFS volume, without nfsv4acls.
+            posix_image=/tmp/pna-acl-posix.img
+            posix_mount=/tmp/pna-acl-posix
+            truncate -s 256M "$posix_image"
+            posix_md_unit=$(mdconfig -a -t vnode -f "$posix_image")
+            newfs -U "/dev/$posix_md_unit"
+            tunefs -a enable "/dev/$posix_md_unit"
+            mkdir -p "$posix_mount"
+            mount -t ufs "/dev/$posix_md_unit" "$posix_mount"
+            posix_mounted=1
+            chmod 1777 "$posix_mount"
+            mount | grep "$posix_mount"
+            export PNA_FREEBSD_POSIX_TMPDIR="$posix_mount"
             PNA_REQUIRE_FREEBSD_NFS4_NATIVE=1 cargo test --locked -p portable-network-archive --features acl --lib acl_draft_freebsd -- --nocapture
