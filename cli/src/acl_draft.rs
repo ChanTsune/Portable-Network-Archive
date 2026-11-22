@@ -249,6 +249,96 @@ mod tests {
     }
 
     #[test]
+    fn native_directory_default_acl_archive_roundtrip() -> io::Result<()> {
+        use pna::{Archive, Chunk, DirEntryBuilder};
+        use std::{
+            fs,
+            time::{SystemTime, UNIX_EPOCH},
+        };
+
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(io::Error::other)?
+            .as_nanos();
+        let root =
+            std::env::temp_dir().join(format!("pna_acl_default_{}_{}", std::process::id(), now));
+        let original = root.join("original");
+        let restored = root.join("restored");
+        fs::create_dir_all(&original)?;
+        fs::create_dir(&restored)?;
+
+        let result = (|| {
+            let access = vec![
+                PosixAce {
+                    tag: PosixTag::UserObj,
+                    permissions: 7,
+                    qualifier: None,
+                    name: String::new(),
+                },
+                PosixAce {
+                    tag: PosixTag::User,
+                    permissions: 5,
+                    qualifier: Some(65432),
+                    name: String::new(),
+                },
+                PosixAce {
+                    tag: PosixTag::GroupObj,
+                    permissions: 5,
+                    qualifier: None,
+                    name: String::new(),
+                },
+                PosixAce {
+                    tag: PosixTag::Group,
+                    permissions: 4,
+                    qualifier: Some(65433),
+                    name: String::new(),
+                },
+                PosixAce {
+                    tag: PosixTag::Mask,
+                    permissions: 5,
+                    qualifier: None,
+                    name: String::new(),
+                },
+                PosixAce {
+                    tag: PosixTag::Other,
+                    permissions: 0,
+                    qualifier: None,
+                    name: String::new(),
+                },
+            ];
+            restore(
+                &original,
+                &PosixAcl {
+                    access: access.clone(),
+                    default: access,
+                },
+                true,
+            )?;
+            let captured = capture(&original, true)?.expect("directory ACL");
+            let mut bytes = Vec::new();
+            {
+                let mut archive = Archive::write_header(&mut bytes)?;
+                let mut builder = DirEntryBuilder::new("original".into());
+                builder.add_extra_chunk(captured);
+                archive.add_entry(builder.build()?)?;
+                archive.finalize()?;
+            }
+            let mut archive = Archive::read_header(&bytes[..])?;
+            let entry = archive.entries().skip_solid().next().unwrap()?;
+            let chunk = entry.acl_chunk()?.expect("directory aCLS");
+            let before = PosixAcl::decode(chunk.payload())?;
+            assert!(!before.default.is_empty(), "default ACL must be present");
+            assert!(before.access.iter().any(|ace| ace.tag == PosixTag::Group && ace.qualifier == Some(65433)));
+            restore_chunk(&restored, &chunk, true)?;
+            let after = capture(&restored, true)?.expect("restored directory ACL");
+            assert_eq!(chunk.to_bytes(), after.data());
+            Ok(())
+        })();
+        fs::remove_dir_all(root)?;
+        result
+    }
+
+    #[test]
     fn named_numeric_id_and_default_roundtrip() {
         let acl = PosixAcl {
             access: vec![
