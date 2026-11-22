@@ -614,6 +614,57 @@ mod tests {
     }
 
     #[test]
+    fn native_freebsd_posix_directory_archive_roundtrip() -> io::Result<()> {
+        use pna::{Archive, Chunk, DirEntryBuilder};
+
+        // A separate POSIX.1e-capable UFS mount is mandatory: NFSv4 ACLs
+        // cannot be used as evidence for this dialect.
+        let root = std::env::var_os("PNA_FREEBSD_POSIX_TMPDIR")
+            .map(std::path::PathBuf::from)
+            .ok_or_else(|| io::Error::other("POSIX.1e native test requires PNA_FREEBSD_POSIX_TMPDIR"))?;
+        let folder = root.join(format!("pna-posix-acl-{}", std::process::id()));
+        std::fs::create_dir(&folder)?;
+        let original = folder.join("from");
+        let restored = folder.join("to");
+        let result = (|| {
+            std::fs::create_dir(&original)?;
+            std::fs::create_dir(&restored)?;
+            let entries = vec![
+                PosixAce { tag: PosixTag::UserObj, permissions: 7, qualifier: None, name: String::new() },
+                PosixAce { tag: PosixTag::User, permissions: 5, qualifier: Some(65432), name: String::new() },
+                PosixAce { tag: PosixTag::GroupObj, permissions: 5, qualifier: None, name: String::new() },
+                PosixAce { tag: PosixTag::Mask, permissions: 5, qualifier: None, name: String::new() },
+                PosixAce { tag: PosixTag::Other, permissions: 0, qualifier: None, name: String::new() },
+            ];
+            let expected = PosixAcl { access: entries.clone(), default: entries };
+            let chunk = expected.into_acl_chunk()?;
+            restore_posix(&original, &chunk, true)?;
+            let native = capture_posix(&original, true)?.expect("native POSIX ACL");
+            let native = AclChunk::from_bytes(native.data())?;
+            assert!(!PosixAcl::decode(native.payload())?.default.is_empty());
+
+            let mut bytes = Vec::new();
+            {
+                let mut archive = Archive::write_header(&mut bytes)?;
+                let mut builder = DirEntryBuilder::new("from".into())?;
+                builder.add_extra_chunk(native.clone().into_raw_chunk());
+                archive.add_entry(builder.build()?)?;
+                archive.finalize()?;
+            }
+            let mut archive = Archive::read_header(&bytes[..])?;
+            let entry = archive.entries().skip_solid().next().unwrap()?;
+            let extracted = entry.acl_chunk()?.expect("POSIX ACL in archive");
+            assert_eq!(extracted, native);
+            restore_posix(&restored, &extracted, true)?;
+            let after = capture_posix(&restored, true)?.expect("restored POSIX ACL");
+            assert_eq!(after.data(), extracted.to_bytes());
+            Ok(())
+        })();
+        std::fs::remove_dir_all(&folder)?;
+        result
+    }
+
+    #[test]
     fn native_posix_acl_entries_roundtrip_numeric_principals() -> io::Result<()> {
         let entries = vec![
             PosixAce {
