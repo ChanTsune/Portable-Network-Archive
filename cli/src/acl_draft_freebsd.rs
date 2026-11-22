@@ -621,7 +621,9 @@ mod tests {
         // cannot be used as evidence for this dialect.
         let root = std::env::var_os("PNA_FREEBSD_POSIX_TMPDIR")
             .map(std::path::PathBuf::from)
-            .ok_or_else(|| io::Error::other("POSIX.1e native test requires PNA_FREEBSD_POSIX_TMPDIR"))?;
+            .ok_or_else(|| {
+                io::Error::other("POSIX.1e native test requires PNA_FREEBSD_POSIX_TMPDIR")
+            })?;
         let folder = root.join(format!("pna-posix-acl-{}", std::process::id()));
         std::fs::create_dir(&folder)?;
         let original = folder.join("from");
@@ -630,13 +632,41 @@ mod tests {
             std::fs::create_dir(&original)?;
             std::fs::create_dir(&restored)?;
             let entries = vec![
-                PosixAce { tag: PosixTag::UserObj, permissions: 7, qualifier: None, name: String::new() },
-                PosixAce { tag: PosixTag::User, permissions: 5, qualifier: Some(65432), name: String::new() },
-                PosixAce { tag: PosixTag::GroupObj, permissions: 5, qualifier: None, name: String::new() },
-                PosixAce { tag: PosixTag::Mask, permissions: 5, qualifier: None, name: String::new() },
-                PosixAce { tag: PosixTag::Other, permissions: 0, qualifier: None, name: String::new() },
+                PosixAce {
+                    tag: PosixTag::UserObj,
+                    permissions: 7,
+                    qualifier: None,
+                    name: String::new(),
+                },
+                PosixAce {
+                    tag: PosixTag::User,
+                    permissions: 5,
+                    qualifier: Some(65432),
+                    name: String::new(),
+                },
+                PosixAce {
+                    tag: PosixTag::GroupObj,
+                    permissions: 5,
+                    qualifier: None,
+                    name: String::new(),
+                },
+                PosixAce {
+                    tag: PosixTag::Mask,
+                    permissions: 5,
+                    qualifier: None,
+                    name: String::new(),
+                },
+                PosixAce {
+                    tag: PosixTag::Other,
+                    permissions: 0,
+                    qualifier: None,
+                    name: String::new(),
+                },
             ];
-            let expected = PosixAcl { access: entries.clone(), default: entries };
+            let expected = PosixAcl {
+                access: entries.clone(),
+                default: entries,
+            };
             let chunk = expected.into_acl_chunk()?;
             restore_posix(&original, &chunk, true)?;
             let native = capture_posix(&original, true)?.expect("native POSIX ACL");
@@ -646,7 +676,7 @@ mod tests {
             let mut bytes = Vec::new();
             {
                 let mut archive = Archive::write_header(&mut bytes)?;
-                let mut builder = DirEntryBuilder::new("from".into())?;
+                let mut builder = DirEntryBuilder::new("from".into());
                 builder.add_extra_chunk(native.clone().into_raw_chunk());
                 archive.add_entry(builder.build()?)?;
                 archive.finalize()?;
