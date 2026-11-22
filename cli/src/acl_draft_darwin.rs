@@ -194,8 +194,12 @@ mod tests {
     #[test]
     fn native_acl_file_roundtrip_with_uuid_principal() -> io::Result<()> {
         use pna::{Archive, Chunk, FileEntryBuilder};
-        let path = std::env::temp_dir().join(format!("pna-darwin-acl-{}.tmp", std::process::id()));
-        std::fs::write(&path, b"acl")?;
+        let folder = std::env::temp_dir().join(format!("pna-darwin-acl-{}", std::process::id()));
+        std::fs::create_dir_all(&folder)?;
+        let original = folder.join("original.tmp");
+        let restored = folder.join("restored.tmp");
+        std::fs::write(&original, b"acl")?;
+        std::fs::write(&restored, b"acl")?;
         let result = (|| {
             let mut uuid = [0u8; 16];
             // SAFETY: mbr_uid_to_uuid writes exactly 16 bytes on success.
@@ -211,8 +215,8 @@ mod tests {
             body.extend_from_slice(&2u32.to_be_bytes()); // read data
             body.extend_from_slice(&[1u8, 0, 0, 0]); // user, no ID or name
             let acl = AclChunk::new(pna::acl::DARWIN, body)?;
-            restore(&path, &acl, true)?;
-            let captured = capture(&path, true)?.expect("Darwin native ACL");
+            restore(&original, &acl, true)?;
+            let captured = capture(&original, true)?.expect("Darwin native ACL");
             let captured = AclChunk::from_bytes(captured.data())?;
             captured.validate()?;
             let mut bytes = Vec::new();
@@ -227,13 +231,18 @@ mod tests {
             let entry = archive.entries().skip_solid().next().unwrap()?;
             let extracted = entry.acl_chunk()?.expect("aCLS in PNA archive");
             assert_eq!(extracted, captured);
-            restore(&path, &extracted, true)?;
+            restore(&restored, &extracted, true)?;
+            let recaptured = capture(&restored, true)?.expect("restored Darwin native ACL");
+            let recaptured = AclChunk::from_bytes(recaptured.data())?;
+            recaptured.validate()?;
+            // Compare native-captured UUIDs, ACE flags and rights after restoring
+            // onto a distinct file, not just the serialized archive payload.
+            assert_eq!(recaptured, captured);
             // Numeric IDs and principal kind are optional identity hints.
-            // Native Darwin ACLs preserve the UUID, ACE flags and access mask.
             assert_eq!(&captured.payload()[..32], &acl.payload()[..32]);
             Ok(())
         })();
-        std::fs::remove_file(&path)?;
+        std::fs::remove_dir_all(&folder)?;
         result
     }
 
