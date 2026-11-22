@@ -29,4 +29,4 @@ jobs:
             . "$HOME/.cargo/env"
             rustc --version
             cargo test --locked -p libpna acl::tests -- --nocapture
-            cargo test --locked -p portable-network-archive --features acl --lib acl_draft_freebsd -- --nocapture
+            PNA_REQUIRE_FREEBSD_NFS4_NATIVE=1 cargo test --locked -p portable-network-archive --features acl --lib acl_draft_freebsd -- --nocapture
