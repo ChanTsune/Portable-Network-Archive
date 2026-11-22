@@ -215,6 +215,58 @@ mod tests {
     use super::*;
 
     #[test]
+    fn native_ownerless_relative_descriptor_validity() -> io::Result<()> {
+        // Validate the actual ACL-only descriptor returned by Windows rather
+        // than inferring validity from our structural aCLS decoder.
+        #[link(name = "advapi32")]
+        unsafe extern "system" {
+            fn IsValidSecurityDescriptor(descriptor: *const c_void) -> i32;
+        }
+        #[link(name = "ntdll")]
+        unsafe extern "system" {
+            fn RtlValidRelativeSecurityDescriptor(
+                descriptor: *const c_void,
+                length: u32,
+                information: u32,
+            ) -> u8;
+        }
+
+        let folder = std::env::temp_dir().join(format!(
+            "pna-acl-ownerless-validity-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&folder)?;
+        let path = folder.join("original.tmp");
+        let result = (|| {
+            std::fs::write(&path, b"ACL")?;
+            let handle = open_read_acl(&path, true, false)?;
+            let sd = query(handle.raw().0, DACL)?;
+            let control = u16::from_le_bytes([sd[2], sd[3]]);
+            assert_ne!(control & 0x8000, 0, "descriptor must be self-relative");
+            assert_eq!(&sd[4..12], &[0; 8], "owner and group must be absent");
+
+            // A self-relative descriptor may have different validity rules
+            // between the Win32 and NT APIs. Record both results independently;
+            // do not switch wire representations based on one API alone.
+            let win32_valid = unsafe { IsValidSecurityDescriptor(sd.as_ptr().cast()) } != 0;
+            let nt_valid = unsafe {
+                RtlValidRelativeSecurityDescriptor(
+                    sd.as_ptr().cast(),
+                    sd.len() as u32,
+                    DACL,
+                )
+            } != 0;
+            assert!(
+                win32_valid && nt_valid,
+                "ownerless self-relative SD: IsValidSecurityDescriptor={win32_valid}, RtlValidRelativeSecurityDescriptor={nt_valid}, control={control:#06x}"
+            );
+            Ok(())
+        })();
+        std::fs::remove_dir_all(folder)?;
+        result
+    }
+
+    #[test]
     fn native_windows_file_dacl_roundtrip() -> io::Result<()> {
         let folder =
             std::env::temp_dir().join(format!("pna-acl-draft-windows-{}", std::process::id()));
