@@ -165,6 +165,7 @@ pub(crate) fn restore_chunk(path: &Path, chunk: &AclChunk, follow_links: bool) -
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pna::Chunk;
 
     #[test]
     fn create_archive_extract_and_restore_native_acl() -> io::Result<()> {
