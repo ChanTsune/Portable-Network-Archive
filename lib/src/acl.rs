@@ -645,6 +645,40 @@ mod tests {
     }
 
     #[test]
+    fn malformed_acl_metadata_does_not_hide_valid_file_contents() {
+        use crate::{Archive, FileEntryBuilder, ReadOptions};
+        use std::io::{Read, Write};
+
+        // aCLS is ancillary. A broken format ID or payload must be reported
+        // as a metadata error without silently discarding valid file data.
+        for malformed in [
+            vec![0],       // truncated format ID
+            vec![0, 0],    // reserved format ID
+            vec![0, 1, 0], // truncated POSIX.1e ACL
+        ] {
+            let mut serialized = Vec::new();
+            {
+                let mut archive = Archive::write_header(&mut serialized).unwrap();
+                let mut builder = FileEntryBuilder::new("data.txt".into()).unwrap();
+                builder.add_extra_chunk(RawChunk::from_data(ChunkType::aCLS, malformed));
+                builder.write_all(b"preserved file contents").unwrap();
+                archive.add_entry(builder.build().unwrap()).unwrap();
+                archive.finalize().unwrap();
+            }
+            let mut archive = Archive::read_header(&serialized[..]).unwrap();
+            let entry = archive.entries().skip_solid().next().unwrap().unwrap();
+            assert!(entry.acl_chunk().is_err());
+            let mut content = Vec::new();
+            entry
+                .reader(ReadOptions::builder().build())
+                .unwrap()
+                .read_to_end(&mut content)
+                .unwrap();
+            assert_eq!(content, b"preserved file contents");
+        }
+    }
+
+    #[test]
     fn independent_archive_fixture_decodes_all_formats() {
         use crate::{Archive, ReadOptions};
         use std::io::Read;
