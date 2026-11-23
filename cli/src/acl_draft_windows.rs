@@ -289,6 +289,7 @@ mod tests {
                 acl: *mut *mut c_void,
                 defaulted: *mut i32,
             ) -> i32;
+            fn IsValidAcl(acl: *const c_void) -> i32;
         }
 
         // The first candidate is an ordinary native self-relative descriptor.
@@ -382,9 +383,16 @@ mod tests {
                             ])
                         };
                         assert_eq!(ace_count, 0, "{name} empty ACL acquired ACEs");
+                        // Validate the native ACL itself, not only the enclosing SD.
+                        // SAFETY: the ACL pointer comes from a validated live SD.
+                        assert_ne!(
+                            unsafe { IsValidAcl(acl.cast_const()) },
+                            0,
+                            "{name} empty ACL is not accepted by Windows"
+                        );
                     }
+                    assert_eq!(defaulted, 0, "{name} ACL defaulted flag changed");
                 }
-
             }
         }
     }
