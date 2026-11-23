@@ -378,21 +378,26 @@ pub(crate) fn restore_posix(path: &Path, chunk: &AclChunk, follow_links: bool) -
             "default POSIX ACL cannot apply to a non-directory",
         ));
     }
+    // Construct both ACLs before modifying either one. In particular, an
+    // invalid access ACL must not leave the directory default ACL changed.
+    let access = construct_posix(&acl.access)?;
+    let default = if directory && !acl.default.is_empty() {
+        Some(construct_posix(&acl.default)?)
+    } else {
+        None
+    };
     let path = path_c(path)?;
-    // An invalid default ACL must be detected before changing the access ACL.
     if directory {
-        if acl.default.is_empty() {
+        if let Some(default) = default {
+            set_posix(&path, TYPE_DEFAULT, default.0, follow_links)?;
+        } else {
             // SAFETY: FreeBSD removes a directory default ACL through this API.
             let rc = unsafe { acl_delete_def_file(path.as_ptr()) };
             if rc == -1 && io::Error::last_os_error().raw_os_error() != Some(libc::ENOATTR) {
                 return Err(io::Error::last_os_error());
             }
-        } else {
-            let default = construct_posix(&acl.default)?;
-            set_posix(&path, TYPE_DEFAULT, default.0, follow_links)?;
         }
     }
-    let access = construct_posix(&acl.access)?;
     set_posix(&path, TYPE_ACCESS, access.0, follow_links)
 }
 
