@@ -349,9 +349,7 @@ mod tests {
             assert_eq!(decoded, captured);
             restore(&restored, &decoded, true)?;
             let after = capture(&restored, true)?.ok_or_else(|| {
-                io::Error::other(
-                    "Darwin lost the explicitly empty ACL on a distinct destination",
-                )
+                io::Error::other("Darwin lost the explicitly empty ACL on a distinct destination")
             })?;
             assert_eq!(
                 after.data(),
