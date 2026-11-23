@@ -721,9 +721,7 @@ mod tests {
         let validate = |sd: &[u8]| {
             let mut payload = vec![1u8];
             payload.extend_from_slice(sd);
-            AclChunk::new(WINDOWS_NT, payload)
-                .unwrap()
-                .validate()
+            AclChunk::new(WINDOWS_NT, payload).unwrap().validate()
         };
 
         // An offset without the corresponding PRESENT bit is inconsistent.
