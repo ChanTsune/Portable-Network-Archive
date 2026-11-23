@@ -345,6 +345,26 @@ mod tests {
         Ok(Some(read_count(&bytes[36..])?))
     }
 
+    // Observe the in-memory ACL before any filesystem or VFS operation.
+    fn native_acl_count_in_memory(acl: &OwnedAcl) -> io::Result<u32> {
+        // SAFETY: OwnedAcl holds a live native ACL object.
+        let size = unsafe { acl_size(acl.0) };
+        if size < HEADER_SIZE as isize {
+            return Err(invalid("short in-memory Darwin ACL"));
+        }
+        let mut bytes = vec![0u8; size as usize];
+        // SAFETY: the allocated buffer is large enough for acl_copy_ext.
+        let copied = unsafe { acl_copy_ext(bytes.as_mut_ptr().cast(), acl.0, size) };
+        if copied < HEADER_SIZE as isize {
+            return Err(io::Error::last_os_error());
+        }
+        bytes.truncate(copied as usize);
+        if read_count(&bytes)? != FILESEC_MAGIC {
+            return Err(invalid("invalid in-memory Darwin ACL header"));
+        }
+        read_count(&bytes[36..])
+    }
+
     #[test]
     fn native_empty_acl_stays_distinct_from_noacl_after_archive() -> io::Result<()> {
         use pna::{Archive, Chunk, FileEntryBuilder};
@@ -369,6 +389,7 @@ mod tests {
                 return Err(io::Error::last_os_error());
             }
             let native_acl = OwnedAcl(ptr);
+            let imported_count = native_acl_count_in_memory(&native_acl)?;
             let probe_path = c_path(&probe)?;
             // SAFETY: the path is NUL-terminated and native_acl is owned.
             if unsafe { acl_set_file(probe_path.as_ptr(), EXTENDED, native_acl.0) } == -1 {
@@ -386,6 +407,7 @@ mod tests {
                 return Err(io::Error::last_os_error());
             }
             let initialized_acl = OwnedAcl(init_ptr);
+            let initialized_memory_count = native_acl_count_in_memory(&initialized_acl)?;
             let init_path = c_path(&init_probe)?;
             // SAFETY: init_path is NUL-terminated and initialized_acl is owned.
             if unsafe { acl_set_file(init_path.as_ptr(), EXTENDED, initialized_acl.0) } == -1 {
@@ -417,7 +439,8 @@ mod tests {
             assert_eq!(
                 (direct_count, initialized_count, restored_count, archive_count),
                 (Some(0), Some(0), Some(0), Some(0)),
-                "Darwin empty ACL results (filesec import, acl_init, PNA direct restore, PNA archive restore); None means NOACL"
+                "Darwin empty ACL results: before filesystem filesec import={imported_count}, acl_init={initialized_memory_count}; after filesystem (filesec import, acl_init, PNA direct restore, PNA archive restore)={:?}; None means NOACL",
+                (direct_count, initialized_count, restored_count, archive_count)
             );
             Ok(())
         })();
