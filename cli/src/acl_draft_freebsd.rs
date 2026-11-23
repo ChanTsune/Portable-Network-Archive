@@ -614,6 +614,66 @@ mod tests {
     }
 
     #[test]
+    fn native_freebsd_nfs4_inheritable_ace_archive_roundtrip() -> io::Result<()> {
+        use pna::{Archive, Chunk, DirEntryBuilder};
+
+        let folder =
+            std::env::temp_dir().join(format!("pna-freebsd-inherit-{}", std::process::id()));
+        std::fs::create_dir_all(&folder)?;
+        let original = folder.join("from");
+        let restored = folder.join("to");
+        let result = (|| {
+            std::fs::create_dir(&original)?;
+            std::fs::create_dir(&restored)?;
+            let raw = capture(&original, true)?.expect("NFSv4 ACL on dedicated UFS");
+            let initial = AclChunk::from_bytes(raw.data())?;
+            initial.validate()?;
+            let mut body = initial.payload().to_vec();
+            let count = u32::from_be_bytes(body[..4].try_into().unwrap());
+            assert!(count > 0, "native directory ACL must have an ACE");
+
+            // Set FILE_INHERIT and DIRECTORY_INHERIT on an existing native ACE.
+            // Unlike a synthetic XDR-only test, this must be accepted by UFS.
+            let flags = u32::from_be_bytes(body[8..12].try_into().unwrap());
+            body[8..12].copy_from_slice(&(flags | 0x03).to_be_bytes());
+            let modified = AclChunk::new(pna::acl::NFS4, body)?;
+            modified.validate()?;
+            restore(&original, &modified, true)?;
+            let native = capture(&original, true)?.expect("native inheritable ACL");
+            let captured = AclChunk::from_bytes(native.data())?;
+            let actual_flags = u32::from_be_bytes(captured.payload()[8..12].try_into().unwrap());
+            assert_eq!(
+                actual_flags & 0x03,
+                0x03,
+                "UFS must retain FILE_INHERIT and DIRECTORY_INHERIT"
+            );
+
+            let mut bytes = Vec::new();
+            {
+                let mut archive = Archive::write_header(&mut bytes)?;
+                let mut builder = DirEntryBuilder::new("from".into());
+                builder.add_extra_chunk(native);
+                archive.add_entry(builder.build()?)?;
+                archive.finalize()?;
+            }
+            let mut archive = Archive::read_header(&bytes[..])?;
+            let entry = archive.entries().skip_solid().next().unwrap()?;
+            let decoded = entry.acl_chunk()?.expect("inheritable NFSv4 ACL");
+            assert_eq!(decoded, captured);
+            restore(&restored, &decoded, true)?;
+            let recaptured = capture(&restored, true)?.expect("restored inheritable ACL");
+            assert_eq!(
+                recaptured.data(),
+                decoded.to_bytes(),
+                "inheritable ACE changed after a PNA roundtrip to another UFS directory"
+            );
+            Ok(())
+        })();
+        std::fs::remove_dir_all(&folder)?;
+        result
+    }
+
+    #[test]
     fn native_freebsd_posix_directory_archive_roundtrip() -> io::Result<()> {
         use pna::{Archive, Chunk, DirEntryBuilder};
 
