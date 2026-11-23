@@ -275,6 +275,22 @@ mod tests {
             ) -> u8;
         }
 
+        #[link(name = "advapi32")]
+        unsafe extern "system" {
+            fn GetSecurityDescriptorDacl(
+                descriptor: *const c_void,
+                present: *mut i32,
+                acl: *mut *mut c_void,
+                defaulted: *mut i32,
+            ) -> i32;
+            fn GetSecurityDescriptorSacl(
+                descriptor: *const c_void,
+                present: *mut i32,
+                acl: *mut *mut c_void,
+                defaulted: *mut i32,
+            ) -> i32;
+        }
+
         // The first candidate is an ordinary native self-relative descriptor.
         // Exercise all three states independently for DACL and SACL: absent,
         // present but NULL, and present with a structurally empty ACL.
@@ -317,6 +333,58 @@ mod tests {
                      RtlValidRelativeSecurityDescriptor={nt_valid}, \
                      control={control:#06x}, requested={requested:#010x}"
                 );
+                // Ask the native Windows parser whether each ACL is absent,
+                // NULL, or an actual zero-ACE ACL. Structural validity alone
+                // cannot prove these three states remain distinguishable.
+                for (state, getter, name) in [
+                    (
+                        dacl_state,
+                        GetSecurityDescriptorDacl
+                            as unsafe extern "system" fn(
+                                *const c_void,
+                                *mut i32,
+                                *mut *mut c_void,
+                                *mut i32,
+                            ) -> i32,
+                        "DACL",
+                    ),
+                    (
+                        sacl_state,
+                        GetSecurityDescriptorSacl
+                            as unsafe extern "system" fn(
+                                *const c_void,
+                                *mut i32,
+                                *mut *mut c_void,
+                                *mut i32,
+                            ) -> i32,
+                        "SACL",
+                    ),
+                ] {
+                    let mut present = -1i32;
+                    let mut acl = std::ptr::null_mut::<c_void>();
+                    let mut defaulted = -1i32;
+                    // SAFETY: sd is a complete native self-relative descriptor;
+                    // the output pointers refer to live stack variables.
+                    let ok = unsafe {
+                        getter(sd.as_ptr().cast(), &mut present, &mut acl, &mut defaulted)
+                    };
+                    assert_ne!(ok, 0, "{name} native descriptor inspection failed");
+                    assert_eq!(present != 0, state != 0, "{name} presence changed");
+                    assert_eq!(!acl.is_null(), state == 2, "{name} NULL/empty changed");
+                    if state == 2 {
+                        // ACL header: revision (1), sbz1 (1), size (2),
+                        // AceCount (2), sbz2 (2).
+                        // SAFETY: Windows returned a pointer to an ACL within sd.
+                        let ace_count = unsafe {
+                            u16::from_le_bytes([
+                                *acl.cast::<u8>().add(4),
+                                *acl.cast::<u8>().add(5),
+                            ])
+                        };
+                        assert_eq!(ace_count, 0, "{name} empty ACL acquired ACEs");
+                    }
+                }
+
             }
         }
     }
