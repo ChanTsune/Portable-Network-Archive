@@ -311,6 +311,60 @@ mod tests {
     }
 
     #[test]
+    fn native_empty_acl_stays_distinct_from_noacl_after_archive() -> io::Result<()> {
+        use pna::{Archive, Chunk, FileEntryBuilder};
+
+        let folder = std::env::temp_dir().join(format!("pna-darwin-empty-{}", std::process::id()));
+        std::fs::create_dir_all(&folder)?;
+        let original = folder.join("original.tmp");
+        let restored = folder.join("restored.tmp");
+        let result = (|| {
+            std::fs::write(&original, b"ACL")?;
+            std::fs::write(&restored, b"ACL")?;
+            let empty = AclChunk::new(pna::acl::DARWIN, vec![0u8; 8])?;
+            empty.validate()?;
+            restore(&original, &empty, true)?;
+            let captured = capture(&original, true)?.ok_or_else(|| {
+                io::Error::other(
+                    "Darwin collapsed an explicitly empty native ACL into NOACL;                      empty and absent are not proven distinct",
+                )
+            })?;
+            let captured = AclChunk::from_bytes(captured.data())?;
+            assert_eq!(
+                read_count(captured.payload())?,
+                0,
+                "native empty ACL must remain distinct from NOACL"
+            );
+            let mut bytes = Vec::new();
+            {
+                let mut archive = Archive::write_header(&mut bytes)?;
+                let mut builder = FileEntryBuilder::new("empty.txt".into())?;
+                builder.add_extra_chunk(captured.clone().into_raw_chunk());
+                archive.add_entry(builder.build()?)?;
+                archive.finalize()?;
+            }
+            let mut archive = Archive::read_header(&bytes[..])?;
+            let entry = archive.entries().skip_solid().next().unwrap()?;
+            let decoded = entry.acl_chunk()?.expect("explicit empty Darwin ACL");
+            assert_eq!(decoded, captured);
+            restore(&restored, &decoded, true)?;
+            let after = capture(&restored, true)?.ok_or_else(|| {
+                io::Error::other(
+                    "Darwin lost the explicitly empty ACL on a distinct destination",
+                )
+            })?;
+            assert_eq!(
+                after.data(),
+                decoded.to_bytes(),
+                "empty native Darwin ACL changed after the PNA roundtrip"
+            );
+            Ok(())
+        })();
+        std::fs::remove_dir_all(&folder)?;
+        result
+    }
+
+    #[test]
     fn portable_acl_drops_owner_fields_but_keeps_all_aces() {
         let mut native = vec![0; HEADER_SIZE];
         native[..4].copy_from_slice(&FILESEC_MAGIC.to_be_bytes());
