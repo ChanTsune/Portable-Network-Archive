@@ -323,6 +323,32 @@ mod tests {
             std::fs::write(&restored, b"ACL")?;
             let empty = AclChunk::new(pna::acl::DARWIN, vec![0u8; 8])?;
             empty.validate()?;
+
+            // Check native zero-entry ACL behavior without PNA serialization.
+            let probe = folder.join("native-probe.tmp");
+            std::fs::write(&probe, b"ACL")?;
+            let native = to_native(empty.payload())?;
+            // SAFETY: acl_copy_int receives a complete native filesec buffer.
+            let ptr = unsafe { acl_copy_int(native.as_ptr().cast()) };
+            if ptr.is_null() {
+                return Err(io::Error::last_os_error());
+            }
+            let native_acl = OwnedAcl(ptr);
+            let probe_path = c_path(&probe)?;
+            // SAFETY: the path is NUL-terminated and native_acl is owned.
+            if unsafe { acl_set_file(probe_path.as_ptr(), EXTENDED, native_acl.0) } == -1 {
+                return Err(io::Error::last_os_error());
+            }
+            let direct = capture(&probe, true)?;
+            let direct = direct.ok_or_else(|| {
+                io::Error::other("Darwin native acl_set_file/acl_get_file collapses empty ACL into NOACL without PNA")
+            })?;
+            assert_eq!(
+                read_count(AclChunk::from_bytes(direct.data())?.payload())?,
+                0,
+                "Darwin changed native zero-entry ACL without PNA"
+            );
+
             restore(&original, &empty, true)?;
             let captured = capture(&original, true)?.ok_or_else(|| {
                 io::Error::other(
