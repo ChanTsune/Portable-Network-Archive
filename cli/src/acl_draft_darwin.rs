@@ -311,6 +311,38 @@ mod tests {
         result
     }
 
+    // Read the native ACL count directly, without the PNA decoder. This
+    // distinguishes filesystem normalization from a conversion defect.
+    fn native_acl_count(path: &Path) -> io::Result<Option<u32>> {
+        let path = c_path(path)?;
+        // SAFETY: path is NUL-terminated and acl_get_file owns its result.
+        let ptr = unsafe { acl_get_file(path.as_ptr(), EXTENDED) };
+        if ptr.is_null() {
+            let error = io::Error::last_os_error();
+            if error.kind() == io::ErrorKind::NotFound {
+                return Ok(None);
+            }
+            return Err(error);
+        }
+        let acl = OwnedAcl(ptr);
+        // SAFETY: acl is valid until it is dropped.
+        let size = unsafe { acl_size(acl.0) };
+        if size < HEADER_SIZE as isize {
+            return Err(invalid("short native Darwin ACL"));
+        }
+        let mut bytes = vec![0u8; size as usize];
+        // SAFETY: the destination buffer is allocated to acl_size bytes.
+        let copied = unsafe { acl_copy_ext(bytes.as_mut_ptr().cast(), acl.0, size) };
+        if copied < HEADER_SIZE as isize {
+            return Err(io::Error::last_os_error());
+        }
+        bytes.truncate(copied as usize);
+        if read_count(&bytes)? != FILESEC_MAGIC {
+            return Err(invalid("invalid native Darwin ACL header"));
+        }
+        Ok(Some(read_count(&bytes[36..])?))
+    }
+
     #[test]
     fn native_empty_acl_stays_distinct_from_noacl_after_archive() -> io::Result<()> {
         use pna::{Archive, Chunk, FileEntryBuilder};
@@ -340,7 +372,7 @@ mod tests {
             if unsafe { acl_set_file(probe_path.as_ptr(), EXTENDED, native_acl.0) } == -1 {
                 return Err(io::Error::last_os_error());
             }
-            let direct = capture(&probe, true)?;
+            let direct_count = native_acl_count(&probe)?;
 
             // A second native construction route distinguishes filesec import
             // behavior from filesystem normalization of a zero-entry ACL.
@@ -357,30 +389,10 @@ mod tests {
             if unsafe { acl_set_file(init_path.as_ptr(), EXTENDED, initialized_acl.0) } == -1 {
                 return Err(io::Error::last_os_error());
             }
-            let initialized = capture(&init_probe, true)?;
-            // Keep all three independent observations even if the first one
-            // collapses: early failure would hide the other experiment results.
-            let direct_count = direct
-                .as_ref()
-                .map(|acl| AclChunk::from_bytes(acl.data()))
-                .transpose()?
-                .map(|acl| read_count(acl.payload()))
-                .transpose()?;
-            let initialized_count = initialized
-                .as_ref()
-                .map(|acl| AclChunk::from_bytes(acl.data()))
-                .transpose()?
-                .map(|acl| read_count(acl.payload()))
-                .transpose()?;
-
+            let initialized_count = native_acl_count(&init_probe)?;
+            // Observe all paths independently before checking any expectation.
             restore(&original, &empty, true)?;
-            let captured = capture(&original, true)?;
-            let restored_count = captured
-                .as_ref()
-                .map(|acl| AclChunk::from_bytes(acl.data()))
-                .transpose()?
-                .map(|acl| read_count(acl.payload()))
-                .transpose()?;
+            let restored_count = native_acl_count(&original)?;
 
             // Serialize the intended empty ACL independently of what the
             // filesystem returned. Otherwise native normalization prevents
@@ -398,13 +410,7 @@ mod tests {
             let decoded = entry.acl_chunk()?.expect("explicit empty Darwin ACL");
             assert_eq!(decoded, empty, "PNA changed the empty ACL payload");
             restore(&restored, &decoded, true)?;
-            let after = capture(&restored, true)?;
-            let archive_count = after
-                .as_ref()
-                .map(|acl| AclChunk::from_bytes(acl.data()))
-                .transpose()?
-                .map(|acl| read_count(acl.payload()))
-                .transpose()?;
+            let archive_count = native_acl_count(&restored)?;
 
             assert_eq!(
                 (direct_count, initialized_count, restored_count, archive_count),
