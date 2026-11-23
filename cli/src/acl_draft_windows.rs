@@ -398,6 +398,77 @@ mod tests {
     }
 
     #[test]
+    fn native_empty_protected_dacl_pna_roundtrip_on_distinct_file() -> io::Result<()> {
+        use pna::{Archive, Chunk, FileEntryBuilder};
+
+        // An empty DACL denies access; unlike a NULL DACL it is not a
+        // permissive ACL. Keep the source file untouched and restore to a
+        // separate file whose handle is opened before changing its ACL.
+        let folder = std::env::temp_dir().join(format!(
+            "pna-acl-empty-dacl-{}", std::process::id()
+        ));
+        std::fs::create_dir_all(&folder)?;
+        let restored = folder.join("restored.tmp");
+        std::fs::write(&restored, b"ACL")?;
+        let result = (|| {
+            let mut sd = vec![0u8; 20];
+            sd[0] = 1;
+            let control = 0x8000u16 | SE_DACL_PRESENT | SE_DACL_PROTECTED;
+            sd[2..4].copy_from_slice(&control.to_le_bytes());
+            sd[16..20].copy_from_slice(&20u32.to_le_bytes());
+            // ACL_REVISION=2, AclSize=8, AceCount=0.
+            sd.extend_from_slice(&[2, 0, 8, 0, 0, 0, 0, 0]);
+            let mut payload = vec![1u8]; // DACL-only coverage
+            payload.extend_from_slice(&sd);
+            let original = AclChunk::new(pna::acl::WINDOWS_NT, payload)?;
+            original.validate()?;
+
+            let mut bytes = Vec::new();
+            {
+                let mut archive = Archive::write_header(&mut bytes)?;
+                let mut builder = FileEntryBuilder::new("empty-dacl.txt".into())?;
+                builder.add_extra_chunk(original.clone().into_raw_chunk());
+                archive.add_entry(builder.build()?)?;
+                archive.finalize()?;
+            }
+            let mut archive = Archive::read_header(&bytes[..])?;
+            let entry = archive.entries().skip_solid().next().unwrap()?;
+            let decoded = entry.acl_chunk()?.expect("empty DACL aCLS in archive");
+            assert_eq!(decoded, original, "PNA modified the empty DACL");
+
+            // The file must remain accessible for ACL inspection even after
+            // applying the empty DACL. Open the read handle in advance.
+            let read_handle = open_read_acl(&restored, true, false)?;
+            restore(&restored, &decoded, true)?;
+            let observed = query(read_handle.raw().0, DACL)?;
+            let observed_control = u16::from_le_bytes([observed[2], observed[3]]);
+            assert_ne!(
+                observed_control & SE_DACL_PRESENT,
+                0,
+                "empty DACL became absent"
+            );
+            assert_ne!(
+                observed_control & SE_DACL_PROTECTED,
+                0,
+                "protected DACL lost its inheritance protection"
+            );
+            let offset =
+                u32::from_le_bytes(observed[16..20].try_into().unwrap()) as usize;
+            assert!(offset >= 20 && offset + 8 <= observed.len(), "DACL missing");
+            assert_eq!(
+                u16::from_le_bytes([observed[offset + 4], observed[offset + 5]]),
+                0,
+                "empty DACL gained ACEs after native restore"
+            );
+            Ok(())
+        })();
+        // Removing a file with a deny-all DACL can require restoring access;
+        // the temporary directory is not used for any other test.
+        let _ = std::fs::remove_dir_all(&folder);
+        result
+    }
+
+    #[test]
     fn native_windows_file_dacl_roundtrip() -> io::Result<()> {
         let folder =
             std::env::temp_dir().join(format!("pna-acl-draft-windows-{}", std::process::id()));
