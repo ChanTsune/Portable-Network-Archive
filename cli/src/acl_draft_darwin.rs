@@ -382,32 +382,34 @@ mod tests {
                 .map(|acl| read_count(acl.payload()))
                 .transpose()?;
 
-            assert_eq!(
-                (direct_count, initialized_count, restored_count),
-                (Some(0), Some(0), Some(0)),
-                "Darwin empty ACL results (filesec import, acl_init, PNA restore); None means NOACL"
-            );
-            let captured = AclChunk::from_bytes(captured.unwrap().data())?;
+            // Serialize the intended empty ACL independently of what the
+            // filesystem returned. Otherwise native normalization prevents
+            // the archive and distinct-file restore from ever being tested.
             let mut bytes = Vec::new();
             {
                 let mut archive = Archive::write_header(&mut bytes)?;
                 let mut builder = FileEntryBuilder::new("empty.txt".into())?;
-                builder.add_extra_chunk(captured.clone().into_raw_chunk());
+                builder.add_extra_chunk(empty.clone().into_raw_chunk());
                 archive.add_entry(builder.build()?)?;
                 archive.finalize()?;
             }
             let mut archive = Archive::read_header(&bytes[..])?;
             let entry = archive.entries().skip_solid().next().unwrap()?;
             let decoded = entry.acl_chunk()?.expect("explicit empty Darwin ACL");
-            assert_eq!(decoded, captured);
+            assert_eq!(decoded, empty, "PNA changed the empty ACL payload");
             restore(&restored, &decoded, true)?;
-            let after = capture(&restored, true)?.ok_or_else(|| {
-                io::Error::other("Darwin lost the explicitly empty ACL on a distinct destination")
-            })?;
+            let after = capture(&restored, true)?;
+            let archive_count = after
+                .as_ref()
+                .map(|acl| AclChunk::from_bytes(acl.data()))
+                .transpose()?
+                .map(|acl| read_count(acl.payload()))
+                .transpose()?;
+
             assert_eq!(
-                after.data(),
-                decoded.to_bytes(),
-                "empty native Darwin ACL changed after the PNA roundtrip"
+                (direct_count, initialized_count, restored_count, archive_count),
+                (Some(0), Some(0), Some(0), Some(0)),
+                "Darwin empty ACL results (filesec import, acl_init, PNA direct restore, PNA archive restore); None means NOACL"
             );
             Ok(())
         })();
