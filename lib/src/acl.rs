@@ -413,7 +413,8 @@ fn validate_windows(data: &[u8]) -> io::Result<()> {
     if coverage == 0 || coverage & !3 != 0 || descriptor.len() < 20 {
         return Err(invalid("invalid Windows ACL envelope"));
     }
-    if descriptor[0] != 1 || u16::from_le_bytes([descriptor[2], descriptor[3]]) & 0x8000 == 0 {
+    let control = u16::from_le_bytes([descriptor[2], descriptor[3]]);
+    if descriptor[0] != 1 || control & 0x8000 == 0 {
         return Err(invalid("invalid self-relative security descriptor"));
     }
     for start in [4, 8] {
@@ -421,9 +422,12 @@ fn validate_windows(data: &[u8]) -> io::Result<()> {
             return Err(invalid("Windows owner/group must be separate"));
         }
     }
-    for start in [12, 16] {
+    for (start, present) in [(12, 0x0010u16), (16, 0x0004u16)] {
         let offset = u32::from_le_bytes(descriptor[start..start + 4].try_into().unwrap()) as usize;
         if offset != 0 {
+            if control & present == 0 {
+                return Err(invalid("Windows ACL offset without PRESENT control bit"));
+            }
             let header = descriptor
                 .get(offset..offset.saturating_add(8))
                 .ok_or_else(|| invalid("Windows ACL offset out of range"))?;
@@ -672,6 +676,55 @@ mod tests {
             assert_eq!(result, format!("content for {name}"));
         }
         assert!(entries.next().is_none());
+    }
+
+    #[test]
+    fn windows_acl_presence_distinguishes_absent_null_and_empty() {
+        let mut sd = vec![0u8; 28];
+        sd[0] = 1;
+        sd[16..20].copy_from_slice(&20u32.to_le_bytes());
+        sd[20..28].copy_from_slice(&[2, 0, 8, 0, 0, 0, 0, 0]);
+        let validate = |sd: &[u8]| {
+            let mut payload = vec![1u8];
+            payload.extend_from_slice(sd);
+            AclChunk::new(WINDOWS_NT, payload)
+                .unwrap()
+                .validate()
+        };
+
+        // An offset without the corresponding PRESENT bit is inconsistent.
+        sd[2..4].copy_from_slice(&0x8000u16.to_le_bytes());
+        assert!(validate(&sd).is_err());
+        // PRESENT with a nonzero offset means an explicit empty ACL.
+        sd[2..4].copy_from_slice(&0x8004u16.to_le_bytes());
+        validate(&sd).unwrap();
+        // PRESENT with offset zero means a NULL ACL.
+        sd[16..20].fill(0);
+        validate(&sd).unwrap();
+        // Neither PRESENT nor offset means an absent ACL, not a NULL ACL.
+        sd[2..4].copy_from_slice(&0x8000u16.to_le_bytes());
+        validate(&sd).unwrap();
+    }
+
+    #[test]
+    fn malformed_known_formats_and_unknown_ids() {
+        for (id, payload) in [
+            (POSIX1E, vec![0u8; 8]),
+            (NFS4, 1u32.to_be_bytes().to_vec()),
+            (NFS41, 0u32.to_be_bytes().to_vec()),
+            (WINDOWS_NT, vec![1u8; 21]),
+            (DARWIN, 1u32.to_be_bytes().to_vec()),
+        ] {
+            assert!(
+                AclChunk::new(id, payload).unwrap().validate().is_err(),
+                "malformed public format {id} must be rejected"
+            );
+        }
+        for id in [0x0006, 0x8000, 0xffff] {
+            let unknown = AclChunk::new(id, vec![0xff, 0, 0xfe]).unwrap();
+            unknown.validate().unwrap();
+            assert_eq!(AclChunk::from_bytes(&unknown.to_bytes()).unwrap(), unknown);
+        }
     }
 
     #[test]
