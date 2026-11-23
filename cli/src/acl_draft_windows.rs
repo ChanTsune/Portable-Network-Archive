@@ -261,6 +261,68 @@ mod tests {
     }
 
     #[test]
+    fn native_ownerless_descriptor_acl_state_matrix() {
+        #[link(name = "advapi32")]
+        unsafe extern "system" {
+            fn IsValidSecurityDescriptor(descriptor: *const c_void) -> i32;
+        }
+        #[link(name = "ntdll")]
+        unsafe extern "system" {
+            fn RtlValidRelativeSecurityDescriptor(
+                descriptor: *const c_void,
+                length: u32,
+                information: u32,
+            ) -> u8;
+        }
+
+        // The first candidate is an ordinary native self-relative descriptor.
+        // Exercise all three states independently for DACL and SACL: absent,
+        // present but NULL, and present with a structurally empty ACL.
+        // These are API-validity probes, not proof of filesystem restoration.
+        for dacl_state in 0..3u8 {
+            for sacl_state in 0..3u8 {
+                let mut sd = vec![0u8; 20];
+                sd[0] = 1;
+                let mut control = 0x8000u16;
+                let mut requested = 0u32;
+                for (state, offset_start, present, info) in [
+                    (dacl_state, 16usize, SE_DACL_PRESENT, DACL),
+                    (sacl_state, 12usize, SE_SACL_PRESENT, SACL),
+                ] {
+                    if state != 0 {
+                        control |= present;
+                        requested |= info;
+                    }
+                    if state == 2 {
+                        let offset = u32::try_from(sd.len()).unwrap();
+                        sd[offset_start..offset_start + 4]
+                            .copy_from_slice(&offset.to_le_bytes());
+                        // ACL_REVISION=2; AclSize=8; AceCount=0.
+                        sd.extend_from_slice(&[2, 0, 8, 0, 0, 0, 0, 0]);
+                    }
+                }
+                sd[2..4].copy_from_slice(&control.to_le_bytes());
+
+                let win32_valid = unsafe { IsValidSecurityDescriptor(sd.as_ptr().cast()) } != 0;
+                let nt_valid = unsafe {
+                    RtlValidRelativeSecurityDescriptor(
+                        sd.as_ptr().cast(),
+                        sd.len() as u32,
+                        requested,
+                    )
+                } != 0;
+                assert!(
+                    win32_valid && nt_valid,
+                    "ownerless DACL state={dacl_state}, SACL state={sacl_state}: \
+                     IsValidSecurityDescriptor={win32_valid}, \
+                     RtlValidRelativeSecurityDescriptor={nt_valid}, \
+                     control={control:#06x}, requested={requested:#010x}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn native_windows_file_dacl_roundtrip() -> io::Result<()> {
         let folder =
             std::env::temp_dir().join(format!("pna-acl-draft-windows-{}", std::process::id()));
