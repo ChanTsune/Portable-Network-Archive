@@ -314,12 +314,14 @@ mod tests {
     // Read the native ACL count directly, without the PNA decoder. This
     // distinguishes filesystem normalization from a conversion defect.
     fn native_acl_count(path: &Path) -> io::Result<Option<u32>> {
-        let path = c_path(path)?;
+        let native_path = c_path(path)?;
         // SAFETY: path is NUL-terminated and acl_get_file owns its result.
-        let ptr = unsafe { acl_get_file(path.as_ptr(), EXTENDED) };
+        let ptr = unsafe { acl_get_file(native_path.as_ptr(), EXTENDED) };
         if ptr.is_null() {
             let error = io::Error::last_os_error();
-            if error.kind() == io::ErrorKind::NotFound {
+            // ENOENT also means the file itself is missing. Do not report
+            // that case as a successful observation of NOACL.
+            if error.kind() == io::ErrorKind::NotFound && path.metadata().is_ok() {
                 return Ok(None);
             }
             return Err(error);
