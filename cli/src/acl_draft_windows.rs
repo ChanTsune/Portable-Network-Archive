@@ -295,8 +295,7 @@ mod tests {
                     }
                     if state == 2 {
                         let offset = u32::try_from(sd.len()).unwrap();
-                        sd[offset_start..offset_start + 4]
-                            .copy_from_slice(&offset.to_le_bytes());
+                        sd[offset_start..offset_start + 4].copy_from_slice(&offset.to_le_bytes());
                         // ACL_REVISION=2; AclSize=8; AceCount=0.
                         sd.extend_from_slice(&[2, 0, 8, 0, 0, 0, 0, 0]);
                     }
