@@ -358,32 +358,36 @@ mod tests {
                 return Err(io::Error::last_os_error());
             }
             let initialized = capture(&init_probe, true)?;
-            if direct.is_none() || initialized.is_none() {
-                return Err(io::Error::other(format!(
-                    "Darwin native empty ACL preservation: filesec_import={}, acl_init={}; PNA not involved",
-                    direct.is_some(),
-                    initialized.is_some()
-                )));
-            }
-            let direct = direct.unwrap();
-            assert_eq!(
-                read_count(AclChunk::from_bytes(direct.data())?.payload())?,
-                0,
-                "Darwin changed native zero-entry ACL without PNA"
-            );
+            // Keep all three independent observations even if the first one
+            // collapses: early failure would hide the other experiment results.
+            let direct_count = direct
+                .as_ref()
+                .map(|acl| AclChunk::from_bytes(acl.data()))
+                .transpose()?
+                .map(|acl| read_count(acl.payload()))
+                .transpose()?;
+            let initialized_count = initialized
+                .as_ref()
+                .map(|acl| AclChunk::from_bytes(acl.data()))
+                .transpose()?
+                .map(|acl| read_count(acl.payload()))
+                .transpose()?;
 
             restore(&original, &empty, true)?;
-            let captured = capture(&original, true)?.ok_or_else(|| {
-                io::Error::other(
-                    "Darwin collapsed an explicitly empty native ACL into NOACL;                      empty and absent are not proven distinct",
-                )
-            })?;
-            let captured = AclChunk::from_bytes(captured.data())?;
+            let captured = capture(&original, true)?;
+            let restored_count = captured
+                .as_ref()
+                .map(|acl| AclChunk::from_bytes(acl.data()))
+                .transpose()?
+                .map(|acl| read_count(acl.payload()))
+                .transpose()?;
+
             assert_eq!(
-                read_count(captured.payload())?,
-                0,
-                "native empty ACL must remain distinct from NOACL"
+                (direct_count, initialized_count, restored_count),
+                (Some(0), Some(0), Some(0)),
+                "Darwin empty ACL results (filesec import, acl_init, PNA restore); None means NOACL"
             );
+            let captured = AclChunk::from_bytes(captured.unwrap().data())?;
             let mut bytes = Vec::new();
             {
                 let mut archive = Archive::write_header(&mut bytes)?;
