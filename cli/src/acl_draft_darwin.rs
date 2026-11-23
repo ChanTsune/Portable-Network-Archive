@@ -247,6 +247,70 @@ mod tests {
     }
 
     #[test]
+    fn native_noacl_sentinel_removes_acl_after_pna_roundtrip() -> io::Result<()> {
+        use pna::{Archive, Chunk, FileEntryBuilder};
+
+        let folder = std::env::temp_dir().join(format!("pna-darwin-noacl-{}", std::process::id()));
+        std::fs::create_dir_all(&folder)?;
+        let original = folder.join("original.tmp");
+        let restored = folder.join("restored.tmp");
+        let result = (|| {
+            std::fs::write(&original, b"ACL")?;
+            std::fs::write(&restored, b"ACL")?;
+            let mut uuid = [0u8; 16];
+            // SAFETY: mbr_uid_to_uuid writes a 16-byte native principal UUID.
+            if unsafe { mbr_uid_to_uuid(libc::getuid(), uuid.as_mut_ptr()) } != 0 {
+                return Err(io::Error::last_os_error());
+            }
+            let mut body = Vec::new();
+            body.extend_from_slice(&1u32.to_be_bytes());
+            body.extend_from_slice(&0u32.to_be_bytes());
+            body.extend_from_slice(&uuid);
+            body.extend_from_slice(&1u32.to_be_bytes());
+            body.extend_from_slice(&2u32.to_be_bytes());
+            body.extend_from_slice(&[1u8, 0, 0, 0]);
+            restore(&original, &AclChunk::new(pna::acl::DARWIN, body)?, true)?;
+            assert!(
+                capture(&original, true)?.is_some(),
+                "the source must have an ACL before removal"
+            );
+
+            // KAUTH_FILESEC_NOACL (count=UINT32_MAX) is not an empty ACL.
+            let mut noacl_body = Vec::new();
+            noacl_body.extend_from_slice(&u32::MAX.to_be_bytes());
+            noacl_body.extend_from_slice(&0u32.to_be_bytes());
+            let noacl = AclChunk::new(pna::acl::DARWIN, noacl_body)?;
+            noacl.validate()?;
+            let mut archive_bytes = Vec::new();
+            {
+                let mut archive = Archive::write_header(&mut archive_bytes)?;
+                let mut builder = FileEntryBuilder::new("noacl.txt".into())?;
+                builder.add_extra_chunk(noacl.clone().into_raw_chunk());
+                archive.add_entry(builder.build()?)?;
+                archive.finalize()?;
+            }
+            let mut archive = Archive::read_header(&archive_bytes[..])?;
+            let entry = archive.entries().skip_solid().next().unwrap()?;
+            let decoded = entry.acl_chunk()?.expect("NOACL in PNA archive");
+            assert_eq!(decoded, noacl);
+
+            restore(&original, &decoded, true)?;
+            restore(&restored, &decoded, true)?;
+            assert!(
+                capture(&original, true)?.is_none(),
+                "NOACL must remove an existing native ACL"
+            );
+            assert!(
+                capture(&restored, true)?.is_none(),
+                "NOACL must remain absent on a different native file"
+            );
+            Ok(())
+        })();
+        std::fs::remove_dir_all(&folder)?;
+        result
+    }
+
+    #[test]
     fn portable_acl_drops_owner_fields_but_keeps_all_aces() {
         let mut native = vec![0; HEADER_SIZE];
         native[..4].copy_from_slice(&FILESEC_MAGIC.to_be_bytes());
