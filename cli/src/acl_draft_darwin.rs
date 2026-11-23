@@ -23,6 +23,7 @@ unsafe extern "C" {
     fn acl_size(acl: *mut c_void) -> isize;
     fn acl_copy_ext(dst: *mut c_void, acl: *mut c_void, size: isize) -> isize;
     fn acl_copy_int(src: *const c_void) -> *mut c_void;
+    fn acl_init(count: c_int) -> *mut c_void;
     fn acl_free(acl: *mut c_void) -> c_int;
 }
 
@@ -340,9 +341,31 @@ mod tests {
                 return Err(io::Error::last_os_error());
             }
             let direct = capture(&probe, true)?;
-            let direct = direct.ok_or_else(|| {
-                io::Error::other("Darwin native acl_set_file/acl_get_file collapses empty ACL into NOACL without PNA")
-            })?;
+
+            // A second native construction route distinguishes filesec import
+            // behavior from filesystem normalization of a zero-entry ACL.
+            let init_probe = folder.join("native-init-probe.tmp");
+            std::fs::write(&init_probe, b"ACL")?;
+            // SAFETY: acl_init creates a native ACL managed by acl_free.
+            let init_ptr = unsafe { acl_init(0) };
+            if init_ptr.is_null() {
+                return Err(io::Error::last_os_error());
+            }
+            let initialized_acl = OwnedAcl(init_ptr);
+            let init_path = c_path(&init_probe)?;
+            // SAFETY: init_path is NUL-terminated and initialized_acl is owned.
+            if unsafe { acl_set_file(init_path.as_ptr(), EXTENDED, initialized_acl.0) } == -1 {
+                return Err(io::Error::last_os_error());
+            }
+            let initialized = capture(&init_probe, true)?;
+            if direct.is_none() || initialized.is_none() {
+                return Err(io::Error::other(format!(
+                    "Darwin native empty ACL preservation: filesec_import={}, acl_init={}; PNA not involved",
+                    direct.is_some(),
+                    initialized.is_some()
+                )));
+            }
+            let direct = direct.unwrap();
             assert_eq!(
                 read_count(AclChunk::from_bytes(direct.data())?.payload())?,
                 0,
