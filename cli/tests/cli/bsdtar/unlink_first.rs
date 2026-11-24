@@ -98,6 +98,65 @@ fn unlink_first_replaces_existing_symlink_file() {
     );
 }
 
+/// Precondition: An AES-GCM encrypted archive entry, and an existing file at the extraction target.
+/// Action: Extract with `--unlink-first` and a password that does not match the archive.
+/// Expectation: Extraction fails and the existing file is left unchanged.
+#[test]
+fn unlink_first_with_wrong_password_preserves_existing_file_aes_gcm() {
+    setup();
+
+    let root = PathBuf::from("bsdtar_unlink_first_password");
+    let archive_path = root.join("archive.pna");
+    if let Some(parent) = archive_path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    let options = WriteOptions::builder()
+        .encryption(pna::Encryption::AES)
+        .cipher_mode(pna::CipherMode::GCM)
+        .hash_algorithm(pna::HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
+        .password(Some("correct"))
+        .build();
+    let file = fs::File::create(&archive_path).unwrap();
+    let mut writer = Archive::write_header(file).unwrap();
+    writer
+        .add_entry({
+            let mut builder =
+                FileEntryBuilder::new_with_options("file.txt".into(), &options).unwrap();
+            builder.write_all(b"updated").unwrap();
+            builder.build().unwrap()
+        })
+        .unwrap();
+    writer.finalize().unwrap();
+
+    let dist = root.join("dist");
+    fs::create_dir_all(&dist).unwrap();
+    fs::write(dist.join("file.txt"), "original").unwrap();
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "compat",
+            "bsdtar",
+            "--extract",
+            "--unstable",
+            "--overwrite",
+            "--unlink-first",
+            "--file",
+            archive_path.to_str().unwrap(),
+            "--out-dir",
+            dist.to_str().unwrap(),
+            "--password",
+            "wrong",
+        ])
+        .assert()
+        .failure();
+
+    assert_eq!(
+        fs::read_to_string(dist.join("file.txt")).unwrap(),
+        "original"
+    );
+}
+
 #[test]
 fn unlink_first_removes_symlinked_parent_directory() {
     setup();
