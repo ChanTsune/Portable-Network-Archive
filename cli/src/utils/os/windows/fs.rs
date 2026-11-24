@@ -93,9 +93,11 @@ pub(crate) fn open_write_acl(
     write_sacl: bool,
 ) -> io::Result<FileHandle> {
     const ACCESS_SYSTEM_SECURITY: u32 = 0x0100_0000;
+    // A complete SACL includes the mandatory integrity label, whose
+    // restoration requires WRITE_OWNER in addition to ACCESS_SYSTEM_SECURITY.
     let access = WRITE_DAC.0
         | if write_sacl {
-            ACCESS_SYSTEM_SECURITY
+            ACCESS_SYSTEM_SECURITY | WRITE_OWNER.0
         } else {
             0
         };
