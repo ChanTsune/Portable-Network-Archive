@@ -16,13 +16,16 @@ const HEADER_SIZE: usize = 44;
 const ACE_SIZE: usize = 24;
 
 unsafe extern "C" {
+    #[cfg(test)]
     fn acl_get_file(path: *const i8, kind: c_int) -> *mut c_void;
-    fn acl_get_link_np(path: *const i8, kind: c_int) -> *mut c_void;
     fn acl_set_file(path: *const i8, kind: c_int, acl: *mut c_void) -> c_int;
     fn acl_set_link_np(path: *const i8, kind: c_int, acl: *mut c_void) -> c_int;
+    #[cfg(test)]
     fn acl_size(acl: *mut c_void) -> isize;
+    #[cfg(test)]
     fn acl_copy_ext(dst: *mut c_void, acl: *mut c_void, size: isize) -> isize;
     fn acl_copy_int(src: *const c_void) -> *mut c_void;
+    #[cfg(test)]
     fn acl_init(count: c_int) -> *mut c_void;
     fn acl_free(acl: *mut c_void) -> c_int;
 }
@@ -110,39 +113,110 @@ fn to_native(data: &[u8]) -> io::Result<Vec<u8>> {
     Ok(native)
 }
 
+// getattrlist obtains the kernel's filesec blob without statx_np's
+// sizeof(kauth_filesec) test, which includes storage for one ACE.
+fn raw_filesec(path: &Path, follow_links: bool) -> io::Result<Option<Vec<u8>>> {
+    #[repr(C)]
+    struct AttrList {
+        bitmapcount: u16,
+        reserved: u16,
+        commonattr: u32,
+        volattr: u32,
+        dirattr: u32,
+        fileattr: u32,
+        forkattr: u32,
+    }
+
+    unsafe extern "C" {
+        fn getattrlist(
+            path: *const i8,
+            attrs: *mut AttrList,
+            buffer: *mut c_void,
+            size: usize,
+            options: libc::c_ulong,
+        ) -> c_int;
+    }
+
+    let path = c_path(path)?;
+    let mut attrs = AttrList {
+        bitmapcount: 5,
+        reserved: 0,
+        commonattr: 0x0040_0000, // ATTR_CMN_EXTENDED_SECURITY
+        volattr: 0,
+        dirattr: 0,
+        fileattr: 0,
+        forkattr: 0,
+    };
+    // 128 native ACEs (24 bytes each) plus the filesec and attr headers.
+    let mut buffer = [0u8; 4096];
+    // SAFETY: attrs matches Darwin's struct attrlist; the output buffer is
+    // writable for its entire length and path is NUL-terminated.
+    if unsafe {
+        getattrlist(
+            path.as_ptr(),
+            &mut attrs,
+            buffer.as_mut_ptr().cast(),
+            buffer.len(),
+            0x4 | if follow_links { 0 } else { 0x1 }, // FSOPT_REPORT_FULLSIZE | FSOPT_NOFOLLOW
+        )
+    } != 0
+    {
+        return Err(io::Error::last_os_error());
+    }
+    let total = u32::from_ne_bytes(buffer[..4].try_into().unwrap()) as usize;
+    if !(12..=buffer.len()).contains(&total) {
+        return Err(invalid("invalid extended-security attribute size"));
+    }
+    // attrreference_t follows the leading buffer length; its offset is
+    // relative to the reference itself, not to the start of the buffer.
+    let offset = i32::from_ne_bytes(buffer[4..8].try_into().unwrap());
+    let length = u32::from_ne_bytes(buffer[8..12].try_into().unwrap()) as usize;
+    if length == 0 {
+        return Ok(None);
+    }
+    let start = usize::try_from(offset)
+        .ok()
+        .and_then(|n| n.checked_add(4))
+        .filter(|n| *n >= 12)
+        .ok_or_else(|| invalid("invalid extended-security attribute offset"))?;
+    let native = start
+        .checked_add(length)
+        .and_then(|end| buffer[..total].get(start..end))
+        .ok_or_else(|| invalid("truncated extended-security attribute"))?;
+    if native.len() < HEADER_SIZE
+        || u32::from_ne_bytes(native[..4].try_into().unwrap()) != FILESEC_MAGIC
+    {
+        return Err(invalid("invalid native filesec attribute"));
+    }
+    let count = u32::from_ne_bytes(native[36..40].try_into().unwrap());
+    let entries = if count == u32::MAX { 0 } else { count as usize };
+    if entries
+        .checked_mul(ACE_SIZE)
+        .and_then(|size| size.checked_add(HEADER_SIZE))
+        != Some(native.len())
+    {
+        return Err(invalid("inconsistent native filesec attribute length"));
+    }
+    Ok(Some(native.to_vec()))
+}
+
 /// Captures Darwin ACEs without translating their UUIDs, masks, or flags.
 pub(crate) fn capture(path: &Path, follow_links: bool) -> io::Result<Option<RawChunk>> {
-    let native_path = c_path(path)?;
-    // SAFETY: path is NUL-terminated, returned ACL is managed by OwnedAcl.
-    let ptr = unsafe {
-        if follow_links {
-            acl_get_file(native_path.as_ptr(), EXTENDED)
-        } else {
-            acl_get_link_np(native_path.as_ptr(), EXTENDED)
-        }
+    let Some(mut native) = raw_filesec(path, follow_links)? else {
+        return Ok(None);
     };
-    if ptr.is_null() {
-        let error = io::Error::last_os_error();
-        // Darwin reports ENOENT for a path with no extended ACL as well as
-        // for a missing object. Do not conflate the two states.
-        if error.kind() == io::ErrorKind::NotFound && path.symlink_metadata().is_ok() {
-            return Ok(None);
+    // getattrlist returns host-order kauth_filesec fields. Only integer
+    // fields are byte-swapped; UUIDs retain their native external byte order.
+    for offset in [0, 36, 40] {
+        let value = u32::from_ne_bytes(native[offset..offset + 4].try_into().unwrap());
+        native[offset..offset + 4].copy_from_slice(&value.to_be_bytes());
+    }
+    for ace in native[HEADER_SIZE..].chunks_exact_mut(ACE_SIZE) {
+        for offset in [16, 20] {
+            let value = u32::from_ne_bytes(ace[offset..offset + 4].try_into().unwrap());
+            ace[offset..offset + 4].copy_from_slice(&value.to_be_bytes());
         }
-        return Err(error);
     }
-    let acl = OwnedAcl(ptr);
-    // SAFETY: ptr is valid according to acl_get_file or acl_get_link_np.
-    let size = unsafe { acl_size(acl.0) };
-    if size < HEADER_SIZE as isize {
-        return Err(io::Error::last_os_error());
-    }
-    let mut native = vec![0u8; size as usize];
-    // SAFETY: native is allocated to acl_size bytes.
-    let copied = unsafe { acl_copy_ext(native.as_mut_ptr().cast(), acl.0, size) };
-    if copied < 0 {
-        return Err(io::Error::last_os_error());
-    }
-    native.truncate(copied as usize);
     let chunk = AclChunk::new(pna::acl::DARWIN, from_native(&native)?)?;
     chunk.validate()?;
     Ok(Some(chunk.into_raw_chunk()))
@@ -217,7 +291,11 @@ mod tests {
             body.extend_from_slice(&[1u8, 0, 0, 0]); // user, no ID or name
             let acl = AclChunk::new(pna::acl::DARWIN, body)?;
             restore(&original, &acl, true)?;
-            assert_eq!(raw_acl_count(&original)?, Some(1), "raw nonempty ACL control");
+            assert_eq!(
+                raw_acl_count(&original)?,
+                Some(1),
+                "raw nonempty ACL control"
+            );
             let captured = capture(&original, true)?.expect("Darwin native ACL");
             let captured = AclChunk::from_bytes(captured.data())?;
             captured.validate()?;
@@ -306,97 +384,17 @@ mod tests {
                 capture(&restored, true)?.is_none(),
                 "NOACL must remain absent on a different native file"
             );
+            assert_eq!(raw_acl_count(&original)?, None);
+            assert_eq!(raw_acl_count(&restored)?, None);
             Ok(())
         })();
         std::fs::remove_dir_all(&folder)?;
         result
     }
 
-    // getattrlist obtains the kernel's filesec blob without statx_np's
-    // sizeof(kauth_filesec) test, which includes storage for one ACE.
     fn raw_acl_count(path: &Path) -> io::Result<Option<u32>> {
-        #[repr(C)]
-        struct AttrList {
-            bitmapcount: u16,
-            reserved: u16,
-            commonattr: u32,
-            volattr: u32,
-            dirattr: u32,
-            fileattr: u32,
-            forkattr: u32,
-        }
-
-        unsafe extern "C" {
-            fn getattrlist(
-                path: *const i8,
-                attrs: *mut AttrList,
-                buffer: *mut c_void,
-                size: usize,
-                options: libc::c_ulong,
-            ) -> c_int;
-        }
-
-        let path = c_path(path)?;
-        let mut attrs = AttrList {
-            bitmapcount: 5,
-            reserved: 0,
-            commonattr: 0x0040_0000, // ATTR_CMN_EXTENDED_SECURITY
-            volattr: 0,
-            dirattr: 0,
-            fileattr: 0,
-            forkattr: 0,
-        };
-        // 128 native ACEs (24 bytes each) plus the filesec and attr headers.
-        let mut buffer = [0u8; 4096];
-        // SAFETY: attrs matches Darwin's struct attrlist; the output buffer is
-        // writable for its entire length and path is NUL-terminated.
-        if unsafe {
-            getattrlist(
-                path.as_ptr(),
-                &mut attrs,
-                buffer.as_mut_ptr().cast(),
-                buffer.len(),
-                0,
-            )
-        } != 0
-        {
-            return Err(io::Error::last_os_error());
-        }
-        let total = u32::from_ne_bytes(buffer[..4].try_into().unwrap()) as usize;
-        if !(12..=buffer.len()).contains(&total) {
-            return Err(invalid("invalid extended-security attribute size"));
-        }
-        // attrreference_t follows the leading buffer length; its offset is
-        // relative to the reference itself, not to the start of the buffer.
-        let offset = i32::from_ne_bytes(buffer[4..8].try_into().unwrap());
-        let length = u32::from_ne_bytes(buffer[8..12].try_into().unwrap()) as usize;
-        if length == 0 {
-            return Ok(None);
-        }
-        let start = usize::try_from(offset)
-            .ok()
-            .and_then(|n| n.checked_add(4))
-            .filter(|n| *n >= 12)
-            .ok_or_else(|| invalid("invalid extended-security attribute offset"))?;
-        let native = start
-            .checked_add(length)
-            .and_then(|end| buffer[..total].get(start..end))
-            .ok_or_else(|| invalid("truncated extended-security attribute"))?;
-        if native.len() < HEADER_SIZE
-            || u32::from_ne_bytes(native[..4].try_into().unwrap()) != FILESEC_MAGIC
-        {
-            return Err(invalid("invalid native filesec attribute"));
-        }
-        let count = u32::from_ne_bytes(native[36..40].try_into().unwrap());
-        let entries = if count == u32::MAX { 0 } else { count as usize };
-        if entries
-            .checked_mul(ACE_SIZE)
-            .and_then(|size| size.checked_add(HEADER_SIZE))
-            != Some(native.len())
-        {
-            return Err(invalid("inconsistent native filesec attribute length"));
-        }
-        Ok(Some(count))
+        Ok(raw_filesec(path, true)?
+            .map(|native| u32::from_ne_bytes(native[36..40].try_into().unwrap())))
     }
 
     // Read the native ACL count directly, without the PNA decoder. This
@@ -506,14 +504,15 @@ mod tests {
             restore(&original, &empty, true)?;
             let restored_count = native_acl_count(&original)?;
 
-            // Serialize the intended empty ACL independently of what the
-            // filesystem returned. Otherwise native normalization prevents
-            // the archive and distinct-file restore from ever being tested.
+            // Use the captured native ACL, not a synthetic replacement.
+            let captured = capture(&original, true)?.expect("captured empty ACL");
+            let captured = AclChunk::from_bytes(captured.data())?;
+            assert_eq!(captured, empty, "capture lost the empty ACL");
             let mut bytes = Vec::new();
             {
                 let mut archive = Archive::write_header(&mut bytes)?;
                 let mut builder = FileEntryBuilder::new("empty.txt".into())?;
-                builder.add_extra_chunk(empty.clone().into_raw_chunk());
+                builder.add_extra_chunk(captured.into_raw_chunk());
                 archive.add_entry(builder.build()?)?;
                 archive.finalize()?;
             }
@@ -535,11 +534,21 @@ mod tests {
                  None=no attribute, Some(4294967295)=NOACL, Some(0)=empty"
             );
 
-            assert_eq!(
-                (direct_count, initialized_count, restored_count, archive_count),
-                (Some(0), Some(0), Some(0), Some(0)),
-                "Darwin empty ACL results: before filesystem filesec import={imported_count}, acl_init={initialized_memory_count}; after filesystem (filesec import, acl_init, PNA direct restore, PNA archive restore)={:?}; None means NOACL",
-                (direct_count, initialized_count, restored_count, archive_count)
+            // The high-level API may hide a valid zero-entry descriptor.
+            // Assert the raw native state and actual PNA roundtrip instead.
+            assert_eq!(imported_count, 0);
+            assert_eq!(initialized_memory_count, 0);
+            assert_eq!(raw_counts, [Some(0); 4]);
+            let recaptured = capture(&restored, true)?.expect("recaptured empty ACL");
+            assert_eq!(AclChunk::from_bytes(recaptured.data())?, empty);
+            eprintln!(
+                "Darwin acl_get_file counts: {:?}",
+                (
+                    direct_count,
+                    initialized_count,
+                    restored_count,
+                    archive_count
+                )
             );
             Ok(())
         })();
