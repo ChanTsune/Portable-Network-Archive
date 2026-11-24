@@ -620,11 +620,10 @@ where
                     let item = entry.map_err(|e| {
                         io::Error::new(e.kind(), format!("reading archive entry: {e}"))
                     })?;
-                    let item_path = item.name().to_string();
-                    let name = match filter_entry_fast_read(&item, &item_path, &mut globs, args) {
+                    let name = match filter_entry_fast_read(&item, &mut globs, args) {
                         FastReadFilterAction::Skip(action) => return Ok(action),
                         FastReadFilterAction::SecuritySkip(action) => {
-                            security_skips.record(item_path.as_str());
+                            security_skips.record(item.name().as_str());
                             return Ok(action);
                         }
                         FastReadFilterAction::Accept(name) => name,
@@ -663,6 +662,7 @@ where
                     let path = build_output_path(args.out_dir.as_deref(), name.as_path());
                     let ticket = args.ordered_path_locks.register(&path);
                     let all_matched = globs.all_matched();
+                    let item_path = item.name().to_string();
                     if sequential {
                         let _guard = ticket.wait_for_turn();
                         extract_file_entry(item, &name, read_options, args).map_err(|e| {
@@ -817,11 +817,10 @@ where
             run_process_archive_bytes_stoppable(archives, read_options, |entry| {
                 let item = entry
                     .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
-                let item_path = item.name().to_string();
-                let name = match filter_entry_fast_read(&item, &item_path, &mut globs, args) {
+                let name = match filter_entry_fast_read(&item, &mut globs, args) {
                     FastReadFilterAction::Skip(action) => return Ok(action),
                     FastReadFilterAction::SecuritySkip(action) => {
-                        security_skips.record(item_path.as_str());
+                        security_skips.record(item.name().as_str());
                         return Ok(action);
                     }
                     FastReadFilterAction::Accept(name) => name,
@@ -863,6 +862,7 @@ where
                 let all_matched = globs.all_matched();
                 s.spawn_fifo(move |_| {
                     let _guard = ticket.wait_for_turn();
+                    let item_path = item.name().to_string();
                     tx.send(
                         extract_file_entry(item, &name, read_options, args)
                             .with_context(|| format!("extracting {}", item_path)),
@@ -1098,13 +1098,13 @@ enum FastReadFilterAction {
 
 fn filter_entry_fast_read<T: AsRef<[u8]>>(
     item: &NormalEntry<T>,
-    item_path: &str,
     globs: &mut BsdGlobMatcher<'_>,
     args: &OutputOption<'_>,
 ) -> FastReadFilterAction
 where
     pna::RawChunk<T>: Chunk,
 {
+    let item_path = item.name().as_str();
     if !globs.matches_any_pattern(item_path) {
         log::debug!("Skip: {item_path}");
         return FastReadFilterAction::Skip(ProcessAction::Continue);
@@ -1122,7 +1122,7 @@ where
         };
     }
     let Some(name) = args.pathname_editor.edit_entry_name(item.name().as_path()) else {
-        if has_parent_dir_component(item.name().as_str()) {
+        if has_parent_dir_component(item_path) {
             log::warn!("Skipping entry with unsafe path: {item_path}");
             return FastReadFilterAction::SecuritySkip(ProcessAction::Continue);
         }
