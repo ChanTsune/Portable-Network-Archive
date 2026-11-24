@@ -469,6 +469,260 @@ mod tests {
     }
 
     #[test]
+    fn native_audit_and_label_sacl_archive_roundtrip() -> io::Result<()> {
+        use pna::{Archive, Chunk, FileEntryBuilder};
+
+        #[repr(C)]
+        struct Luid {
+            low: u32,
+            high: i32,
+        }
+
+        #[repr(C)]
+        struct TokenPrivileges {
+            count: u32,
+            luid: Luid,
+            attributes: u32,
+        }
+
+        #[link(name = "kernel32")]
+        unsafe extern "system" {
+            fn GetCurrentProcess() -> *mut c_void;
+            fn CloseHandle(handle: *mut c_void) -> i32;
+            fn GetLastError() -> u32;
+            fn LocalFree(memory: *mut c_void) -> *mut c_void;
+        }
+
+        #[link(name = "advapi32")]
+        unsafe extern "system" {
+            fn OpenProcessToken(
+                process: *mut c_void,
+                access: u32,
+                token: *mut *mut c_void,
+            ) -> i32;
+            fn LookupPrivilegeValueW(
+                system: *const u16,
+                name: *const u16,
+                luid: *mut Luid,
+            ) -> i32;
+            fn AdjustTokenPrivileges(
+                token: *mut c_void,
+                disable_all: i32,
+                state: *const TokenPrivileges,
+                size: u32,
+                previous: *mut TokenPrivileges,
+                returned: *mut u32,
+            ) -> i32;
+            fn ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                text: *const u16,
+                revision: u32,
+                descriptor: *mut *mut c_void,
+                size: *mut u32,
+            ) -> i32;
+        }
+
+        struct Token(*mut c_void);
+        impl Drop for Token {
+            fn drop(&mut self) {
+                // SAFETY: the token is an owned handle.
+                unsafe { CloseHandle(self.0) };
+            }
+        }
+        struct Privilege<'a> {
+            token: &'a Token,
+            previous: TokenPrivileges,
+        }
+        impl Drop for Privilege<'_> {
+            fn drop(&mut self) {
+                // SAFETY: previous is the state returned by AdjustTokenPrivileges.
+                unsafe {
+                    AdjustTokenPrivileges(
+                        self.token.0,
+                        0,
+                        &self.previous,
+                        0,
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                    )
+                };
+            }
+        }
+        struct Descriptor(*mut c_void);
+        impl Drop for Descriptor {
+            fn drop(&mut self) {
+                // SAFETY: the SDDL conversion allocated this buffer with LocalAlloc.
+                unsafe { LocalFree(self.0) };
+            }
+        }
+
+        fn at(stage: &str, error: io::Error) -> io::Error {
+            io::Error::new(error.kind(), format!("{stage}: {error}"))
+        }
+
+        // Do not accept DACL-only fallback as evidence of a full SACL query.
+        // The CI runner must actually hold SeSecurityPrivilege.
+        let mut token = std::ptr::null_mut();
+        // SAFETY: the current process pseudo-handle and output pointer are valid.
+        if unsafe { OpenProcessToken(GetCurrentProcess(), 0x28, &mut token) } == 0 {
+            return Err(at("OpenProcessToken", io::Error::last_os_error()));
+        }
+        let token = Token(token);
+        let name: Vec<u16> = "SeSecurityPrivilege\0".encode_utf16().collect();
+        let mut state = TokenPrivileges {
+            count: 1,
+            luid: Luid { low: 0, high: 0 },
+            attributes: 2, // SE_PRIVILEGE_ENABLED
+        };
+        // SAFETY: name is terminated and luid points to writable storage.
+        if unsafe {
+            LookupPrivilegeValueW(std::ptr::null(), name.as_ptr(), &mut state.luid)
+        } == 0
+        {
+            return Err(at("LookupPrivilegeValueW", io::Error::last_os_error()));
+        }
+        let mut previous = TokenPrivileges {
+            count: 0,
+            luid: Luid { low: 0, high: 0 },
+            attributes: 0,
+        };
+        let mut returned = 0;
+        // SAFETY: both TOKEN_PRIVILEGES structures have space for one entry.
+        let adjusted = unsafe {
+            AdjustTokenPrivileges(
+                token.0,
+                0,
+                &state,
+                std::mem::size_of::<TokenPrivileges>() as u32,
+                &mut previous,
+                &mut returned,
+            )
+        };
+        // AdjustTokenPrivileges may return success with ERROR_NOT_ALL_ASSIGNED.
+        let error = unsafe { GetLastError() };
+        if adjusted == 0 || error != 0 {
+            return Err(at(
+                "enable SeSecurityPrivilege",
+                io::Error::from_raw_os_error(error as i32),
+            ));
+        }
+        let _privilege = Privilege {
+            token: &token,
+            previous,
+        };
+
+        // Parse the actual native ACE sequence, excluding unused ACL tail space.
+        fn sacl_aces(sd: &[u8]) -> io::Result<Vec<Vec<u8>>> {
+            let offset = u32::from_le_bytes(sd[12..16].try_into().unwrap()) as usize;
+            if offset == 0 {
+                return Err(io::Error::other("expected a non-NULL SACL"));
+            }
+            let acl = sd
+                .get(offset..)
+                .filter(|acl| acl.len() >= 8)
+                .ok_or_else(|| io::Error::other("truncated SACL"))?;
+            let length = u16::from_le_bytes([acl[2], acl[3]]) as usize;
+            let count = u16::from_le_bytes([acl[4], acl[5]]);
+            let acl = acl
+                .get(..length)
+                .filter(|acl| acl.len() >= 8)
+                .ok_or_else(|| io::Error::other("invalid SACL size"))?;
+            let mut cursor = 8;
+            let mut aces = Vec::new();
+            for _ in 0..count {
+                let header = acl
+                    .get(cursor..cursor + 4)
+                    .ok_or_else(|| io::Error::other("truncated SACL ACE header"))?;
+                let size = u16::from_le_bytes([header[2], header[3]]) as usize;
+                let ace = acl
+                    .get(cursor..cursor + size)
+                    .filter(|ace| ace.len() >= 4)
+                    .ok_or_else(|| io::Error::other("invalid SACL ACE size"))?;
+                aces.push(ace.to_vec());
+                cursor += size;
+            }
+            Ok(aces)
+        }
+
+        let folder =
+            std::env::temp_dir().join(format!("pna-acl-sacl-{}", std::process::id()));
+        std::fs::create_dir_all(&folder)?;
+        let source = folder.join("source.tmp");
+        let destination = folder.join("destination.tmp");
+        let result = (|| {
+            std::fs::write(&source, b"ACL")?;
+            std::fs::write(&destination, b"ACL")?;
+
+            // Use the native SDDL parser to create independent audit and
+            // integrity-label ACEs, not bytes generated by the PNA codec.
+            let sddl: Vec<u16> = "S:(AU;SA;FR;;;WD)(ML;;NW;;;ME)\0"
+                .encode_utf16()
+                .collect();
+            let mut descriptor = std::ptr::null_mut();
+            // SAFETY: the terminated SDDL and output pointer are valid.
+            if unsafe {
+                ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                    sddl.as_ptr(),
+                    1,
+                    &mut descriptor,
+                    std::ptr::null_mut(),
+                )
+            } == 0
+            {
+                return Err(at("parse SACL fixture", io::Error::last_os_error()));
+            }
+            let descriptor = Descriptor(descriptor);
+            let handle = open_write_acl(&source, true, true)
+                .map_err(|e| at("open source for SACL write", e))?;
+            // SAFETY: the descriptor is a live native self-relative descriptor.
+            if unsafe {
+                SetKernelObjectSecurity(handle.raw().0 as *mut c_void, SACL | LABEL, descriptor.0.cast_const())
+            } == 0
+            {
+                return Err(at("set native audit and label", io::Error::last_os_error()));
+            }
+            let handle = open_read_acl(&source, true, true)
+                .map_err(|e| at("open source for SACL read", e))?;
+            let audit = sacl_aces(&query(handle.raw().0, SACL).map_err(|e| at("query audit", e))?)?;
+            let label = sacl_aces(&query(handle.raw().0, LABEL).map_err(|e| at("query label", e))?)?;
+            let expected = sacl_aces(
+                &query(handle.raw().0, DACL | COMPLETE_SACL)
+                    .map_err(|e| at("query all SACL categories", e))?,
+            )?;
+            assert!(audit.iter().any(|ace| ace[0] == 0x02), "missing audit ACE");
+            assert!(label.iter().any(|ace| ace[0] == 0x11), "missing label ACE");
+            for ace in audit.iter().chain(&label) {
+                assert!(expected.contains(ace), "combined query lost an ACE");
+            }
+
+            let captured = capture(&source, true)?.expect("captured source ACL");
+            let original = AclChunk::from_bytes(captured.data())?;
+            assert_eq!(original.payload()[0], 3, "full SACL capture fell back to DACL");
+            assert_eq!(sacl_aces(&original.payload()[1..])?, expected);
+
+            let mut bytes = Vec::new();
+            {
+                let mut archive = Archive::write_header(&mut bytes)?;
+                let mut builder = FileEntryBuilder::new("sacl.txt".into())?;
+                builder.add_extra_chunk(captured);
+                archive.add_entry(builder.build()?)?;
+                archive.finalize()?;
+            }
+            let mut archive = Archive::read_header(&bytes[..])?;
+            let entry = archive.entries().skip_solid().next().unwrap()?;
+            let decoded = entry.acl_chunk()?.expect("archived DACL and SACL");
+            assert_eq!(decoded, original);
+            restore(&destination, &decoded, true).map_err(|e| at("restore full ACL", e))?;
+            let after = capture(&destination, true)?.expect("restored destination ACL");
+            let after = AclChunk::from_bytes(after.data())?;
+            assert_eq!(after.payload()[0], 3, "restored SACL coverage missing");
+            assert_eq!(sacl_aces(&after.payload()[1..])?, expected, "native SACL changed");
+            Ok(())
+        })();
+        std::fs::remove_dir_all(folder)?;
+        result
+    }
+
+    #[test]
     fn native_windows_file_dacl_roundtrip() -> io::Result<()> {
         let folder =
             std::env::temp_dir().join(format!("pna-acl-draft-windows-{}", std::process::id()));
