@@ -1135,26 +1135,14 @@ where
     FastReadFilterAction::Accept(name)
 }
 
-/// Filesystem mutations decided by the target check but not yet performed.
+/// Target information retained between the overwrite check and filesystem changes.
 struct PendingPreparation<'a> {
     path: &'a Path,
-    existing: ExistingTargetAction,
-    conflict: ConflictAction,
-    parent_conflict: DirectoryConflictAction,
+    existing: Option<fs::FileType>,
+    is_directory: bool,
+    overwrite_strategy: OverwriteStrategy,
+    unlink_first: bool,
     secure_symlinks: bool,
-}
-
-#[derive(PartialEq, Eq)]
-enum ExistingTargetAction {
-    None,
-    UnlinkFirst,
-    Overwrite,
-}
-
-enum ConflictAction {
-    None,
-    Remove,
-    RemoveUnlessDirectory,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -1176,30 +1164,43 @@ impl DirectoryConflictAction {
     }
 }
 
-struct PreparedTarget<'a> {
-    path: &'a Path,
-    remove_existing: bool,
-}
-
-impl<'a> PendingPreparation<'a> {
-    /// Performs the recorded mutations in order: unlink, parent directory
-    /// preparation, then removal of a conflicting target.
-    fn apply(self) -> io::Result<PreparedTarget<'a>> {
+impl PendingPreparation<'_> {
+    /// Prepares the target and returns whether the writer may replace an existing file.
+    fn apply(self) -> io::Result<bool> {
         let path = self.path;
-        if self.existing == ExistingTargetAction::UnlinkFirst {
+        let unlink_existing = self.unlink_first
+            && self.existing.is_some_and(|kind| {
+                !(self.is_directory
+                    && (kind.is_dir()
+                        || (!self.secure_symlinks
+                            && kind.is_symlink()
+                            && path.metadata().is_ok_and(|m| m.is_dir()))))
+            });
+        if unlink_existing {
             utils::io::ignore_not_found(utils::fs::remove_path(path))?;
         }
 
         if let Some(parent) = path.parent() {
-            ensure_directory_components(parent, self.secure_symlinks, self.parent_conflict)?;
+            ensure_directory_components(
+                parent,
+                self.secure_symlinks,
+                DirectoryConflictAction::new(
+                    self.unlink_first,
+                    self.overwrite_strategy == OverwriteStrategy::Always,
+                ),
+            )?;
         }
 
-        let remove_conflict = match self.conflict {
-            ConflictAction::None => false,
-            ConflictAction::Remove => true,
-            ConflictAction::RemoveUnlessDirectory => !path.metadata().is_ok_and(|m| m.is_dir()),
-        };
-        if remove_conflict {
+        if self.existing.is_some_and(|kind| {
+            if kind.is_symlink() {
+                // Resolve the symlink after preparing its parent directories.
+                self.secure_symlinks
+                    || !self.is_directory
+                    || !path.metadata().is_ok_and(|m| m.is_dir())
+            } else {
+                kind.is_file() && self.is_directory
+            }
+        }) {
             match utils::fs::remove_path(path) {
                 Ok(()) => {}
                 Err(e) if e.kind() == io::ErrorKind::NotFound => {}
@@ -1208,10 +1209,21 @@ impl<'a> PendingPreparation<'a> {
                 Err(e) => return Err(e),
             }
         }
-        Ok(PreparedTarget {
-            path,
-            remove_existing: self.existing == ExistingTargetAction::Overwrite,
-        })
+
+        let overwrite = matches!(
+            self.overwrite_strategy,
+            OverwriteStrategy::Always | OverwriteStrategy::KeepNewer
+        );
+        if self.is_directory {
+            // KeepNewer permits replacing the entry itself, not its ancestors.
+            ensure_directory_components(
+                path,
+                self.secure_symlinks,
+                DirectoryConflictAction::new(self.unlink_first, overwrite),
+            )?;
+        }
+
+        Ok(self.existing.is_some() && !unlink_existing && overwrite)
     }
 }
 
@@ -1244,75 +1256,64 @@ fn blocking_ancestor(path: &Path) -> io::Result<Option<PathBuf>> {
 
 /// Checks the overwrite strategy without changing the filesystem.
 ///
-/// Returns `None` if the entry should be skipped. Otherwise, returns the
-/// mutations to perform once the caller is ready to extract the entry.
+/// Returns `None` if the entry should be skipped, or a target that can be
+/// prepared after validating the entry.
 fn check_target<'a, T>(
     path: &'a Path,
     item: &NormalEntry<T>,
-    args: &OutputOption<'_>,
+    overwrite_strategy: OverwriteStrategy,
+    unlink_first: bool,
+    secure_symlinks: bool,
 ) -> io::Result<Option<PendingPreparation<'a>>>
 where
     T: AsRef<[u8]>,
 {
-    let entry_kind = item.header().data_kind();
-    let overwrite_strategy = args.overwrite_strategy;
-    let unlink_first = args.unlink_first;
-    let secure_symlinks = !args.absolute_paths;
+    log::debug!("Extract: {}", item.name());
+    log::debug!("start: {}", path.display());
     let metadata = match fs::symlink_metadata(path) {
         Ok(meta) => Some(meta),
         Err(err) if err.kind() == io::ErrorKind::NotFound => None,
         Err(err) if err.kind() == io::ErrorKind::NotADirectory => None,
         Err(err) => return Err(err),
     };
+    let blocking = if metadata.is_none() {
+        blocking_ancestor(path)?
+    } else {
+        None
+    };
 
-    if metadata.is_none()
-        && let Some(blocking) = blocking_ancestor(path)?
-    {
+    if !unlink_first {
+        let occupied = metadata.is_some() || blocking.is_some();
         match overwrite_strategy {
-            OverwriteStrategy::Never if !unlink_first => {
+            OverwriteStrategy::Never if occupied => {
                 return Err(io::Error::new(
                     io::ErrorKind::AlreadyExists,
-                    format!("{} already exists", blocking.display()),
+                    format!(
+                        "{} already exists",
+                        blocking.as_deref().unwrap_or(path).display()
+                    ),
                 ));
             }
-            OverwriteStrategy::KeepOlder if !unlink_first => {
+            OverwriteStrategy::KeepOlder if occupied => {
                 log::debug!(
                     "Skipped extracting {}: existing one kept by --keep-older",
                     path.display()
                 );
                 return Ok(None);
             }
-            OverwriteStrategy::KeepNewer if !unlink_first => {
-                log::debug!(
-                    "Skipped extracting {}: {} already exists and is not the entry itself",
-                    path.display(),
-                    blocking.display()
-                );
-                return Ok(None);
-            }
-            _ => (),
-        }
-    }
-
-    if let Some(existing) = &metadata {
-        match overwrite_strategy {
-            OverwriteStrategy::Never if !unlink_first => {
-                return Err(io::Error::new(
-                    io::ErrorKind::AlreadyExists,
-                    format!("{} already exists", path.display()),
-                ));
-            }
-            OverwriteStrategy::KeepOlder if !unlink_first => {
-                log::debug!(
-                    "Skipped extracting {}: existing one kept by --keep-older",
-                    path.display()
-                );
-                return Ok(None);
-            }
-            // TODO(rust-1.95): collapse into outer match
-            #[allow(clippy::collapsible_match)]
-            OverwriteStrategy::KeepNewer if !unlink_first => {
-                if is_existing_newer(existing, item) {
+            OverwriteStrategy::KeepNewer => {
+                if let Some(blocking) = blocking {
+                    log::debug!(
+                        "Skipped extracting {}: {} already exists and is not the entry itself",
+                        path.display(),
+                        blocking.display()
+                    );
+                    return Ok(None);
+                }
+                if metadata
+                    .as_ref()
+                    .is_some_and(|existing| is_existing_newer(existing, item))
+                {
                     log::debug!(
                         "Skipped extracting {}: newer one already exists (--keep-newer)",
                         path.display()
@@ -1320,51 +1321,16 @@ where
                     return Ok(None);
                 }
             }
-            _ => (),
+            _ => {}
         }
     }
 
-    let existing = if let Some(meta) = &metadata {
-        let existing_is_dir = if !secure_symlinks && meta.is_symlink() {
-            fs::metadata(path).is_ok_and(|m| m.is_dir())
-        } else {
-            meta.is_dir()
-        };
-        if unlink_first && (entry_kind != DataKind::DIRECTORY || !existing_is_dir) {
-            ExistingTargetAction::UnlinkFirst
-        } else if matches!(
-            overwrite_strategy,
-            OverwriteStrategy::Always | OverwriteStrategy::KeepNewer
-        ) {
-            ExistingTargetAction::Overwrite
-        } else {
-            ExistingTargetAction::None
-        }
-    } else {
-        ExistingTargetAction::None
-    };
-
-    let conflict = match &metadata {
-        Some(meta) if meta.is_symlink() => {
-            if !secure_symlinks && entry_kind == DataKind::DIRECTORY {
-                // Whether the symlink leads to a directory can change before apply.
-                ConflictAction::RemoveUnlessDirectory
-            } else {
-                ConflictAction::Remove
-            }
-        }
-        Some(meta) if meta.is_file() && entry_kind == DataKind::DIRECTORY => ConflictAction::Remove,
-        _ => ConflictAction::None,
-    };
-
     Ok(Some(PendingPreparation {
         path,
-        existing,
-        conflict,
-        parent_conflict: DirectoryConflictAction::new(
-            unlink_first,
-            matches!(overwrite_strategy, OverwriteStrategy::Always),
-        ),
+        existing: metadata.map(|meta| meta.file_type()),
+        is_directory: item.header().data_kind() == DataKind::DIRECTORY,
+        overwrite_strategy,
+        unlink_first,
         secure_symlinks,
     }))
 }
@@ -1389,37 +1355,18 @@ where
         );
     }
     let path = build_output_path(args.out_dir.as_deref(), item_path.as_path());
-    let Some(pending) = check_target(&path, item, args)? else {
+    let Some(pending) = check_target(
+        &path,
+        item,
+        args.overwrite_strategy,
+        args.unlink_first,
+        !args.absolute_paths,
+    )?
+    else {
         return Ok(false);
     };
-    let target = pending.apply()?;
-
-    ensure_directory_components(
-        target.path,
-        !args.absolute_paths,
-        DirectoryConflictAction::new(
-            args.unlink_first,
-            matches!(
-                args.overwrite_strategy,
-                OverwriteStrategy::Always | OverwriteStrategy::KeepNewer
-            ),
-        ),
-    )?;
+    pending.apply()?;
     Ok(true)
-}
-
-/// Logs the entry and checks whether extraction should proceed.
-fn prepare_extraction<'a, T>(
-    item: &NormalEntry<T>,
-    path: &'a Path,
-    args: &OutputOption<'_>,
-) -> io::Result<Option<PendingPreparation<'a>>>
-where
-    T: AsRef<[u8]>,
-{
-    log::debug!("Extract: {}", item.name());
-    log::debug!("start: {}", path.display());
-    check_target(path, item, args)
 }
 
 /// Extracts a regular file entry from the archive to the filesystem.
@@ -1445,15 +1392,19 @@ where
         );
         return Ok(());
     }
-    let Some(pending) = prepare_extraction(&item, path, args)? else {
+    let Some(pending) = check_target(
+        path,
+        &item,
+        args.overwrite_strategy,
+        args.unlink_first,
+        !args.absolute_paths,
+    )?
+    else {
         return Ok(());
     };
 
     let mut reader = item.reader(read_options)?;
-    let PreparedTarget {
-        path,
-        remove_existing,
-    } = pending.apply()?;
+    let remove_existing = pending.apply()?;
     let keep_options = &args.keep_options;
 
     if args.safe_writes {
@@ -1506,13 +1457,16 @@ where
         ..
     } = args;
     let path = build_output_path(out_dir.as_deref(), item_path.as_path());
-    let Some(pending) = prepare_extraction(&item, &path, args)? else {
+    let Some(pending) = check_target(
+        &path,
+        &item,
+        args.overwrite_strategy,
+        args.unlink_first,
+        !args.absolute_paths,
+    )?
+    else {
         return Ok(ExtractResult::Skipped);
     };
-    let PreparedTarget {
-        path,
-        remove_existing,
-    } = pending.apply()?;
 
     match item.content(read_options)? {
         EntryContent::SymbolicLink(stored) => {
@@ -1523,11 +1477,12 @@ where
                 );
                 return Ok(ExtractResult::SecuritySkipped);
             }
+            let remove_existing = pending.apply()?;
             if *safe_writes || remove_existing {
-                utils::io::ignore_not_found(utils::fs::remove_path(path))?;
+                utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
             }
             let link_target_type = item.metadata().link_target_type();
-            symlink_with_type(&original, path, link_target_type)?;
+            symlink_with_type(&original, &path, link_target_type)?;
         }
         EntryContent::HardLink(stored) => {
             let Some((original, had_root)) =
@@ -1563,15 +1518,16 @@ where
             } else {
                 Cow::from(original.as_path())
             };
+            let remove_existing = pending.apply()?;
             if *safe_writes || remove_existing {
-                utils::io::ignore_not_found(utils::fs::remove_path(path))?;
+                utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
             }
-            fs::hard_link(original, path)?;
+            fs::hard_link(original, &path)?;
         }
         content => unreachable!("extract_link_entry called with {content:?}"),
     }
 
-    restore_metadata(&item, path, keep_options)?;
+    restore_metadata(&item, &path, keep_options)?;
     log::debug!("end: {}", path.display());
     Ok(ExtractResult::Extracted)
 }
