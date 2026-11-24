@@ -863,3 +863,92 @@ fn bsdtar_extract_blocks_hardlink_with_windows_style_parent_dir_target() {
         "hardlink with backslash .. target should be blocked by --no-allow-unsafe-links"
     );
 }
+
+/// Precondition: An unsafe symlink would replace an existing file.
+/// Action: Extract with --unlink-first and --no-allow-unsafe-links.
+/// Expectation: Extraction fails without removing the existing file.
+#[test]
+fn bsdtar_rejected_symlink_preserves_existing_file() {
+    setup();
+
+    let root = PathBuf::from("bsdtar_rejected_symlink_preserves_existing");
+    let archive_path = root.join("archive.pna");
+    let out_dir = root.join("out");
+    let target = out_dir.join("a/link");
+
+    build_archive_with_file_and_symlink(
+        &archive_path,
+        "./b/file.txt",
+        b"content",
+        "./a/link",
+        "../b/file.txt",
+    );
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
+    fs::write(&target, b"original").unwrap();
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "compat",
+            "bsdtar",
+            "--extract",
+            "--unstable",
+            "--overwrite",
+            "--unlink-first",
+            "--no-allow-unsafe-links",
+            "--file",
+            archive_path.to_str().unwrap(),
+            "--out-dir",
+            out_dir.to_str().unwrap(),
+        ])
+        .assert()
+        .failure();
+
+    assert!(fs::symlink_metadata(&target).unwrap().is_file());
+    assert_eq!(fs::read(&target).unwrap(), b"original");
+    assert_eq!(fs::read(out_dir.join("b/file.txt")).unwrap(), b"content");
+}
+
+/// Precondition: An unsafe hardlink would require replacing a blocking parent file.
+/// Action: Extract with --overwrite and --no-allow-unsafe-links.
+/// Expectation: Extraction fails without replacing the blocking parent.
+#[test]
+fn bsdtar_rejected_hardlink_preserves_blocking_parent() {
+    setup();
+
+    let root = PathBuf::from("bsdtar_rejected_hardlink_preserves_parent");
+    let archive_path = root.join("archive.pna");
+    let out_dir = root.join("out");
+    let blocking = out_dir.join("b");
+
+    build_archive_with_file_and_hardlink(
+        &archive_path,
+        "./a/file.txt",
+        b"content",
+        "./b/link.txt",
+        "./a/../a/file.txt",
+    );
+    fs::create_dir_all(&out_dir).unwrap();
+    fs::write(&blocking, b"original").unwrap();
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "compat",
+            "bsdtar",
+            "--extract",
+            "--unstable",
+            "--overwrite",
+            "--no-allow-unsafe-links",
+            "--file",
+            archive_path.to_str().unwrap(),
+            "--out-dir",
+            out_dir.to_str().unwrap(),
+        ])
+        .assert()
+        .failure();
+
+    assert!(fs::symlink_metadata(&blocking).unwrap().is_file());
+    assert_eq!(fs::read(&blocking).unwrap(), b"original");
+    assert_eq!(fs::read(out_dir.join("a/file.txt")).unwrap(), b"content");
+}
