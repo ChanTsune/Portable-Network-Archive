@@ -1181,7 +1181,6 @@ fn blocking_ancestor(path: &Path) -> io::Result<Option<PathBuf>> {
 /// or `ExtractionDecision::Proceed` with information about whether to remove existing files.
 fn check_and_prepare_target<T>(
     path: &Path,
-    entry_kind: DataKind,
     item: &NormalEntry<T>,
     overwrite_strategy: OverwriteStrategy,
     unlink_first: bool,
@@ -1270,6 +1269,7 @@ where
             (true, is_dir)
         })
         .unwrap_or((false, false));
+    let entry_kind = item.data_kind();
     let unlink_existing =
         unlink_first && had_existing && (entry_kind != DataKind::DIRECTORY || !existing_is_dir);
     let should_overwrite_existing = matches!(
@@ -1337,7 +1337,6 @@ where
 
     let ExtractionDecision::Proceed { .. } = check_and_prepare_target(
         &path,
-        DataKind::DIRECTORY,
         item,
         args.overwrite_strategy,
         args.unlink_first,
@@ -1377,12 +1376,10 @@ where
 {
     log::debug!("Extract: {}", item.name());
     let path = build_output_path(out_dir, item_path.as_path());
-    let entry_kind = item.header().data_kind();
     log::debug!("start: {}", path.display());
     let secure_symlinks = !absolute_paths;
     let ExtractionDecision::Proceed { remove_existing } = check_and_prepare_target(
         &path,
-        entry_kind,
         item,
         overwrite_strategy,
         unlink_first,
