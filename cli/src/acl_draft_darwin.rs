@@ -19,7 +19,6 @@ unsafe extern "C" {
     #[cfg(test)]
     fn acl_get_file(path: *const i8, kind: c_int) -> *mut c_void;
     fn acl_set_file(path: *const i8, kind: c_int, acl: *mut c_void) -> c_int;
-    fn acl_set_link_np(path: *const i8, kind: c_int, acl: *mut c_void) -> c_int;
     #[cfg(test)]
     fn acl_size(acl: *mut c_void) -> isize;
     #[cfg(test)]
@@ -231,6 +230,69 @@ pub(crate) fn restore(path: &Path, chunk: &AclChunk, follow_links: bool) -> io::
         ));
     }
     let native = to_native(chunk.payload())?;
+    if !follow_links {
+        // acl_set_link_np rejects symbolic links in libc before reaching
+        // the filesystem. Use the VFS attribute interface instead.
+        #[repr(C)]
+        struct AttrList {
+            bitmapcount: u16,
+            reserved: u16,
+            commonattr: u32,
+            volattr: u32,
+            dirattr: u32,
+            fileattr: u32,
+            forkattr: u32,
+        }
+        unsafe extern "C" {
+            fn setattrlist(
+                path: *const i8,
+                attrs: *mut AttrList,
+                buffer: *mut c_void,
+                size: usize,
+                options: libc::c_ulong,
+            ) -> c_int;
+        }
+        let path = c_path(path)?;
+        let mut attrs = AttrList {
+            bitmapcount: 5,
+            reserved: 0,
+            commonattr: 0x0040_0000,
+            volattr: 0,
+            dirattr: 0,
+            fileattr: 0,
+            forkattr: 0,
+        };
+        let mut native = native;
+        for offset in [0, 36, 40] {
+            let value = u32::from_be_bytes(native[offset..offset + 4].try_into().unwrap());
+            native[offset..offset + 4].copy_from_slice(&value.to_ne_bytes());
+        }
+        for ace in native[HEADER_SIZE..].chunks_exact_mut(ACE_SIZE) {
+            for offset in [16, 20] {
+                let value = u32::from_be_bytes(ace[offset..offset + 4].try_into().unwrap());
+                ace[offset..offset + 4].copy_from_slice(&value.to_ne_bytes());
+            }
+        }
+        let mut buffer = Vec::with_capacity(8 + native.len());
+        buffer.extend_from_slice(&8i32.to_ne_bytes());
+        buffer.extend_from_slice(&(native.len() as u32).to_ne_bytes());
+        buffer.extend_from_slice(&native);
+        // SAFETY: the attrreference points inside the live buffer and
+        // FSOPT_NOFOLLOW selects the link itself.
+        if unsafe {
+            setattrlist(
+                path.as_ptr(),
+                &mut attrs,
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                1,
+            )
+        } != 0
+        {
+            return Err(io::Error::last_os_error());
+        }
+        return Ok(());
+    }
     let path = c_path(path)?;
     // The native API represents a missing ACL as the special (acl_t)1.
     let absent = read_count(&native[36..])? == u32::MAX;
@@ -245,13 +307,7 @@ pub(crate) fn restore(path: &Path, chunk: &AclChunk, follow_links: bool) -> io::
     }
     let acl = OwnedAcl(ptr);
     // SAFETY: the path is valid and the native library validates ACL contents.
-    let result = unsafe {
-        if follow_links {
-            acl_set_file(path.as_ptr(), EXTENDED, acl.0)
-        } else {
-            acl_set_link_np(path.as_ptr(), EXTENDED, acl.0)
-        }
-    };
+    let result = unsafe { acl_set_file(path.as_ptr(), EXTENDED, acl.0) };
     if result == -1 {
         return Err(io::Error::last_os_error());
     }
