@@ -217,6 +217,7 @@ mod tests {
             body.extend_from_slice(&[1u8, 0, 0, 0]); // user, no ID or name
             let acl = AclChunk::new(pna::acl::DARWIN, body)?;
             restore(&original, &acl, true)?;
+            assert_eq!(raw_acl_count(&original)?, Some(1), "raw nonempty ACL control");
             let captured = capture(&original, true)?.expect("Darwin native ACL");
             let captured = AclChunk::from_bytes(captured.data())?;
             captured.validate()?;
@@ -309,6 +310,93 @@ mod tests {
         })();
         std::fs::remove_dir_all(&folder)?;
         result
+    }
+
+    // getattrlist obtains the kernel's filesec blob without statx_np's
+    // sizeof(kauth_filesec) test, which includes storage for one ACE.
+    fn raw_acl_count(path: &Path) -> io::Result<Option<u32>> {
+        #[repr(C)]
+        struct AttrList {
+            bitmapcount: u16,
+            reserved: u16,
+            commonattr: u32,
+            volattr: u32,
+            dirattr: u32,
+            fileattr: u32,
+            forkattr: u32,
+        }
+
+        unsafe extern "C" {
+            fn getattrlist(
+                path: *const i8,
+                attrs: *mut AttrList,
+                buffer: *mut c_void,
+                size: usize,
+                options: libc::c_ulong,
+            ) -> c_int;
+        }
+
+        let path = c_path(path)?;
+        let mut attrs = AttrList {
+            bitmapcount: 5,
+            reserved: 0,
+            commonattr: 0x0040_0000, // ATTR_CMN_EXTENDED_SECURITY
+            volattr: 0,
+            dirattr: 0,
+            fileattr: 0,
+            forkattr: 0,
+        };
+        // 128 native ACEs (24 bytes each) plus the filesec and attr headers.
+        let mut buffer = [0u8; 4096];
+        // SAFETY: attrs matches Darwin's struct attrlist; the output buffer is
+        // writable for its entire length and path is NUL-terminated.
+        if unsafe {
+            getattrlist(
+                path.as_ptr(),
+                &mut attrs,
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                0,
+            )
+        } != 0
+        {
+            return Err(io::Error::last_os_error());
+        }
+        let total = u32::from_ne_bytes(buffer[..4].try_into().unwrap()) as usize;
+        if !(12..=buffer.len()).contains(&total) {
+            return Err(invalid("invalid extended-security attribute size"));
+        }
+        // attrreference_t follows the leading buffer length; its offset is
+        // relative to the reference itself, not to the start of the buffer.
+        let offset = i32::from_ne_bytes(buffer[4..8].try_into().unwrap());
+        let length = u32::from_ne_bytes(buffer[8..12].try_into().unwrap()) as usize;
+        if length == 0 {
+            return Ok(None);
+        }
+        let start = usize::try_from(offset)
+            .ok()
+            .and_then(|n| n.checked_add(4))
+            .filter(|n| *n >= 12)
+            .ok_or_else(|| invalid("invalid extended-security attribute offset"))?;
+        let native = start
+            .checked_add(length)
+            .and_then(|end| buffer[..total].get(start..end))
+            .ok_or_else(|| invalid("truncated extended-security attribute"))?;
+        if native.len() < HEADER_SIZE
+            || u32::from_ne_bytes(native[..4].try_into().unwrap()) != FILESEC_MAGIC
+        {
+            return Err(invalid("invalid native filesec attribute"));
+        }
+        let count = u32::from_ne_bytes(native[36..40].try_into().unwrap());
+        let entries = if count == u32::MAX { 0 } else { count as usize };
+        if entries
+            .checked_mul(ACE_SIZE)
+            .and_then(|size| size.checked_add(HEADER_SIZE))
+            != Some(native.len())
+        {
+            return Err(invalid("inconsistent native filesec attribute length"));
+        }
+        Ok(Some(count))
     }
 
     // Read the native ACL count directly, without the PNA decoder. This
@@ -435,6 +523,17 @@ mod tests {
             assert_eq!(decoded, empty, "PNA changed the empty ACL payload");
             restore(&restored, &decoded, true)?;
             let archive_count = native_acl_count(&restored)?;
+
+            let raw_counts = [
+                raw_acl_count(&probe)?,
+                raw_acl_count(&init_probe)?,
+                raw_acl_count(&original)?,
+                raw_acl_count(&restored)?,
+            ];
+            eprintln!(
+                "Darwin getattrlist raw counts: {raw_counts:?}; \
+                 None=no attribute, Some(4294967295)=NOACL, Some(0)=empty"
+            );
 
             assert_eq!(
                 (direct_count, initialized_count, restored_count, archive_count),
