@@ -327,6 +327,63 @@ mod tests {
     }
 
     #[test]
+    fn native_darwin_nofollow_does_not_capture_or_restore_target_acl() -> io::Result<()> {
+        use pna::Chunk;
+        use std::os::unix::fs::symlink;
+
+        let folder =
+            std::env::temp_dir().join(format!("pna-darwin-nofollow-{}", std::process::id()));
+        std::fs::create_dir_all(&folder)?;
+        let target = folder.join("target");
+        let link = folder.join("link");
+        let result = (|| {
+            std::fs::write(&target, b"ACL")?;
+            symlink(&target, &link)?;
+            let snapshot = |path: &Path, follow_links| {
+                capture(path, follow_links).map(|acl| acl.map(|raw| raw.data().to_vec()))
+            };
+            let before = snapshot(&link, false)?;
+            let mut uuid = [0u8; 16];
+            // SAFETY: mbr_uid_to_uuid writes 16 bytes into uuid.
+            if unsafe { mbr_uid_to_uuid(libc::getuid(), uuid.as_mut_ptr()) } != 0 {
+                return Err(io::Error::last_os_error());
+            }
+            let mut body = Vec::new();
+            body.extend_from_slice(&1u32.to_be_bytes());
+            body.extend_from_slice(&0u32.to_be_bytes());
+            body.extend_from_slice(&uuid);
+            body.extend_from_slice(&1u32.to_be_bytes());
+            body.extend_from_slice(&2u32.to_be_bytes());
+            body.extend_from_slice(&[0u8; 4]);
+            let acl = AclChunk::new(pna::acl::DARWIN, body)?;
+            restore(&target, &acl, true)?;
+            let target_acl = snapshot(&target, true)?;
+            assert!(target_acl.is_some(), "target ACL was not captured");
+            assert_ne!(before, target_acl, "fixture must distinguish link and target");
+            assert_eq!(snapshot(&link, true)?, target_acl);
+            assert_eq!(snapshot(&link, false)?, before);
+            eprintln!("Darwin no-follow capture isolated the symbolic link");
+
+            let empty = AclChunk::new(pna::acl::DARWIN, [0u8; 8])?;
+            let applied = restore(&link, &empty, false);
+            assert_eq!(
+                snapshot(&target, true)?,
+                target_acl,
+                "no-follow restore modified the symlink target"
+            );
+            // Unsupported link ACL restoration is a distinct failure, not
+            // evidence that the link's ACL can be preserved.
+            applied.map_err(|e| io::Error::new(e.kind(), format!("link ACL restore: {e}")))?;
+            let captured = capture(&link, false)?.expect("restored link ACL");
+            let captured = AclChunk::from_bytes(captured.data())?;
+            assert_eq!(captured, empty);
+            Ok(())
+        })();
+        std::fs::remove_dir_all(&folder)?;
+        result
+    }
+
+    #[test]
     fn native_noacl_sentinel_removes_acl_after_pna_roundtrip() -> io::Result<()> {
         use pna::{Archive, Chunk, FileEntryBuilder};
 
