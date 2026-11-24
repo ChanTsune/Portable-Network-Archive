@@ -1185,16 +1185,21 @@ impl PendingPreparation {
         &self,
         path: &Path,
         entry_kind: DataKind,
+        overwrite_strategy: OverwriteStrategy,
         unlink_first: bool,
         secure_symlinks: bool,
-        replace_existing: bool,
     ) -> io::Result<()> {
         if self.unlink_existing {
             utils::io::ignore_not_found(utils::fs::remove_path(path))?;
         }
 
         if let Some(parent) = path.parent() {
-            ensure_directory_components(parent, unlink_first, secure_symlinks, replace_existing)?;
+            ensure_directory_components(
+                parent,
+                unlink_first,
+                secure_symlinks,
+                matches!(overwrite_strategy, OverwriteStrategy::Always),
+            )?;
         }
 
         if let Some(conflicting) = self.conflicting {
@@ -1407,9 +1412,9 @@ where
     pending.apply(
         &path,
         DataKind::DIRECTORY,
+        args.overwrite_strategy,
         args.unlink_first,
         secure_symlinks,
-        matches!(args.overwrite_strategy, OverwriteStrategy::Always),
     )?;
 
     ensure_directory_components(
@@ -1507,9 +1512,9 @@ where
     pending.apply(
         &path,
         DataKind::FILE,
+        *overwrite_strategy,
         *unlink_first,
         !*absolute_paths,
-        matches!(*overwrite_strategy, OverwriteStrategy::Always),
     )?;
 
     if *safe_writes {
@@ -1578,9 +1583,9 @@ where
     pending.apply(
         &path,
         item.header().data_kind(),
+        *overwrite_strategy,
         *unlink_first,
         !*absolute_paths,
-        matches!(*overwrite_strategy, OverwriteStrategy::Always),
     )?;
 
     match item.content(read_options)? {
