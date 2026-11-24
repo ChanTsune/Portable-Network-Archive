@@ -641,6 +641,21 @@ mod tests {
             // Unlike a synthetic XDR-only test, this must be accepted by UFS.
             let flags = u32::from_be_bytes(body[8..12].try_into().unwrap());
             body[8..12].copy_from_slice(&(flags | 0x03).to_be_bytes());
+
+            // FreeBSD's current inheritance algorithm excludes OWNER@,
+            // GROUP@ and EVERYONE@. Use a separate numeric user ACE to
+            // exercise actual inheritance, not just preservation of flags.
+            let uid = if unsafe { libc::geteuid() } == 12345 {
+                12346u64
+            } else {
+                12345u64
+            };
+            body[..4].copy_from_slice(&(count + 1).to_be_bytes());
+            for field in [0, 0x03, 0x80, 1, 1] {
+                put_u32(&mut body, field);
+            }
+            body.extend_from_slice(&uid.to_be_bytes());
+            put_u32(&mut body, 0);
             let modified = AclChunk::new(pna::acl::NFS4, body)?;
             modified.validate()?;
             restore(&original, &modified, true)?;
@@ -672,6 +687,65 @@ mod tests {
                 decoded.to_bytes(),
                 "inheritable ACE changed after a PNA roundtrip to another UFS directory"
             );
+
+            // Create children only after restoring the parent ACL. Compare
+            // the native inheritance outcome, not just the parent flags.
+            for directory in [false, true] {
+                let child_name = if directory { "child-dir" } else { "child-file" };
+                let from = original.join(child_name);
+                let to = restored.join(child_name);
+                if directory {
+                    std::fs::create_dir(&from)?;
+                    std::fs::create_dir(&to)?;
+                } else {
+                    std::fs::File::create(&from)?;
+                    std::fs::File::create(&to)?;
+                }
+                let source = capture(&from, true)?.expect("native source child ACL");
+                let target = capture(&to, true)?.expect("native restored child ACL");
+                assert_eq!(
+                    source.data(),
+                    target.data(),
+                    "child ACL differs after restoring its parent's ACL: {child_name}"
+                );
+                let child = AclChunk::from_bytes(source.data())?;
+                let mut reader = Reader {
+                    bytes: child.payload(),
+                };
+                let count = reader.u32()?;
+                let mut inherited = Vec::new();
+                for _ in 0..count {
+                    let kind = reader.u32()?;
+                    let flags = reader.u32()?;
+                    let rights = reader.u32()?;
+                    match reader.u32()? {
+                        0 => {
+                            reader.name()?;
+                        }
+                        1 => {
+                            let id = if reader.u32()? == 1 {
+                                Some(reader.u64()?)
+                            } else {
+                                None
+                            };
+                            reader.name()?;
+                            if id == Some(uid) && flags & 0x40 == 0 {
+                                inherited.push((kind, flags, rights));
+                            }
+                        }
+                        _ => return Err(invalid("unexpected child principal")),
+                    }
+                }
+                // READ_ATTRIBUTES is not masked by the creation mode.
+                // The modern FreeBSD inheritance algorithm sets INHERITED
+                // and strips propagation flags on non-directory children.
+                let expected_flags = if directory { 0x83 } else { 0x80 };
+                assert_eq!(
+                    inherited,
+                    vec![(0, expected_flags, 0x80)],
+                    "numeric ACE was not inherited as expected: {child_name}"
+                );
+            }
             Ok(())
         })();
         std::fs::remove_dir_all(&folder)?;
