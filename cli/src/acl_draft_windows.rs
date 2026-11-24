@@ -711,7 +711,80 @@ mod tests {
             let entry = archive.entries().skip_solid().next().unwrap()?;
             let decoded = entry.acl_chunk()?.expect("archived DACL and SACL");
             assert_eq!(decoded, original);
-            restore(&destination, &decoded, true).map_err(|e| at("restore full ACL", e))?;
+            if let Err(error) = restore(&destination, &decoded, true) {
+                // The fixture succeeded with SetKernelObjectSecurity(SACL |
+                // LABEL), while restore requests every SACL category via
+                // SetSecurityInfo. Isolate the setter and information-mask
+                // variables on fresh objects rather than dropping categories.
+                let sd = &decoded.payload()[1..];
+                let mut aligned = vec![0u32; sd.len().div_ceil(4)];
+                // SAFETY: the allocation contains at least sd.len() bytes.
+                unsafe {
+                    std::ptr::copy_nonoverlapping(
+                        sd.as_ptr(),
+                        aligned.as_mut_ptr().cast::<u8>(),
+                        sd.len(),
+                    );
+                }
+                let base = aligned.as_ptr().cast::<u8>();
+                let dacl_offset = u32::from_le_bytes(sd[16..20].try_into().unwrap()) as usize;
+                let sacl_offset = u32::from_le_bytes(sd[12..16].try_into().unwrap()) as usize;
+                assert!(dacl_offset >= 20 && sacl_offset >= 20);
+                // SAFETY: decoded is a validated descriptor with non-NULL ACLs.
+                let dacl = Some(unsafe { base.add(dacl_offset).cast::<Win32Acl>() });
+                let sacl = Some(unsafe { base.add(sacl_offset).cast::<Win32Acl>() });
+                for (index, mask) in [
+                    DACL | COMPLETE_SACL,
+                    DACL | SACL | LABEL,
+                    SACL | LABEL,
+                    DACL | SACL | LABEL | ATTRIBUTE,
+                    DACL | SACL | LABEL | SCOPE,
+                    DACL | SACL | LABEL | PROCESS_TRUST_LABEL,
+                    DACL | SACL | LABEL | ACCESS_FILTER,
+                ]
+                .into_iter()
+                .enumerate()
+                {
+                    for kernel_setter in [false, true] {
+                        let probe = folder.join(format!("probe-{index}-{kernel_setter}.tmp"));
+                        std::fs::write(&probe, b"ACL")?;
+                        let handle = open_write_acl(&probe, true, true)?;
+                        // SAFETY: the descriptor and its ACL pointers remain live.
+                        let status = unsafe {
+                            if kernel_setter {
+                                if SetKernelObjectSecurity(handle.raw().0, mask, base.cast()) == 0 {
+                                    GetLastError()
+                                } else {
+                                    0
+                                }
+                            } else {
+                                SetSecurityInfo(
+                                    handle.raw(),
+                                    SE_FILE_OBJECT,
+                                    OBJECT_SECURITY_INFORMATION(mask),
+                                    None,
+                                    None,
+                                    if mask & DACL != 0 { dacl } else { None },
+                                    sacl,
+                                )
+                                .0
+                            }
+                        };
+                        let observed = if status == 0 {
+                            open_read_acl(&probe, true, true)
+                                .and_then(|h| query(h.raw().0, DACL | COMPLETE_SACL))
+                                .and_then(|sd| sacl_aces(&sd))
+                                .map(|aces| aces == expected)
+                        } else {
+                            Ok(false)
+                        };
+                        eprintln!(
+                            "SACL setter probe: kernel={kernel_setter}, mask={mask:#010x}, status={status}, same_sacl={observed:?}"
+                        );
+                    }
+                }
+                return Err(at("restore full ACL", error));
+            }
             let after = capture(&destination, true)?.expect("restored destination ACL");
             let after = AclChunk::from_bytes(after.data())?;
             assert_eq!(after.payload()[0], 3, "restored SACL coverage missing");
