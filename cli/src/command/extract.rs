@@ -1434,11 +1434,12 @@ where
         return Ok(());
     };
 
+    let mut reader = item.reader(read_options)?;
+
     if *safe_writes {
         let mut safe_writer = SafeWriter::new(&path, true)?;
         {
             let mut writer = io::BufWriter::with_capacity(64 * 1024, safe_writer.as_file_mut());
-            let mut reader = item.reader(read_options)?;
             io::copy(&mut reader, &mut writer)?;
             writer.flush()?;
         }
@@ -1450,7 +1451,6 @@ where
         }
         let file = utils::fs::file_create(&path, remove_existing)?;
         let mut writer = io::BufWriter::with_capacity(64 * 1024, file);
-        let mut reader = item.reader(read_options)?;
         io::copy(&mut reader, &mut writer)?;
         let mut file = writer.into_inner().map_err(|e| e.into_error())?;
         restore_timestamps(&mut file, item.metadata(), keep_options)?;

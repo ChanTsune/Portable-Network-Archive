@@ -178,7 +178,9 @@ fn bsdtar_create_with_both_safe_writes_flags() {
 
 /// Precondition: An encrypted archive entry would replace an existing file.
 /// Action: Extract with an incorrect password and opposing safe-writes flags in both orders.
-/// Expectation: The last flag determines whether a failed extraction preserves the existing file.
+/// Expectation: Both orders accept the flags and fail the extraction, and the
+/// existing file is preserved either way because a password mismatch is
+/// detected before the destination is touched.
 #[test]
 fn bsdtar_extract_safe_writes_flags_use_last_occurrence() {
     setup();
@@ -228,5 +230,5 @@ fn bsdtar_extract_safe_writes_flags_use_last_occurrence() {
         ],
     )
     .failure();
-    assert_eq!(fs::read(unsafe_dir.join("test.txt")).unwrap(), b"");
+    assert_eq!(fs::read(unsafe_dir.join("test.txt")).unwrap(), b"original");
 }

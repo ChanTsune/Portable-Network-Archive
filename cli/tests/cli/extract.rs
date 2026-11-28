@@ -20,6 +20,7 @@ mod option_transform;
 mod overwrite_order;
 mod overwrite_symlink;
 mod parent_file;
+mod password_mismatch;
 mod sanitize_parent_components;
 #[cfg(windows)]
 mod symlink_link_target_type;
