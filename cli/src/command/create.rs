@@ -21,7 +21,7 @@ use anyhow::ensure;
 use bytesize::ByteSize;
 use clap::{ArgAction, ArgGroup, Parser, ValueHint, builder::ArgPredicate};
 use jiff::{SignedDuration, Unit};
-use pna::{Archive, MIN_SPLIT_PART_BYTES, SolidEntryBuilder, WriteOptions};
+use pna::{Archive, KdfCostLimits, MIN_SPLIT_PART_BYTES, SolidEntryBuilder, WriteOptions};
 use std::{
     fs,
     io::{self, prelude::*},
@@ -548,6 +548,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
             &filter,
             &time_filters,
             password,
+            KdfCostLimits::unbounded(),
             false,
         )?;
     } else {
@@ -558,6 +559,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
             &filter,
             &time_filters,
             password,
+            KdfCostLimits::unbounded(),
             false,
             false,
         )?;
@@ -592,6 +594,7 @@ pub(crate) fn create_archive_file<W, F>(
     filter: &PathFilter<'_>,
     time_filters: &TimeFilters,
     password: Option<&[u8]>,
+    limits: KdfCostLimits,
     verbose: bool,
     allow_concatenated_archives: bool,
 ) -> anyhow::Result<()>
@@ -615,6 +618,7 @@ where
         filter,
         time_filters,
         password,
+        limits,
         allow_concatenated_archives,
     );
 
@@ -657,6 +661,7 @@ fn create_archive_with_split(
     filter: &PathFilter<'_>,
     time_filters: &TimeFilters,
     password: Option<&[u8]>,
+    limits: KdfCostLimits,
     allow_concatenated_archives: bool,
 ) -> anyhow::Result<()> {
     let option = if solid {
@@ -675,6 +680,7 @@ fn create_archive_with_split(
         filter,
         time_filters,
         password,
+        limits,
         allow_concatenated_archives,
     );
     if solid {

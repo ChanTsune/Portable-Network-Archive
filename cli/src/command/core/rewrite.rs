@@ -3,7 +3,7 @@ use super::{
     TransformStrategyUnSolid, Umask, collect_split_archives,
 };
 use crate::{cli::SolidEntriesTransformStrategy, utils::GlobPatterns};
-use pna::NormalEntry;
+use pna::{KdfCostLimits, NormalEntry};
 use std::{borrow::Cow, io, path::Path};
 
 /// The per-entry step of a command that rewrites an archive.
@@ -30,6 +30,7 @@ pub(crate) fn execute_archive_transform(
     destination: RewriteDestination,
     umask: Umask,
     password: Option<&[u8]>,
+    limits: KdfCostLimits,
     strategy: SolidEntriesTransformStrategy,
     mut transform: impl EntryTransform,
 ) -> anyhow::Result<()> {
@@ -39,6 +40,7 @@ pub(crate) fn execute_archive_transform(
         SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
             staged.as_file_mut(),
             password,
+            limits,
             #[hooq::skip_all]
             |entry| transform.transform(entry?),
             TransformStrategyUnSolid,
@@ -46,6 +48,7 @@ pub(crate) fn execute_archive_transform(
         SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
             staged.as_file_mut(),
             password,
+            limits,
             #[hooq::skip_all]
             |entry| transform.transform(entry?),
             TransformStrategyKeepSolid,
@@ -122,6 +125,7 @@ mod tests {
             },
             Umask::new(0o022),
             None,
+            KdfCostLimits::unbounded(),
             SolidEntriesTransformStrategy::UnSolid,
             DropAll(GlobPatterns::new([pattern]).unwrap()),
         )

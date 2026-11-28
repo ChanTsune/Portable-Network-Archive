@@ -1,16 +1,17 @@
 use crate::{
-    cli::{ArchiveFileArgs, GlobalContext, PasswordArgs},
+    cli::{ArchiveFileArgs, GlobalContext, PasswordArgs, kdf_cost_limits},
     command::{
         Command, ask_password,
         core::{collect_split_archives, run_read_entries_readers},
     },
 };
-use clap::Parser;
+use clap::{ArgAction, ArgGroup, Parser};
 use pna::{CipherMode, Encryption, NormalEntry, ReadEntry, ReadOptions, SolidEntry};
 use std::io;
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(
+    group(ArgGroup::new("kdf-cost-limit").args(["limit_kdf", "no_limit_kdf"])),
     after_long_help = "Note: for entries encrypted in CBC or CTR mode, a wrong password is indistinguishable from corruption. GCM mode instead reports a key mismatch, meaning the password does not match the key derivation parameters recorded for the entry: either the password is wrong, or those recorded parameters were themselves altered."
 )]
 pub(crate) struct VerifyCommand {
@@ -24,6 +25,17 @@ pub(crate) struct VerifyCommand {
     fast: bool,
     #[command(flatten)]
     password: PasswordArgs,
+    #[arg(
+        long,
+        help = "Limit key derivation cost when reading encrypted entries"
+    )]
+    limit_kdf: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not limit key derivation cost. This is the inverse option of --limit-kdf"
+    )]
+    no_limit_kdf: (),
 }
 
 impl Command for VerifyCommand {
@@ -51,9 +63,10 @@ impl VerifyReport {
 
 fn verify_archive(args: VerifyCommand) -> anyhow::Result<()> {
     let fast = args.fast;
+    let limits = kdf_cost_limits(args.limit_kdf);
     let password = ask_password(args.password)?;
     let password = password.as_deref();
-    let read_options = ReadOptions::with_password(password);
+    let read_options = crate::command::read_options(password, limits);
     let archives = collect_split_archives(&args.archive.file)?;
     let mut report = VerifyReport::default();
     let mut solid_blocks = 0usize;

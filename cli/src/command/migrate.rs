@@ -1,5 +1,5 @@
 use crate::{
-    cli::{ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategyArgs},
+    cli::{ArchiveFileArgs, PasswordArgs, SolidEntriesTransformStrategyArgs, kdf_cost_limits},
     command::{
         Command, ask_password,
         core::{
@@ -10,16 +10,28 @@ use crate::{
     ext::*,
     utils::GlobPatterns,
 };
-use clap::{ArgAction, Parser, ValueHint};
+use clap::{ArgAction, ArgGroup, Parser, ValueHint};
 use pna::{NormalEntry, RawChunk, prelude::*};
 use std::{borrow::Cow, io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
+#[command(group(ArgGroup::new("kdf-cost-limit").args(["limit_kdf", "no_limit_kdf"])))]
 pub(crate) struct MigrateCommand {
     #[command(flatten)]
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
     password: PasswordArgs,
+    #[arg(
+        long,
+        help = "Limit key derivation cost when reading encrypted entries"
+    )]
+    limit_kdf: bool,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Do not limit key derivation cost. This is the inverse option of --limit-kdf"
+    )]
+    no_limit_kdf: (),
     #[command(flatten)]
     archive: ArchiveFileArgs,
     #[arg(long, help = "Output file path", value_hint = ValueHint::AnyPath)]
@@ -48,6 +60,7 @@ impl Command for MigrateCommand {
 
 #[hooq::hooq(anyhow)]
 fn migrate_metadata(args: MigrateCommand, umask: Umask) -> anyhow::Result<()> {
+    let limits = kdf_cost_limits(args.limit_kdf);
     let password = ask_password(args.password)?;
     let destination =
         resolve_rewrite_output(&args.archive.file, Some(args.output), args.overwrite)?;
@@ -56,6 +69,7 @@ fn migrate_metadata(args: MigrateCommand, umask: Umask) -> anyhow::Result<()> {
         destination,
         umask,
         password.as_deref(),
+        limits,
         args.transform_strategy.strategy(),
         MigrateTransform,
     )
