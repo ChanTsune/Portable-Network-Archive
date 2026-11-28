@@ -21,6 +21,8 @@ mod delete;
 mod diff;
 mod encrypt;
 mod extract;
+#[cfg(target_os = "freebsd")]
+mod freebsd_acl;
 mod flag_pairs;
 mod hardlink;
 mod keep_acl;
